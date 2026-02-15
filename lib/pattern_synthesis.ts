@@ -10,16 +10,18 @@ export function generatePatternSynthesis(
 ): PatternSynthesisOutput {
   return {
     structural_summary:
-      "Based on your experience and responses, you demonstrate a strong capacity for independent problem-solving and creative thinking. You thrive in environments that allow autonomy and value innovation.",
+      "You demonstrate strong capacity for independent problem-solving. You thrive in environments that allow autonomy. Innovation and creative thinking define your approach.",
     operate_best: [
-      "Autonomous project ownership with minimal supervision",
-      "Creative problem-solving and innovative approaches",
+      "Autonomous project ownership with minimal oversight",
+      "Creative problem-solving through innovative approaches",
       "Collaborative environments with open communication",
+      "Flexible processes that accommodate new ideas",
     ],
     lose_energy: [
-      "Micromanagement and excessive oversight",
-      "Rigid, unchanging processes without room for improvement",
-      "Siloed work without team collaboration",
+      "Micromanagement with excessive supervision and control",
+      "Rigid processes that reject innovative solutions",
+      "Siloed work without collaborative team interaction",
+      "Fixed procedures that prohibit creative input",
     ],
   };
 }
