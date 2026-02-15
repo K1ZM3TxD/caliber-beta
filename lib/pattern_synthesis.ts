@@ -10,18 +10,20 @@ export function generatePatternSynthesis(
 ): PatternSynthesisOutput {
   return {
     structural_summary:
-      "You demonstrate strong capacity for independent problem-solving. You thrive in environments that allow autonomy. Innovation and creative thinking define your approach.",
+      "Your working pattern centers on autonomous execution within clearly defined structural boundaries. You operate best when scope is owned end-to-end and decision rights are explicit. Energy declines when authority is constrained but accountability remains high.",
+
     operate_best: [
-      "Autonomous project ownership with minimal supervision",
-      "Creative problem-solving through innovative approaches",
-      "Collaborative environments with open communication",
-      "Flexible processes that accommodate new ideas",
+      "Clear authority with defined ownership",
+      "End-to-end scope control",
+      "Structured autonomy within boundaries",
+      "Direct stakeholder communication",
     ],
+
     lose_energy: [
-      "Micromanagement with excessive supervision and control",
-      "Rigid processes that reject innovative solutions",
-      "Siloed work without collaborative team interaction",
-      "Fixed procedures that prohibit creative input",
+      "Shared authority without ownership",
+      "Fragmented scope without control",
+      "Ambiguous autonomy without structure",
+      "Layered communication through intermediaries",
     ],
   };
 }
