@@ -1,25 +1,25 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useMemo, useState, Suspense } from 'react';
 import { CalibrationResult } from '@/lib/types';
 
 function ResultsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [result, setResult] = useState<CalibrationResult | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
-  useEffect(() => {
+  const result = useMemo<CalibrationResult | null>(() => {
     const data = searchParams.get('data');
     if (data) {
       try {
-        const parsed = JSON.parse(decodeURIComponent(data));
-        setResult(parsed);
+        return JSON.parse(decodeURIComponent(data));
       } catch (error) {
         console.error('Failed to parse result data:', error);
+        return null;
       }
     }
+    return null;
   }, [searchParams]);
 
   if (!result) {

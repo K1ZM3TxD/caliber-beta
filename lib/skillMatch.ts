@@ -42,7 +42,7 @@ export function computeSkillMatch(
     if (req.category === 'grounded' && req.scope_matched_outcome) {
       groundedCount++;
     } else if (
-      req.category === 'grounded' && !req.scope_matched_outcome ||
+      (req.category === 'grounded' && !req.scope_matched_outcome) ||
       req.category === 'adjacent'
     ) {
       adjacentCount++;

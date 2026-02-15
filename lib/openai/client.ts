@@ -19,6 +19,12 @@ function getOpenAIClient(): OpenAI {
 
 export const openai = new Proxy({} as OpenAI, {
   get(_target, prop) {
-    return getOpenAIClient()[prop as keyof OpenAI];
+    const client = getOpenAIClient();
+    const value = client[prop as keyof OpenAI];
+    // Bind methods to preserve context
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
   },
 });

@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Caliber Beta
+
+A role calibration tool that analyzes alignment between professional background and job opportunities.
+
+## Overview
+
+Caliber Beta v1 uses AI-powered extraction combined with deterministic scoring to provide insights on role alignment. The system extracts structural patterns from resumes and job descriptions, then applies locked formulas to compute alignment scores and skill match metrics.
+
+## Features
+
+- **Person Vector Extraction**: Analyzes resume and prompt answers to extract 6-dimensional structural pattern
+- **Role Vector Extraction**: Analyzes job descriptions to extract role requirements and structural pattern
+- **Alignment Scoring**: Deterministic computation of role-person alignment (0-10 scale)
+- **Skill Match Analysis**: Classification of requirements as grounded/adjacent/new
+- **Pattern Synthesis**: Generates insights about operating patterns and structural tensions
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ and npm
+- OpenAI API key
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Create a `.env.local` file with your OpenAI API key:
+
+```bash
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+### Development
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to use the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Building for Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
+
+## Architecture
+
+### Core Separation Boundary
+- **LLM Layer** (`lib/openai/`): Extracts structured data ONLY (never computes scores)
+- **Deterministic Engine** (`lib/`): Computes all scores using locked formulas
+
+### Six Locked Dimensions
+
+1. structural_maturity
+2. authority_scope
+3. revenue_orientation
+4. role_ambiguity
+5. breadth_vs_depth
+6. stakeholder_density
+
+Each dimension is scored 0, 1, or 2 by the LLM extraction layer.
+
+## Project Structure
+
+```
+├── app/
+│   ├── page.tsx                    # Intake form
+│   ├── results/page.tsx           # Results display
+│   └── api/calibrate/route.ts     # API endpoint
+├── lib/
+│   ├── types.ts                    # TypeScript interfaces
+│   ├── alignment.ts                # Alignment score computation
+│   ├── skillMatch.ts              # Skill match computation
+│   ├── stretch.ts                 # Stretch load computation
+│   ├── patternSynthesis.ts        # Pattern synthesis formatting
+│   └── openai/
+│       ├── client.ts              # OpenAI client configuration
+│       ├── personExtract.ts       # Person vector extraction
+│       ├── roleExtract.ts         # Role vector extraction
+│       └── requirementsClassify.ts # Requirement classification
+```
+
+## Deployment
+
+The application is configured for deployment on Vercel. Make sure to set the `OPENAI_API_KEY` environment variable in your Vercel project settings.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+- [Next.js Documentation](https://nextjs.org/docs)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
