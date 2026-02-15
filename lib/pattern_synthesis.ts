@@ -1,3 +1,5 @@
+import { validatePatternSynthesis } from "./pattern_synthesis_validate";
+
 export interface PatternSynthesisOutput {
   structural_summary: string;
   operate_best: string[];
@@ -8,7 +10,7 @@ export function generatePatternSynthesis(
   _resumeText: string,
   _promptAnswers: string[]
 ): PatternSynthesisOutput {
-  return {
+  const output: PatternSynthesisOutput = {
     structural_summary:
       "Your working pattern centers on autonomous execution within clearly defined structural boundaries. You operate best when scope is owned end-to-end and decision rights are explicit. Energy declines when authority is constrained but accountability remains high.",
 
@@ -26,4 +28,7 @@ export function generatePatternSynthesis(
       "Layered communication through intermediaries",
     ],
   };
+
+  validatePatternSynthesis(output);
+  return output;
 }
