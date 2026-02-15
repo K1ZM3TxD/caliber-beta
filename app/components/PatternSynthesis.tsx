@@ -21,8 +21,8 @@ export default function PatternSynthesis({
       <section>
         <h3 className="text-xl font-semibold mb-3">Where You Operate Best</h3>
         <ul className="space-y-2">
-          {operate_best.map((item) => (
-            <li key={item} className="flex items-start">
+          {operate_best.map((item, index) => (
+            <li key={`operate-${index}`} className="flex items-start">
               <span className="mr-2">•</span>
               <span>{item}</span>
             </li>
@@ -33,8 +33,8 @@ export default function PatternSynthesis({
       <section>
         <h3 className="text-xl font-semibold mb-3">Where You Lose Energy</h3>
         <ul className="space-y-2">
-          {lose_energy.map((item) => (
-            <li key={item} className="flex items-start">
+          {lose_energy.map((item, index) => (
+            <li key={`lose-energy-${index}`} className="flex items-start">
               <span className="mr-2">•</span>
               <span>{item}</span>
             </li>
