@@ -12,7 +12,7 @@ export function generatePatternSynthesis(
     structural_summary:
       "You demonstrate strong capacity for independent problem-solving. You thrive in environments that allow autonomy. Innovation and creative thinking define your approach.",
     operate_best: [
-      "Autonomous project ownership with minimal oversight",
+      "Autonomous project ownership with minimal supervision",
       "Creative problem-solving through innovative approaches",
       "Collaborative environments with open communication",
       "Flexible processes that accommodate new ideas",
