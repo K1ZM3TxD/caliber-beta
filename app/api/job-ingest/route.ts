@@ -1,60 +1,31 @@
 // app/api/job-ingest/route.ts
 
 import { runIntegrationSeam } from "@/lib/integration_seam"
-import { toResultContract } from "@/lib/result_contract"
 
-type ApiError = { code: "BAD_REQUEST" | "INTERNAL"; message: string }
-
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  })
+function normalizeApiError(code: string, message: string) {
+  return { ok: false as const, error: { code, message } }
 }
 
 export async function POST(req: Request) {
   try {
-    let body: any
-    try {
-      body = await req.json()
-    } catch {
-      return json(
-        { ok: false, error: { code: "BAD_REQUEST", message: "Invalid JSON body" } satisfies ApiError },
-        400
-      )
-    }
+    const body = await req.json()
+    const jobText = body?.job
+    const experienceVector = body?.experienceVector
 
-    const seam = runIntegrationSeam({
-      jobText: body?.jobText,
-      experienceVector: body?.experienceVector,
-    })
+    // Viewer upgrade sends only { job }, so provide deterministic default vector if omitted.
+    // This does NOT change ingest thresholds or encoding logic; it only satisfies seam input shape.
+    const vec =
+      Array.isArray(experienceVector) && experienceVector.length === 6 ? experienceVector : [1, 1, 1, 1, 1, 1]
+
+    const seam = runIntegrationSeam({ jobText, experienceVector: vec })
 
     if (!seam.ok) {
-      // Seam already normalizes error codes/messages.
-      // Public API surface for errors is intentionally simpler here per requirements.
-      return json(
-        { ok: false, error: { code: "BAD_REQUEST", message: seam.error.message } satisfies ApiError },
-        400
-      )
+      return Response.json(normalizeApiError("BAD_REQUEST", seam.error.message), { status: 400 })
     }
 
-    // Contract mapping lives in /lib; route remains thin.
-    let contract
-    try {
-      contract = toResultContract(seam.result)
-    } catch {
-      return json(
-        { ok: false, error: { code: "INTERNAL", message: "Unexpected internal error" } satisfies ApiError },
-        500
-      )
-    }
-
-    return json({ ok: true, result: contract }, 200)
-  } catch {
-    // Absolute last-resort guardrail: never allow HTML 500.
-    return json(
-      { ok: false, error: { code: "INTERNAL", message: "Unexpected internal error" } satisfies ApiError },
-      500
-    )
+    // Contract v1 frozen; return result only.
+    return Response.json({ ok: true, result: seam.result }, { status: 200 })
+  } catch (e: any) {
+    return Response.json(normalizeApiError("BAD_REQUEST", "Invalid JSON body"), { status: 400 })
   }
 }

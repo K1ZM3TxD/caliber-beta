@@ -1,6 +1,6 @@
 // lib/integration_seam.ts
 
-import { ingestJob, isJobIngestError, type JobIngestObject } from "@/lib/job_ingest"
+import { ingestJob, isJobIngestError, type JobIngestObject, type JobIngestDimensionKey } from "@/lib/job_ingest"
 import { computeSkillMatch, type SkillMatchResult } from "@/lib/skill_match"
 import { computeStretchLoad, type StretchLoadResult } from "@/lib/stretch_load"
 
@@ -52,6 +52,36 @@ function isValidExperienceVector(v: unknown): v is number[] {
   return true
 }
 
+const DIMENSION_LABELS: Record<JobIngestDimensionKey, string> = {
+  structuralMaturity: "Structural Maturity",
+  authorityScope: "Authority Scope",
+  revenueOrientation: "Revenue Orientation",
+  roleAmbiguity: "Role Ambiguity",
+  breadthVsDepth: "Breadth vs Depth",
+  stakeholderDensity: "Stakeholder Density",
+}
+
+function formatIncompleteCoverageMessage(meta: unknown, fallbackDetail: string): string {
+  try {
+    const missing = (meta as any)?.missingDimensions
+    if (!Array.isArray(missing) || missing.length === 0) return fallbackDetail
+
+    const labels: string[] = []
+    for (const key of missing) {
+      if (typeof key !== "string") continue
+      const label = (DIMENSION_LABELS as any)[key]
+      if (typeof label === "string" && label.length > 0) labels.push(label)
+    }
+
+    if (labels.length === 0) return fallbackDetail
+
+    // Deterministic output order: preserve the encoder's missingDimensions order.
+    return `Insufficient signal in dimensions: ${labels.join(", ")}`
+  } catch {
+    return fallbackDetail
+  }
+}
+
 export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResult {
   try {
     const jobText = input?.jobText
@@ -101,11 +131,30 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
   } catch (err: unknown) {
     // Normalize known ingest errors into typed seam errors (no raw throws escape)
     if (isJobIngestError(err)) {
+      const code = (err as any).code as IntegrationErrorCode
+      const detail = (err as any).detail as string
+      const meta = (err as any).meta
+
+      if (code === "INCOMPLETE_DIMENSION_COVERAGE") {
+        return {
+          ok: false,
+          error: {
+            code: "BAD_REQUEST",
+            message: formatIncompleteCoverageMessage(meta, detail),
+          },
+        }
+      }
+
+      // Preserve strict behavior; map other ingest errors through unchanged
+      if (code === "MISSING_JOB_TEXT") {
+        return { ok: false, error: { code: "BAD_REQUEST", message: detail } }
+      }
+
       return {
         ok: false,
         error: {
-          code: err.code,
-          message: err.detail,
+          code: code,
+          message: detail,
         },
       }
     }
