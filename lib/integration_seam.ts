@@ -4,6 +4,9 @@ import { ingestJob, isJobIngestError, type JobIngestObject, type JobIngestDimens
 import { computeSkillMatch, type SkillMatchResult } from "@/lib/skill_match"
 import { computeStretchLoad, type StretchLoadResult } from "@/lib/stretch_load"
 
+import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
+import type { CalibrationEvent, CalibrationSession } from "@/lib/calibration_types"
+
 export type IntegrationErrorCode =
   | "BAD_REQUEST"
   | "MISSING_JOB_TEXT"
@@ -167,4 +170,21 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
       },
     }
   }
+}
+
+// --------------------------
+// Calibration Flow (Milestone 5.1)
+// Server-authoritative deterministic state machine entry point.
+// --------------------------
+
+export type CalibrationDispatchOk = { ok: true; session: CalibrationSession }
+export type CalibrationDispatchErr = { ok: false; error: { code: string; message: string } }
+export type CalibrationDispatchResult = CalibrationDispatchOk | CalibrationDispatchErr
+
+export function dispatchCalibration(event: CalibrationEvent): CalibrationDispatchResult {
+  const res = dispatchCalibrationEvent(event)
+  if (!res.ok) {
+    return { ok: false, error: { code: res.error.code, message: res.error.message } }
+  }
+  return { ok: true, session: res.value }
 }
