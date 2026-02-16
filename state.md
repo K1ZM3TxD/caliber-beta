@@ -1,110 +1,79 @@
-\# Caliber — STATE
-
-
+# Caliber — STATE
 
 This document reflects current operational position.
 
-
-
 It changes frequently.
 
+---
 
+## ACTIVE MILESTONE
+
+Milestone 4.3 — Viewer Upgrade (Deterministic Enhancements Only)
+
+Contract v1 remains frozen.
 
 ---
 
+## LAST COMPLETED
 
+Milestone 4.2 — Minimal Contract Viewer Page
 
-\## ACTIVE MILESTONE
+Validated:
 
-
-
-Milestone 2.3 — Pattern Synthesis Output Logic
-
-
-
----
-
-
-
-\## ACTIVE TASK
-
-
-
-Add deterministic runtime validation for Pattern Synthesis formatting constraints, and wire it into generatePatternSynthesis().
-
-
+- Deterministic rendering of contract keys:
+  - alignment
+  - skillMatch
+  - stretchLoad
+  - meta
+- JSON-only error behavior confirmed
+- No blending
+- No UI reinterpretation
 
 ---
 
+## CURRENT SYSTEM STATUS
 
+Engines:
+- Alignment — Complete
+- Skill Match — Complete
+- Stretch Load — Complete
 
-\## LAST 4 LOCKED DECISIONS
+Integration:
+- integration_seam.ts — Canonical orchestration
+- result_contract.ts — Public contract v1 (frozen)
+- job-ingest route — Thin wrapper, JSON-only
 
+Viewer:
+- Deterministic contract renderer — Complete
+- Error handling verified
 
-
-Pattern Synthesis mock output must comply with formatting constraints (3 sentences; 4 bullets each; ≤ 8 words per bullet; structural language).
-
-
-
-Execution model: reserve Copilot Agent for structural or multi-file work; use direct deterministic rewrites for small scoped tasks.
-
-
-
-Auto-merge is enabled for PR workflows when used.
-
-
-
-Milestones move to COMPLETE only after explicit user confirmation.
-
-
-
----
-
-
-
-\## OPEN QUESTIONS (WITHIN MILESTONE)
-
-
-
-Whether sentence counting should treat abbreviations as terminators (v1: simple terminator count).
-
-
-
-Whether mirrored opposition should be mechanically derived or statically mocked (v1: mock content + validation only).
-
-
+System state:
+- Structurally isolated
+- Deterministic
+- Contract-safe
+- UI-safe
 
 ---
 
+## CONTRACT STATUS
 
+Public API contract version: v1 (frozen)
 
-\## REJECTED DIRECTIONS (DO NOT REOPEN)
-
-
-
-Blending Alignment and Skill Match
-
-
-
-Introducing additional alignment dimensions
-
-
-
-Optimistic inference in role encoding
-
-
-
-Emotional misalignment framing
-
-
+Top-level keys (locked):
+- alignment
+- skillMatch
+- stretchLoad
+- meta
 
 ---
 
+## NEXT TARGET
 
+Complete Milestone 4.3:
 
-\## NEXT CANDIDATE TASK
-
-
-
-After validation is in place: confirm Milestone 2.3 completeness criteria and decide whether to mark 2.3 COMPLETE or refine synthesis constraints further.
-
+- Session-local result history (last 5)
+- Copy JSON (exact result object)
+- Load Sample Job (≥ 40 chars)
+- Clear state
+- No contract/API/lib changes
+- No derived metrics
