@@ -1,239 +1,290 @@
-'use client';
+// app/calibration/page.tsx
+"use client"
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import type { CalibrationEvent, CalibrationSession, CalibrationState } from "@/lib/calibration_types"
 
-type NormalizedError = { code: string; message: string };
-
-type StoredHistoryItem = {
-  storedAt: string; // ISO timestamp of when we stored it (session-local)
-  result: any; // must store exact contract as returned (no transformation)
-};
-
-const SAMPLE_JOB_TEXT =
-  'Senior Product Analyst needed. Build dashboards, define metrics, and partner with engineering on data quality.';
+type NormalizedError = { code: string; message: string }
 
 function safeString(v: any): string {
-  if (typeof v === 'string') return v;
-  if (v == null) return '';
+  if (typeof v === "string") return v
+  if (v == null) return ""
   try {
-    return String(v);
+    return String(v)
   } catch {
-    return '';
+    return ""
   }
 }
 
-function extractMetaComputedAt(result: any): string {
-  const computedAt = result?.meta?.computedAt;
-  if (typeof computedAt === 'string' && computedAt.length > 0) return computedAt;
-  return '';
+function getPromptIndex(state: CalibrationState): 1 | 2 | 3 | 4 | 5 | null {
+  switch (state) {
+    case "PROMPT_1":
+    case "PROMPT_1_CLARIFIER":
+      return 1
+    case "PROMPT_2":
+    case "PROMPT_2_CLARIFIER":
+      return 2
+    case "PROMPT_3":
+    case "PROMPT_3_CLARIFIER":
+      return 3
+    case "PROMPT_4":
+    case "PROMPT_4_CLARIFIER":
+      return 4
+    case "PROMPT_5":
+    case "PROMPT_5_CLARIFIER":
+      return 5
+    default:
+      return null
+  }
 }
 
-function extractAlignmentScore(result: any): string {
-  const score = result?.alignment?.score;
-  if (typeof score === 'number') return String(score);
-  if (typeof score === 'string') return score;
-  return '';
+function isPromptState(state: CalibrationState): boolean {
+  return state === "PROMPT_1" || state === "PROMPT_2" || state === "PROMPT_3" || state === "PROMPT_4" || state === "PROMPT_5"
 }
 
-function extractSkillMatchScore(result: any): string {
-  const score = result?.skillMatch?.score;
-  if (typeof score === 'number') return String(score);
-  if (typeof score === 'string') return score;
-  return '';
+function isClarifierState(state: CalibrationState): boolean {
+  return (
+    state === "PROMPT_1_CLARIFIER" ||
+    state === "PROMPT_2_CLARIFIER" ||
+    state === "PROMPT_3_CLARIFIER" ||
+    state === "PROMPT_4_CLARIFIER" ||
+    state === "PROMPT_5_CLARIFIER"
+  )
 }
 
-function extractStretchLoadBand(result: any): string {
-  const band = result?.stretchLoad?.band;
-  if (typeof band === 'string') return band;
-  return '';
+function isJobInputState(state: CalibrationState): boolean {
+  return state === "TITLE_HYPOTHESIS" || state === "TITLE_DIALOGUE" || state === "JOB_INGEST" || state === "ALIGNMENT_OUTPUT" || state === "TERMINAL_COMPLETE"
 }
 
-export default function Page() {
-  const [jobText, setJobText] = useState<string>('');
-  const [result, setResult] = useState<any | null>(null);
-  const [error, setError] = useState<NormalizedError | null>(null);
-  const [history, setHistory] = useState<StoredHistoryItem[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+function isAutoPollState(state: CalibrationState): boolean {
+  return state === "CONSOLIDATION_PENDING" || state === "CONSOLIDATION_RITUAL"
+}
 
-  const currentResultJson = useMemo(() => {
-    if (!result) return '';
-    return JSON.stringify(result, null, 2);
-  }, [result]);
+export default function CalibrationPage() {
+  const [session, setSession] = useState<CalibrationSession | null>(null)
+  const [error, setError] = useState<NormalizedError | null>(null)
 
-  async function onSubmit() {
-    setError(null);
-    setIsSubmitting(true);
+  const [resumeText, setResumeText] = useState<string>("")
+  const [promptAnswer, setPromptAnswer] = useState<string>("")
+  const [clarifierAnswer, setClarifierAnswer] = useState<string>("")
+  const [jobText, setJobText] = useState<string>("")
 
-    try {
-      const res = await fetch('/api/job-ingest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job: jobText }),
-      });
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
-      const contentType = res.headers.get('content-type') || '';
-      const isJson = contentType.includes('application/json');
-      const payload = isJson ? await res.json() : null;
+  const historyJson = useMemo(() => {
+    if (!session) return ""
+    const items = Array.isArray(session.history) ? session.history : []
+    const last = items.slice(-10)
+    return JSON.stringify(last, null, 2)
+  }, [session])
 
-      if (!res.ok) {
-        const code =
-          safeString(payload?.error?.code) ||
-          safeString(payload?.code) ||
-          'HTTP_ERROR';
-        const message =
-          safeString(payload?.error?.message) ||
-          safeString(payload?.message) ||
-          `Request failed with status ${res.status}`;
-        setResult(null);
-        setError({ code, message });
-        return;
+  const prevStateRef = useRef<CalibrationState | null>(null)
+
+  useEffect(() => {
+    const nextState = session?.state ?? null
+    const prevState = prevStateRef.current
+
+    // Only clear drafts when the server actually transitions state (success path).
+    if (prevState && nextState && prevState !== nextState) {
+      setPromptAnswer("")
+      setClarifierAnswer("")
+
+      if (prevState === "RESUME_INGEST") {
+        setResumeText("")
       }
 
-      // Expect normalized success payload shape. We only store and render the result object exactly as returned.
-      const nextResult = payload?.result ?? payload;
-
-      setResult(nextResult);
-
-      const storedAt = new Date().toISOString();
-      setHistory((prev) => {
-        const next: StoredHistoryItem[] = [{ storedAt, result: nextResult }, ...prev];
-        return next.slice(0, 5);
-      });
-    } catch (e: any) {
-      setResult(null);
-      setError({
-        code: 'NETWORK_ERROR',
-        message: safeString(e?.message) || 'Network error',
-      });
-    } finally {
-      setIsSubmitting(false);
+      if (isJobInputState(prevState)) {
+        setJobText("")
+      }
     }
-  }
 
-  async function onCopyJson() {
-    setError(null);
-    if (!result) return;
+    prevStateRef.current = nextState
+  }, [session?.state])
+
+  const inFlightRef = useRef<boolean>(false)
+
+  async function sendEvent(event: any) {
+    setError(null)
+    setIsSubmitting(true)
+    inFlightRef.current = true
+
     try {
-      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      const res = await fetch("/api/calibration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event }),
+      })
+
+      const contentType = res.headers.get("content-type") || ""
+      const isJson = contentType.includes("application/json")
+      const payload = isJson ? await res.json() : null
+
+      if (!res.ok) {
+        const code = safeString(payload?.error?.code) || safeString(payload?.code) || "HTTP_ERROR"
+        const message = safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`
+        setError({ code, message })
+        return
+      }
+
+      const ok = payload?.ok === true
+      const nextSession = payload?.session
+
+      if (!ok || !nextSession) {
+        setError({ code: "BAD_RESPONSE", message: "Missing ok:true session in response" })
+        return
+      }
+
+      setSession(nextSession as CalibrationSession)
     } catch (e: any) {
-      setError({
-        code: 'CLIPBOARD_ERROR',
-        message: safeString(e?.message) || 'Clipboard write failed',
-      });
+      setError({ code: "NETWORK_ERROR", message: safeString(e?.message) || "Network error" })
+    } finally {
+      setIsSubmitting(false)
+      inFlightRef.current = false
     }
   }
 
-  function onLoadSample() {
-    setError(null);
-    setJobText(SAMPLE_JOB_TEXT);
+  function resetLocalUi() {
+    setError(null)
+    setResumeText("")
+    setPromptAnswer("")
+    setClarifierAnswer("")
+    setJobText("")
+    setIsSubmitting(false)
   }
 
-  function onClear() {
-    setJobText('');
-    setResult(null);
-    setError(null);
-    setHistory([]);
-    setIsSubmitting(false);
-  }
+  const state: CalibrationState | null = session?.state ?? null
+  const promptIndex = state ? getPromptIndex(state) : null
 
-  function onSelectHistory(item: StoredHistoryItem) {
-    setError(null);
-    setResult(item.result);
-  }
+  // Auto-poll / re-dispatch for consolidation states (no user input).
+  useEffect(() => {
+    if (!session || !state) return
+    if (!isAutoPollState(state)) return
+
+    let cancelled = false
+
+    const tick = async () => {
+      if (cancelled) return
+      if (inFlightRef.current) return
+      await sendEvent({ type: "ADVANCE", sessionId: session.sessionId } as CalibrationEvent)
+    }
+
+    // Fast first tick to leave CONSOLIDATION_PENDING promptly.
+    void tick()
+
+    const id = window.setInterval(() => {
+      void tick()
+    }, 700)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [session?.sessionId, state])
+
+  const synthesis = session?.synthesis ?? null
+  const ritual = session?.consolidationRitual
 
   return (
-    <main style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>
-        Caliber — Contract Viewer (v1)
-      </h1>
+    <main style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>Caliber — Calibration UI (v0)</h1>
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Job text</span>
-          <textarea
-            value={jobText}
-            onChange={(e) => setJobText(e.target.value)}
-            rows={6}
+      <section style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {!session ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => sendEvent({ type: "CREATE_SESSION" } as CalibrationEvent)}
+              disabled={isSubmitting}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+                background: "white",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+              }}
+            >
+              {isSubmitting ? "Submitting…" : "Create session"}
+            </button>
+          </div>
+        ) : (
+          <div
             style={{
-              width: '100%',
-              resize: 'vertical',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              fontSize: 13,
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-            }}
-            placeholder="Paste a job description here…"
-          />
-        </label>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <button
-            onClick={onSubmit}
-            disabled={isSubmitting || jobText.trim().length === 0}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              cursor: isSubmitting || jobText.trim().length === 0 ? 'not-allowed' : 'pointer',
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #d0d0d0",
+              background: "white",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
             }}
           >
-            {isSubmitting ? 'Submitting…' : 'Submit'}
-          </button>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+              <div style={{ fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>sessionId:</span>{" "}
+                <span
+                  style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  }}
+                >
+                  {session.sessionId}
+                </span>
+              </div>
+              <div style={{ fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>state:</span>{" "}
+                <span
+                  style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  }}
+                >
+                  {session.state}
+                </span>
+              </div>
 
-          <button
-            onClick={onCopyJson}
-            disabled={!result}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              cursor: !result ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Copy JSON
-          </button>
+              <button
+                onClick={resetLocalUi}
+                style={{
+                  marginLeft: "auto",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d0d0d0",
+                  background: "white",
+                  cursor: "pointer",
+                }}
+              >
+                Reset local UI
+              </button>
+            </div>
 
-          <button
-            onClick={onLoadSample}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            Load Sample Job
-          </button>
-
-          <button
-            onClick={onClear}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            Clear State
-          </button>
-        </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>History (last ~10)</div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #d0d0d0",
+                  background: "white",
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  fontSize: 12,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {historyJson || "[]"}
+              </pre>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div
             style={{
               padding: 10,
               borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              border: "1px solid #d0d0d0",
+              background: "white",
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
               fontSize: 13,
-              whiteSpace: 'pre-wrap',
+              whiteSpace: "pre-wrap",
             }}
           >
             {JSON.stringify({ ok: false, error }, null, 2)}
@@ -241,186 +292,343 @@ export default function Page() {
         )}
       </section>
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            border: '1px solid #d0d0d0',
-            background: 'white',
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Result History (last 5)</div>
-          {history.length === 0 ? (
-            <div style={{ fontSize: 13 }}>No successful results in this session.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {history.map((h, idx) => {
-                const computedAt = extractMetaComputedAt(h.result);
-                const alignmentScore = extractAlignmentScore(h.result);
-                const skillMatchScore = extractSkillMatchScore(h.result);
-                const stretchLoadBand = extractStretchLoadBand(h.result);
+      {session && state === "RESUME_INGEST" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Resume ingest</div>
 
-                return (
-                  <button
-                    key={`${h.storedAt}-${idx}`}
-                    onClick={() => onSelectHistory(h)}
-                    style={{
-                      textAlign: 'left',
-                      padding: 10,
-                      borderRadius: 8,
-                      border: '1px solid #d0d0d0',
-                      background: 'white',
-                      cursor: 'pointer',
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                      fontSize: 13,
-                    }}
-                    aria-label="Select stored result"
-                  >
-                    <div>meta.computedAt: {computedAt || '(missing)'}</div>
-                    <div>alignment.score: {alignmentScore || '(missing)'}</div>
-                    <div>skillMatch.score: {skillMatchScore || '(missing)'}</div>
-                    <div>stretchLoad.band: {stretchLoadBand || '(missing)'}</div>
-                  </button>
-                );
-              })}
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Resume text</span>
+            <textarea
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+              rows={8}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+              }}
+              placeholder="Paste resume text here…"
+            />
+          </label>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              onClick={() => sendEvent({ type: "SUBMIT_RESUME", sessionId: session.sessionId, resumeText } as CalibrationEvent)}
+              disabled={isSubmitting || resumeText.trim().length === 0}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+                background: "white",
+                cursor: isSubmitting || resumeText.trim().length === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {isSubmitting ? "Submitting…" : "Submit resume"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {session && state && isPromptState(state) && promptIndex && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Prompt {promptIndex}</div>
+
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #d0d0d0",
+              background: "white",
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {session.prompts[promptIndex]?.question || "(missing question)"}
+          </div>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Answer</span>
+            <textarea
+              value={promptAnswer}
+              onChange={(e) => setPromptAnswer(e.target.value)}
+              rows={6}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+              }}
+              placeholder="Type your answer…"
+            />
+          </label>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              onClick={() => sendEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)}
+              disabled={isSubmitting || promptAnswer.trim().length === 0}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+                background: "white",
+                cursor: isSubmitting || promptAnswer.trim().length === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {isSubmitting ? "Submitting…" : "Submit answer"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {session && state && isClarifierState(state) && promptIndex && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Prompt {promptIndex} — Clarifier</div>
+
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #d0d0d0",
+              background: "white",
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {session.prompts[promptIndex]?.clarifier?.question || "(missing clarifier question)"}
+          </div>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Clarifier answer</span>
+            <textarea
+              value={clarifierAnswer}
+              onChange={(e) => setClarifierAnswer(e.target.value)}
+              rows={6}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+              }}
+              placeholder="Type your clarifier answer…"
+            />
+          </label>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              onClick={() =>
+                sendEvent({ type: "SUBMIT_PROMPT_CLARIFIER_ANSWER", sessionId: session.sessionId, answer: clarifierAnswer } as CalibrationEvent)
+              }
+              disabled={isSubmitting || clarifierAnswer.trim().length === 0}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+                background: "white",
+                cursor: isSubmitting || clarifierAnswer.trim().length === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {isSubmitting ? "Submitting…" : "Submit clarifier answer"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {session && state === "CONSOLIDATION_PENDING" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation pending</div>
+          <div style={{ padding: 10, borderRadius: 8, border: "1px solid #d0d0d0", background: "white", fontSize: 13 }}>
+            Preparing consolidation ritual… (server-driven)
+          </div>
+        </section>
+      )}
+
+      {session && state === "CONSOLIDATION_RITUAL" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation ritual</div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: "1px solid #d0d0d0", background: "white", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 13 }}>{ritual?.message || "Running ritual…"}</div>
+
+            <div style={{ height: 10, borderRadius: 6, border: "1px solid #d0d0d0", background: "#f7f7f7", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.max(0, Math.min(100, ritual?.progressPct ?? 0))}%`,
+                  background: "#222",
+                }}
+              />
             </div>
-          )}
-        </div>
 
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            border: '1px solid #d0d0d0',
-            background: 'white',
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Result (contract as returned)</div>
-
-          {!result ? (
-            <div style={{ fontSize: 13 }}>No result.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>meta</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {JSON.stringify(result?.meta ?? null, null, 2)}
-                </pre>
-              </div>
-
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>alignment</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {JSON.stringify(result?.alignment ?? null, null, 2)}
-                </pre>
-              </div>
-
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>skillMatch</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {JSON.stringify(result?.skillMatch ?? null, null, 2)}
-                </pre>
-              </div>
-
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>stretchLoad</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {JSON.stringify(result?.stretchLoad ?? null, null, 2)}
-                </pre>
-              </div>
-
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>raw JSON</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {currentResultJson}
-                </pre>
-              </div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              Progress: {Math.max(0, Math.min(100, ritual?.progressPct ?? 0))}% (step {ritual?.step ?? 0}/10)
             </div>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
+
+      {session && state === "PATTERN_SYNTHESIS" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Pattern synthesis</div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: "1px solid #d0d0d0", background: "white", fontSize: 13, whiteSpace: "pre-wrap" }}>
+            {synthesis?.patternSummary || "(missing pattern summary)"}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ padding: 10, borderRadius: 8, border: "1px solid #d0d0d0", background: "white" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Operate Best</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                {(synthesis?.operateBest || []).map((x, idx) => (
+                  <li key={idx}>{x}</li>
+                ))}
+                {(!synthesis?.operateBest || synthesis.operateBest.length === 0) && <li>(missing)</li>}
+              </ul>
+            </div>
+
+            <div style={{ padding: 10, borderRadius: 8, border: "1px solid #d0d0d0", background: "white" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Lose Energy</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                {(synthesis?.loseEnergy || []).map((x, idx) => (
+                  <li key={idx}>{x}</li>
+                ))}
+                {(!synthesis?.loseEnergy || synthesis.loseEnergy.length === 0) && <li>(missing)</li>}
+              </ul>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              onClick={() => sendEvent({ type: "ADVANCE", sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d0d0d0",
+                background: "white",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+              }}
+            >
+              {isSubmitting ? "Submitting…" : "Advance"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {session &&
+        state &&
+        (state === "TITLE_HYPOTHESIS" || state === "TITLE_DIALOGUE" || state === "JOB_INGEST" || state === "ALIGNMENT_OUTPUT" || state === "TERMINAL_COMPLETE") && (
+          <section style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Job</div>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Job text</span>
+              <textarea
+                value={jobText}
+                onChange={(e) => setJobText(e.target.value)}
+                rows={7}
+                style={{
+                  width: "100%",
+                  resize: "vertical",
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  fontSize: 13,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #d0d0d0",
+                }}
+                placeholder="Paste job description here…"
+              />
+            </label>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                onClick={() => sendEvent({ type: "SUBMIT_JOB_TEXT", sessionId: session.sessionId, jobText } as CalibrationEvent)}
+                disabled={isSubmitting || jobText.trim().length === 0}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d0d0d0",
+                  background: "white",
+                  cursor: isSubmitting || jobText.trim().length === 0 ? "not-allowed" : "pointer",
+                }}
+              >
+                {isSubmitting ? "Submitting…" : "Submit job"}
+              </button>
+
+              {(state === "TITLE_DIALOGUE" || state === "JOB_INGEST") && (
+                <button
+                  onClick={() => sendEvent({ type: "ADVANCE", sessionId: session.sessionId } as CalibrationEvent)}
+                  disabled={isSubmitting}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d0d0d0",
+                    background: "white",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isSubmitting ? "Submitting…" : "Advance"}
+                </button>
+              )}
+
+              {state === "ALIGNMENT_OUTPUT" && (
+                <button
+                  onClick={() => sendEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId: session.sessionId } as CalibrationEvent)}
+                  disabled={isSubmitting}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d0d0d0",
+                    background: "white",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isSubmitting ? "Submitting…" : "Compute alignment output"}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== "RESUME_INGEST" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 13 }}>
+            <span style={{ fontWeight: 600 }}>State snapshot:</span>{" "}
+            <span
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              }}
+            >
+              {state}
+            </span>
+          </div>
+
+          <pre
+            style={{
+              margin: 0,
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #d0d0d0",
+              background: "white",
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              fontSize: 12,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {JSON.stringify(session, null, 2)}
+          </pre>
+        </section>
+      )}
     </main>
-  );
+  )
 }

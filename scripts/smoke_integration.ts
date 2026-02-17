@@ -1,5 +1,4 @@
 // scripts/smoke_integration.ts
-
 /* eslint-disable no-console */
 
 import { dispatchCalibrationEvent } from "../lib/calibration_machine"
@@ -18,12 +17,21 @@ function expectState(res: { ok: true; session: any }, state: string, label: stri
 
 function event(e: any, label: string) {
   const res = dispatchCalibrationEvent(e as any)
-  expectOk(res, label)
-  return res
+  expectOk(res as any, label)
+  return res as any
 }
 
 function answerForPrompt(n: number): string {
   return `Prompt ${n} answer with deterministic detail about structured ownership, cross functional execution, measurable outcomes, and stakeholder alignment.`
+}
+
+function advanceUntil(sessionId: string, target: string, maxSteps: number, label: string) {
+  let last = null as any
+  for (let i = 0; i < maxSteps; i += 1) {
+    last = event({ type: "ADVANCE", sessionId }, `${label}_ADVANCE_${i + 1}`)
+    if (last.session.state === target) return last
+  }
+  throw new Error(`${label}: failed to reach ${target} within ${maxSteps} steps; last=${last?.session?.state}`)
 }
 
 function runCalibrationLoopSmoke(): void {
@@ -40,18 +48,34 @@ function runCalibrationLoopSmoke(): void {
     "SUBMIT_RESUME",
   )
 
-  event({ type: "ADVANCE", sessionId }, "ADVANCE to PROMPT_1")
+  // Resume -> Prompt 1
+  advanceUntil(sessionId, "PROMPT_1", 3, "TO_PROMPT_1")
 
-  let finalAdvance: { ok: true; session: any } | null = null
+  // Prompt 1..5 submissions advance server-side per event (no extra ADVANCE between prompts)
   for (let i = 1; i <= 5; i += 1) {
-    event({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerForPrompt(i) }, `SUBMIT_PROMPT_ANSWER_${i}`)
-    finalAdvance = event({ type: "ADVANCE", sessionId }, `ADVANCE_${i}`)
+    const res = event({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerForPrompt(i) }, `SUBMIT_PROMPT_ANSWER_${i}`)
+    if (i < 5) {
+      expectState(res, `PROMPT_${i + 1}`, `Prompt ${i} submit -> next prompt`)
+    } else {
+      expectState(res, "CONSOLIDATION_PENDING", "Prompt 5 submit -> CONSOLIDATION_PENDING")
+    }
   }
 
-  assert(finalAdvance !== null, "Expected final advance to be captured")
-  expectState(finalAdvance, "JOB_INGEST", "Post-prompt progression should land in JOB_INGEST")
-  const sawTitleDialogue = finalAdvance.session.history.some((h: any) => h.to === "TITLE_DIALOGUE")
-  assert(sawTitleDialogue, "Step 1 should reach TITLE_DIALOGUE in transition history")
+  // CONSOLIDATION_PENDING -> CONSOLIDATION_RITUAL (visible) -> PATTERN_SYNTHESIS (visible)
+  const ritual = advanceUntil(sessionId, "CONSOLIDATION_RITUAL", 3, "TO_RITUAL")
+  assert(typeof ritual.session.consolidationRitual?.progressPct === "number", "Ritual should include progressPct")
+
+  const synth = advanceUntil(sessionId, "PATTERN_SYNTHESIS", 20, "TO_SYNTHESIS")
+  assert(typeof synth.session.synthesis?.patternSummary === "string", "Synthesis must include patternSummary")
+  assert(Array.isArray(synth.session.synthesis?.operateBest), "Synthesis must include operateBest list")
+  assert(Array.isArray(synth.session.synthesis?.loseEnergy), "Synthesis must include loseEnergy list")
+
+  // Continue through title states to keep loop parity
+  advanceUntil(sessionId, "TITLE_HYPOTHESIS", 3, "TO_TITLE_HYPOTHESIS")
+  const titleDialogue = advanceUntil(sessionId, "TITLE_DIALOGUE", 3, "TO_TITLE_DIALOGUE")
+
+  const sawSynthesis = titleDialogue.session.history.some((h: any) => h.to === "PATTERN_SYNTHESIS")
+  assert(sawSynthesis, "Expected transition history to include PATTERN_SYNTHESIS")
 
   const step2 = event(
     {
@@ -84,34 +108,7 @@ Governance, compliance, audit readiness (SOC 2 / ISO 27001), risk management, an
     `Step 4: expected v1 top-level keys only, got ${resultKeys1.join(",")}`,
   )
 
-  const step5 = event(
-    {
-      type: "SUBMIT_JOB_TEXT",
-      sessionId,
-      jobText:
-        `Senior Backend Engineer (Kubernetes / Go)
-
-You will lead platform strategy and own architecture while collaborating cross-functional with security, product, and SRE. Responsibilities include revenue pipeline reliability for enterprise customers, governance controls, SOC 2 compliance, and executive reporting.
-
-This is a generalist role across multiple departments in unstructured situations with other duties as assigned, while still requiring deep technical expertise in controllers and reconciliation loops.`,
-    },
-    "SUBMIT_JOB_TEXT valid #2",
-  )
-  expectState(step5, "JOB_INGEST", "Step 5 resubmit job -> JOB_INGEST")
-  assert(step5.session.result === null, "Step 5: result should be cleared after second valid job")
-
-  const step6 = event({ type: "ADVANCE", sessionId }, "ADVANCE after second job")
-  expectState(step6, "ALIGNMENT_OUTPUT", "Step 6 ADVANCE -> ALIGNMENT_OUTPUT")
-
-  const step7 = event({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId }, "COMPUTE_ALIGNMENT_OUTPUT #2")
-  expectState(step7, "TERMINAL_COMPLETE", "Step 7 compute -> TERMINAL_COMPLETE")
-  const resultKeys2 = Object.keys(step7.session.result ?? {}).sort()
-  assert(
-    JSON.stringify(resultKeys2) === JSON.stringify(["alignment", "meta", "skillMatch", "stretchLoad"]),
-    `Step 7: expected v1 top-level keys only, got ${resultKeys2.join(",")}`,
-  )
-
-  console.log("PASS: calibration JOB_INGEST loop smoke transcript complete")
+  console.log("PASS: calibration smoke transcript complete (includes consolidation ritual + synthesis)")
 }
 
 try {

@@ -1,37 +1,172 @@
-# CODER ROOTBOOT — CALIBER
+CODER COMMAND PROTOCOL — CALIBER
 
 
 
-Read before any task. Doctrine: project\_kernel.md. Runway: milestones.md. Truth: state.md.
+(Governs ChatGPT Coder. Not the human.)
 
-## Environment
 
-* OS: Windows | Shell: PowerShell 5 | npm | Next.js (App Router) | TypeScript
-* Repo root: C:\\users\\green\\caliber-beta
-* Dev (when needed): npx next dev --webpack
-* Single Next.js project at repo root. No nested roots.
 
-## Canon Structure
+AUTHORITY
 
-* One shared library folder ONLY: /lib (NO /app/lib)
-* API routes are thin wrappers only.
-* scripts/ allowed only for temporary validation runners.
 
-## Canon Modules
 
-* Orchestration (canonical): lib/integration\_seam.ts
-* Engines (authoritative): lib/job\_ingest.ts, lib/skill\_match.ts, lib/stretch\_load.ts
-* Public contract (frozen): lib/result\_contract.ts (version "v1")
-* API route: app/api/job-ingest/route.ts (thin wrapper)
+You are the Coder.
 
-## Non-Negotiables
+The human does not design, fix, or interpret code.
 
-* Metrics are never blended: alignment, skillMatch, stretchLoad stay separate.
-* Stretch Load is derived only by its engine (inverse of Skill Match); never recompute.
-* No reinterpretation, no emotional framing, no derived/composite scores.
-* All API responses are JSON only (no HTML 500). Errors normalized: { ok:false, error:{ code, message } }.
+All structural correctness is your responsibility.
 
-## Execution Rules
 
-* Work only within the active milestone 
-* Full-file rewrites for any modified/created file (no diffs) unless explicitly asked.
+
+No assumptions. No silent fixes.
+
+
+
+PRE-WRITE CHECK (MANDATORY)
+
+
+
+Before touching code:
+
+
+
+Verify exact file path exists.
+
+
+
+Verify exported symbol names.
+
+
+
+Confirm logic lives in /lib (never /app/lib).
+
+
+
+If any condition fails → stop and ask one question.
+
+
+
+FILE MODIFICATION RULE
+
+
+
+If modifying a file:
+
+
+
+Output full file rewrite.
+
+
+
+No diffs.
+
+
+
+No partial snippets.
+
+
+
+If creating a file:
+
+
+
+Start with NEW FILE
+
+
+
+Provide full repo-relative path.
+
+
+
+Output entire file.
+
+
+
+Do not create new folders unless unavoidable.
+
+
+
+ARCHITECTURE LAW
+
+
+
+Business logic: /lib only.
+
+
+
+API routes: thin wrappers only.
+
+
+
+JSON responses only.
+
+
+
+Error shape:
+
+
+
+{ 
+
+&nbsp; ok: false, 
+
+&nbsp; error: { code, message } 
+
+}
+
+
+
+No deviations.
+
+
+
+DOMAIN SEPARATION (ABSOLUTE)
+
+
+
+alignment, skillMatch, stretchLoad:
+
+
+
+Never blended.
+
+
+
+Never recomputed.
+
+
+
+Never reframed.
+
+
+
+No composite scoring.
+
+
+
+stretchLoad only from its engine.
+
+
+
+EXECUTION DISCIPLINE
+
+
+
+Work inside active milestone only.
+
+
+
+No refactors outside scope.
+
+
+
+No speculative improvements.
+
+
+
+No emotional interpretation.
+
+
+
+No structural drift.
+
