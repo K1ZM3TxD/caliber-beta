@@ -120,7 +120,9 @@ function nextPromptState(k: 1 | 2 | 3 | 4 | 5): CalibrationState {
   return "CONSOLIDATION_PENDING"
 }
 
-function toRoleVectorTuple(v: number[]): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] | null {
+function toRoleVectorTuple(
+  v: number[],
+): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] | null {
   if (!Array.isArray(v) || v.length !== 6) return null
   const out: number[] = []
   for (const n of v) {
@@ -133,7 +135,9 @@ function toRoleVectorTuple(v: number[]): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1
 // Deterministic personVector placeholder (smallest shippable):
 // Encode a stable 6-dim vector in {0,1,2} from text using coarse keyword rules.
 // (No new dimensions introduced; names/length are locked.)
-function computePersonVector(text: string): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] {
+function computePersonVector(
+  text: string,
+): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] {
   const t = text.toLowerCase()
 
   function score(r0: RegExp[], r2: RegExp[]): 0 | 1 | 2 {
@@ -224,13 +228,11 @@ function runPostPrompt5Pipeline(s: CalibrationSession, eventName: string): void 
 }
 
 function submitJobText(s: CalibrationSession, jobText: string): DispatchResult {
-  if (
-    s.state !== "TITLE_DIALOGUE" &&
-    s.state !== "JOB_INGEST" &&
-    s.state !== "ALIGNMENT_OUTPUT" &&
-    s.state !== "TERMINAL_COMPLETE"
-  ) {
-    return bad("INVALID_EVENT_FOR_STATE", "SUBMIT_JOB_TEXT is only valid in TITLE_DIALOGUE, JOB_INGEST, ALIGNMENT_OUTPUT, TERMINAL_COMPLETE")
+  if (s.state !== "TITLE_DIALOGUE" && s.state !== "JOB_INGEST" && s.state !== "ALIGNMENT_OUTPUT" && s.state !== "TERMINAL_COMPLETE") {
+    return bad(
+      "INVALID_EVENT_FOR_STATE",
+      "SUBMIT_JOB_TEXT is only valid in TITLE_DIALOGUE, JOB_INGEST, ALIGNMENT_OUTPUT, TERMINAL_COMPLETE",
+    )
   }
 
   const j = assertNonEmptyString("jobText", jobText)
@@ -295,6 +297,9 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       hasTitles: /\b(manager|director|engineer|analyst|designer|founder|lead)\b/i.test(raw),
     }
 
+    // Auto-advance: after storing resume, immediately enter PROMPT_1 (no ADVANCE required).
+    transition(s, "PROMPT_1", "SUBMIT_RESUME")
+
     storeSet(s)
     return { ok: true, session: s }
   }
@@ -323,7 +328,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     if (!slot.clarifier.asked) {
       slot.clarifier.asked = true
       slot.clarifier.question = clarifierQuestion(k)
-      transition(s, (`PROMPT_${k}_CLARIFIER` as CalibrationState), "SUBMIT_PROMPT_ANSWER")
+      transition(s, `PROMPT_${k}_CLARIFIER` as CalibrationState, "SUBMIT_PROMPT_ANSWER")
       storeSet(s)
       return { ok: true, session: s }
     }
