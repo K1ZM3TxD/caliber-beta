@@ -56,6 +56,10 @@ function isJobInputState(state: CalibrationState): boolean {
   return state === 'TITLE_HYPOTHESIS' || state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST' || state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE';
 }
 
+function isAutoProgressState(state: CalibrationState): boolean {
+  return state === 'CONSOLIDATION_PENDING' || state === 'CONSOLIDATION_RITUAL';
+}
+
 export default function CalibrationPage() {
   const [session, setSession] = useState<CalibrationSession | null>(null);
   const [error, setError] = useState<NormalizedError | null>(null);
@@ -150,6 +154,37 @@ export default function CalibrationPage() {
     }
   }
 
+  // Auto-poll / re-dispatch for server-driven consolidation states.
+  useEffect(() => {
+    if (!session) return;
+
+    const state = session.state;
+    const sessionId = session.sessionId;
+
+    if (!isAutoProgressState(state)) return;
+
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      // Only dispatch if not already submitting (avoid request pile-ups)
+      if (isSubmitting) return;
+      await sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent);
+    };
+
+    const id = window.setInterval(tick, 650);
+
+    // Kick one immediately so CONSOLIDATION_PENDING -> CONSOLIDATION_RITUAL does not sit.
+    tick();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+    // Intentionally depend on session.state + session.sessionId + isSubmitting only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state, session?.sessionId, isSubmitting]);
+
   function resetLocalUi() {
     setError(null);
     setResumeText('');
@@ -161,6 +196,9 @@ export default function CalibrationPage() {
 
   const state: CalibrationState | null = session?.state ?? null;
   const promptIndex = state ? getPromptIndex(state) : null;
+
+  const ritualPct = session?.consolidationRitual?.progressPct ?? 0;
+  const ritualMsg = session?.consolidationRitual?.message ?? null;
 
   return (
     <main style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
@@ -311,6 +349,20 @@ export default function CalibrationPage() {
             >
               {isSubmitting ? 'Submitting…' : 'Submit resume'}
             </button>
+
+            <button
+              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting || !(session.resume?.completed === true)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+                background: 'white',
+                cursor: isSubmitting || !(session.resume?.completed === true) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSubmitting ? 'Submitting…' : 'Advance'}
+            </button>
           </div>
         </section>
       )}
@@ -354,9 +406,7 @@ export default function CalibrationPage() {
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button
-              onClick={() =>
-                sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)
-              }
+              onClick={() => sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)}
               disabled={isSubmitting || promptAnswer.trim().length === 0}
               style={{
                 padding: '8px 12px',
@@ -433,6 +483,79 @@ export default function CalibrationPage() {
         </section>
       )}
 
+      {session && state === 'CONSOLIDATION_PENDING' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation pending</div>
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white', fontSize: 13 }}>
+            Waiting for server to enter ritual…
+          </div>
+        </section>
+      )}
+
+      {session && state === 'CONSOLIDATION_RITUAL' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation ritual</div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>{ritualMsg || 'Working…'}</div>
+            <div style={{ height: 10, borderRadius: 999, border: '1px solid #d0d0d0', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.max(0, Math.min(100, ritualPct))}%`, height: 10, background: '#111' }} />
+            </div>
+            <div style={{ fontSize: 12, marginTop: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+              {ritualPct}%
+            </div>
+          </div>
+        </section>
+      )}
+
+      {session && state === 'PATTERN_SYNTHESIS' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Pattern synthesis</div>
+
+          <div style={{ padding: 12, borderRadius: 10, border: '1px solid #d0d0d0', background: 'white', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>
+              {session.synthesis?.patternSummary || '(missing patternSummary)'}
+            </div>
+
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Operate Best</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                {(session.synthesis?.operateBest ?? []).map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+                {(!session.synthesis?.operateBest || session.synthesis.operateBest.length === 0) && <li>(missing operateBest)</li>}
+              </ul>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Lose Energy (structural translation only)</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                {(session.synthesis?.loseEnergy ?? []).map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+                {(!session.synthesis?.loseEnergy || session.synthesis.loseEnergy.length === 0) && <li>(missing loseEnergy)</li>}
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+                disabled={isSubmitting}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d0d0d0',
+                  background: 'white',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSubmitting ? 'Submitting…' : 'Advance'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {session &&
         state &&
         (state === 'TITLE_HYPOTHESIS' ||
@@ -478,7 +601,7 @@ export default function CalibrationPage() {
                 {isSubmitting ? 'Submitting…' : 'Submit job'}
               </button>
 
-              {(state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST') && (
+              {(state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST' || state === 'TITLE_HYPOTHESIS') && (
                 <button
                   onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
                   disabled={isSubmitting}
@@ -535,7 +658,7 @@ export default function CalibrationPage() {
           </section>
         )}
 
-      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== 'RESUME_INGEST' && (
+      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== 'RESUME_INGEST' && state !== 'CONSOLIDATION_PENDING' && state !== 'CONSOLIDATION_RITUAL' && state !== 'PATTERN_SYNTHESIS' && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 13 }}>
             <span style={{ fontWeight: 600 }}>State snapshot:</span>{' '}
