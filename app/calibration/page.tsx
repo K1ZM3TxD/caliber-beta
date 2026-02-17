@@ -52,13 +52,16 @@ function isClarifierState(state: CalibrationState): boolean {
   );
 }
 
+// M5.1: Job ingest UI must NOT appear before JOB_INGEST.
 function isJobInputState(state: CalibrationState): boolean {
-  return state === 'TITLE_HYPOTHESIS' || state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST' || state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE';
+  return state === 'JOB_INGEST' || state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE';
 }
 
-function isAutoProgressState(state: CalibrationState): boolean {
-  return state === 'CONSOLIDATION_PENDING' || state === 'CONSOLIDATION_RITUAL';
-}
+// M5.1: Strict explicit allowlist (no fallback inference).
+const ADVANCE_ALLOWED = new Set<CalibrationState>([
+  'PATTERN_SYNTHESIS',
+  'TITLE_DIALOGUE', // only if backend expects ADVANCE -> JOB_INGEST
+]);
 
 export default function CalibrationPage() {
   const [session, setSession] = useState<CalibrationSession | null>(null);
@@ -68,6 +71,8 @@ export default function CalibrationPage() {
   const [promptAnswer, setPromptAnswer] = useState<string>('');
   const [clarifierAnswer, setClarifierAnswer] = useState<string>('');
   const [jobText, setJobText] = useState<string>('');
+
+  const [titleFeedback, setTitleFeedback] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -91,19 +96,14 @@ export default function CalibrationPage() {
 
     // Only clear drafts when the server actually transitions state (success path).
     if (prevState && nextState && prevState !== nextState) {
-      // Always clear prompt drafts on state transition.
       setPromptAnswer('');
       setClarifierAnswer('');
 
-      // Clear resume draft if we transitioned out of RESUME_INGEST.
-      if (prevState === 'RESUME_INGEST') {
-        setResumeText('');
-      }
+      if (prevState === 'RESUME_INGEST') setResumeText('');
 
-      // Clear job draft if we transitioned away from a job-input state.
-      if (isJobInputState(prevState)) {
-        setJobText('');
-      }
+      if (isJobInputState(prevState)) setJobText('');
+
+      if (prevState === 'TITLE_HYPOTHESIS' || prevState === 'TITLE_DIALOGUE') setTitleFeedback('');
     }
 
     prevStateRef.current = nextState;
@@ -136,54 +136,17 @@ export default function CalibrationPage() {
       const nextSession = payload?.session;
 
       if (!ok || !nextSession) {
-        setError({
-          code: 'BAD_RESPONSE',
-          message: 'Missing ok:true session in response',
-        });
+        setError({ code: 'BAD_RESPONSE', message: 'Missing ok:true session in response' });
         return;
       }
 
       setSession(nextSession as CalibrationSession);
     } catch (e: any) {
-      setError({
-        code: 'NETWORK_ERROR',
-        message: safeString(e?.message) || 'Network error',
-      });
+      setError({ code: 'NETWORK_ERROR', message: safeString(e?.message) || 'Network error' });
     } finally {
       setIsSubmitting(false);
     }
   }
-
-  // Auto-poll / re-dispatch for server-driven consolidation states.
-  useEffect(() => {
-    if (!session) return;
-
-    const state = session.state;
-    const sessionId = session.sessionId;
-
-    if (!isAutoProgressState(state)) return;
-
-    let cancelled = false;
-
-    const tick = async () => {
-      if (cancelled) return;
-      // Only dispatch if not already submitting (avoid request pile-ups)
-      if (isSubmitting) return;
-      await sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent);
-    };
-
-    const id = window.setInterval(tick, 650);
-
-    // Kick one immediately so CONSOLIDATION_PENDING -> CONSOLIDATION_RITUAL does not sit.
-    tick();
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-    // Intentionally depend on session.state + session.sessionId + isSubmitting only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.state, session?.sessionId, isSubmitting]);
 
   function resetLocalUi() {
     setError(null);
@@ -191,14 +154,31 @@ export default function CalibrationPage() {
     setPromptAnswer('');
     setClarifierAnswer('');
     setJobText('');
+    setTitleFeedback('');
     setIsSubmitting(false);
   }
 
   const state: CalibrationState | null = session?.state ?? null;
   const promptIndex = state ? getPromptIndex(state) : null;
 
-  const ritualPct = session?.consolidationRitual?.progressPct ?? 0;
-  const ritualMsg = session?.consolidationRitual?.message ?? null;
+  // M5.1: server-driven polling for auto-advance states (no client-side simulation).
+  useEffect(() => {
+    if (!session) return;
+
+    if (session.state !== 'CONSOLIDATION_PENDING' && session.state !== 'CONSOLIDATION_RITUAL') return;
+
+    const sessionId = session.sessionId;
+    const handle = window.setInterval(() => {
+      // Dispatch with no user text input.
+      // This must advance at most one state per call (server enforces).
+      sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent);
+    }, 800);
+
+    return () => window.clearInterval(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.sessionId, session?.state]);
+
+  const showAdvance = !!(session && state && ADVANCE_ALLOWED.has(state));
 
   return (
     <main style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
@@ -324,8 +304,7 @@ export default function CalibrationPage() {
               style={{
                 width: '100%',
                 resize: 'vertical',
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 fontSize: 13,
                 padding: 10,
                 borderRadius: 8,
@@ -352,18 +331,73 @@ export default function CalibrationPage() {
 
             <button
               onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting || !(session.resume?.completed === true)}
+              disabled={isSubmitting || !session.resume?.completed}
               style={{
                 padding: '8px 12px',
                 borderRadius: 8,
                 border: '1px solid #d0d0d0',
                 background: 'white',
-                cursor: isSubmitting || !(session.resume?.completed === true) ? 'not-allowed' : 'pointer',
+                cursor: isSubmitting || !session.resume?.completed ? 'not-allowed' : 'pointer',
               }}
             >
               {isSubmitting ? 'Submitting…' : 'Advance'}
             </button>
           </div>
+        </section>
+      )}
+
+      {session && state === 'CONSOLIDATION_PENDING' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation</div>
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid #d0d0d0',
+              background: 'white',
+              fontSize: 13,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            Preparing consolidation ritual…
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>Auto-progressing via server dispatch.</div>
+        </section>
+      )}
+
+      {session && state === 'CONSOLIDATION_RITUAL' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation ritual</div>
+
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid #d0d0d0',
+              background: 'white',
+              fontSize: 13,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {session.consolidationRitual?.message || '…'}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              Progress: {typeof session.consolidationRitual?.progressPct === 'number' ? session.consolidationRitual.progressPct : 0}%
+            </div>
+            <div style={{ height: 10, borderRadius: 999, border: '1px solid #d0d0d0', background: 'white', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.max(0, Math.min(100, session.consolidationRitual?.progressPct ?? 0))}%`,
+                  background: '#111',
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, opacity: 0.8 }}>Auto-progressing via server dispatch.</div>
         </section>
       )}
 
@@ -393,8 +427,7 @@ export default function CalibrationPage() {
               style={{
                 width: '100%',
                 resize: 'vertical',
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 fontSize: 13,
                 padding: 10,
                 borderRadius: 8,
@@ -418,6 +451,23 @@ export default function CalibrationPage() {
             >
               {isSubmitting ? 'Submitting…' : 'Submit answer'}
             </button>
+
+            {/* Manual advance between prompts 1-4 */}
+            {promptIndex !== 5 && (
+              <button
+                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+                disabled={isSubmitting || !session.prompts[promptIndex]?.accepted}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d0d0d0',
+                  background: 'white',
+                  cursor: isSubmitting || !session.prompts[promptIndex]?.accepted ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSubmitting ? 'Submitting…' : 'Advance'}
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -448,8 +498,7 @@ export default function CalibrationPage() {
               style={{
                 width: '100%',
                 resize: 'vertical',
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 fontSize: 13,
                 padding: 10,
                 borderRadius: 8,
@@ -483,61 +532,46 @@ export default function CalibrationPage() {
         </section>
       )}
 
-      {session && state === 'CONSOLIDATION_PENDING' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation pending</div>
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white', fontSize: 13 }}>
-            Waiting for server to enter ritual…
-          </div>
-        </section>
-      )}
-
-      {session && state === 'CONSOLIDATION_RITUAL' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation ritual</div>
-
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 13, marginBottom: 8 }}>{ritualMsg || 'Working…'}</div>
-            <div style={{ height: 10, borderRadius: 999, border: '1px solid #d0d0d0', overflow: 'hidden' }}>
-              <div style={{ width: `${Math.max(0, Math.min(100, ritualPct))}%`, height: 10, background: '#111' }} />
-            </div>
-            <div style={{ fontSize: 12, marginTop: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-              {ritualPct}%
-            </div>
-          </div>
-        </section>
-      )}
-
       {session && state === 'PATTERN_SYNTHESIS' && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 600 }}>Pattern synthesis</div>
 
-          <div style={{ padding: 12, borderRadius: 10, border: '1px solid #d0d0d0', background: 'white', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>
-              {session.synthesis?.patternSummary || '(missing patternSummary)'}
-            </div>
+          <div
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid #d0d0d0',
+              background: 'white',
+              fontSize: 13,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {session.synthesis?.patternSummary || '(missing patternSummary)'}
+          </div>
 
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Operate Best</div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                {(session.synthesis?.operateBest ?? []).map((x, i) => (
-                  <li key={i}>{x}</li>
+                {(session.synthesis?.operateBest || []).map((b, i) => (
+                  <li key={i}>{b}</li>
                 ))}
-                {(!session.synthesis?.operateBest || session.synthesis.operateBest.length === 0) && <li>(missing operateBest)</li>}
               </ul>
             </div>
 
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Lose Energy (structural translation only)</div>
+            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Lose Energy</div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                {(session.synthesis?.loseEnergy ?? []).map((x, i) => (
-                  <li key={i}>{x}</li>
+                {(session.synthesis?.loseEnergy || []).map((b, i) => (
+                  <li key={i}>{b}</li>
                 ))}
-                {(!session.synthesis?.loseEnergy || session.synthesis.loseEnergy.length === 0) && <li>(missing loseEnergy)</li>}
               </ul>
             </div>
+          </div>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Exactly one Advance button for this state */}
+          {showAdvance && (
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
                 disabled={isSubmitting}
@@ -552,113 +586,241 @@ export default function CalibrationPage() {
                 {isSubmitting ? 'Submitting…' : 'Advance'}
               </button>
             </div>
+          )}
+        </section>
+      )}
+
+      {session && state === 'TITLE_HYPOTHESIS' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Title hypothesis</div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>identitySummary</div>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.identitySummary || '(missing)'}</div>
+          </div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>marketTitle</div>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.marketTitle || '(missing)'}</div>
+          </div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>titleExplanation</div>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.titleExplanation || '(missing)'}</div>
+          </div>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Reaction / feedback</span>
+            <textarea
+              value={titleFeedback}
+              onChange={(e) => setTitleFeedback(e.target.value)}
+              rows={5}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+              }}
+              placeholder="Your reaction…"
+            />
+          </label>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              onClick={() =>
+                sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)
+              }
+              disabled={isSubmitting || titleFeedback.trim().length === 0}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+                background: 'white',
+                cursor: isSubmitting || titleFeedback.trim().length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSubmitting ? 'Submitting…' : 'Submit feedback'}
+            </button>
           </div>
         </section>
       )}
 
-      {session &&
-        state &&
-        (state === 'TITLE_HYPOTHESIS' ||
-          state === 'TITLE_DIALOGUE' ||
-          state === 'JOB_INGEST' ||
-          state === 'ALIGNMENT_OUTPUT' ||
-          state === 'TERMINAL_COMPLETE') && (
-          <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>Job</div>
+      {session && state === 'TITLE_DIALOGUE' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Title dialogue</div>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Job text</span>
-              <textarea
-                value={jobText}
-                onChange={(e) => setJobText(e.target.value)}
-                rows={7}
-                style={{
-                  width: '100%',
-                  resize: 'vertical',
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  fontSize: 13,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                }}
-                placeholder="Paste job description here…"
-              />
-            </label>
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>marketTitle</div>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.marketTitle || '(missing)'}</div>
+          </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>titleExplanation</div>
+            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.titleExplanation || '(missing)'}</div>
+          </div>
+
+          {session.synthesis?.lastTitleFeedback && (
+            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>lastTitleFeedback</div>
+              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis.lastTitleFeedback}</div>
+            </div>
+          )}
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Reaction / feedback</span>
+            <textarea
+              value={titleFeedback}
+              onChange={(e) => setTitleFeedback(e.target.value)}
+              rows={5}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+              }}
+              placeholder="Your reaction…"
+            />
+          </label>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              onClick={() =>
+                sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)
+              }
+              disabled={isSubmitting || titleFeedback.trim().length === 0}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+                background: 'white',
+                cursor: isSubmitting || titleFeedback.trim().length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSubmitting ? 'Submitting…' : 'Submit feedback'}
+            </button>
+
+            {/* Strict allowlist: Advance only if backend expects TITLE_DIALOGUE -> JOB_INGEST */}
+            {showAdvance && (
               <button
-                onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
-                disabled={isSubmitting || jobText.trim().length === 0}
+                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+                disabled={isSubmitting}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 8,
                   border: '1px solid #d0d0d0',
                   background: 'white',
-                  cursor: isSubmitting || jobText.trim().length === 0 ? 'not-allowed' : 'pointer',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
                 }}
               >
-                {isSubmitting ? 'Submitting…' : 'Submit job'}
+                {isSubmitting ? 'Submitting…' : 'Advance'}
               </button>
-
-              {(state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST' || state === 'TITLE_HYPOTHESIS') && (
-                <button
-                  onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-                  disabled={isSubmitting}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #d0d0d0',
-                    background: 'white',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {isSubmitting ? 'Submitting…' : 'Advance'}
-                </button>
-              )}
-
-              {state === 'ALIGNMENT_OUTPUT' && (
-                <button
-                  onClick={() => sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)}
-                  disabled={isSubmitting}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #d0d0d0',
-                    background: 'white',
-                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {isSubmitting ? 'Submitting…' : 'Compute alignment output'}
-                </button>
-              )}
-            </div>
-
-            {session.result && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>session.result (raw JSON)</div>
-                <pre
-                  style={{
-                    margin: 0,
-                    padding: 10,
-                    borderRadius: 8,
-                    border: '1px solid #d0d0d0',
-                    background: 'white',
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 12,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {resultJson}
-                </pre>
-              </div>
             )}
-          </section>
-        )}
+          </div>
+        </section>
+      )}
 
-      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== 'RESUME_INGEST' && state !== 'CONSOLIDATION_PENDING' && state !== 'CONSOLIDATION_RITUAL' && state !== 'PATTERN_SYNTHESIS' && (
+      {session && state && isJobInputState(state) && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Job</div>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Job text</span>
+            <textarea
+              value={jobText}
+              onChange={(e) => setJobText(e.target.value)}
+              rows={7}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                padding: 10,
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+              }}
+              placeholder="Paste job description here…"
+            />
+          </label>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
+              disabled={isSubmitting || jobText.trim().length === 0}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d0d0d0',
+                background: 'white',
+                cursor: isSubmitting || jobText.trim().length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSubmitting ? 'Submitting…' : 'Submit job'}
+            </button>
+
+            {state === 'JOB_INGEST' && (
+              <button
+                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+                disabled={isSubmitting}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d0d0d0',
+                  background: 'white',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSubmitting ? 'Submitting…' : 'Advance'}
+              </button>
+            )}
+
+            {state === 'ALIGNMENT_OUTPUT' && (
+              <button
+                onClick={() => sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)}
+                disabled={isSubmitting}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d0d0d0',
+                  background: 'white',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSubmitting ? 'Submitting…' : 'Compute alignment output'}
+              </button>
+            )}
+          </div>
+
+          {session.result && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>session.result (raw JSON)</div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: '1px solid #d0d0d0',
+                  background: 'white',
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  fontSize: 12,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {resultJson}
+              </pre>
+            </div>
+          )}
+        </section>
+      )}
+
+      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== 'RESUME_INGEST' && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 13 }}>
             <span style={{ fontWeight: 600 }}>State snapshot:</span>{' '}
