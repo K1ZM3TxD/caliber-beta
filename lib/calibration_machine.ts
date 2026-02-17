@@ -228,7 +228,12 @@ function runPostPrompt5Pipeline(s: CalibrationSession, eventName: string): void 
 }
 
 function submitJobText(s: CalibrationSession, jobText: string): DispatchResult {
-  if (s.state !== "TITLE_DIALOGUE" && s.state !== "JOB_INGEST" && s.state !== "ALIGNMENT_OUTPUT" && s.state !== "TERMINAL_COMPLETE") {
+  if (
+    s.state !== "TITLE_DIALOGUE" &&
+    s.state !== "JOB_INGEST" &&
+    s.state !== "ALIGNMENT_OUTPUT" &&
+    s.state !== "TERMINAL_COMPLETE"
+  ) {
     return bad(
       "INVALID_EVENT_FOR_STATE",
       "SUBMIT_JOB_TEXT is only valid in TITLE_DIALOGUE, JOB_INGEST, ALIGNMENT_OUTPUT, TERMINAL_COMPLETE",
@@ -297,7 +302,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       hasTitles: /\b(manager|director|engineer|analyst|designer|founder|lead)\b/i.test(raw),
     }
 
-    // Auto-advance: after storing resume, immediately enter PROMPT_1 (no ADVANCE required).
+    // Auto-advance out of RESUME_INGEST on successful submit.
     transition(s, "PROMPT_1", "SUBMIT_RESUME")
 
     storeSet(s)
@@ -320,6 +325,15 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
 
     if (hasMinimumSignal(ans)) {
       slot.accepted = true
+      slot.frozen = true
+
+      const next = nextPromptState(k)
+      if (next === "CONSOLIDATION_PENDING") {
+        runPostPrompt5Pipeline(s, "SUBMIT_PROMPT_ANSWER")
+      } else {
+        transition(s, next, "SUBMIT_PROMPT_ANSWER")
+      }
+
       storeSet(s)
       return { ok: true, session: s }
     }
@@ -356,6 +370,15 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     }
 
     slot.accepted = true
+    slot.frozen = true
+
+    const next = nextPromptState(k)
+    if (next === "CONSOLIDATION_PENDING") {
+      runPostPrompt5Pipeline(s, "SUBMIT_PROMPT_CLARIFIER_ANSWER")
+    } else {
+      transition(s, next, "SUBMIT_PROMPT_CLARIFIER_ANSWER")
+    }
+
     storeSet(s)
     return { ok: true, session: s }
   }
