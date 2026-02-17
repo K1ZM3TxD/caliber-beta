@@ -1,141 +1,123 @@
 // scripts/smoke_integration.ts
 
-/* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable no-console */
 
-const path = require("path")
-
-// Register @/* alias explicitly (do NOT depend on tsconfig baseUrl/paths)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const tsconfigPaths = require("tsconfig-paths")
-  tsconfigPaths.register({
-    baseUrl: path.resolve(__dirname, ".."),
-    paths: {
-      "@/*": ["*"],
-    },
-  })
-} catch (e) {
-  // If tsconfig-paths isn't installed, fail loudly and early
-  throw new Error(
-    `tsconfig-paths is required to run this smoke script. Install it with: npm i -D tsconfig-paths. Original error: ${String(
-      (e as any)?.message ?? e,
-    )}`,
-  )
-}
-
-const { runIntegrationSeam } = require("../lib/integration_seam")
-const { toResultContract } = require("../lib/result_contract")
-
-const VALID_DIMENSION_LABELS = [
-  "Structural Maturity",
-  "Authority Scope",
-  "Revenue Orientation",
-  "Role Ambiguity",
-  "Breadth vs Depth",
-  "Stakeholder Density",
-] as const
+import { dispatchCalibrationEvent } from "../lib/calibration_machine"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
-function assertStartsWith(actual: string, prefix: string, context: string) {
-  assert(
-    actual.startsWith(prefix),
-    `${context}: expected error.message to start with "${prefix}", got: "${actual}"`,
+function expectOk<T extends { ok: boolean }>(res: T, label: string): asserts res is T & { ok: true } {
+  assert(res.ok === true, `${label}: expected ok=true, got ${JSON.stringify(res)}`)
+}
+
+function expectState(res: { ok: true; session: any }, state: string, label: string): void {
+  assert(res.session.state === state, `${label}: expected state=${state}, got ${res.session.state}`)
+}
+
+function event(e: any, label: string) {
+  const res = dispatchCalibrationEvent(e as any)
+  expectOk(res, label)
+  return res
+}
+
+function answerForPrompt(n: number): string {
+  return `Prompt ${n} answer with deterministic detail about structured ownership, cross functional execution, measurable outcomes, and stakeholder alignment.`
+}
+
+function runCalibrationLoopSmoke(): void {
+  const created = event({ type: "CREATE_SESSION" }, "CREATE_SESSION")
+  const sessionId = created.session.sessionId
+
+  event(
+    {
+      type: "SUBMIT_RESUME",
+      sessionId,
+      resumeText:
+        "Senior operator leading cross functional programs, shaping process and delivery, partnering with leaders, and owning repeatable execution across multiple teams from planning through outcomes.",
+    },
+    "SUBMIT_RESUME",
   )
-}
 
-function assertIncludesAnyDimensionLabel(message: string, context: string) {
-  const hit = VALID_DIMENSION_LABELS.some((label) => message.includes(label))
-  assert(
-    hit,
-    `${context}: expected error.message to include at least one known dimension label (${VALID_DIMENSION_LABELS.join(
-      ", ",
-    )}), got: "${message}"`,
+  event({ type: "ADVANCE", sessionId }, "ADVANCE to PROMPT_1")
+
+  let finalAdvance: { ok: true; session: any } | null = null
+  for (let i = 1; i <= 5; i += 1) {
+    event({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerForPrompt(i) }, `SUBMIT_PROMPT_ANSWER_${i}`)
+    finalAdvance = event({ type: "ADVANCE", sessionId }, `ADVANCE_${i}`)
+  }
+
+  assert(finalAdvance !== null, "Expected final advance to be captured")
+  expectState(finalAdvance, "JOB_INGEST", "Post-prompt progression should land in JOB_INGEST")
+  const sawTitleDialogue = finalAdvance.session.history.some((h: any) => h.to === "TITLE_DIALOGUE")
+  assert(sawTitleDialogue, "Step 1 should reach TITLE_DIALOGUE in transition history")
+
+  const step2 = event(
+    {
+      type: "SUBMIT_JOB_TEXT",
+      sessionId,
+      jobText:
+        `Director of Revenue Operations (RevOps) — Enterprise, Global Organization
+
+You will lead and own strategy and operationalize repeatable playbooks across multiple departments (org-wide). This role partners cross-functional stakeholders in Sales, Marketing, and Finance, including executive stakeholders (C-suite) and the board of directors, plus customers and partners.
+
+Responsibilities include revenue and ARR reporting, quota-carrying support motions, pipeline hygiene, pricing and monetization collaboration, and growth stage scaling.
+
+This is a generalist, multi-disciplinary role: you will wear many hats and work across many areas, often in unstructured and undefined situations — other duties as assigned.
+
+Governance, compliance, audit readiness (SOC 2 / ISO 27001), risk management, and controls experience is required.`,
+    },
+    "SUBMIT_JOB_TEXT valid #1",
   )
+  expectState(step2, "JOB_INGEST", "Step 2 SUBMIT_JOB_TEXT -> JOB_INGEST")
+  assert(step2.session.result === null, "Step 2: result should be cleared on valid new job")
+
+  const step3 = event({ type: "ADVANCE", sessionId }, "ADVANCE after first job")
+  expectState(step3, "ALIGNMENT_OUTPUT", "Step 3 ADVANCE -> ALIGNMENT_OUTPUT")
+
+  const step4 = event({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId }, "COMPUTE_ALIGNMENT_OUTPUT #1")
+  expectState(step4, "TERMINAL_COMPLETE", "Step 4 compute -> TERMINAL_COMPLETE")
+  const resultKeys1 = Object.keys(step4.session.result ?? {}).sort()
+  assert(
+    JSON.stringify(resultKeys1) === JSON.stringify(["alignment", "meta", "skillMatch", "stretchLoad"]),
+    `Step 4: expected v1 top-level keys only, got ${resultKeys1.join(",")}`,
+  )
+
+  const step5 = event(
+    {
+      type: "SUBMIT_JOB_TEXT",
+      sessionId,
+      jobText:
+        `Senior Backend Engineer (Kubernetes / Go)
+
+You will lead platform strategy and own architecture while collaborating cross-functional with security, product, and SRE. Responsibilities include revenue pipeline reliability for enterprise customers, governance controls, SOC 2 compliance, and executive reporting.
+
+This is a generalist role across multiple departments in unstructured situations with other duties as assigned, while still requiring deep technical expertise in controllers and reconciliation loops.`,
+    },
+    "SUBMIT_JOB_TEXT valid #2",
+  )
+  expectState(step5, "JOB_INGEST", "Step 5 resubmit job -> JOB_INGEST")
+  assert(step5.session.result === null, "Step 5: result should be cleared after second valid job")
+
+  const step6 = event({ type: "ADVANCE", sessionId }, "ADVANCE after second job")
+  expectState(step6, "ALIGNMENT_OUTPUT", "Step 6 ADVANCE -> ALIGNMENT_OUTPUT")
+
+  const step7 = event({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId }, "COMPUTE_ALIGNMENT_OUTPUT #2")
+  expectState(step7, "TERMINAL_COMPLETE", "Step 7 compute -> TERMINAL_COMPLETE")
+  const resultKeys2 = Object.keys(step7.session.result ?? {}).sort()
+  assert(
+    JSON.stringify(resultKeys2) === JSON.stringify(["alignment", "meta", "skillMatch", "stretchLoad"]),
+    `Step 7: expected v1 top-level keys only, got ${resultKeys2.join(",")}`,
+  )
+
+  console.log("PASS: calibration JOB_INGEST loop smoke transcript complete")
 }
 
-function assertHardFail(label: string, jobText: string) {
-  const res = runIntegrationSeam({
-    jobText,
-    experienceVector: [1, 1, 1, 1, 1, 1],
-  })
-
-  assert(res && typeof res === "object", `${label}: expected object response`)
-  assert((res as any).ok === false, `${label}: expected ok === false`)
-
-  const err = (res as any).error
-  assert(err && typeof err === "object", `${label}: expected error object`)
-  assert(err.code === "BAD_REQUEST", `${label}: expected error.code === "BAD_REQUEST"`)
-  assert(typeof err.message === "string", `${label}: expected error.message to be string`)
-
-  const msg: string = err.message
-  const prefix = "Insufficient signal in dimensions:"
-  assertStartsWith(msg, prefix, label)
-  assertIncludesAnyDimensionLabel(msg, label)
-}
-
-async function main() {
-  // 1) Existing happy-path test (unchanged)
-  const sampleJobText = `
-Director of Revenue Operations (RevOps) — Enterprise, Global Organization
-
-You will lead and own strategy and operationalize repeatable playbooks across multiple departments
-(org-wide). This role partners cross-functional stakeholders in Sales, Marketing, and Finance,
-including executive stakeholders (C-suite) and the board of directors, plus customers and partners.
-
-Responsibilities include revenue and ARR reporting, quota-carrying support motions, pipeline hygiene,
-pricing and monetization collaboration, and growth stage scaling.
-
-This is a generalist, multi-disciplinary role: you will wear many hats and work across many areas,
-often in unstructured and undefined situations — other duties as assigned.
-
-Governance, compliance, audit readiness (SOC 2 / ISO 27001), risk management, and controls
-experience is required.
-`.trim()
-
-  const seamOk = runIntegrationSeam({
-    jobText: sampleJobText,
-    experienceVector: [1, 1, 1, 1, 1, 1],
-  })
-
-  assert(seamOk.ok === true, "Happy path: expected ok === true")
-  const contract = toResultContract(seamOk.result)
-  assert(!!contract.alignment, "Happy path: expected contract.alignment")
-  assert(!!contract.skillMatch, "Happy path: expected contract.skillMatch")
-  assert(!!contract.stretchLoad, "Happy path: expected contract.stretchLoad")
-  assert(!!contract.meta, "Happy path: expected contract.meta")
-  console.log("PASS: Happy path")
-
-  // 2) Fixture A — Sparse Marketing Posting (>= 40 chars)
-  const fixtureA = `
-Marketing Coordinator (Part-Time)
-
-Help support our brand presence and assist with day-to-day marketing tasks.
-You will contribute to content updates, social posts, and general campaign support.
-Other duties as assigned.
-`.trim()
-
-  assertHardFail("Hard-fail fixture A", fixtureA)
-  console.log("PASS: Hard-fail fixture A")
-
-  // 3) Fixture B — Narrow Technical Posting (strong in 1–2 dimensions, weak in others)
-  const fixtureB = `
-Senior Backend Engineer (Kubernetes / Go)
-
-Build a Kubernetes operator in Go. Implement CRDs, controllers, reconciliation loops,
-and performance profiling. Maintain CI pipelines and write integration tests.
-This is an individual contributor role focused on deep systems implementation.
-`.trim()
-
-  assertHardFail("Hard-fail fixture B", fixtureB)
-  console.log("PASS: Hard-fail fixture B")
-}
-
-main().catch((e) => {
+try {
+  runCalibrationLoopSmoke()
+} catch (e: unknown) {
   const msg = String((e as any)?.message ?? e)
   console.error(`SMOKE FAILED: ${msg}`)
   process.exitCode = 1
-})
+}

@@ -19,6 +19,7 @@ export type CalibrationState =
   | "PATTERN_SYNTHESIS"
   | "TITLE_HYPOTHESIS"
   | "TITLE_DIALOGUE"
+  | "JOB_INGEST"
   | "ALIGNMENT_OUTPUT"
   | "TERMINAL_COMPLETE"
 
@@ -29,6 +30,8 @@ export type BadRequestCode =
   | "MISSING_REQUIRED_FIELD"
   | "PROMPT_FROZEN"
   | "INSUFFICIENT_SIGNAL_AFTER_CLARIFIER"
+  | "JOB_REQUIRED"
+  | "JOB_ENCODING_INCOMPLETE"
 
 export type CalibrationError = { code: BadRequestCode; message: string }
 
@@ -83,6 +86,12 @@ export type CalibrationSession = {
     loseEnergy: string[] | null
   } | null
 
+  job: {
+    rawText: string | null
+    roleVector: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] | null
+    completed: boolean
+  }
+
   result: CaliberResultContract | null
 
   history: Array<{
@@ -98,5 +107,6 @@ export type CalibrationEvent =
   | { type: "SUBMIT_RESUME"; sessionId: string; resumeText: string }
   | { type: "SUBMIT_PROMPT_ANSWER"; sessionId: string; answer: string }
   | { type: "SUBMIT_PROMPT_CLARIFIER_ANSWER"; sessionId: string; answer: string }
+  | { type: "SUBMIT_JOB_TEXT"; sessionId: string; jobText: string }
   | { type: "ADVANCE"; sessionId: string }
   | { type: "COMPUTE_ALIGNMENT_OUTPUT"; sessionId: string }
