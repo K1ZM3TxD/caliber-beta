@@ -2,6 +2,7 @@
 
 import type { CalibrationEvent, CalibrationSession, CalibrationState, PromptSlot } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
+import { ingestJob, isJobIngestError } from "@/lib/job_ingest"
 import { computeSkillMatch } from "@/lib/skill_match"
 import { computeStretchLoad } from "@/lib/stretch_load"
 import { toResultContract } from "@/lib/result_contract"
@@ -83,6 +84,11 @@ function newSession(sessionId: string): CalibrationSession {
     personVector: { values: null, locked: false },
     encodingRitual: { completed: false },
     synthesis: null,
+    job: {
+      rawText: null,
+      roleVector: null,
+      completed: false,
+    },
     result: null,
     history: [],
   }
@@ -114,6 +120,16 @@ function nextPromptState(k: 1 | 2 | 3 | 4 | 5): CalibrationState {
   return "CONSOLIDATION_PENDING"
 }
 
+function toRoleVectorTuple(v: number[]): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] | null {
+  if (!Array.isArray(v) || v.length !== 6) return null
+  const out: number[] = []
+  for (const n of v) {
+    if (n !== 0 && n !== 1 && n !== 2) return null
+    out.push(n)
+  }
+  return out as [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
+}
+
 // Deterministic personVector placeholder (smallest shippable):
 // Encode a stable 6-dim vector in {0,1,2} from text using coarse keyword rules.
 // (No new dimensions introduced; names/length are locked.)
@@ -136,7 +152,7 @@ function computePersonVector(text: string): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 
   return [structuralMaturity, authorityScope, revenueOrientation, roleAmbiguity, breadthVsDepth, stakeholderDensity]
 }
 
-// Locked alignment scoring mechanics (project kernel) — deterministic. :contentReference[oaicite:8]{index=8}
+// Locked alignment scoring mechanics (project kernel) — deterministic.
 function computeAlignmentScore(args: {
   personVector: number[]
   roleVector: number[]
@@ -144,25 +160,20 @@ function computeAlignmentScore(args: {
   const P = args.personVector
   const R = args.roleVector
 
-  const d = [0, 1, 2, 3, 4, 5].map((i) => Math.abs((P[i] ?? 0) - (R[i] ?? 0)))
-  let S = 0
-  let M = 0
-  for (const di of d) {
-    if (di === 2) S++
-    else if (di === 1) M++
-  }
+  const d = [0, 1, 2, 3, 4, 5].map((i) => Math.abs((P[i] ?? 1) - (R[i] ?? 1)))
 
-  const W = 1.0 * S + 0.35 * M
-  const raw = 10 * (1 - W / 6)
-  const clamped = Math.max(0, Math.min(10, raw))
-  const score = Math.round(clamped * 10) / 10
+  const C = d.filter((x) => x >= 2).length // severe contradictions
+  const M = d.filter((x) => x === 1).length // mild tensions
 
-  const explanation =
-    S > 0
-      ? `Structural fit shows ${S} severe contradiction(s) and ${M} mild tension(s) across 6 dimensions.`
-      : M > 0
-        ? `Structural fit shows ${M} mild tension(s) across 6 dimensions and no severe contradictions.`
-        : `Structural fit shows no contradictions across 6 dimensions.`
+  const W = 1.5 * C + 0.5 * M
+  let score = Math.max(0, Math.min(10, 10 - W))
+
+  const round1 = Math.round(score * 10) / 10
+  score = round1
+
+  const explanation = `Alignment computed from locked vectors. Severe contradictions=${C}, mild tensions=${M}, weighted penalty=${W.toFixed(
+    1,
+  )}.`
 
   return {
     score,
@@ -170,8 +181,8 @@ function computeAlignmentScore(args: {
     signals: {
       personVector: P,
       roleVector: R,
-      distances: d,
-      severeContradictions: S,
+      deltas: d,
+      severeContradictions: C,
       mildTensions: M,
       penaltyWeight: W,
     },
@@ -207,12 +218,47 @@ function runPostPrompt5Pipeline(s: CalibrationSession, eventName: string): void 
     loseEnergy: ["Ambiguous authority", "Constant context switching", "Unbounded requests", "Conflicting priorities"],
   }
 
-  // TITLE_HYPOTHESIS -> TITLE_DIALOGUE (we land directly into scoring state for smallest shippable)
   transition(s, "TITLE_HYPOTHESIS", eventName)
   transition(s, "TITLE_DIALOGUE", eventName)
+  transition(s, "JOB_INGEST", eventName)
+}
 
-  // For Milestone 5.1 smallest shippable: advance directly to ALIGNMENT_OUTPUT readiness.
-  transition(s, "ALIGNMENT_OUTPUT", eventName)
+function submitJobText(s: CalibrationSession, jobText: string): DispatchResult {
+  if (
+    s.state !== "TITLE_DIALOGUE" &&
+    s.state !== "JOB_INGEST" &&
+    s.state !== "ALIGNMENT_OUTPUT" &&
+    s.state !== "TERMINAL_COMPLETE"
+  ) {
+    return bad("INVALID_EVENT_FOR_STATE", "SUBMIT_JOB_TEXT is only valid in TITLE_DIALOGUE, JOB_INGEST, ALIGNMENT_OUTPUT, TERMINAL_COMPLETE")
+  }
+
+  const j = assertNonEmptyString("jobText", jobText)
+  if (!j.ok) return j
+
+  const normalizedJobText = j.value.trim()
+
+  try {
+    const ingest = ingestJob(normalizedJobText)
+    const roleVector = toRoleVectorTuple(ingest.roleVector)
+    if (!roleVector) {
+      return bad("JOB_ENCODING_INCOMPLETE", "Job encoding did not produce a valid 6-dimension role vector")
+    }
+
+    s.job.rawText = normalizedJobText
+    s.job.roleVector = roleVector
+    s.job.completed = true
+    s.result = null
+    transition(s, "JOB_INGEST", "SUBMIT_JOB_TEXT")
+
+    storeSet(s)
+    return { ok: true, session: s }
+  } catch (err: unknown) {
+    if (isJobIngestError(err)) {
+      return bad("JOB_ENCODING_INCOMPLETE", err.detail)
+    }
+    return bad("JOB_ENCODING_INCOMPLETE", "Unable to encode job text")
+  }
 }
 
 export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResult {
@@ -309,6 +355,10 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     return { ok: true, session: s }
   }
 
+  if (event.type === "SUBMIT_JOB_TEXT") {
+    return submitJobText(s, event.jobText)
+  }
+
   // ADVANCE (forward-only)
   if (event.type === "ADVANCE") {
     if (s.state === "RESUME_INGEST") {
@@ -328,7 +378,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
 
       const next = nextPromptState(kPrompt)
       if (next === "CONSOLIDATION_PENDING") {
-        // Smallest shippable: run consolidation+encoding+synthesis+title internally and land in ALIGNMENT_OUTPUT.
         runPostPrompt5Pipeline(s, "ADVANCE")
       } else {
         transition(s, next, "ADVANCE")
@@ -357,6 +406,21 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       return { ok: true, session: s }
     }
 
+    if (s.state === "TITLE_DIALOGUE") {
+      transition(s, "JOB_INGEST", "ADVANCE")
+      storeSet(s)
+      return { ok: true, session: s }
+    }
+
+    if (s.state === "JOB_INGEST") {
+      if (!s.job.completed || !s.job.roleVector) {
+        return bad("FORBIDDEN_TRANSITION", "JOB_REQUIRED")
+      }
+      transition(s, "ALIGNMENT_OUTPUT", "ADVANCE")
+      storeSet(s)
+      return { ok: true, session: s }
+    }
+
     // From ALIGNMENT_OUTPUT you don’t ADVANCE; you COMPUTE_ALIGNMENT_OUTPUT.
     if (s.state === "ALIGNMENT_OUTPUT") return bad("INVALID_EVENT_FOR_STATE", "Use COMPUTE_ALIGNMENT_OUTPUT in ALIGNMENT_OUTPUT")
     if (s.state === "TERMINAL_COMPLETE") return bad("FORBIDDEN_TRANSITION", "Session is complete")
@@ -369,18 +433,16 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     if (s.state !== "ALIGNMENT_OUTPUT") return bad("INVALID_EVENT_FOR_STATE", "COMPUTE_ALIGNMENT_OUTPUT is only valid in ALIGNMENT_OUTPUT")
     if (!s.personVector.locked || !s.personVector.values) return bad("FORBIDDEN_TRANSITION", "Person vector must be locked before output")
     if (!s.encodingRitual.completed) return bad("FORBIDDEN_TRANSITION", "Encoding ritual must be completed before output")
+    if (!s.job.completed || !s.job.roleVector) return bad("JOB_REQUIRED", "A valid encoded job is required before output")
 
     const personVector = s.personVector.values
-
-    // Smallest shippable: no job ingestion event yet.
-    // Use a neutral roleVector baseline (midpoint) so outputs are deterministic and not client-controlled.
-    const roleVector = [1, 1, 1, 1, 1, 1]
+    const roleVector = s.job.roleVector
 
     const alignment = computeAlignmentScore({ personVector, roleVector })
     const skillMatch = computeSkillMatch(roleVector, personVector)
     const stretchLoad = computeStretchLoad(skillMatch.finalScore)
 
-    // Contract v1 keys only. :contentReference[oaicite:9]{index=9}
+    // Contract v1 keys only.
     s.result = toResultContract({
       alignment,
       skillMatch,
