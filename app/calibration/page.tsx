@@ -1,8 +1,8 @@
 // app/calibration/page.tsx
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import type { CalibrationError, CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
 
 type NormalizedError = { code: string; message: string };
 
@@ -52,6 +52,10 @@ function isClarifierState(state: CalibrationState): boolean {
   );
 }
 
+function isJobInputState(state: CalibrationState): boolean {
+  return state === 'TITLE_HYPOTHESIS' || state === 'TITLE_DIALOGUE' || state === 'JOB_INGEST' || state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE';
+}
+
 export default function CalibrationPage() {
   const [session, setSession] = useState<CalibrationSession | null>(null);
   const [error, setError] = useState<NormalizedError | null>(null);
@@ -75,6 +79,32 @@ export default function CalibrationPage() {
     return JSON.stringify(session.result, null, 2);
   }, [session]);
 
+  const prevStateRef = useRef<CalibrationState | null>(null);
+
+  useEffect(() => {
+    const nextState = session?.state ?? null;
+    const prevState = prevStateRef.current;
+
+    // Only clear drafts when the server actually transitions state (success path).
+    if (prevState && nextState && prevState !== nextState) {
+      // Always clear prompt drafts on state transition.
+      setPromptAnswer('');
+      setClarifierAnswer('');
+
+      // Clear resume draft if we transitioned out of RESUME_INGEST.
+      if (prevState === 'RESUME_INGEST') {
+        setResumeText('');
+      }
+
+      // Clear job draft if we transitioned away from a job-input state.
+      if (isJobInputState(prevState)) {
+        setJobText('');
+      }
+    }
+
+    prevStateRef.current = nextState;
+  }, [session?.state]);
+
   async function sendEvent(event: any) {
     setError(null);
     setIsSubmitting(true);
@@ -91,14 +121,9 @@ export default function CalibrationPage() {
       const payload = isJson ? await res.json() : null;
 
       if (!res.ok) {
-        const code =
-          safeString(payload?.error?.code) ||
-          safeString(payload?.code) ||
-          'HTTP_ERROR';
+        const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
         const message =
-          safeString(payload?.error?.message) ||
-          safeString(payload?.message) ||
-          `Request failed with status ${res.status}`;
+          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
         setError({ code, message });
         return;
       }
@@ -139,9 +164,7 @@ export default function CalibrationPage() {
 
   return (
     <main style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>
-        Caliber — Calibration UI (v0)
-      </h1>
+      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>Caliber — Calibration UI (v0)</h1>
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {!session ? (
@@ -240,8 +263,7 @@ export default function CalibrationPage() {
               borderRadius: 8,
               border: '1px solid #d0d0d0',
               background: 'white',
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
               fontSize: 13,
               whiteSpace: 'pre-wrap',
             }}
@@ -277,9 +299,7 @@ export default function CalibrationPage() {
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button
-              onClick={() =>
-                sendEvent({ type: 'SUBMIT_RESUME', sessionId: session.sessionId, resumeText } as CalibrationEvent)
-              }
+              onClick={() => sendEvent({ type: 'SUBMIT_RESUME', sessionId: session.sessionId, resumeText } as CalibrationEvent)}
               disabled={isSubmitting || resumeText.trim().length === 0}
               style={{
                 padding: '8px 12px',
@@ -290,20 +310,6 @@ export default function CalibrationPage() {
               }}
             >
               {isSubmitting ? 'Submitting…' : 'Submit resume'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Advance'}
             </button>
           </div>
         </section>
@@ -361,20 +367,6 @@ export default function CalibrationPage() {
               }}
             >
               {isSubmitting ? 'Submitting…' : 'Submit answer'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Advance'}
             </button>
           </div>
         </section>
@@ -437,20 +429,6 @@ export default function CalibrationPage() {
             >
               {isSubmitting ? 'Submitting…' : 'Submit clarifier answer'}
             </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Advance'}
-            </button>
           </div>
         </section>
       )}
@@ -487,9 +465,7 @@ export default function CalibrationPage() {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <button
-                onClick={() =>
-                  sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)
-                }
+                onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
                 disabled={isSubmitting || jobText.trim().length === 0}
                 style={{
                   padding: '8px 12px',
@@ -520,9 +496,7 @@ export default function CalibrationPage() {
 
               {state === 'ALIGNMENT_OUTPUT' && (
                 <button
-                  onClick={() =>
-                    sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)
-                  }
+                  onClick={() => sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)}
                   disabled={isSubmitting}
                   style={{
                     padding: '8px 12px',
@@ -582,8 +556,7 @@ export default function CalibrationPage() {
               borderRadius: 8,
               border: '1px solid #d0d0d0',
               background: 'white',
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
               fontSize: 12,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
