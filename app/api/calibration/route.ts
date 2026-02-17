@@ -1,43 +1,29 @@
 // app/api/calibration/route.ts
 
-import { NextResponse } from "next/server";
-import { dispatchCalibrationEvent } from "@/lib/calibration_dispatch";
+import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
+import type { CalibrationEvent } from "@/lib/calibration_types"
 
-type NormalizedError = {
-  code: string;
-  message: string;
-};
-
-function normalizeError(err: unknown): NormalizedError {
-  if (err && typeof err === "object") {
-    const anyErr = err as any;
-    const code = typeof anyErr.code === "string" ? anyErr.code : "UNKNOWN";
-    const message =
-      typeof anyErr.message === "string" ? anyErr.message : "Unknown error";
-    return { code, message };
-  }
-  if (typeof err === "string") return { code: "UNKNOWN", message: err };
-  return { code: "UNKNOWN", message: "Unknown error" };
+function apiBad(code: string, message: string) {
+  return { ok: false as const, error: { code, message } }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const event = body?.event;
+    const body = await req.json()
+    const event = body?.event as CalibrationEvent | undefined
 
-    const res = await dispatchCalibrationEvent(event);
-
-    if (!res || res.ok !== true) {
-      const error = res?.error
-        ? res.error
-        : { code: "UNKNOWN", message: "Unknown error" };
-      return NextResponse.json({ ok: false, error }, { status: 400 });
+    if (!event || typeof event !== "object" || typeof (event as any).type !== "string") {
+      return Response.json(apiBad("BAD_REQUEST", "Missing or invalid event"), { status: 400 })
     }
 
-    // FIX: dispatchCalibrationEvent returns { ok:true, session }, not { value }
-    return NextResponse.json({ ok: true, session: res.session }, { status: 200 });
-  } catch (err) {
-    const error = normalizeError(err);
-    return NextResponse.json({ ok: false, error }, { status: 500 });
+    const res = dispatchCalibrationEvent(event)
+
+    if (!res.ok) {
+      return Response.json(apiBad(res.error.code, res.error.message), { status: 400 })
+    }
+
+    return Response.json({ ok: true, session: res.session }, { status: 200 })
+  } catch {
+    return Response.json(apiBad("BAD_REQUEST", "Invalid JSON body"), { status: 400 })
   }
 }

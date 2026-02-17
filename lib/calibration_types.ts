@@ -15,6 +15,7 @@ export type CalibrationState =
   | "PROMPT_5"
   | "PROMPT_5_CLARIFIER"
   | "CONSOLIDATION_PENDING"
+  | "CONSOLIDATION_RITUAL"
   | "ENCODING_RITUAL"
   | "PATTERN_SYNTHESIS"
   | "TITLE_HYPOTHESIS"
@@ -32,6 +33,7 @@ export type BadRequestCode =
   | "INSUFFICIENT_SIGNAL_AFTER_CLARIFIER"
   | "JOB_REQUIRED"
   | "JOB_ENCODING_INCOMPLETE"
+  | "RITUAL_NOT_READY"
 
 export type CalibrationError = { code: BadRequestCode; message: string }
 
@@ -45,6 +47,15 @@ export type PromptSlot = {
     question: string | null
     answer: string | null
   }
+}
+
+export type ConsolidationRitual = {
+  startedAtIso: string | null
+  lastTickAtIso: string | null
+  progressPct: number
+  step: number
+  message: string | null
+  completed: boolean
 }
 
 export type CalibrationSession = {
@@ -78,6 +89,8 @@ export type CalibrationSession = {
   encodingRitual: {
     completed: boolean
   }
+
+  consolidationRitual: ConsolidationRitual
 
   synthesis: {
     // Pattern synthesis (structural, no tone)
