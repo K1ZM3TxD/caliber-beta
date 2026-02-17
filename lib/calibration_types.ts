@@ -80,10 +80,18 @@ export type CalibrationSession = {
   }
 
   synthesis: {
-    titleHypothesis: string | null
+    // Pattern synthesis (structural, no tone)
     patternSummary: string | null
     operateBest: string[] | null
     loseEnergy: string[] | null
+
+    // Title hypothesis
+    identitySummary: string | null
+    marketTitle: string | null
+    titleExplanation: string | null
+
+    // Title dialogue
+    lastTitleFeedback: string | null
   } | null
 
   job: {
@@ -107,6 +115,8 @@ export type CalibrationEvent =
   | { type: "SUBMIT_RESUME"; sessionId: string; resumeText: string }
   | { type: "SUBMIT_PROMPT_ANSWER"; sessionId: string; answer: string }
   | { type: "SUBMIT_PROMPT_CLARIFIER_ANSWER"; sessionId: string; answer: string }
+  | { type: "ENCODING_COMPLETE"; sessionId: string }
+  | { type: "TITLE_FEEDBACK"; sessionId: string; feedback: string }
   | { type: "SUBMIT_JOB_TEXT"; sessionId: string; jobText: string }
   | { type: "ADVANCE"; sessionId: string }
   | { type: "COMPUTE_ALIGNMENT_OUTPUT"; sessionId: string }

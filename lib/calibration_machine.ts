@@ -59,6 +59,29 @@ function hasMinimumSignal(text: string): boolean {
   return words.length >= MIN_WORDS
 }
 
+function ensureSynthesisContainer(s: CalibrationSession): void {
+  if (!s.synthesis) {
+    s.synthesis = {
+      patternSummary: null,
+      operateBest: null,
+      loseEnergy: null,
+      identitySummary: null,
+      marketTitle: null,
+      titleExplanation: null,
+      lastTitleFeedback: null,
+    }
+  } else {
+    // Back-compat: older sessions may have partial fields.
+    s.synthesis.patternSummary ??= null
+    s.synthesis.operateBest ??= null
+    s.synthesis.loseEnergy ??= null
+    ;(s.synthesis as any).identitySummary ??= null
+    ;(s.synthesis as any).marketTitle ??= null
+    ;(s.synthesis as any).titleExplanation ??= null
+    ;(s.synthesis as any).lastTitleFeedback ??= null
+  }
+}
+
 function makePromptSlot(k: 1 | 2 | 3 | 4 | 5): PromptSlot {
   return {
     question: promptQuestion(k),
@@ -83,7 +106,15 @@ function newSession(sessionId: string): CalibrationSession {
     },
     personVector: { values: null, locked: false },
     encodingRitual: { completed: false },
-    synthesis: null,
+    synthesis: {
+      patternSummary: null,
+      operateBest: null,
+      loseEnergy: null,
+      identitySummary: null,
+      marketTitle: null,
+      titleExplanation: null,
+      lastTitleFeedback: null,
+    },
     job: {
       rawText: null,
       roleVector: null,
@@ -134,7 +165,6 @@ function toRoleVectorTuple(
 
 // Deterministic personVector placeholder (smallest shippable):
 // Encode a stable 6-dim vector in {0,1,2} from text using coarse keyword rules.
-// (No new dimensions introduced; names/length are locked.)
 function computePersonVector(
   text: string,
 ): [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] {
@@ -171,9 +201,7 @@ function computeAlignmentScore(args: {
 
   const W = 1.5 * C + 0.5 * M
   let score = Math.max(0, Math.min(10, 10 - W))
-
-  const round1 = Math.round(score * 10) / 10
-  score = round1
+  score = Math.round(score * 10) / 10
 
   const explanation = `Alignment computed from locked vectors. Severe contradictions=${C}, mild tensions=${M}, weighted penalty=${W.toFixed(
     1,
@@ -199,32 +227,26 @@ function combinedText(s: CalibrationSession): string {
   return `${resume}\n${prompts}`.trim()
 }
 
-// Internal “auto-step” run when we leave PROMPT_5 and enter post states.
-// Encoding ritual is instant; synthesis/title are set deterministically.
-function runPostPrompt5Pipeline(s: CalibrationSession, eventName: string): void {
-  // CONSOLIDATION_PENDING
-  transition(s, "CONSOLIDATION_PENDING", eventName)
+function computePatternSynthesisIfMissing(s: CalibrationSession): void {
+  ensureSynthesisContainer(s)
+  if (s.synthesis!.patternSummary && Array.isArray(s.synthesis!.operateBest) && Array.isArray(s.synthesis!.loseEnergy)) return
 
-  const text = combinedText(s)
-  s.personVector.values = computePersonVector(text)
-  s.personVector.locked = true
+  // Structural, non-emotive translation only (deterministic placeholder).
+  s.synthesis!.patternSummary =
+    "Structural synthesis computed from resume + accepted prompts. Person vector is locked and will be used for scoring without blending. Outputs are presented as operating conditions, not sentiment."
+  s.synthesis!.operateBest = ["Clear ownership", "Structured scope", "Known stakeholders", "Defined success criteria"]
+  s.synthesis!.loseEnergy = ["Ambiguous authority", "Constant context switching", "Unbounded requests", "Conflicting priorities"]
+}
 
-  // ENCODING_RITUAL (instant)
-  transition(s, "ENCODING_RITUAL", eventName)
-  s.encodingRitual.completed = true
+function computeTitleHypothesisIfMissing(s: CalibrationSession): void {
+  ensureSynthesisContainer(s)
+  if (s.synthesis!.identitySummary && s.synthesis!.marketTitle && s.synthesis!.titleExplanation) return
 
-  // PATTERN_SYNTHESIS (minimal deterministic placeholder; no tone)
-  transition(s, "PATTERN_SYNTHESIS", eventName)
-  s.synthesis = {
-    titleHypothesis: "Structural Operator",
-    patternSummary: "Structural pattern captured. Person vector encoded and locked. Proceeding to scoring without blending.",
-    operateBest: ["Clear ownership", "Structured scope", "Known stakeholders", "Defined success criteria"],
-    loseEnergy: ["Ambiguous authority", "Constant context switching", "Unbounded requests", "Conflicting priorities"],
-  }
-
-  transition(s, "TITLE_HYPOTHESIS", eventName)
-  transition(s, "TITLE_DIALOGUE", eventName)
-  transition(s, "JOB_INGEST", eventName)
+  // Deterministic placeholder title hypothesis (market-native; no composites).
+  s.synthesis!.identitySummary = "You operate best when scope and ownership are explicit, with stable interfaces and measurable success criteria."
+  s.synthesis!.marketTitle = "Operations Program Manager"
+  s.synthesis!.titleExplanation =
+    "Title maps to structural strengths: defining scope, coordinating stakeholders, enforcing success criteria, and maintaining execution cadence."
 }
 
 function submitJobText(s: CalibrationSession, jobText: string): DispatchResult {
@@ -256,6 +278,8 @@ function submitJobText(s: CalibrationSession, jobText: string): DispatchResult {
     s.job.roleVector = roleVector
     s.job.completed = true
     s.result = null
+
+    // Single hop: stay in JOB_INGEST as the stable snapshot.
     transition(s, "JOB_INGEST", "SUBMIT_JOB_TEXT")
 
     storeSet(s)
@@ -302,7 +326,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       hasTitles: /\b(manager|director|engineer|analyst|designer|founder|lead)\b/i.test(raw),
     }
 
-    // Auto-advance out of RESUME_INGEST on successful submit.
+    // Auto-advance out of RESUME_INGEST on successful submit (single hop).
     transition(s, "PROMPT_1", "SUBMIT_RESUME")
 
     storeSet(s)
@@ -328,11 +352,9 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       slot.frozen = true
 
       const next = nextPromptState(k)
-      if (next === "CONSOLIDATION_PENDING") {
-        runPostPrompt5Pipeline(s, "SUBMIT_PROMPT_ANSWER")
-      } else {
-        transition(s, next, "SUBMIT_PROMPT_ANSWER")
-      }
+
+      // Key rule: after PROMPT_5 submission, go to CONSOLIDATION_PENDING and RETURN (no chaining).
+      transition(s, next, "SUBMIT_PROMPT_ANSWER")
 
       storeSet(s)
       return { ok: true, session: s }
@@ -373,21 +395,92 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     slot.frozen = true
 
     const next = nextPromptState(k)
-    if (next === "CONSOLIDATION_PENDING") {
-      runPostPrompt5Pipeline(s, "SUBMIT_PROMPT_CLARIFIER_ANSWER")
-    } else {
-      transition(s, next, "SUBMIT_PROMPT_CLARIFIER_ANSWER")
-    }
+
+    // Key rule: after PROMPT_5_CLARIFIER submission, go to CONSOLIDATION_PENDING and RETURN (no chaining).
+    transition(s, next, "SUBMIT_PROMPT_CLARIFIER_ANSWER")
 
     storeSet(s)
     return { ok: true, session: s }
   }
 
+  // CONSOLIDATION_PENDING / ENCODING_RITUAL:
+  // Must NOT auto-advance. Only advance to PATTERN_SYNTHESIS on ENCODING_COMPLETE.
+  if (event.type === "ENCODING_COMPLETE") {
+    if (s.state !== "CONSOLIDATION_PENDING" && s.state !== "ENCODING_RITUAL") {
+      return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is only valid in CONSOLIDATION_PENDING or ENCODING_RITUAL")
+    }
+
+    // Encode/lock person vector (if missing), mark ritual complete, then single-hop to PATTERN_SYNTHESIS.
+    if (!s.personVector.locked || !s.personVector.values) {
+      const text = combinedText(s)
+      s.personVector.values = computePersonVector(text)
+      s.personVector.locked = true
+    }
+    s.encodingRitual.completed = true
+
+    transition(s, "PATTERN_SYNTHESIS", "ENCODING_COMPLETE")
+
+    // On entering PATTERN_SYNTHESIS, compute/store synthesis output, then RETURN (no further chaining).
+    computePatternSynthesisIfMissing(s)
+
+    storeSet(s)
+    return { ok: true, session: s }
+  }
+
+  // PATTERN_SYNTHESIS:
+  // - compute on entry (handled above) OR ensure computed if already here
+  // - only advance to TITLE_HYPOTHESIS on explicit ADVANCE
+  if (event.type === "ADVANCE" && s.state === "PATTERN_SYNTHESIS") {
+    // Ensure synthesis exists (idempotent).
+    computePatternSynthesisIfMissing(s)
+
+    transition(s, "TITLE_HYPOTHESIS", "ADVANCE")
+
+    // On entering TITLE_HYPOTHESIS, compute/store title hypothesis fields, then RETURN (no chaining).
+    computeTitleHypothesisIfMissing(s)
+
+    storeSet(s)
+    return { ok: true, session: s }
+  }
+
+  // TITLE_HYPOTHESIS / TITLE_DIALOGUE:
+  // Only advance to TITLE_DIALOGUE on TITLE_FEEDBACK (required).
+  if (event.type === "TITLE_FEEDBACK") {
+    const fb = assertNonEmptyString("feedback", event.feedback)
+    if (!fb.ok) return fb
+
+    ensureSynthesisContainer(s)
+    s.synthesis!.lastTitleFeedback = fb.value.trim()
+
+    if (s.state === "TITLE_HYPOTHESIS") {
+      transition(s, "TITLE_DIALOGUE", "TITLE_FEEDBACK")
+      storeSet(s)
+      return { ok: true, session: s }
+    }
+
+    if (s.state === "TITLE_DIALOGUE") {
+      // Interactive: self-loop or transition to JOB_INGEST when resolved.
+      // Deterministic resolved rule: empty feedback means "resolved" (move to JOB_INGEST).
+      const trimmed = fb.value.trim()
+      if (trimmed.length === 0) {
+        transition(s, "JOB_INGEST", "TITLE_FEEDBACK")
+      } else {
+        // self-loop (no state change, but snapshot updated)
+        // keep state as TITLE_DIALOGUE
+      }
+      storeSet(s)
+      return { ok: true, session: s }
+    }
+
+    return bad("INVALID_EVENT_FOR_STATE", "TITLE_FEEDBACK is only valid in TITLE_HYPOTHESIS or TITLE_DIALOGUE")
+  }
+
+  // SUBMIT_JOB_TEXT
   if (event.type === "SUBMIT_JOB_TEXT") {
     return submitJobText(s, event.jobText)
   }
 
-  // ADVANCE (forward-only)
+  // ADVANCE (forward-only) — keep support elsewhere, but remove any hidden chaining.
   if (event.type === "ADVANCE") {
     if (s.state === "RESUME_INGEST") {
       if (!s.resume.completed) return bad("FORBIDDEN_TRANSITION", "Resume ingest must be completed before entering PROMPT_1")
@@ -400,36 +493,32 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     if (kPrompt) {
       const slot = s.prompts[kPrompt]
       if (!slot.accepted) return bad("FORBIDDEN_TRANSITION", "Prompt must be accepted before advancing")
-
-      // Freeze immediately upon advancing past prompt k
       slot.frozen = true
 
       const next = nextPromptState(kPrompt)
-      if (next === "CONSOLIDATION_PENDING") {
-        runPostPrompt5Pipeline(s, "ADVANCE")
-      } else {
-        transition(s, next, "ADVANCE")
-      }
+      // Single hop only (PROMPT_5 -> CONSOLIDATION_PENDING), no chaining.
+      transition(s, next, "ADVANCE")
 
       storeSet(s)
       return { ok: true, session: s }
     }
 
-    // ADVANCE out of clarifier state (same acceptance rule; freeze on leaving prompt k)
     const kClar = activeClarifierKFromState(s.state)
     if (kClar) {
       const slot = s.prompts[kClar]
       if (!slot.accepted) return bad("FORBIDDEN_TRANSITION", "Prompt must be accepted before advancing")
-
       slot.frozen = true
 
       const next = nextPromptState(kClar)
-      if (next === "CONSOLIDATION_PENDING") {
-        runPostPrompt5Pipeline(s, "ADVANCE")
-      } else {
-        transition(s, next, "ADVANCE")
-      }
+      // Single hop only (PROMPT_5_CLARIFIER -> CONSOLIDATION_PENDING), no chaining.
+      transition(s, next, "ADVANCE")
 
+      storeSet(s)
+      return { ok: true, session: s }
+    }
+
+    if (s.state === "CONSOLIDATION_PENDING") {
+      transition(s, "ENCODING_RITUAL", "ADVANCE")
       storeSet(s)
       return { ok: true, session: s }
     }
@@ -444,6 +533,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       if (!s.job.completed || !s.job.roleVector) {
         return bad("FORBIDDEN_TRANSITION", "JOB_REQUIRED")
       }
+      // Keep explicit ADVANCE to enter ALIGNMENT_OUTPUT (single hop).
       transition(s, "ALIGNMENT_OUTPUT", "ADVANCE")
       storeSet(s)
       return { ok: true, session: s }
@@ -470,7 +560,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     const skillMatch = computeSkillMatch(roleVector, personVector)
     const stretchLoad = computeStretchLoad(skillMatch.finalScore)
 
-    // Contract v1 keys only.
     s.result = toResultContract({
       alignment,
       skillMatch,
