@@ -67,7 +67,8 @@ export default function CalibrationPage() {
   const [session, setSession] = useState<CalibrationSession | null>(null);
   const [error, setError] = useState<NormalizedError | null>(null);
 
-  const [resumeText, setResumeText] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [promptAnswer, setPromptAnswer] = useState<string>('');
   const [clarifierAnswer, setClarifierAnswer] = useState<string>('');
   const [jobText, setJobText] = useState<string>('');
@@ -75,6 +76,8 @@ export default function CalibrationPage() {
   const [titleFeedback, setTitleFeedback] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const historyJson = useMemo(() => {
     if (!session) return '';
@@ -99,7 +102,7 @@ export default function CalibrationPage() {
       setPromptAnswer('');
       setClarifierAnswer('');
 
-      if (prevState === 'RESUME_INGEST') setResumeText('');
+      if (prevState === 'RESUME_INGEST') setSelectedFile(null);
 
       if (isJobInputState(prevState)) setJobText('');
 
@@ -148,14 +151,64 @@ export default function CalibrationPage() {
     }
   }
 
+  async function uploadResumeAndAdvance() {
+    if (!session) return;
+    if (!selectedFile) return;
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const fd = new FormData();
+      fd.set('sessionId', session.sessionId);
+      fd.set('file', selectedFile);
+
+      const res = await fetch('/api/calibration/resume-upload', {
+        method: 'POST',
+        body: fd,
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      const payload = isJson ? await res.json() : null;
+
+      if (!res.ok) {
+        const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
+        const message =
+          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
+        setError({ code, message });
+        return;
+      }
+
+      const ok = payload?.ok === true;
+      const nextSession = payload?.session;
+
+      if (!ok || !nextSession) {
+        setError({ code: 'BAD_RESPONSE', message: 'Missing ok:true session in response' });
+        return;
+      }
+
+      setSession(nextSession as CalibrationSession);
+    } catch (e: any) {
+      setError({ code: 'NETWORK_ERROR', message: safeString(e?.message) || 'Network error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   function resetLocalUi() {
     setError(null);
-    setResumeText('');
+    setSelectedFile(null);
     setPromptAnswer('');
     setClarifierAnswer('');
     setJobText('');
     setTitleFeedback('');
     setIsSubmitting(false);
+  }
+
+  function pickFile(f: File | null) {
+    if (!f) return;
+    setSelectedFile(f);
   }
 
   const state: CalibrationState | null = session?.state ?? null;
@@ -169,8 +222,6 @@ export default function CalibrationPage() {
 
     const sessionId = session.sessionId;
     const handle = window.setInterval(() => {
-      // Dispatch with no user text input.
-      // This must advance at most one state per call (server enforces).
       sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent);
     }, 800);
 
@@ -295,52 +346,62 @@ export default function CalibrationPage() {
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 600 }}>Resume ingest</div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Resume text</span>
-            <textarea
-              value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
-              rows={8}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
-              placeholder="Paste resume text here…"
-            />
-          </label>
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const f = e.dataTransfer?.files?.[0] ?? null;
+              if (f) pickFile(f);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: '2px dashed #d0d0d0',
+              borderRadius: 10,
+              padding: 14,
+              background: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Drop resume here, or click to choose</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Accepted: .pdf, .docx, .txt</div>
+            {selectedFile && (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                }}
+              >
+                Selected: {selectedFile.name}
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            style={{ display: 'none' }}
+            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+          />
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button
-              onClick={() => sendEvent({ type: 'SUBMIT_RESUME', sessionId: session.sessionId, resumeText } as CalibrationEvent)}
-              disabled={isSubmitting || resumeText.trim().length === 0}
+              onClick={uploadResumeAndAdvance}
+              disabled={isSubmitting || !selectedFile}
               style={{
                 padding: '8px 12px',
                 borderRadius: 8,
                 border: '1px solid #d0d0d0',
                 background: 'white',
-                cursor: isSubmitting || resumeText.trim().length === 0 ? 'not-allowed' : 'pointer',
+                cursor: isSubmitting || !selectedFile ? 'not-allowed' : 'pointer',
               }}
             >
-              {isSubmitting ? 'Submitting…' : 'Submit resume'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting || !session.resume?.completed}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || !session.resume?.completed ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Advance'}
+              {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
           </div>
         </section>
