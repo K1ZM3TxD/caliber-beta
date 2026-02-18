@@ -25,6 +25,10 @@ export type CalibrationState =
   | "TERMINAL_COMPLETE"
 
 export type BadRequestCode =
+  // Generic normalized codes (needed for deterministic API contract)
+  | "BAD_REQUEST"
+  | "INTERNAL"
+  // Existing calibration codes
   | "INVALID_EVENT_FOR_STATE"
   | "FORBIDDEN_TRANSITION"
   | "SESSION_NOT_FOUND"

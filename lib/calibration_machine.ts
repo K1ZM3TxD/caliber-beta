@@ -1,4 +1,5 @@
 // lib/calibration_machine.ts
+
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
@@ -19,14 +20,13 @@ function bad(code: CalibrationError["code"], message: string): Err {
 
 function pushHistory(session: CalibrationSession, from: CalibrationState, to: CalibrationState, event: string): CalibrationSession {
   if (from === to) return session
-  const next = {
+  return {
     ...session,
     history: [
       ...(Array.isArray(session.history) ? session.history : []),
       { at: nowIso(), from, to, event },
     ],
   }
-  return next
 }
 
 function mustGet(sessionId: string): CalibrationSession | Err {
@@ -47,10 +47,6 @@ function promptsComplete1to5(session: CalibrationSession): boolean {
 
 function meetsSignal(text: string): boolean {
   return text.trim().length >= 40
-}
-
-function promptStateForIndex(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
-  return (`PROMPT_${n}` as CalibrationState)
 }
 
 function clarifierStateForIndex(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
@@ -84,7 +80,6 @@ function nextPromptAfter(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
   if (n === 2) return "PROMPT_3"
   if (n === 3) return "PROMPT_4"
   if (n === 4) return "PROMPT_5"
-  // After prompt 5 -> consolidation entry state (must be visible)
   return "CONSOLIDATION_PENDING"
 }
 
@@ -109,11 +104,11 @@ function encodePersonVectorOnce(session: CalibrationSession): CalibrationSession
   }
   const joined = parts.join("\n").trim()
 
-  // Stable 6-dim vector in 0..2 derived from simple hash-like accumulation.
   let acc = 0
   for (let i = 0; i < joined.length; i += 1) {
     acc = (acc + joined.charCodeAt(i) * (i + 1)) >>> 0
   }
+
   const dims: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] = [
     ((acc + 11) % 3) as 0 | 1 | 2,
     ((acc + 23) % 3) as 0 | 1 | 2,
@@ -136,7 +131,6 @@ function synthesizeOnce(session: CalibrationSession): CalibrationSession {
   const vec = session.personVector.values
   if (!vec || vec.length !== 6) return session
 
-  // Map dims to deterministic structural bullets (no “tone”).
   const labels = [
     "Structural Maturity",
     "Authority Scope",
@@ -179,7 +173,6 @@ function synthesizeOnce(session: CalibrationSession): CalibrationSession {
       patternSummary: summary,
       operateBest,
       loseEnergy,
-      // Title phase placeholders (filled later)
       identitySummary: session.synthesis?.identitySummary ?? null,
       marketTitle: session.synthesis?.marketTitle ?? null,
       titleExplanation: session.synthesis?.titleExplanation ?? null,
@@ -189,7 +182,6 @@ function synthesizeOnce(session: CalibrationSession): CalibrationSession {
 }
 
 function newSessionId(): string {
-  // Avoid crypto import constraints; deterministic enough for local dev.
   return `sess_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`
 }
 
@@ -243,9 +235,35 @@ function createSession(): CalibrationSession {
   return session
 }
 
-function ensureState(session: CalibrationSession, allowed: CalibrationState[], event: string): Err | null {
-  if (!allowed.includes(session.state)) {
-    return bad("INVALID_EVENT_FOR_STATE", `Event ${event} not allowed in state ${session.state}`)
+// Strict allowlist: current_state -> allowed event types.
+// (CREATE_SESSION is handled before session lookup.)
+const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]>> = {
+  RESUME_INGEST: ["SUBMIT_RESUME", "ADVANCE"],
+  PROMPT_1: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_1_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_2: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_2_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_3: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_3_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_4: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_4_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_5: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_5_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  CONSOLIDATION_PENDING: ["ADVANCE"],
+  CONSOLIDATION_RITUAL: ["ADVANCE"],
+  ENCODING_RITUAL: ["ADVANCE"],
+  PATTERN_SYNTHESIS: ["ADVANCE"],
+  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
+  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
+  JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
+  ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
+  TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
+}
+
+function ensureAllowed(session: CalibrationSession, eventType: CalibrationEvent["type"]): Err | null {
+  const allowed = ALLOWLIST[session.state] ?? []
+  if (!allowed.includes(eventType)) {
+    return bad("INVALID_EVENT_FOR_STATE", `Event ${eventType} not allowed in state ${session.state}`)
   }
   return null
 }
@@ -266,7 +284,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       return { ok: true, session }
     }
 
-    // All other events require sessionId
     const sessionId = (event as any).sessionId
     if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
       return bad("MISSING_REQUIRED_FIELD", "Missing sessionId")
@@ -276,12 +293,13 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
     if ((got as any).ok === false) return got as Err
     let session = got as CalibrationSession
 
+    const allowErr = ensureAllowed(session, event.type)
+    if (allowErr) return allowErr
+
     const from = session.state
 
     switch (event.type) {
       case "SUBMIT_RESUME": {
-        const err = ensureState(session, ["RESUME_INGEST"], event.type)
-        if (err) return err
         const resumeText = (event as any).resumeText
         if (typeof resumeText !== "string" || resumeText.trim().length === 0) {
           return bad("MISSING_REQUIRED_FIELD", "resumeText must be a non-empty string")
@@ -305,13 +323,13 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
             },
           },
         }
-        // Stay in RESUME_INGEST; user advances explicitly (or UI can).
+
+        // Deterministic: remain in RESUME_INGEST; UI (or user) triggers ADVANCE explicitly.
         storeSet(session)
         return { ok: true, session }
       }
 
       case "ADVANCE": {
-        // Server-authoritative auto progression for consolidation states (no user text required).
         if (session.state === "RESUME_INGEST") {
           if (!session.resume.completed) return bad("MISSING_REQUIRED_FIELD", "Resume must be submitted before advancing")
           const to: CalibrationState = "PROMPT_1"
@@ -321,7 +339,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
         }
 
         if (session.state === "CONSOLIDATION_PENDING") {
-          // Deterministic entry into visible ritual state on next dispatch.
           if (!promptsComplete1to5(session)) {
             return bad("RITUAL_NOT_READY", "Prompts 1–5 must be completed before consolidation ritual")
           }
@@ -356,9 +373,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
           const now = Date.now()
           const deltaMs = now - lastTick
 
-          // Deterministic pacing: only advance a step if enough time elapsed.
           const stepAdvance = deltaMs >= 450 ? 1 : 0
-
           const nextStep = r.step + stepAdvance
           const nextPct = clampPct(r.progressPct + stepAdvance * 20)
 
@@ -389,9 +404,24 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
             return { ok: true, session }
           }
 
-          // Ritual completes -> encode exactly once -> synthesize exactly once -> transition ONE state to PATTERN_SYNTHESIS.
-          let next = { ...session, consolidationRitual: nextRitual }
-          next = encodePersonVectorOnce(next)
+          // Ritual completes -> move to ENCODING_RITUAL (externally visible).
+          // NO synthesis is emitted here (kernel: no synthesis before encoding).
+          const to: CalibrationState = "ENCODING_RITUAL"
+          let next = {
+            ...session,
+            state: to,
+            consolidationRitual: nextRitual,
+            encodingRitual: { completed: false },
+          }
+          next = pushHistory(next, from, to, event.type)
+          storeSet(next)
+          return { ok: true, session: next }
+        }
+
+        if (session.state === "ENCODING_RITUAL") {
+          // Single visible step: ENCODING_RITUAL -> PATTERN_SYNTHESIS.
+          // Do encoding + synthesis exactly once, then transition ONE state.
+          let next = encodePersonVectorOnce(session)
           next = synthesizeOnce(next)
 
           const to: CalibrationState = "PATTERN_SYNTHESIS"
@@ -526,8 +556,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       }
 
       case "TITLE_FEEDBACK": {
-        const err = ensureState(session, ["TITLE_HYPOTHESIS", "TITLE_DIALOGUE"], event.type)
-        if (err) return err
         const feedback = (event as any).feedback
         if (typeof feedback !== "string") return bad("MISSING_REQUIRED_FIELD", "feedback must be a string")
         session = {
@@ -558,20 +586,19 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
           return bad("JOB_ENCODING_INCOMPLETE", "Person vector must be encoded before job ingest")
         }
 
-        // Ingest deterministically (may throw typed job_ingest errors; bubble as BAD_REQUEST).
         let roleVector: any = null
         try {
           const ingest = ingestJob(jobText.trim())
           roleVector = ingest.roleVector as any
         } catch (e: any) {
-          return bad("BAD_REQUEST" as any, String(e?.detail ?? e?.message ?? "Invalid job text"))
+          return bad("BAD_REQUEST", String(e?.detail ?? e?.message ?? "Invalid job text"))
         }
 
         const to: CalibrationState = "JOB_INGEST"
         session = {
           ...session,
           job: { rawText: jobText.trim(), roleVector, completed: true },
-          result: null, // reset result on new job
+          result: null,
         }
         session = pushHistory({ ...session, state: to }, from, to, event.type)
         storeSet(session)
@@ -579,8 +606,9 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       }
 
       case "COMPUTE_ALIGNMENT_OUTPUT": {
-        const err = ensureState(session, ["ALIGNMENT_OUTPUT"], event.type)
-        if (err) return err
+        if (session.state !== "ALIGNMENT_OUTPUT") {
+          return bad("INVALID_EVENT_FOR_STATE", `Event ${event.type} not allowed in state ${session.state}`)
+        }
         if (!session.job.completed || !session.job.rawText) return bad("JOB_REQUIRED", "Submit a job description first")
         if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
 
@@ -590,7 +618,7 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
         })
 
         if (!seam.ok) {
-          return bad("BAD_REQUEST" as any, seam.error.message)
+          return bad("BAD_REQUEST", seam.error.message)
         }
 
         const contract = toResultContract({
@@ -610,14 +638,14 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       }
 
       case "ENCODING_COMPLETE": {
-        // Kept for compatibility; encoding is now guarded + run as part of ritual completion.
+        // Kept for compatibility; encoding is now guarded + run as part of ENCODING_RITUAL ADVANCE.
         return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is not a public event in v1 flow")
       }
 
       default:
-        return bad("MISSING_REQUIRED_FIELD", `Unknown event type: ${(event as any).type}`)
+        return bad("BAD_REQUEST", `Unknown event type: ${(event as any).type}`)
     }
   } catch (e: any) {
-    return bad("BAD_REQUEST" as any, String(e?.message ?? "Unexpected error"))
+    return bad("INTERNAL", String(e?.message ?? "Unexpected error"))
   }
 }
