@@ -1,5 +1,3 @@
-// lib/calibration_machine.ts
-
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
@@ -22,10 +20,7 @@ function pushHistory(session: CalibrationSession, from: CalibrationState, to: Ca
   if (from === to) return session
   return {
     ...session,
-    history: [
-      ...(Array.isArray(session.history) ? session.history : []),
-      { at: nowIso(), from, to, event },
-    ],
+    history: [...(Array.isArray(session.history) ? session.history : []), { at: nowIso(), from, to, event }],
   }
 }
 
@@ -50,7 +45,7 @@ function meetsSignal(text: string): boolean {
 }
 
 function clarifierStateForIndex(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
-  return (`PROMPT_${n}_CLARIFIER` as CalibrationState)
+  return `PROMPT_${n}_CLARIFIER` as CalibrationState
 }
 
 function getPromptIndex(state: CalibrationState): 1 | 2 | 3 | 4 | 5 | null {
@@ -328,6 +323,375 @@ function synthesizeOnce(session: CalibrationSession): CalibrationSession {
   }
 }
 
+type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
+type ResumeSignals = { charLen: number; hasBullets: boolean; hasDates: boolean; hasTitles: boolean } | null | undefined
+
+function primaryDimFromVector(v: PersonVector6): number {
+  for (let i = 0; i < 6; i += 1) if (v[i] !== 1) return i
+  return 0
+}
+
+function splitSynthesisLines(patternSummary: string): string[] {
+  return patternSummary
+    .split(/\n\s*\n/g)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0)
+}
+
+function joinSynthesisLines(lines: string[]): string {
+  return lines.join("\n\n")
+}
+
+function stripPraiseAdjectives(line: string): string {
+  const praise = [
+    "best",
+    "great",
+    "exceptional",
+    "excellent",
+    "amazing",
+    "outstanding",
+    "brilliant",
+    "impressive",
+    "remarkable",
+    "world-class",
+    "elite",
+  ]
+  let out = line
+  for (const w of praise) {
+    const re = new RegExp(`\\b${w.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "gi")
+    out = out.replace(re, "")
+  }
+  out = out.replace(/\s{2,}/g, " ").trim()
+  out = out.replace(/\s+([.,!?;:])/g, "$1")
+  return out
+}
+
+function normalizeWordToken(raw: string): string {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim()
+  return cleaned
+}
+
+function collectContentWords(lines: string[]): string[] {
+  const words: string[] = []
+  for (const line of lines) {
+    const parts = line.split(/\s+/g)
+    for (const p of parts) {
+      const t = normalizeWordToken(p)
+      if (t.length >= 5) words.push(t)
+    }
+  }
+  return words
+}
+
+// NOTE: These guardrail constants MUST exist exactly once in this module.
+const REPETITION_STOPWORDS = new Set<string>(["you", "dont", "just", "when", "something", "isnt", "working", "through"])
+
+const BLACKLIST_TERMS: Array<{ label: string; re: RegExp }> = [
+  { label: "cadence", re: /\bcadence\b/i },
+  { label: "operating structure", re: /\boperating\s+(structure|model)\b/i },
+  { label: "leverage", re: /\bleverage\b/i },
+  { label: "impact", re: /\bimpact\b/i },
+  { label: "value", re: /\bvalue\b/i },
+  { label: "optimize", re: /\boptimi[sz]e\b/i },
+  { label: "synergy", re: /\bsynergy\b/i },
+  { label: "scalable", re: /\bscalable\b/i },
+  { label: "framework", re: /\bframework\b/i },
+  { label: "system’s", re: /\bsystem[’']s\b/i },
+  { label: "system", re: /\bsystem\b/i },
+]
+
+const SYNONYM_MAP: Array<{ from: RegExp; to: string }> = [
+  { from: /\bcadence\b/gi, to: "rhythm" },
+  { from: /\boperating\s+structure\b/gi, to: "operating rules" },
+  { from: /\boperating\s+model\b/gi, to: "operating rules" },
+  { from: /\bpush\s+through\b/gi, to: "force it" },
+  { from: /\bleverage\b/gi, to: "use" },
+  { from: /\bimpact\b/gi, to: "effect" },
+  { from: /\bvalue\b/gi, to: "use" },
+  { from: /\boptimi[sz]e\b/gi, to: "tighten" },
+  { from: /\bsynergy\b/gi, to: "fit" },
+  { from: /\bscalable\b/gi, to: "repeatable" },
+  { from: /\bframework\b/gi, to: "method" },
+  { from: /\bsystem[’']s\b/gi, to: "workflow’s" },
+  { from: /\bsystem\b/gi, to: "workflow" },
+]
+
+const CONSTRUCTION_ALLOWED_VERBS = new Set<string>([
+  "notice",
+  "surface",
+  "map",
+  "isolate",
+  "name",
+  "define",
+  "clarify",
+  "tighten",
+  "sequence",
+  "test",
+  "simplify",
+  "decide",
+  "design",
+  "build",
+  "repair",
+  "align",
+  "measure",
+])
+
+function applyDeterministicTermReplacements(line: string): string {
+  let out = line
+  for (const { from, to } of SYNONYM_MAP) out = out.replace(from, to)
+  out = out.replace(/\s{2,}/g, " ").trim()
+  out = out.replace(/\s+([.,!?;:])/g, "$1")
+  return out
+}
+
+function hasBlacklist(line: string): boolean {
+  for (const t of BLACKLIST_TERMS) if (t.re.test(line)) return true
+  return false
+}
+
+function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
+  const identityByDim: Record<number, string> = {
+    0: "You don’t just ship work — you set operating rules.",
+    1: "You don’t just take ownership — you define boundaries.",
+    2: "You don’t just hit targets — you protect measurement integrity.",
+    3: "You don’t just work across scope — you hold constraints.",
+    4: "You don’t just learn quickly — you choose one depth path.",
+    5: "You don’t just coordinate stakeholders — you set handoffs.",
+  }
+  const interventionByDim: Record<number, string> = {
+    0: "When something isn’t working, you don’t force it — you tighten constraints.",
+    1: "When something isn’t working, you don’t wait — you route the call.",
+    2: "When something isn’t working, you don’t argue — you audit the measure.",
+    3: "When something isn’t working, you don’t adapt silently — you reject drift.",
+    4: "When something isn’t working, you don’t keep exploring — you pick one thread.",
+    5: "When something isn’t working, you don’t reply to everyone — you set one handoff.",
+  }
+  const constructionVerbsByDim: Record<number, [string, string, string]> = {
+    0: ["notice", "clarify", "sequence"],
+    1: ["map", "define", "decide"],
+    2: ["measure", "isolate", "test"],
+    3: ["surface", "tighten", "decide"],
+    4: ["isolate", "simplify", "decide"],
+    5: ["map", "align", "sequence"],
+  }
+
+  const identity = identityByDim[primaryDim] ?? identityByDim[0]
+  const intervention = interventionByDim[primaryDim] ?? interventionByDim[0]
+  const verbs = constructionVerbsByDim[primaryDim] ?? constructionVerbsByDim[0]
+  const construction = `You ${verbs[0]}, ${verbs[1]}, and ${verbs[2]}.`
+
+  return [identity, intervention, construction]
+}
+
+function isValidConstructionLine(line: string): boolean {
+  const m = /^You\s+([A-Za-z]+),\s+([A-Za-z]+),\s+and\s+([A-Za-z]+)\.\s*$/.exec(line.trim())
+  if (!m) return false
+  const v1 = m[1].toLowerCase()
+  const v2 = m[2].toLowerCase()
+  const v3 = m[3].toLowerCase()
+  return CONSTRUCTION_ALLOWED_VERBS.has(v1) && CONSTRUCTION_ALLOWED_VERBS.has(v2) && CONSTRUCTION_ALLOWED_VERBS.has(v3)
+}
+
+function rewriteConstructionLine(primaryDim: number): string {
+  const verbsByDim: Record<number, [string, string, string]> = {
+    0: ["notice", "clarify", "sequence"],
+    1: ["map", "define", "decide"],
+    2: ["measure", "isolate", "test"],
+    3: ["surface", "tighten", "decide"],
+    4: ["isolate", "simplify", "decide"],
+    5: ["map", "align", "sequence"],
+  }
+  const verbs = verbsByDim[primaryDim] ?? verbsByDim[0]
+  return `You ${verbs[0]}, ${verbs[1]}, and ${verbs[2]}.`
+}
+
+function enforceRepetitionControl(lines: string[], primaryDim: number, signals: ResumeSignals): string[] {
+  const counts = new Map<string, number>()
+  const words = collectContentWords(lines)
+  for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1)
+
+  const repeated = new Set<string>()
+  for (const [w, c] of counts.entries()) {
+    if (c <= 1) continue
+    if (REPETITION_STOPWORDS.has(w)) continue
+    repeated.add(w)
+  }
+  if (repeated.size === 0) return lines
+
+  let next = [...lines]
+  for (const rep of Array.from(repeated.values())) {
+    const replacementMap: Record<string, string> = {
+      cadence: "rhythm",
+      structure: "rules",
+      operating: "working",
+      constraints: "limits",
+      decision: "call",
+      boundaries: "limits",
+      measure: "metric",
+      measures: "metrics",
+      incentives: "tradeoffs",
+      scope: "range",
+      handoffs: "handover",
+      workflow: "process",
+      system: "workflow",
+    }
+    const repl = replacementMap[rep]
+    if (!repl) {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      return [safe[0], safe[1], safe[2]]
+    }
+
+    let seen = 0
+    next = next.map((line) => {
+      const parts = line.split(/\b/)
+      const outParts = parts.map((chunk) => {
+        const t = normalizeWordToken(chunk)
+        if (t !== rep) return chunk
+        seen += 1
+        if (seen <= 1) return chunk
+        return repl
+      })
+      return outParts.join("")
+    })
+  }
+
+  const counts2 = new Map<string, number>()
+  const words2 = collectContentWords(next)
+  for (const w of words2) counts2.set(w, (counts2.get(w) ?? 0) + 1)
+  for (const [w, c] of counts2.entries()) {
+    if (c <= 1) continue
+    if (REPETITION_STOPWORDS.has(w)) continue
+    const safe = buildSafeMinimalLines(primaryDim, signals)
+    return [safe[0], safe[1], safe[2]]
+  }
+
+  return next.map((x) => x.replace(/\s{2,}/g, " ").trim())
+}
+
+function enforceConsequenceGate(lines: string[]): string[] {
+  if (lines.length < 4) return lines
+  const consequence = lines[3] ?? ""
+  const normalized = consequence.trim()
+  if (normalized.length === 0) return lines.slice(0, 3)
+
+  if (hasBlacklist(normalized)) return lines.slice(0, 3)
+
+  const lower = normalized.toLowerCase()
+  const identityRepeats = [
+    "operating rules",
+    "operating structure",
+    "constraints",
+    "decision boundary",
+    "scope boundary",
+    "measurement",
+    "handoff",
+    "set constraints",
+    "set structure",
+    "define boundaries",
+  ]
+  for (const s of identityRepeats) {
+    if (lower.includes(s)) return lines.slice(0, 3)
+  }
+
+  const wc = normalized.split(/\s+/g).filter(Boolean).length
+  if (wc > 7) return lines.slice(0, 3)
+
+  return lines.slice(0, 4)
+}
+
+function validateAndRepairSynthesisOnce(
+  synthesisPatternSummary: string,
+  personVector: PersonVector6,
+  signals: ResumeSignals,
+): { patternSummary: string; didRepair: boolean } {
+  if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+    const pd = primaryDimFromVector(personVector)
+    const safe = buildSafeMinimalLines(pd, signals)
+    return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+  }
+
+  const primaryDim = primaryDimFromVector(personVector)
+
+  const baseLines = splitSynthesisLines(synthesisPatternSummary)
+  if (baseLines.length < 3) {
+    const safe = buildSafeMinimalLines(primaryDim, signals)
+    return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+  }
+
+  let lines = baseLines.slice(0, 4)
+  let didRepair = false
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const before = joinSynthesisLines(lines)
+
+    lines = lines.map((l) => stripPraiseAdjectives(l))
+    lines = lines.map((l) => applyDeterministicTermReplacements(l))
+
+    lines[2] = rewriteConstructionLine(primaryDim)
+    lines = enforceConsequenceGate(lines)
+    lines = enforceRepetitionControl(lines, primaryDim, signals)
+
+    if (!/^You\s+don[’']t\s+just\s+/i.test(lines[0] ?? "")) {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      lines = [safe[0], safe[1], safe[2]]
+    }
+    if (!/^When\s+something\s+isn[’']t\s+working,/i.test(lines[1] ?? "")) {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      lines = [safe[0], safe[1], safe[2]]
+    }
+
+    const anyBlacklist = lines.some((l) => hasBlacklist(l))
+    const constructionOk = isValidConstructionLine(lines[2] ?? "")
+
+    const contentWords = collectContentWords(lines)
+    const counts = new Map<string, number>()
+    for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
+    let repeatBad = false
+    for (const [w, c] of counts.entries()) {
+      if (c <= 1) continue
+      if (REPETITION_STOPWORDS.has(w)) continue
+      repeatBad = true
+      break
+    }
+
+    if (!anyBlacklist && constructionOk && !repeatBad) {
+      const after = joinSynthesisLines(lines)
+      if (after !== before) didRepair = true
+      return { patternSummary: after, didRepair }
+    }
+
+    if (pass === 1) {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+    }
+  }
+
+  const safe = buildSafeMinimalLines(primaryDim, signals)
+  return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+}
+
+function applyValidateAndRepairToSessionOnce(session: CalibrationSession): CalibrationSession {
+  const pv = session.personVector.values
+  const ps = session.synthesis?.patternSummary
+  if (!pv || pv.length !== 6 || typeof ps !== "string" || ps.trim().length === 0) return session
+
+  const vec = pv as PersonVector6
+  const repaired = validateAndRepairSynthesisOnce(ps, vec, session.resume.signals as ResumeSignals)
+  if (!repaired.didRepair) return session
+
+  return {
+    ...session,
+    synthesis: {
+      ...(session.synthesis as any),
+      patternSummary: repaired.patternSummary,
+    },
+  }
+}
+
 function newSessionId(): string {
   return `sess_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`
 }
@@ -400,7 +764,7 @@ const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]
   CONSOLIDATION_RITUAL: ["ADVANCE"],
   ENCODING_RITUAL: ["ADVANCE"],
   PATTERN_SYNTHESIS: ["ADVANCE"],
-  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
+  TITLE_HYPOTHESIS: ["ADVANCE"],
   TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
   JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
   ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
@@ -471,7 +835,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
           },
         }
 
-        // Deterministic: remain in RESUME_INGEST; UI (or user) triggers ADVANCE explicitly.
         storeSet(session)
         return { ok: true, session }
       }
@@ -544,15 +907,12 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
             completed: nextPct >= 100,
           }
 
-          // If not complete, remain in CONSOLIDATION_RITUAL (no state change).
           if (!nextRitual.completed) {
             session = { ...session, consolidationRitual: nextRitual }
             storeSet(session)
             return { ok: true, session }
           }
 
-          // Ritual completes -> move to ENCODING_RITUAL (externally visible).
-          // NO synthesis is emitted here (kernel: no synthesis before encoding).
           const to: CalibrationState = "ENCODING_RITUAL"
           let next = {
             ...session,
@@ -566,10 +926,9 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
         }
 
         if (session.state === "ENCODING_RITUAL") {
-          // Single visible step: ENCODING_RITUAL -> PATTERN_SYNTHESIS.
-          // Do encoding + synthesis exactly once, then transition ONE state.
           let next = encodePersonVectorOnce(session)
           next = synthesizeOnce(next)
+          next = applyValidateAndRepairToSessionOnce(next)
 
           const to: CalibrationState = "PATTERN_SYNTHESIS"
           next = pushHistory({ ...next, state: to }, from, to, event.type)
@@ -618,7 +977,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
 
         const trimmed = answer.trim()
 
-        // Signal gate: if weak and clarifier not yet used, move to clarifier state (visible) WITHOUT accepting.
         if (!meetsSignal(trimmed) && !slot.clarifier.asked) {
           const to = clarifierStateForIndex(idx)
           const clarifierQ = "Please add concrete structural detail: scope, constraints, decisions, and measurable outcomes."
@@ -641,7 +999,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
           return { ok: true, session }
         }
 
-        // Accept and advance exactly one state.
         const nextSlot = {
           ...slot,
           answer: trimmed,
@@ -676,7 +1033,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
 
         const trimmed = answer.trim()
 
-        // If still insufficient after clarifier, fail deterministically (no silent acceptance).
         if (!meetsSignal(trimmed)) {
           return bad("INSUFFICIENT_SIGNAL_AFTER_CLARIFIER", "Answer still too short after clarifier; add more structural detail")
         }
@@ -785,7 +1141,6 @@ export function dispatchCalibrationEvent(event: CalibrationEvent): DispatchResul
       }
 
       case "ENCODING_COMPLETE": {
-        // Kept for compatibility; encoding is now guarded + run as part of ENCODING_RITUAL ADVANCE.
         return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is not a public event in v1 flow")
       }
 
