@@ -1,7 +1,8 @@
 // app/calibration/page.tsx
+
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
 
 type NormalizedError = { code: string; message: string };
@@ -52,61 +53,30 @@ function isClarifierState(state: CalibrationState): boolean {
   );
 }
 
-// M5.1: Job ingest UI must NOT appear before JOB_INGEST.
-function isJobInputState(state: CalibrationState): boolean {
-  return state === 'JOB_INGEST' || state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE';
-}
-
-// M5.1: Strict explicit allowlist (no fallback inference).
-const ADVANCE_ALLOWED = new Set<CalibrationState>([
-  'PATTERN_SYNTHESIS',
-  'TITLE_DIALOGUE', // only if backend expects ADVANCE -> JOB_INGEST
-]);
-
 export default function CalibrationPage() {
   const [session, setSession] = useState<CalibrationSession | null>(null);
   const [error, setError] = useState<NormalizedError | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
   const [promptAnswer, setPromptAnswer] = useState<string>('');
   const [clarifierAnswer, setClarifierAnswer] = useState<string>('');
-  const [jobText, setJobText] = useState<string>('');
-
   const [titleFeedback, setTitleFeedback] = useState<string>('');
-
+  const [jobText, setJobText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const historyJson = useMemo(() => {
-    if (!session) return '';
-    const items = Array.isArray(session.history) ? session.history : [];
-    const last = items.slice(-10);
-    return JSON.stringify(last, null, 2);
-  }, [session]);
-
-  const resultJson = useMemo(() => {
-    if (!session?.result) return '';
-    return JSON.stringify(session.result, null, 2);
-  }, [session]);
-
   const prevStateRef = useRef<CalibrationState | null>(null);
 
   useEffect(() => {
     const nextState = session?.state ?? null;
     const prevState = prevStateRef.current;
 
-    // Only clear drafts when the server actually transitions state (success path).
     if (prevState && nextState && prevState !== nextState) {
       setPromptAnswer('');
       setClarifierAnswer('');
-
+      setTitleFeedback('');
+      setJobText('');
       if (prevState === 'RESUME_INGEST') setSelectedFile(null);
-
-      if (isJobInputState(prevState)) setJobText('');
-
-      if (prevState === 'TITLE_HYPOTHESIS' || prevState === 'TITLE_DIALOGUE') setTitleFeedback('');
     }
 
     prevStateRef.current = nextState;
@@ -129,21 +99,17 @@ export default function CalibrationPage() {
 
       if (!res.ok) {
         const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
-        const message =
-          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
+        const message = safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
         setError({ code, message });
         return;
       }
 
-      const ok = payload?.ok === true;
-      const nextSession = payload?.session;
-
-      if (!ok || !nextSession) {
+      if (payload?.ok !== true || !payload?.session) {
         setError({ code: 'BAD_RESPONSE', message: 'Missing ok:true session in response' });
         return;
       }
 
-      setSession(nextSession as CalibrationSession);
+      setSession(payload.session as CalibrationSession);
     } catch (e: any) {
       setError({ code: 'NETWORK_ERROR', message: safeString(e?.message) || 'Network error' });
     } finally {
@@ -174,21 +140,17 @@ export default function CalibrationPage() {
 
       if (!res.ok) {
         const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
-        const message =
-          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
+        const message = safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
         setError({ code, message });
         return;
       }
 
-      const ok = payload?.ok === true;
-      const nextSession = payload?.session;
-
-      if (!ok || !nextSession) {
+      if (payload?.ok !== true || !payload?.session) {
         setError({ code: 'BAD_RESPONSE', message: 'Missing ok:true session in response' });
         return;
       }
 
-      setSession(nextSession as CalibrationSession);
+      setSession(payload.session as CalibrationSession);
     } catch (e: any) {
       setError({ code: 'NETWORK_ERROR', message: safeString(e?.message) || 'Network error' });
     } finally {
@@ -196,29 +158,28 @@ export default function CalibrationPage() {
     }
   }
 
-  function resetLocalUi() {
-    setError(null);
-    setSelectedFile(null);
-    setPromptAnswer('');
-    setClarifierAnswer('');
-    setJobText('');
-    setTitleFeedback('');
-    setIsSubmitting(false);
-  }
-
   function pickFile(f: File | null) {
     if (!f) return;
     setSelectedFile(f);
   }
 
-  const state: CalibrationState | null = session?.state ?? null;
-  const promptIndex = state ? getPromptIndex(state) : null;
+  const Stage = ({ children }: { children: React.ReactNode }) => (
+    <div className="fixed inset-0 w-screen h-[100svh] bg-[#0B0B0B] text-[#F2F2F2] flex items-center justify-center">
+      <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
+    </div>
+  );
 
-  // M5.1: server-driven polling for auto-advance states (no client-side simulation).
+  const ErrorBox = () =>
+    error ? (
+      <pre className="mb-6 text-left whitespace-pre-wrap break-words text-[12px] opacity-90">
+        {JSON.stringify({ ok: false, error }, null, 2)}
+      </pre>
+    ) : null;
+
+  // Auto-progress only for ritual states (server remains authoritative).
   useEffect(() => {
     if (!session) return;
-
-    if (session.state !== 'CONSOLIDATION_PENDING' && session.state !== 'CONSOLIDATION_RITUAL') return;
+    if (session.state !== 'CONSOLIDATION_PENDING' && session.state !== 'CONSOLIDATION_RITUAL' && session.state !== 'ENCODING_RITUAL') return;
 
     const sessionId = session.sessionId;
     const handle = window.setInterval(() => {
@@ -229,123 +190,42 @@ export default function CalibrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionId, session?.state]);
 
-  const showAdvance = !!(session && state && ADVANCE_ALLOWED.has(state));
+  // LANDING
+  if (!session) {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[12px] tracking-[0.22em] opacity-80">WELCOME TO</div>
+        <div className="mt-2 text-[56px] leading-[1.05] font-semibold">Caliber</div>
+        <div className="mt-4 text-[16px] opacity-90">The alignment tool for job calibration.</div>
 
-  return (
-    <main style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 20, fontWeight: 600 }}>Caliber — Calibration UI (v0)</h1>
-
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        {!session ? (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => sendEvent({ type: 'CREATE_SESSION' } as CalibrationEvent)}
-              disabled={isSubmitting}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {isSubmitting ? 'Submitting…' : 'Create session'}
-            </button>
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
+        <div className="mt-10 flex items-center justify-center">
+          <button
+            onClick={() => sendEvent({ type: 'CREATE_SESSION' } as CalibrationEvent)}
+            disabled={isSubmitting}
+            className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-              <div style={{ fontSize: 13 }}>
-                <span style={{ fontWeight: 600 }}>sessionId:</span>{' '}
-                <span
-                  style={{
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  }}
-                >
-                  {session.sessionId}
-                </span>
-              </div>
-              <div style={{ fontSize: 13 }}>
-                <span style={{ fontWeight: 600 }}>state:</span>{' '}
-                <span
-                  style={{
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  }}
-                >
-                  {session.state}
-                </span>
-              </div>
+            {isSubmitting ? 'Submitting…' : 'Begin Calibration'}
+          </button>
+        </div>
+      </Stage>
+    );
+  }
 
-              <button
-                onClick={resetLocalUi}
-                style={{
-                  marginLeft: 'auto',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: 'pointer',
-                }}
-              >
-                Reset local UI
-              </button>
-            </div>
+  const state = session.state;
+  const promptIndex = getPromptIndex(state);
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>History (last ~10)</div>
-              <pre
-                style={{
-                  margin: 0,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  fontSize: 12,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {historyJson || '[]'}
-              </pre>
-            </div>
-          </div>
-        )}
+  // RESUME_INGEST (upload-only)
+  if (state === 'RESUME_INGEST') {
+    return (
+      <Stage>
+        <ErrorBox />
 
-        {error && (
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {JSON.stringify({ ok: false, error }, null, 2)}
-          </div>
-        )}
-      </section>
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+        <div className="mt-6 text-[28px] leading-tight font-semibold">Upload Resume</div>
+        <div className="mt-3 text-[16px] opacity-90">Your experience holds the pattern.</div>
 
-      {session && state === 'RESUME_INGEST' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Resume ingest</div>
-
+        <div className="mt-8">
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -354,222 +234,96 @@ export default function CalibrationPage() {
               if (f) pickFile(f);
             }}
             onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: '2px dashed #d0d0d0',
-              borderRadius: 10,
-              padding: 14,
-              background: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-            }}
+            className="mx-auto w-full max-w-[560px] cursor-pointer border-2 border-dashed border-[#2A2A2A] px-6 py-6 text-left"
           >
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Drop resume here, or click to choose</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>Accepted: .pdf, .docx, .txt</div>
-            {selectedFile && (
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 12,
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                }}
-              >
-                Selected: {selectedFile.name}
-              </div>
-            )}
+            <div className="text-[14px] font-semibold">Drop resume here, or click to choose</div>
+            <div className="mt-2 text-[13px] opacity-80">PDF, DOCX, or TXT</div>
+            {selectedFile && <div className="mt-4 text-[12px] font-mono opacity-90">Selected: {selectedFile.name}</div>}
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-            style={{ display: 'none' }}
+            className="hidden"
             onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
           />
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-8 flex items-center justify-center">
             <button
               onClick={uploadResumeAndAdvance}
               disabled={isSubmitting || !selectedFile}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || !selectedFile ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
           </div>
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state === 'CONSOLIDATION_PENDING' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation</div>
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            Preparing consolidation ritual…
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>Auto-progressing via server dispatch.</div>
-        </section>
-      )}
+  // PROMPTS
+  if (isPromptState(state) && promptIndex) {
+    const q = session.prompts?.[promptIndex]?.question || '(missing question)';
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-      {session && state === 'CONSOLIDATION_RITUAL' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Consolidation ritual</div>
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Prompt {promptIndex}</div>
+          <div className="mt-3 text-[16px] leading-relaxed opacity-95 whitespace-pre-wrap">{q}</div>
 
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {session.consolidationRitual?.message || '…'}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Progress: {typeof session.consolidationRitual?.progressPct === 'number' ? session.consolidationRitual.progressPct : 0}%
-            </div>
-            <div style={{ height: 10, borderRadius: 999, border: '1px solid #d0d0d0', background: 'white', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${Math.max(0, Math.min(100, session.consolidationRitual?.progressPct ?? 0))}%`,
-                  background: '#111',
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ fontSize: 12, opacity: 0.8 }}>Auto-progressing via server dispatch.</div>
-        </section>
-      )}
-
-      {session && state && isPromptState(state) && promptIndex && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Prompt {promptIndex}</div>
-
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {session.prompts[promptIndex]?.question || '(missing question)'}
-          </div>
-
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Answer</span>
+          <div className="mt-6">
             <textarea
               value={promptAnswer}
               onChange={(e) => setPromptAnswer(e.target.value)}
-              rows={6}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
+              rows={7}
+              className="w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
               placeholder="Type your answer…"
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-6 flex items-center justify-end">
             <button
-              onClick={() => sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)}
+              onClick={() =>
+                sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)
+              }
               disabled={isSubmitting || promptAnswer.trim().length === 0}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || promptAnswer.trim().length === 0 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit answer'}
+              {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
-
-            {/* Manual advance between prompts 1-4 */}
-            {promptIndex !== 5 && (
-              <button
-                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-                disabled={isSubmitting || !session.prompts[promptIndex]?.accepted}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: isSubmitting || !session.prompts[promptIndex]?.accepted ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isSubmitting ? 'Submitting…' : 'Advance'}
-              </button>
-            )}
           </div>
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state && isClarifierState(state) && promptIndex && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Prompt {promptIndex} — Clarifier</div>
+  // CLARIFIER
+  if (isClarifierState(state) && promptIndex) {
+    const cq = session.prompts?.[promptIndex]?.clarifier?.question || '(missing clarifier question)';
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {session.prompts[promptIndex]?.clarifier?.question || '(missing clarifier question)'}
-          </div>
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Prompt {promptIndex} — Clarifier</div>
+          <div className="mt-3 text-[16px] leading-relaxed opacity-95 whitespace-pre-wrap">{cq}</div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Clarifier answer</span>
+          <div className="mt-6">
             <textarea
               value={clarifierAnswer}
               onChange={(e) => setClarifierAnswer(e.target.value)}
-              rows={6}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
+              rows={7}
+              className="w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
               placeholder="Type your clarifier answer…"
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-6 flex items-center justify-end">
             <button
               onClick={() =>
                 sendEvent({
@@ -579,50 +333,96 @@ export default function CalibrationPage() {
                 } as CalibrationEvent)
               }
               disabled={isSubmitting || clarifierAnswer.trim().length === 0}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || clarifierAnswer.trim().length === 0 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit clarifier answer'}
+              {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
           </div>
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state === 'PATTERN_SYNTHESIS' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Pattern synthesis</div>
+  // CONSOLIDATION_PENDING
+  if (state === 'CONSOLIDATION_PENDING') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+        <div className="mt-8 text-[16px] opacity-90">Preparing consolidation ritual…</div>
+        <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
+      </Stage>
+    );
+  }
 
-          <div
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontSize: 13,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {session.synthesis?.patternSummary || '(missing patternSummary)'}
+  // CONSOLIDATION_RITUAL
+  if (state === 'CONSOLIDATION_RITUAL') {
+    const pct = typeof session.consolidationRitual?.progressPct === 'number' ? session.consolidationRitual.progressPct : 0;
+    const msg = session.consolidationRitual?.message || '…';
+
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Consolidation Ritual</div>
+          <div className="mt-3 text-[15px] leading-relaxed opacity-90 whitespace-pre-wrap">{msg}</div>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between text-[12px] opacity-80">
+              <span>Progress</span>
+              <span>{Math.max(0, Math.min(100, pct))}%</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#141414]">
+              <div className="h-full bg-[#F2F2F2]" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Operate Best</div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+          <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
+        </div>
+      </Stage>
+    );
+  }
+
+  // ENCODING_RITUAL
+  if (state === 'ENCODING_RITUAL') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+        <div className="mt-8 text-[16px] opacity-90">Encoding your pattern…</div>
+        <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
+      </Stage>
+    );
+  }
+
+  // PATTERN_SYNTHESIS (LOCKED STRUCTURE RENDER)
+  if (state === 'PATTERN_SYNTHESIS') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          {/* No narrative paragraph above. patternSummary IS the 4-layer block. */}
+          <div className="text-[15px] leading-relaxed opacity-95 whitespace-pre-wrap">
+            {session.synthesis?.patternSummary || '(missing synthesis)'}
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2">
+            <div>
+              <div className="text-[13px] font-semibold opacity-90">Where You Operate Best</div>
+              <ul className="mt-3 list-disc pl-5 text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.operateBest || []).map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
               </ul>
             </div>
 
-            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Where You Lose Energy</div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+            <div>
+              <div className="text-[13px] font-semibold opacity-90">Where You Lose Energy</div>
+              <ul className="mt-3 list-disc pl-5 text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.loseEnergy || []).map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
@@ -630,288 +430,216 @@ export default function CalibrationPage() {
             </div>
           </div>
 
-          {/* Exactly one Advance button for this state */}
-          {showAdvance && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-                disabled={isSubmitting}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isSubmitting ? 'Submitting…' : 'Advance'}
-              </button>
-            </div>
-          )}
-        </section>
-      )}
+          <div className="mt-10 flex items-center justify-end">
+            <button
+              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Submitting…' : 'Continue'}
+            </button>
+          </div>
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state === 'TITLE_HYPOTHESIS' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Title hypothesis</div>
+  // TITLE_HYPOTHESIS
+  if (state === 'TITLE_HYPOTHESIS') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>identitySummary</div>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.identitySummary || '(missing)'}</div>
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Title Hypothesis</div>
+
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">identitySummary</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.identitySummary || ''}</div>
           </div>
 
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>marketTitle</div>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.marketTitle || '(missing)'}</div>
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
           </div>
 
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>titleExplanation</div>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.titleExplanation || '(missing)'}</div>
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
           </div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Reaction / feedback</span>
+          <div className="mt-8">
+            <div className="text-[12px] font-semibold opacity-70">Reaction / feedback</div>
             <textarea
               value={titleFeedback}
               onChange={(e) => setTitleFeedback(e.target.value)}
               rows={5}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
+              className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
               placeholder="Your reaction…"
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-6 flex items-center justify-end gap-3">
             <button
-              onClick={() =>
-                sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)
-              }
+              onClick={() => sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)}
               disabled={isSubmitting || titleFeedback.trim().length === 0}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || titleFeedback.trim().length === 0 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit feedback'}
+              {isSubmitting ? 'Submitting…' : 'Submit'}
+            </button>
+
+            <button
+              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
+            >
+              {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
           </div>
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state === 'TITLE_DIALOGUE' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Title dialogue</div>
+  // TITLE_DIALOGUE
+  if (state === 'TITLE_DIALOGUE') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>marketTitle</div>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.marketTitle || '(missing)'}</div>
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Title Dialogue</div>
+
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
           </div>
 
-          <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>titleExplanation</div>
-            <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis?.titleExplanation || '(missing)'}</div>
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
           </div>
 
           {session.synthesis?.lastTitleFeedback && (
-            <div style={{ padding: 10, borderRadius: 8, border: '1px solid #d0d0d0', background: 'white' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginBottom: 6 }}>lastTitleFeedback</div>
-              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{session.synthesis.lastTitleFeedback}</div>
+            <div className="mt-6">
+              <div className="text-[12px] font-semibold opacity-70">lastTitleFeedback</div>
+              <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis.lastTitleFeedback}</div>
             </div>
           )}
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Reaction / feedback</span>
+          <div className="mt-8">
+            <div className="text-[12px] font-semibold opacity-70">Reaction / feedback</div>
             <textarea
               value={titleFeedback}
               onChange={(e) => setTitleFeedback(e.target.value)}
               rows={5}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
+              className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
               placeholder="Your reaction…"
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-6 flex items-center justify-end gap-3">
             <button
-              onClick={() =>
-                sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)
-              }
+              onClick={() => sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)}
               disabled={isSubmitting || titleFeedback.trim().length === 0}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || titleFeedback.trim().length === 0 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit feedback'}
+              {isSubmitting ? 'Submitting…' : 'Submit'}
             </button>
 
-            {/* Strict allowlist: Advance only if backend expects TITLE_DIALOGUE -> JOB_INGEST */}
-            {showAdvance && (
-              <button
-                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-                disabled={isSubmitting}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isSubmitting ? 'Submitting…' : 'Advance'}
-              </button>
-            )}
+            <button
+              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
+            >
+              {isSubmitting ? 'Submitting…' : 'Continue'}
+            </button>
           </div>
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state && isJobInputState(state) && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Job</div>
+  // JOB_INGEST
+  if (state === 'JOB_INGEST') {
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Job text</span>
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Job Ingest</div>
+
+          <div className="mt-6">
+            <div className="text-[12px] font-semibold opacity-70">Job description</div>
             <textarea
               value={jobText}
               onChange={(e) => setJobText(e.target.value)}
-              rows={7}
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                fontSize: 13,
-                padding: 10,
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-              }}
-              placeholder="Paste job description here…"
+              rows={10}
+              className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
+              placeholder="Paste the job description…"
             />
-          </label>
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="mt-6 flex items-center justify-end gap-3">
             <button
               onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
               disabled={isSubmitting || jobText.trim().length === 0}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid #d0d0d0',
-                background: 'white',
-                cursor: isSubmitting || jobText.trim().length === 0 ? 'not-allowed' : 'pointer',
-              }}
+              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit job'}
+              {isSubmitting ? 'Submitting…' : 'Submit'}
             </button>
 
-            {state === 'JOB_INGEST' && (
-              <button
-                onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-                disabled={isSubmitting}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isSubmitting ? 'Submitting…' : 'Advance'}
-              </button>
-            )}
+            <button
+              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
+            >
+              {isSubmitting ? 'Submitting…' : 'Continue'}
+            </button>
+          </div>
+        </div>
+      </Stage>
+    );
+  }
 
-            {state === 'ALIGNMENT_OUTPUT' && (
+  // ALIGNMENT_OUTPUT / TERMINAL_COMPLETE
+  if (state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE') {
+    const hasResult = !!session.result;
+    return (
+      <Stage>
+        <ErrorBox />
+        <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+
+        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
+          <div className="text-[14px] font-semibold opacity-90">Alignment Output</div>
+
+          {!hasResult ? (
+            <div className="mt-6 flex items-center justify-end">
               <button
                 onClick={() => sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)}
                 disabled={isSubmitting}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
+                className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Submitting…' : 'Compute alignment output'}
+                {isSubmitting ? 'Submitting…' : 'Compute'}
               </button>
-            )}
-          </div>
-
-          {session.result && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>session.result (raw JSON)</div>
-              <pre
-                style={{
-                  margin: 0,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid #d0d0d0',
-                  background: 'white',
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  fontSize: 12,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {resultJson}
-              </pre>
             </div>
+          ) : (
+            <pre className="mt-6 whitespace-pre-wrap break-words text-[12px] opacity-90">{JSON.stringify(session.result, null, 2)}</pre>
           )}
-        </section>
-      )}
+        </div>
+      </Stage>
+    );
+  }
 
-      {session && state && !isPromptState(state) && !isClarifierState(state) && state !== 'RESUME_INGEST' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 13 }}>
-            <span style={{ fontWeight: 600 }}>State snapshot:</span>{' '}
-            <span
-              style={{
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              }}
-            >
-              {state}
-            </span>
-          </div>
-
-          <pre
-            style={{
-              margin: 0,
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid #d0d0d0',
-              background: 'white',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {JSON.stringify(session, null, 2)}
-          </pre>
-        </section>
-      )}
-    </main>
+  // Fallback (non-debug)
+  return (
+    <Stage>
+      <ErrorBox />
+      <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+      <div className="mt-8 text-[16px] opacity-90">Loading…</div>
+    </Stage>
   );
 }

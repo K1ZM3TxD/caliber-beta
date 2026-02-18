@@ -125,52 +125,199 @@ function encodePersonVectorOnce(session: CalibrationSession): CalibrationSession
   }
 }
 
-// Deterministic synthesis: stable once produced.
+type ContrastPair = { x: string; y: string } // identity contrast
+type InterventionPair = { a: string; b: string } // intervention contrast
+
+function pickFirst<T>(items: T[], fallback: T): T {
+  return items.length > 0 ? items[0] : fallback
+}
+
+function coherenceStrong(vec: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]): boolean {
+  // Earned consequence drop only when the vector shows clear shape (enough non-neutral dimensions).
+  let nonNeutral = 0
+  for (const v of vec) if (v !== 1) nonNeutral += 1
+  return nonNeutral >= 4
+}
+
+// Deterministic synthesis: MUST conform to SYNTHESIS_PATTERN locked form.
+// patternSummary becomes the 4-layer contrast block only (no narrative paragraph).
 function synthesizeOnce(session: CalibrationSession): CalibrationSession {
   if (session.synthesis?.patternSummary && session.synthesis?.operateBest && session.synthesis?.loseEnergy) return session
   const vec = session.personVector.values
   if (!vec || vec.length !== 6) return session
 
-  const labels = [
-    "Structural Maturity",
-    "Authority Scope",
-    "Revenue Orientation",
-    "Role Ambiguity",
-    "Breadth vs Depth",
-    "Stakeholder Density",
-  ] as const
+  const v = vec as [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
-  const high: string[] = []
-  const low: string[] = []
-  for (let i = 0; i < 6; i += 1) {
-    const v = vec[i]
-    const name = labels[i]
-    if (v === 2) high.push(name)
-    if (v === 0) low.push(name)
+  // Dimension-driven phrase banks (no adjectives, no praise).
+  const identityByDim: Record<number, Record<0 | 1 | 2, ContrastPair>> = {
+    0: {
+      0: { x: "handle tasks", y: "set an operating structure" },
+      1: { x: "ship work", y: "stabilize the work system" },
+      2: { x: "ship work", y: "build an operating structure" },
+    },
+    1: {
+      0: { x: "support decisions", y: "route decisions to the right owner" },
+      1: { x: "take ownership", y: "define decision boundaries" },
+      2: { x: "take ownership", y: "set decision boundaries and hold them" },
+    },
+    2: {
+      0: { x: "do the work", y: "separate signal from incentives" },
+      1: { x: "hit targets", y: "maintain measurement integrity" },
+      2: { x: "hit targets", y: "design measurement and incentives" },
+    },
+    3: {
+      0: { x: "follow a plan", y: "enforce scope boundaries" },
+      1: { x: "work across scope", y: "anchor scope to constraints" },
+      2: { x: "work across scope", y: "re-anchor scope to constraints" },
+    },
+    4: {
+      0: { x: "cover many topics", y: "reduce the problem to a single thread" },
+      1: { x: "learn quickly", y: "choose a depth path" },
+      2: { x: "go deep", y: "build a depth path and stay on it" },
+    },
+    5: {
+      0: { x: "coordinate updates", y: "reduce stakeholder noise" },
+      1: { x: "coordinate stakeholders", y: "map dependencies" },
+      2: { x: "coordinate stakeholders", y: "map dependencies and set handoffs" },
+    },
   }
 
-  const summary = [
-    `Your pattern centers on repeatable structure and forward motion under clear constraints.`,
-    `You perform best when the work has explicit ownership boundaries and measurable outcomes.`,
-    `Energy loss clusters where constraints are missing or the system changes faster than it can be stabilized.`,
-  ].join(" ")
+  const interventionByDim: Record<number, Record<0 | 1 | 2, InterventionPair>> = {
+    0: {
+      0: { a: "push through", b: "set a cadence and constraints" },
+      1: { a: "do more", b: "tighten the operating structure" },
+      2: { a: "do more", b: "tighten the operating structure" },
+    },
+    1: {
+      0: { a: "take over", b: "route the decision to the owner" },
+      1: { a: "wait", b: "claim the decision boundary" },
+      2: { a: "wait", b: "claim the decision boundary" },
+    },
+    2: {
+      0: { a: "optimize output", b: "fix the measurement" },
+      1: { a: "argue for targets", b: "fix the incentives" },
+      2: { a: "argue for targets", b: "fix the incentives" },
+    },
+    3: {
+      0: { a: "adapt silently", b: "reject scope drift" },
+      1: { a: "accept ambiguity", b: "re-anchor the scope" },
+      2: { a: "accept ambiguity", b: "re-anchor the scope" },
+    },
+    4: {
+      0: { a: "add more options", b: "choose one depth path" },
+      1: { a: "keep exploring", b: "pick a track and commit" },
+      2: { a: "keep exploring", b: "pick a track and commit" },
+    },
+    5: {
+      0: { a: "reply to everyone", b: "set a single handoff path" },
+      1: { a: "keep everyone aligned", b: "map dependencies and set handoffs" },
+      2: { a: "keep everyone aligned", b: "map dependencies and set handoffs" },
+    },
+  }
 
-  const operateBest = [
-    `Work with explicit scope and decision rights (${high[1] ? `strongest signal: ${high[1]}` : "stable authority boundaries"}).`,
-    `Roles with clear success metrics and cadence (${high[0] ? `strongest signal: ${high[0]}` : "structural repeatability"}).`,
-    `High-context coordination where dependencies can be made explicit (${high[5] ? `strongest signal: ${high[5]}` : "stakeholder mapping"}).`,
-  ].slice(0, 3)
+  const constructionByDim: Record<number, string[]> = {
+    0: ["notice drift", "diagnose constraints", "build cadence"],
+    1: ["map ownership", "diagnose decision paths", "build boundaries"],
+    2: ["track signal", "diagnose incentives", "build measures"],
+    3: ["notice ambiguity", "diagnose scope", "build constraints"],
+    4: ["notice sprawl", "diagnose the core thread", "build depth"],
+    5: ["notice dependency loops", "diagnose handoffs", "build routing"],
+  }
 
-  const loseEnergy = [
-    `Ambiguous ownership or shifting mandates (${low[1] ? `strongest signal: ${low[1]}` : "authority ambiguity"}).`,
-    `Unbounded roles where priorities are not stable across cycles (${low[3] ? `strongest signal: ${low[3]}` : "role ambiguity"}).`,
-    `Diffuse work that cannot be reduced to a stable operating system (${low[0] ? `strongest signal: ${low[0]}` : "low structural maturity"}).`,
-  ].slice(0, 3)
+  // Choose a “primary” dimension deterministically: first non-neutral; else dim 0.
+  let primaryDim = 0
+  for (let i = 0; i < 6; i += 1) {
+    if (v[i] !== 1) {
+      primaryDim = i
+      break
+    }
+  }
+
+  const id = identityByDim[primaryDim][v[primaryDim]]
+  const iv = interventionByDim[primaryDim][v[primaryDim]]
+  const verbs = constructionByDim[primaryDim] ?? ["notice", "diagnose", "build"]
+
+  // 4-layer locked block (exact order)
+  const identityContrast = `You don’t just ${id.x} — you ${id.y}.`
+  const interventionContrast = `When something isn’t working, you don’t ${iv.a} — you ${iv.b}.`
+  const constructionLayer = `You ${verbs[0]}, ${verbs[1]}, and ${verbs[2]}.`
+
+  let consequenceDrop: string | null = null
+  if (coherenceStrong(v)) {
+    const consequenceByDim: Record<number, string> = {
+      0: "You change the system’s cadence.",
+      1: "You change the decision boundary.",
+      2: "You change the measurement rules.",
+      3: "You change the scope boundary.",
+      4: "You change the depth path.",
+      5: "You change the handoff path.",
+    }
+    consequenceDrop = consequenceByDim[primaryDim] ?? "You change how the system operates."
+  }
+
+  const blockLines: string[] = [identityContrast, interventionContrast, constructionLayer]
+  if (consequenceDrop) blockLines.push(consequenceDrop)
+
+  const patternSummary = blockLines.join("\n\n")
+
+  // Keep “Operate Best” + “Lose Energy” below, structural, no “strongest signal”, no praise.
+  const operateBest: string[] = []
+  const loseEnergy: string[] = []
+
+  // Build deterministic sections from up to 3 dimensions each.
+  const highDims: number[] = []
+  const lowDims: number[] = []
+  for (let i = 0; i < 6; i += 1) {
+    if (v[i] === 2) highDims.push(i)
+    if (v[i] === 0) lowDims.push(i)
+  }
+
+  const operateBestByDim: Record<number, string> = {
+    0: "Work with stable cadence and explicit constraints.",
+    1: "Work with explicit ownership and decision boundaries.",
+    2: "Work where measures and incentives are consistent.",
+    3: "Work where scope is explicit and drift is rejected.",
+    4: "Work where depth is rewarded over constant context switching.",
+    5: "Work where dependencies are mapped and handoffs are explicit.",
+  }
+
+  const loseEnergyByDim: Record<number, string> = {
+    0: "Work where cadence is missing and constraints reset each cycle.",
+    1: "Work where ownership is unclear and decisions have no owner.",
+    2: "Work where measures change mid-cycle or incentives conflict.",
+    3: "Work where scope is unbounded and priorities shift without constraints.",
+    4: "Work where the thread changes before it can be reduced to a stable path.",
+    5: "Work where handoffs are undefined and stakeholder routing is unclear.",
+  }
+
+  const operateFallback = [
+    "Work with explicit scope, ownership, and a stable cadence.",
+    "Work where dependencies can be made explicit and handoffs are defined.",
+    "Work where measures are stable across cycles.",
+  ]
+
+  const loseFallback = [
+    "Work where ownership is unclear and scope drift is accepted.",
+    "Work where priorities reset each cycle without constraints.",
+    "Work where dependencies are implicit and routing is inconsistent.",
+  ]
+
+  const opDims = highDims.length > 0 ? highDims : [primaryDim]
+  for (const d of opDims.slice(0, 3)) operateBest.push(operateBestByDim[d] ?? operateFallback[0])
+
+  const leDims = lowDims.length > 0 ? lowDims : [primaryDim]
+  for (const d of leDims.slice(0, 3)) loseEnergy.push(loseEnergyByDim[d] ?? loseFallback[0])
+
+  // Ensure length exactly 3 for each section.
+  while (operateBest.length < 3) operateBest.push(pickFirst(operateFallback.filter((x) => !operateBest.includes(x)), operateFallback[0]))
+  while (loseEnergy.length < 3) loseEnergy.push(pickFirst(loseFallback.filter((x) => !loseEnergy.includes(x)), loseFallback[0]))
+  operateBest.splice(3)
+  loseEnergy.splice(3)
 
   return {
     ...session,
     synthesis: {
-      patternSummary: summary,
+      patternSummary,
       operateBest,
       loseEnergy,
       identitySummary: session.synthesis?.identitySummary ?? null,
