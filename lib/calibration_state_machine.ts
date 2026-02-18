@@ -19,9 +19,21 @@ export type State =
   | "JOB_INGEST"
   | "ALIGNMENT_OUTPUT";
 
+export type PatternSynthesis = {
+  structural_summary: string;
+  operate_best: string[];
+  lose_energy: string[];
+};
+
 export interface Session {
   currentState: State;
+
+  // Source text needed for deterministic synthesis.
+  resumeText?: string;
+
+  // Session progression flags / data.
   resumeParsed: boolean;
+
   answers: {
     prompt1?: string;
     prompt2?: string;
@@ -29,6 +41,7 @@ export interface Session {
     prompt4?: string;
     prompt5?: string;
   };
+
   clarifierUsed: {
     prompt1: boolean;
     prompt2: boolean;
@@ -36,11 +49,20 @@ export interface Session {
     prompt4: boolean;
     prompt5: boolean;
   };
+
+  // Deterministic outputs
+  synthesis?: PatternSynthesis;
+
+  // Encodings
   encodedPersonVector?: number[]; // length 6
   encodedRoleVector?: number[]; // length 6
+
+  // Scores
   alignmentScore?: number;
   skillMatchScore?: number;
   stretchLoad?: number;
+
+  // Title loop
   titleDialogueIterations: number;
 }
 

@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       return Response.json(apiBad("BAD_REQUEST", "Missing or invalid event"), { status: 400 })
     }
 
-    const res = dispatchCalibrationEvent(event)
+    const res = await dispatchCalibrationEvent(event)
 
     if (!res.ok) {
       return Response.json(apiBad(res.error.code, res.error.message), { status: 400 })

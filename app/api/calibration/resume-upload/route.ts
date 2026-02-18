@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      const submit = dispatchCalibrationEvent({
+      const submit = await dispatchCalibrationEvent({
         type: "SUBMIT_RESUME",
         sessionId,
         resumeText,
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       }
 
       // Deterministically advance away from RESUME_INGEST after successful submission.
-      const adv = dispatchCalibrationEvent({
+      const adv = await dispatchCalibrationEvent({
         type: "ADVANCE",
         sessionId,
       } as CalibrationEvent)

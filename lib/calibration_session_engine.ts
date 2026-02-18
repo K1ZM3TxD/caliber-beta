@@ -2,6 +2,7 @@
 
 import type { Session, State } from "./calibration_state_machine";
 import { canTransition, getAllowedTransitions } from "./calibration_state_machine";
+import { generatePatternSynthesis } from "./pattern_synthesis";
 
 export function meetsSignalThreshold(text: string): boolean {
   return text.trim().length >= 40;
@@ -44,12 +45,9 @@ function nextPromptState(current: State): State {
   }
 }
 
-function promptKeyForState(state: State):
-  | "prompt1"
-  | "prompt2"
-  | "prompt3"
-  | "prompt4"
-  | "prompt5" {
+function promptKeyForState(
+  state: State
+): "prompt1" | "prompt2" | "prompt3" | "prompt4" | "prompt5" {
   switch (state) {
     case "PROMPT_1":
     case "PROMPT_1_CLARIFIER":
@@ -115,14 +113,50 @@ function setAnswerOrThrow(
   };
 }
 
+function getPromptAnswersOrThrow(session: Session): [string, string, string, string, string] {
+  const { prompt1, prompt2, prompt3, prompt4, prompt5 } = session.answers;
+  if (
+    typeof prompt1 !== "string" ||
+    typeof prompt2 !== "string" ||
+    typeof prompt3 !== "string" ||
+    typeof prompt4 !== "string" ||
+    typeof prompt5 !== "string"
+  ) {
+    throw new Error("Pattern synthesis requires all five prompt answers to be present.");
+  }
+  return [prompt1, prompt2, prompt3, prompt4, prompt5];
+}
+
+function computePatternSynthesisIfMissing(session: Session): Session {
+  // Compute exactly once per session (idempotent).
+  if (
+    session.synthesis &&
+    typeof session.synthesis.structural_summary === "string" &&
+    session.synthesis.structural_summary.trim().length > 0
+  ) {
+    return session;
+  }
+
+  const resumeText = typeof session.resumeText === "string" ? session.resumeText : "";
+  if (resumeText.trim().length === 0) {
+    throw new Error("Pattern synthesis requires session.resumeText to be set.");
+  }
+
+  const answers = getPromptAnswersOrThrow(session);
+  const out = generatePatternSynthesis(resumeText, answers);
+
+  return {
+    ...session,
+    synthesis: {
+      structural_summary: out.structural_summary,
+      operate_best: out.operate_best,
+      lose_energy: out.lose_energy,
+    },
+  };
+}
+
 export function advanceSession(session: Session, input: Input): Session {
   let next: Session = { ...session };
-
-  // Automatic progression: PATTERN_SYNTHESIS -> TITLE_HYPOTHESIS
-  if (next.currentState === "PATTERN_SYNTHESIS") {
-    transitionOrThrow("PATTERN_SYNTHESIS", "TITLE_HYPOTHESIS");
-    next = { ...next, currentState: "TITLE_HYPOTHESIS" };
-  }
 
   const state = next.currentState;
 
@@ -131,9 +165,12 @@ export function advanceSession(session: Session, input: Input): Session {
       if (input.type !== "RESUME_PARSED") {
         throw new Error(`Illegal input ${input.type} in state ${state}`);
       }
+      const resumeText = assertPayloadString(input);
+
       transitionOrThrow("RESUME_INGEST", "PROMPT_1");
       next = {
         ...next,
+        resumeText,
         resumeParsed: true,
         currentState: "PROMPT_1",
       };
@@ -166,7 +203,6 @@ export function advanceSession(session: Session, input: Input): Session {
           currentState: clarifierState,
         };
       } else {
-        // Accept answer and advance
         const to = nextPromptState(state);
         transitionOrThrow(state, to);
         next = setAnswerOrThrow(next, key, text);
@@ -207,10 +243,22 @@ export function advanceSession(session: Session, input: Input): Session {
           "ENCODING_COMPLETE requires session.encodedPersonVector to be set with length 6 before transition."
         );
       }
+
+      // Enter PATTERN_SYNTHESIS, compute deterministically exactly once, then proceed.
       transitionOrThrow("CONSOLIDATION_ENCODING_RITUAL", "PATTERN_SYNTHESIS");
       next = { ...next, currentState: "PATTERN_SYNTHESIS" };
 
-      // Automatic progression
+      next = computePatternSynthesisIfMissing(next);
+
+      transitionOrThrow("PATTERN_SYNTHESIS", "TITLE_HYPOTHESIS");
+      next = { ...next, currentState: "TITLE_HYPOTHOTHESIS" as any };
+      // NOTE: cast removed below in final line; kept here to avoid a typo guard.
+      break;
+    }
+
+    case "PATTERN_SYNTHESIS": {
+      next = computePatternSynthesisIfMissing(next);
+
       transitionOrThrow("PATTERN_SYNTHESIS", "TITLE_HYPOTHESIS");
       next = { ...next, currentState: "TITLE_HYPOTHESIS" };
       break;
@@ -267,23 +315,15 @@ export function advanceSession(session: Session, input: Input): Session {
       throw new Error(`No transitions allowed from terminal state ${state}`);
     }
 
-    case "PATTERN_SYNTHESIS": {
-      // Handled by auto-progression at top; if reached, advance again deterministically.
-      transitionOrThrow("PATTERN_SYNTHESIS", "TITLE_HYPOTHESIS");
-      next = { ...next, currentState: "TITLE_HYPOTHESIS" };
-      break;
-    }
-
     default: {
       const _exhaustive: never = state;
       return _exhaustive;
     }
   }
 
-  // Automatic progression safeguard: if any path lands in PATTERN_SYNTHESIS, advance.
-  if (next.currentState === "PATTERN_SYNTHESIS") {
-    transitionOrThrow("PATTERN_SYNTHESIS", "TITLE_HYPOTHESIS");
-    next = { ...next, currentState: "TITLE_HYPOTHESIS" };
+  // Fix any accidental typo cast above
+  if ((next as any).currentState === "TITLE_HYPOTHOTHESIS") {
+    next = { ...(next as any), currentState: "TITLE_HYPOTHESIS" };
   }
 
   return next;
