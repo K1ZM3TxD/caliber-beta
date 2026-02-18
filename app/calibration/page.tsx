@@ -1,5 +1,4 @@
 // app/calibration/page.tsx
-
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -397,32 +396,38 @@ export default function CalibrationPage() {
     );
   }
 
-  // PATTERN_SYNTHESIS (LOCKED STRUCTURE RENDER)
+  // PATTERN_SYNTHESIS (5.2 layout refinement — presentation only)
   if (state === 'PATTERN_SYNTHESIS') {
     return (
       <Stage>
         <ErrorBox />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
-        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          {/* No narrative paragraph above. patternSummary IS the 4-layer block. */}
-          <div className="text-[15px] leading-relaxed opacity-95 whitespace-pre-wrap">
+        <div className="mt-10 mx-auto w-full max-w-[680px]">
+          {/* Locked 4-line synthesis block — centered, dominant, slightly increased line-height */}
+          <div className="text-center text-[18px] leading-[1.75] opacity-95 whitespace-pre-wrap">
             {session.synthesis?.patternSummary || '(missing synthesis)'}
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2">
-            <div>
-              <div className="text-[13px] font-semibold opacity-90">Where You Operate Best</div>
-              <ul className="mt-3 list-disc pl-5 text-[14px] leading-relaxed opacity-90">
+          {/* 56px gap */}
+          <div className="mt-14">
+            <div className="text-center text-[13px] font-semibold opacity-90">Pattern Expresses Cleanly When</div>
+            {/* 16px gap */}
+            <div className="mt-4">
+              <ul className="list-disc pl-5 text-left text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.operateBest || []).map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
               </ul>
             </div>
+          </div>
 
-            <div>
-              <div className="text-[13px] font-semibold opacity-90">Where You Lose Energy</div>
-              <ul className="mt-3 list-disc pl-5 text-[14px] leading-relaxed opacity-90">
+          {/* 40px gap */}
+          <div className="mt-10">
+            <div className="text-center text-[13px] font-semibold opacity-90">Pattern Friction Emerges When</div>
+            {/* 16px gap */}
+            <div className="mt-4">
+              <ul className="list-disc pl-5 text-left text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.loseEnergy || []).map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
@@ -430,11 +435,12 @@ export default function CalibrationPage() {
             </div>
           </div>
 
-          <div className="mt-10 flex items-center justify-end">
+          {/* 56px gap */}
+          <div className="mt-14 flex items-center justify-center">
             <button
               onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] bg-transparent disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Submitting…' : 'Continue'}
             </button>
