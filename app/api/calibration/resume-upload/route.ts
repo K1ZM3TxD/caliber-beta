@@ -1,43 +1,101 @@
-// lib/resume_extract.ts
+// app/api/calibration/resume-upload/route.ts
 
-import pdfParse from 'pdf-parse';
-import * as mammoth from 'mammoth';
+import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
+import type { CalibrationEvent } from "@/lib/calibration_types"
+import { extractResumeText } from "@/lib/resume_extract"
 
-function bad(message: string): Error {
-  return new Error(message);
+function apiBad(code: string, message: string) {
+  return { ok: false as const, error: { code, message } }
 }
 
 function getExt(name: string): string {
-  const n = (name || '').trim().toLowerCase();
-  const idx = n.lastIndexOf('.');
-  if (idx < 0) return '';
-  return n.slice(idx + 1);
+  const n = (name || "").trim().toLowerCase()
+  const idx = n.lastIndexOf(".")
+  if (idx < 0) return ""
+  return n.slice(idx + 1)
 }
 
-function normalizeText(s: string): string {
-  return (s || '').replace(/\r\n/g, '\n').trim();
+function isAllowedFile(file: File): { ok: true } | { ok: false; code: string; message: string } {
+  const ext = getExt(file?.name || "")
+  const mime = (file as any)?.type ? String((file as any).type).toLowerCase() : ""
+
+  const allowedExt = ext === "pdf" || ext === "docx" || ext === "txt"
+  const allowedMime =
+    mime === "application/pdf" ||
+    mime === "text/plain" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === ""
+
+  if (!allowedExt) {
+    return { ok: false, code: "UNSUPPORTED_FILE_TYPE", message: `Unsupported file type: .${ext || "(none)"}` }
+  }
+  if (!allowedMime) {
+    return { ok: false, code: "UNSUPPORTED_FILE_TYPE", message: `Unsupported MIME type: ${mime}` }
+  }
+
+  return { ok: true }
 }
 
-export async function extractResumeText(file: File): Promise<string> {
-  if (!file) throw bad('Missing file');
+export async function GET() {
+  return Response.json(apiBad("METHOD_NOT_ALLOWED", "Method not allowed"), { status: 405 })
+}
 
-  const ext = getExt(file.name);
-  const buf = Buffer.from(await file.arrayBuffer());
+export async function POST(req: Request) {
+  try {
+    const form = await req.formData()
+    const sessionId = String(form.get("sessionId") ?? "").trim()
+    const file = form.get("file")
 
-  if (ext === 'txt') {
-    const text = new TextDecoder('utf-8').decode(buf);
-    return normalizeText(text);
+    if (!sessionId) {
+      return Response.json(apiBad("BAD_REQUEST", "Missing sessionId"), { status: 400 })
+    }
+
+    if (!file || !(file instanceof File)) {
+      return Response.json(apiBad("BAD_REQUEST", "Missing file"), { status: 400 })
+    }
+
+    const allowed = isAllowedFile(file)
+    if (!allowed.ok) {
+      return Response.json(apiBad(allowed.code, allowed.message), { status: 415 })
+    }
+
+    let resumeText = ""
+    try {
+      resumeText = await extractResumeText(file)
+    } catch (e: any) {
+      const msg = String(e?.message ?? "Failed to parse resume")
+      if (msg.toLowerCase().includes("unsupported")) {
+        return Response.json(apiBad("UNSUPPORTED_FILE_TYPE", msg), { status: 415 })
+      }
+      return Response.json(apiBad("PARSE_ERROR", msg), { status: 400 })
+    }
+
+    try {
+      const submit = dispatchCalibrationEvent({
+        type: "SUBMIT_RESUME",
+        sessionId,
+        resumeText,
+      } as CalibrationEvent)
+
+      if (!submit.ok) {
+        return Response.json(apiBad(submit.error.code, submit.error.message), { status: 400 })
+      }
+
+      // Deterministically advance away from RESUME_INGEST after successful submission.
+      const adv = dispatchCalibrationEvent({
+        type: "ADVANCE",
+        sessionId,
+      } as CalibrationEvent)
+
+      if (!adv.ok) {
+        return Response.json(apiBad(adv.error.code, adv.error.message), { status: 400 })
+      }
+
+      return Response.json({ ok: true, session: adv.session }, { status: 200 })
+    } catch (e: any) {
+      return Response.json(apiBad("DISPATCH_ERROR", String(e?.message ?? "Calibration dispatch failed")), { status: 500 })
+    }
+  } catch (e: any) {
+    return Response.json(apiBad("BAD_REQUEST", String(e?.message ?? "Invalid multipart form data")), { status: 400 })
   }
-
-  if (ext === 'pdf') {
-    const parsed = await pdfParse(buf);
-    return normalizeText(parsed?.text ?? '');
-  }
-
-  if (ext === 'docx') {
-    const res = await mammoth.extractRawText({ buffer: buf });
-    return normalizeText(res?.value ?? '');
-  }
-
-  throw bad(`Unsupported file extension: .${ext || '(none)'}`);
 }
