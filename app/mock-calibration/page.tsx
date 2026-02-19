@@ -34,7 +34,6 @@ export default function MockCalibrationPage() {
     <div className="fixed inset-0 bg-[#0B0B0B] flex items-center justify-center overflow-hidden">
       <div className="w-full max-w-[720px] px-6">
         <div className="relative min-h-[560px]">
-          {/* LANDING + RESUME share a single stacked panel with a fixed BrandAnchor */}
           <div
             className={`absolute inset-0 transition-opacity duration-300 ${
               step === "PROMPT1" ? "opacity-0 pointer-events-none" : "opacity-100"
@@ -43,9 +42,7 @@ export default function MockCalibrationPage() {
             aria-hidden={step === "PROMPT1"}
           >
             <div className="h-full w-full flex flex-col items-center justify-center text-center">
-              {/* BrandAnchor (constant positioning) */}
               <div className="flex flex-col items-center">
-                {/* WELCOME TO (fade-only; Caliber stays fixed) */}
                 <div
                   className={`transition-opacity duration-300 ${
                     isLanding ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -57,15 +54,12 @@ export default function MockCalibrationPage() {
                   </div>
                 </div>
 
-                {/* Caliber (LOCKED across LANDING + RESUME) */}
                 <div className="mt-2 font-semibold tracking-tight text-5xl sm:text-6xl">
                   Caliber
                 </div>
               </div>
 
-              {/* BodyArea (swap below Caliber; fade-only) */}
               <div className="mt-8 w-full flex items-center justify-center">
-                {/* LANDING body */}
                 <div
                   className={`w-full transition-opacity duration-300 ${
                     isLanding ? "opacity-100" : "opacity-0 pointer-events-none absolute"
@@ -104,7 +98,6 @@ export default function MockCalibrationPage() {
                   </div>
                 </div>
 
-                {/* RESUME body */}
                 <div
                   className={`w-full transition-opacity duration-300 ${
                     isResume ? "opacity-100" : "opacity-0 pointer-events-none absolute"
@@ -123,7 +116,6 @@ export default function MockCalibrationPage() {
                       Your experience holds the pattern.
                     </div>
 
-                    {/* Hidden file input (mock-only) */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -132,14 +124,8 @@ export default function MockCalibrationPage() {
                       onChange={onFileChange}
                     />
 
-                    {/* Dropzone mock */}
                     <div className="mt-8 flex justify-center">
-                      <div
-                        className="w-full"
-                        style={{
-                          maxWidth: 520,
-                        }}
-                      >
+                      <div className="w-full" style={{ maxWidth: 520 }}>
                         <div
                           className="rounded-md"
                           style={{
@@ -152,7 +138,7 @@ export default function MockCalibrationPage() {
                             {!selectedFile ? (
                               <>
                                 <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>
-                                  Drag &amp; drop your resume here
+                                  Drag & drop your resume here
                                 </div>
                                 <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>
                                   or
@@ -246,12 +232,10 @@ export default function MockCalibrationPage() {
                 </div>
               </div>
 
-              {/* Spacer to keep stage height stable */}
               <div className="h-4" />
             </div>
           </div>
 
-          {/* PROMPT PANEL (still in the same centered stage; modest shrink, no vertical jump) */}
           <div
             className={`absolute inset-0 transition-opacity duration-300 ${
               isPrompt1 ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -260,7 +244,6 @@ export default function MockCalibrationPage() {
             aria-hidden={!isPrompt1}
           >
             <div className="h-full w-full flex flex-col items-center justify-center text-center">
-              {/* Keep within same centered panel; shrink modestly only */}
               <div className="flex flex-col items-center">
                 <div className="font-semibold tracking-tight text-[30px] sm:text-[32px]">
                   Caliber
@@ -314,7 +297,6 @@ export default function MockCalibrationPage() {
                   </button>
                 </div>
 
-                {/* Layout stabilizer (non-functional) */}
                 <div className="mt-3 text-xs" style={{ color: "rgba(207,207,207,0.0)" }}>
                   .
                 </div>
