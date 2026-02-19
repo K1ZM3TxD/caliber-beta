@@ -52,7 +52,6 @@ export async function generateSemanticSynthesis(args: {
     "synergy",
     "scalable",
     "framework",
-    "system",
     "system’s",
     "system's",
   ]
@@ -83,6 +82,9 @@ export async function generateSemanticSynthesis(args: {
     "- Use concrete structural nouns: scope, constraints, decisions, routing, ownership, measures, handoffs, tradeoffs.",
     "- Keep each line <= 120 characters.",
     "- Avoid repeating the same content word (>=5 chars) across lines.",
+    "- Prefer wording and nouns taken directly from resumeText and promptAnswers.",
+    "- Reuse the user’s own terms (domain nouns, role language, artifacts) when available.",
+    "- Avoid generic placeholders like “ship work” unless the user uses that phrase.",
     "",
     "INPUTS:",
     `personVector: ${JSON.stringify(args.personVector)}`,
