@@ -91,11 +91,20 @@ export async function generateSemanticSynthesis(args: {
     "- Use concrete structural nouns: scope, constraints, decisions, routing, ownership, measures, handoffs, tradeoffs.",
     "- Keep each line <= 120 characters.",
     "- Avoid repeating the same content word (>=5 chars) across lines.",
-    "- Prefer wording and nouns taken directly from resumeText and promptAnswers.",
-    "- Reuse the user’s own terms (domain nouns, role language, artifacts) when available.",
-    "- Avoid generic placeholders like “ship work” unless the user uses that phrase.",
-    "- Avoid repeating the same content word (>=5 chars) across lines AND across bullets.",
-    "- Prefer wording and nouns taken directly from resumeText and promptAnswers.",
+    "",
+    "ANCHOR REQUIREMENTS (MANDATORY):",
+    "- First (internally), select 3–6 CONCRETE lexical anchors from resumeText + promptAnswers.",
+    "  - At least 1 anchor must be a NOUN PHRASE (e.g., a role/title, domain object, artifact, system name, process name).",
+    "  - At least 1 anchor must be a VERB PHRASE (e.g., 'debugged X', 'built Y', 'reduced Z', 'mapped A to B').",
+    "- Then write the 4 synthesis lines and the bullets USING those anchors.",
+    "- Across the 4 synthesis lines, ensure at least 1 anchor noun phrase AND at least 1 anchor verb phrase appear verbatim (or near-verbatim).",
+    "- Do NOT output the anchors list. Anchor selection is internal only.",
+    "",
+    "ANTI-GENERIC RULE (MANDATORY):",
+    "- Do NOT use generic role archetypes or business-speak unless the phrase appears verbatim in resumeText or promptAnswers.",
+    "- Examples of banned generic archetypes unless present in user text:",
+    '  "user-focused experiences" | "identify gaps in the market" | "drive impact" | "deliver value" | "enhance engagement"',
+    "- If an idea cannot be expressed with anchors from user text, choose different anchors; do not invent abstractions.",
     "",
     "HARD RULES (BULLETS):",
     "- Each bullet is ONE sentence, <= 16 words.",
@@ -140,7 +149,8 @@ export async function generateSemanticSynthesis(args: {
     messages: [
       {
         role: "system",
-        content: "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
+        content:
+          "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
       },
       { role: "user", content: userPrompt },
     ],
@@ -178,8 +188,12 @@ export async function generateSemanticSynthesis(args: {
   const consequenceDropRaw = parsed?.consequenceDrop == null ? undefined : String(parsed.consequenceDrop).trim()
   const consequenceDrop = consequenceDropRaw && consequenceDropRaw.length > 0 ? consequenceDropRaw : undefined
 
-  const operate_best_bullets = Array.isArray(parsed?.operate_best_bullets) ? parsed.operate_best_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean) : []
-  const lose_energy_bullets = Array.isArray(parsed?.lose_energy_bullets) ? parsed.lose_energy_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean) : []
+  const operate_best_bullets = Array.isArray(parsed?.operate_best_bullets)
+    ? parsed.operate_best_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean)
+    : []
+  const lose_energy_bullets = Array.isArray(parsed?.lose_energy_bullets)
+    ? parsed.lose_energy_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean)
+    : []
 
   if (!identityContrast || !interventionContrast || !constructionLayer) {
     throw new Error("OpenAI JSON missing required fields")

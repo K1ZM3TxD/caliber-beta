@@ -1,38 +1,26 @@
 prompt 1
 
 
-
 design, creating graphics, making sop's. Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers.
-
 
 
 prompt 2
 
-
-
 endless sales cycles, quota driven incentive, jumping from one task to another without real depth or clarity, overall choas in the company being short staffed and small.
-
 
 
 prompt 3
 
-
-
 listening and empathy. Guidance. protocol delegation, pitch decks, graphics
-
 
 
 prompt 4
 
 
-
 problem solving, product development, customer needs and finding gaps in the market.
 
 
-
 prompt 5
-
-
 
 listening, understanding seeing what is not working and doing structural architecture for the problem. feeling missing things in the world and filling those needs.
 
