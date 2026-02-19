@@ -1,5 +1,3 @@
-
-
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
@@ -514,6 +512,28 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
   const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
+  type FallbackReason = "llm_call_failed" | "json_parse_failed" | "missing_keys" | "empty_strings"
+
+  const classifyFallbackReason = (msg: string): FallbackReason => {
+    const m = (msg || "").toLowerCase()
+    if (m.includes("non-json")) return "json_parse_failed"
+    if (m.includes("missing required fields")) return "missing_keys"
+    if (m.includes("empty content")) return "empty_strings"
+    return "llm_call_failed"
+  }
+
+  const logFallback = (reason: FallbackReason, detail: string) => {
+    console.log("synthesis_source=fallback")
+    console.log(`synthesis_fallback_reason=${reason}`)
+    if (reason === "json_parse_failed" || reason === "missing_keys") {
+      const d = String(detail ?? "")
+      console.log(`synthesis_model_response_len=${d.length}`)
+      console.log(`synthesis_model_response_head=${d.slice(0, 200)}`)
+    }
+  }
+
+  let lastErrorMessage = ""
+
   const tryOnce = async (): Promise<string | null> => {
     const semantic = await generateSemanticSynthesis({
       personVector: v,
@@ -538,17 +558,28 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
   try {
     const out1 = await tryOnce()
-    if (out1) return out1
-  } catch {
+    if (out1) {
+      console.log("synthesis_source=llm")
+      return out1
+    }
+  } catch (e: any) {
+    lastErrorMessage = String(e?.message ?? e ?? "")
     // retry once below
   }
 
   try {
     const out2 = await tryOnce()
-    if (out2) return out2
-  } catch {
+    if (out2) {
+      console.log("synthesis_source=llm")
+      return out2
+    }
+  } catch (e: any) {
+    lastErrorMessage = String(e?.message ?? e ?? "")
     // fall through
   }
+
+  const reason = classifyFallbackReason(lastErrorMessage)
+  logFallback(reason, lastErrorMessage)
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return joinSynthesisLines([safe[0], safe[1], safe[2]])
