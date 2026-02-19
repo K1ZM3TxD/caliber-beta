@@ -1,4 +1,4 @@
-# Caliber — MILESTONES (Revised After Hybrid Pivot)
+# Caliber — MILESTONES (Revised After Atomic Execution Shift)
 
 This document defines the active build runway.
 
@@ -59,7 +59,19 @@ Deterministic scoring remains unchanged.
 
 ---
 
-## 5.1A — Locked Calibration Prompts (Instrumentation Integrity)
+# 5.1 EXECUTION STRUCTURE (ATOMIC SEQUENCING)
+
+Milestone 5.1 is now executed through strictly atomic tasks.
+
+No multi-layer implementation allowed.
+
+Each subsection below represents an independent execution unit.
+
+Progress only advances after validation of each unit.
+
+---
+
+## 5.1A — Locked Calibration Prompts (COMPLETED / LOCKED)
 
 Prompts 1–5 are instrumentation and must remain deterministic.
 
@@ -75,79 +87,111 @@ Rules:
 - No AI rewriting
 - No structural reframing
 - No additional qualifiers
-- Copy locked unless milestone explicitly changes it
+- Canonical source only
+- Mechanical drift prevention enforced
 
-Status: REVERT + LOCK IN PROGRESS
-
----
-
-## 5.1B — Semantic Synthesis (LLM Integration)
-
-Current Status:
-LLM integrated, structurally correct, but still archetypal.
-
-Required Improvements:
-
-1. Reuse lexical anchors from resume and prompt answers.
-2. Reduce over-constraint causing generic phrasing.
-3. Remove over-broad blacklist entries (allow “system”, block only problematic forms).
-4. Maintain:
-   - No repetition across lines
-   - Concrete verbs only
-   - No praise language
-   - Strict JSON schema validation
-   - Retry once on failure
-   - Deterministic fallback if invalid
-
-Goal:
-Two users with same vector produce structurally similar but lexically distinct synthesis.
+Status: LOCKED
 
 ---
 
-## 5.1C — Language Guardrail Validation
+## 5.1B — LLM Wiring (PENDING)
 
-Maintain deterministic post-generation validation:
+Scope:
+- Replace deterministic synthesis path with LLM generation.
+- No validation changes.
+- No retry logic yet.
+- No UI changes.
+- Deterministic fallback preserved.
 
-- No repeated content words (>=5 chars) across lines
-- Construction line must match verb, verb, and verb pattern
-- Consequence <= 7 words
-- No blacklisted abstraction phrases
-- Reject non-compliant JSON
+This step is wiring only.
 
 ---
 
-# Milestone 5.2 — Synthesis Experience Refinement (PENDING)
+## 5.1C — Deterministic Validation Layer (PENDING)
 
-UI refinements only (no scoring changes):
+Scope:
+- Enforce strict JSON schema.
+- Enforce no repeated content words (>=5 chars).
+- Enforce construction layer verb pattern.
+- Enforce consequence length <= 7 words.
+- Enforce blacklist of abstraction phrases.
+- Reject non-compliant output.
+
+No retry logic yet.
+Fallback remains intact.
+
+---
+
+## 5.1D — Single Retry Enforcement (PENDING)
+
+Scope:
+- If validation fails:
+  - Retry once with validation errors included.
+- If retry fails:
+  - Trigger deterministic fallback.
+- No UI changes.
+
+---
+
+## 5.1E — Lexical Grounding Refinement (PENDING)
+
+Scope:
+- Reuse lexical anchors from resume and prompt answers.
+- Reduce over-constraint causing generic phrasing.
+- Allow “system” where not structurally harmful.
+- Maintain:
+  - No praise
+  - No repetition
+  - No motivational tone
+  - No metric blending
+
+---
+
+# 5.2 — Synthesis Experience Refinement (PENDING)
+
+UI-only changes.
 
 - Single column centered layout
 - Controlled vertical rhythm
+- Bullet block centered under headers
 - Bullet reframing:
   - “Pattern Expresses Cleanly When”
   - “Pattern Friction Emerges When”
 - Continue button de-emphasis
 - Remove visual density
 
----
-
-# Milestone 5.3 — Bullet Semantic Enrichment (PLANNED)
-
-Decision Pending:
-
-Option A:
-Keep bullets deterministic (dimension-driven)
-
-Option B:
-Allow LLM shaping for bullet sections as well (still structurally constrained)
+No scoring changes.
 
 ---
 
-# Known Active Issues
+# 5.3 — Bullet Semantic Enrichment (PLANNED)
 
-1. Prompt copy drift (being reverted)
-2. Synthesis still archetypal (LLM prompt tuning required)
-3. Bullet sections not yet semantically grounded
-4. Title Hypothesis screen needs verification post-refactor
+Decision locked: Enriched via single-pass segmented LLM.
+
+Constraints:
+- Dimension selection remains deterministic.
+- Bullet structure remains fixed.
+- Vocabulary band constraint ±15%.
+- No praise.
+- No identity labeling.
+- No skill blending.
+- Deterministic validation required.
+- Deterministic fallback retained.
+
+Execution will follow atomic sequencing once 5.1 is complete.
+
+---
+
+# Deterministic Fallback Doctrine (LOCKED)
+
+Fallback synthesis exists solely as structural guard.
+
+It:
+- Preserves 4-layer structure
+- Prevents downstream crashes
+- Is not primary experience
+
+Fallback should rarely be shown.
 
 ---
 
@@ -158,7 +202,7 @@ Create Session
 → Prompts 1–5 (locked wording)  
 → Consolidation Ritual  
 → Encoding Ritual  
-→ Pattern Synthesis (LLM semantic fill, structurally locked)  
+→ Pattern Synthesis (LLM semantic fill, structurally locked, validated)  
 → Title Hypothesis  
 → Job Ingest  
 → Alignment Output  
@@ -166,10 +210,12 @@ Create Session
 Additionally:
 
 - Prompts remain stable across sessions.
-- Synthesis feels lexically grounded in resume language.
+- LLM output passes validation deterministically.
+- Retry logic enforced.
+- Deterministic fallback preserved.
 - No abstraction drift.
 - No repetition loops.
-- Deterministic validation enforced.
+- No metric blending.
 
 ---
 

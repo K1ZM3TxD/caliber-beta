@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "prompt:guard": "ts-node scripts/prompt_drift_guard.ts"
-}
+    "prompt:guard": "tsx scripts/prompt_drift_guard.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
