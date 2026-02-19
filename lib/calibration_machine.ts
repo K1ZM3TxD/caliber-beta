@@ -1,4 +1,4 @@
-// lib/calibration_machine.ts
+
 
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
@@ -6,6 +6,7 @@ import { ingestJob } from "@/lib/job_ingest"
 import { runIntegrationSeam } from "@/lib/integration_seam"
 import { toResultContract } from "@/lib/result_contract"
 import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
+import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
@@ -219,6 +220,7 @@ const BLACKLIST_TERMS: Array<{ label: string; re: RegExp }> = [
 ]
 
 const SYNONYM_MAP: Array<{ from: RegExp; to: string }> = [
+  { from: /\bship\s+work\b/gi, to: "do the work" },
   { from: /\bcadence\b/gi, to: "rhythm" },
   { from: /\boperating\s+structure\b/gi, to: "operating rules" },
   { from: /\boperating\s+model\b/gi, to: "operating rules" },
@@ -557,8 +559,8 @@ function buildDeterministicPatternSummary(v: PersonVector6): string {
   const identityByDim: Record<number, Record<0 | 1 | 2, ContrastPair>> = {
     0: {
       0: { x: "handle tasks", y: "set an operating structure" },
-      1: { x: "ship work", y: "stabilize the work system" },
-      2: { x: "ship work", y: "build an operating structure" },
+      1: { x: "do the work", y: "stabilize the work system" },
+      2: { x: "do the work", y: "build an operating structure" },
     },
     1: {
       0: { x: "support decisions", y: "route decisions to the right owner" },
@@ -777,11 +779,11 @@ function createSession(): CalibrationSession {
       signals: null,
     },
     prompts: {
-      1: makeDefaultPrompt("Prompt 1: Describe the kind of work you reliably ship when you are operating at your best."),
-      2: makeDefaultPrompt("Prompt 2: Describe the environments where you consistently lose time or momentum (structural factors only)."),
-      3: makeDefaultPrompt("Prompt 3: Describe the decisions you take ownership of and the decisions you escalate."),
-      4: makeDefaultPrompt("Prompt 4: Describe the scope and complexity you handle without strain."),
-      5: makeDefaultPrompt("Prompt 5: Describe the conditions you need for sustained energy and repeatable delivery."),
+      1: makeDefaultPrompt(CALIBRATION_PROMPTS[1]),
+      2: makeDefaultPrompt(CALIBRATION_PROMPTS[2]),
+      3: makeDefaultPrompt(CALIBRATION_PROMPTS[3]),
+      4: makeDefaultPrompt(CALIBRATION_PROMPTS[4]),
+      5: makeDefaultPrompt(CALIBRATION_PROMPTS[5]),
     },
     personVector: { values: null, locked: false },
     encodingRitual: { completed: false },

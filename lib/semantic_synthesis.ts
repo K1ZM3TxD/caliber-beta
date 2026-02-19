@@ -6,11 +6,17 @@ export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
   promptAnswers: Array<{ n: 1 | 2 | 3 | 4 | 5; answer: string }>
+  operateBestDims: number[]
+  loseEnergyDims: number[]
+  dimensionNames: string[]
+  fix?: { errors: string[]; previousJson: any }
 }): Promise<{
   identityContrast: string
   interventionContrast: string
   constructionLayer: string
   consequenceDrop?: string
+  operate_best_bullets: string[]
+  lose_energy_bullets: string[]
 }> {
   const apiKey = (process.env.OPENAI_API_KEY || "").trim()
   if (!apiKey) {
@@ -57,21 +63,24 @@ export async function generateSemanticSynthesis(args: {
   ]
 
   const userPrompt = [
-    "Return JSON only. No markdown. No bullets. No extra keys.",
+    "Return JSON only. No markdown. No extra keys.",
     "",
     "TASK:",
     "Generate semantically specific lines using resume + prompt answers, constrained to the locked 4-layer form.",
-    "No praise. No motivational tone. No adjectives. No abstractions. No repetition across lines.",
+    "Also generate 2 bullet lists constrained by deterministically selected dimensions.",
+    "No praise. No motivational tone. No therapeutic framing. No KPI framing. No capability/skill language.",
     "",
     "OUTPUT JSON SCHEMA:",
     "{",
     '  "identityContrast": "You don’t just ... — you ....",',
     '  "interventionContrast": "When something isn’t working, you don’t ... — you ....",',
     '  "constructionLayer": "You <verb>, <verb>, and <verb>.",',
-    '  "consequenceDrop": "You ... ." (optional, <= 7 words)',
+    '  "consequenceDrop": "You ... ." (optional, <= 7 words),',
+    '  "operate_best_bullets": ["..."] (1–3 items),',
+    '  "lose_energy_bullets": ["..."] (1–3 items)',
     "}",
     "",
-    "HARD RULES:",
+    "HARD RULES (SYNTHESIS LINES):",
     "- identityContrast must start with exactly: You don’t just",
     "- interventionContrast must start with exactly: When something isn’t working,",
     "- constructionLayer must match exactly: You <verb>, <verb>, and <verb>.",
@@ -85,7 +94,34 @@ export async function generateSemanticSynthesis(args: {
     "- Prefer wording and nouns taken directly from resumeText and promptAnswers.",
     "- Reuse the user’s own terms (domain nouns, role language, artifacts) when available.",
     "- Avoid generic placeholders like “ship work” unless the user uses that phrase.",
+    "- Avoid repeating the same content word (>=5 chars) across lines AND across bullets.",
+    "- Prefer wording and nouns taken directly from resumeText and promptAnswers.",
     "",
+    "HARD RULES (BULLETS):",
+    "- Each bullet is ONE sentence, <= 16 words.",
+    "- Structural/environment statements only (not personality labels).",
+    "- No praise language. No motivational tone. No therapy framing. No KPI framing.",
+    "- No identity labeling (avoid “you are / you’re”).",
+    "- No capability/skill language (no skills/tools/readiness).",
+    "- Keep vocabulary within the user’s band (do not sound more educated than the user; tighten <= ~15%).",
+    "",
+    "DIMENSION CONSTRAINT (DETERMINISTIC SOURCE OF TRUTH):",
+    `dimensionNames (index -> name): ${JSON.stringify(args.dimensionNames)}`,
+    `operateBestDims (indices): ${JSON.stringify(args.operateBestDims)}`,
+    `loseEnergyDims (indices): ${JSON.stringify(args.loseEnergyDims)}`,
+    "Use ONLY these dimensions as the structural basis for the bullets.",
+    "",
+    args.fix
+      ? [
+          "FIX MODE:",
+          "Your previous JSON failed validation. Re-emit JSON with the SAME keys only.",
+          "Validation errors:",
+          ...args.fix.errors.map((e) => `- ${e}`),
+          "Previous JSON (for reference):",
+          JSON.stringify(args.fix.previousJson ?? {}),
+          "",
+        ].join("\n")
+      : "",
     "INPUTS:",
     `personVector: ${JSON.stringify(args.personVector)}`,
     "",
@@ -94,7 +130,9 @@ export async function generateSemanticSynthesis(args: {
     "",
     "promptAnswers:",
     JSON.stringify(args.promptAnswers || []),
-  ].join("\n")
+  ]
+    .filter(Boolean)
+    .join("\n")
 
   const body = {
     model,
@@ -102,8 +140,7 @@ export async function generateSemanticSynthesis(args: {
     messages: [
       {
         role: "system",
-        content:
-          "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
+        content: "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
       },
       { role: "user", content: userPrompt },
     ],
@@ -141,9 +178,12 @@ export async function generateSemanticSynthesis(args: {
   const consequenceDropRaw = parsed?.consequenceDrop == null ? undefined : String(parsed.consequenceDrop).trim()
   const consequenceDrop = consequenceDropRaw && consequenceDropRaw.length > 0 ? consequenceDropRaw : undefined
 
+  const operate_best_bullets = Array.isArray(parsed?.operate_best_bullets) ? parsed.operate_best_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean) : []
+  const lose_energy_bullets = Array.isArray(parsed?.lose_energy_bullets) ? parsed.lose_energy_bullets.map((x: any) => String(x ?? "").trim()).filter(Boolean) : []
+
   if (!identityContrast || !interventionContrast || !constructionLayer) {
     throw new Error("OpenAI JSON missing required fields")
   }
 
-  return { identityContrast, interventionContrast, constructionLayer, consequenceDrop }
+  return { identityContrast, interventionContrast, constructionLayer, consequenceDrop, operate_best_bullets, lose_energy_bullets }
 }

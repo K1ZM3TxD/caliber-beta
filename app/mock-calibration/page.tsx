@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 
 type Step = "LANDING" | "RESUME" | "PROMPT1";
 
@@ -272,7 +273,7 @@ export default function MockCalibrationPage() {
                 </div>
 
                 <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">
-                  In your most recent role, what part of the work felt most like you?
+                  {CALIBRATION_PROMPTS[1]}
                 </div>
 
                 <div className="mt-7">

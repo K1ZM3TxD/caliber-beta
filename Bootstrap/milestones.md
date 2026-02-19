@@ -1,174 +1,176 @@
-# Caliber — MILESTONES (Updated)
+# Caliber — MILESTONES (Revised After Hybrid Pivot)
 
-This document defines the ordered build runway.
+This document defines the active build runway.
 
-It changes only when scope shifts or milestones are completed.
+It changes only when scope shifts or architectural decisions are made.
 
-This file is the single source of truth for current build position and active constraints.
+This file is the single source of truth for current system intent.
 
 ---
 
-## OPERATIONAL BASELINE (STABLE UNLESS CHANGED)
+# OPERATIONAL BASELINE (LOCKED)
 
-### Public Contract (Frozen)
+## Core Architecture
 
-- Public API contract version: **v1**
-- Top-level keys returned from role comparison:
-  - `alignment`
-  - `skillMatch`
-  - `stretchLoad`
-  - `meta`
-- No blending of alignment and skill metrics.
-- No additional alignment dimensions may be introduced.
+- Deterministic state machine (event-driven, no auto-chaining)
+- Externally visible states only
+- JSON-only API responses
+- No hidden transitions
+- Strict ADVANCE allowlist
+- Resume upload is file-only
+- No paste path
 
-### Core Orchestration
+---
 
-- Canonical orchestration: `lib/integration_seam.ts`
-- Public contract module: `lib/result_contract.ts`
-- Job ingest route: `app/api/job-ingest/route.ts`
-  - Thin wrapper
-  - JSON-only
-  - Deterministic behavior
+# Pattern Synthesis Architecture (LOCKED)
 
-### Pattern Synthesis Baseline (Locked)
+## Structural Backbone
 
-- Structural form governed by `SYNTHESIS_PATTERN.md`
-- 4-layer contrast block is invariant:
-  1. Identity Contrast
-  2. Intervention Contrast
-  3. Construction Layer
-  4. Conditional Consequence Drop (earned only)
-- No motivational tone.
-- No abstraction drift.
-- No KPI framing.
-- Cadence/contrast structure must remain intact.
+Pattern Synthesis must follow the 4-layer cadence structure:
+
+1. Identity Contrast  
+2. Intervention Contrast  
+3. Construction Layer  
+4. Conditional Consequence Drop (earned only)
+
+No motivational tone.  
+No abstraction drift.  
+No KPI framing.  
+Cadence structure invariant.
 
 ---
 
 # ACTIVE MILESTONE
 
-## Milestone 5.1 — Calibration Flow + Semantic Synthesis (ACTIVE)
+## Milestone 5.1 — Hybrid Semantic Synthesis (ACTIVE)
 
-### Goal
+### Objective
 
-Complete deterministic calibration flow AND ensure Pattern Synthesis is semantically generated from user inputs (resume + prompts), not static phrase banks.
+Deliver “eerily specific” Pattern Synthesis using:
 
----
+Locked 4-layer backbone  
++  
+LLM semantic fill derived from:
+- Resume text
+- Prompt answers
+- Person vector
 
-## Locked Scope for 5.1
-
-### 1. Deterministic State Machine (Unchanged)
-
-- No internal multi-hop chaining.
-- Each state externally visible.
-- Strict `ADVANCE` allowlist.
-- No escape hatch transitions.
-- Consolidation ritual externally visible.
-- Clarifier enforcement (one max per prompt).
+Deterministic scoring remains unchanged.
 
 ---
 
-### 2. Resume Ingest (UPLOAD-ONLY — LOCKED)
+## 5.1A — Locked Calibration Prompts (Instrumentation Integrity)
 
-- File-only upload (PDF, DOCX, TXT).
-- No paste path.
-- `POST /api/calibration/resume-upload`
-- Server extracts text.
-- Dispatcher receives `SUBMIT_RESUME`.
-- JSON-only responses.
-- Deterministic advancement.
+Prompts 1–5 are instrumentation and must remain deterministic.
 
----
+Final Locked Wording:
 
-### 3. Pattern Synthesis — Semantic Fill (NEWLY LOCKED)
+1. In your most recent role, what part of the work felt most like you?  
+2. What part of the role drained you fastest?  
+3. What do others come to you for that isn’t necessarily in your job description?  
+4. What type of challenge feels exciting rather than overwhelming?  
+5. If you removed job titles entirely, how would you describe the work you’re best at?
 
-#### Architectural Decision
+Rules:
+- No AI rewriting
+- No structural reframing
+- No additional qualifiers
+- Copy locked unless milestone explicitly changes it
 
-Pattern Synthesis must:
-
-- Use locked 4-layer structure.
-- Use LLM to generate semantic content for:
-  - X and Y (Identity Contrast)
-  - A and B (Intervention Contrast)
-  - Construction verbs
-  - Consequence Drop
-- Be derived from:
-  - Person vector
-  - Resume text
-  - Prompt answers
-
-Static phrase banks may exist only as deterministic fallback.
+Status: REVERT + LOCK IN PROGRESS
 
 ---
 
-#### Required Constraints
+## 5.1B — Semantic Synthesis (LLM Integration)
 
-- LLM must return structured JSON:
-  - `identityContrast`
-  - `interventionContrast`
-  - `constructionLayer`
-  - `consequenceDrop` (optional)
-- Strict schema validation.
-- Deterministic language guardrails:
-  - No repeated content words.
-  - No abstraction drift.
-  - No praise / motivational tone.
-  - Construction line must be 3 concrete verbs.
-- Retry once on validation failure.
-- Fallback to deterministic minimal safe output if still invalid.
+Current Status:
+LLM integrated, structurally correct, but still archetypal.
 
----
+Required Improvements:
 
-### 4. UI Architecture (Beta-Ready)
+1. Reuse lexical anchors from resume and prompt answers.
+2. Reduce over-constraint causing generic phrasing.
+3. Remove over-broad blacklist entries (allow “system”, block only problematic forms).
+4. Maintain:
+   - No repetition across lines
+   - Concrete verbs only
+   - No praise language
+   - Strict JSON schema validation
+   - Retry once on failure
+   - Deterministic fallback if invalid
 
-- Single centered stage layout.
-- No debug scaffolding.
-- No raw field keys rendered.
-- No duplicate action buttons.
-- No layout reflow between states.
-- Rendering strictly from server snapshot.
+Goal:
+Two users with same vector produce structurally similar but lexically distinct synthesis.
 
 ---
 
-# PLANNED MILESTONE
+## 5.1C — Language Guardrail Validation
 
-## Milestone 5.2 — Synthesis Experience Refinement (PLANNED)
+Maintain deterministic post-generation validation:
 
-Purpose: Improve readability and gravity of Pattern Synthesis page.
+- No repeated content words (>=5 chars) across lines
+- Construction line must match verb, verb, and verb pattern
+- Consequence <= 7 words
+- No blacklisted abstraction phrases
+- Reject non-compliant JSON
 
-### Planned Changes
+---
 
-- Single-column centered layout.
-- Controlled spacing cadence.
-- Bullet sections reframed as structural evidence:
+# Milestone 5.2 — Synthesis Experience Refinement (PENDING)
+
+UI refinements only (no scoring changes):
+
+- Single column centered layout
+- Controlled vertical rhythm
+- Bullet reframing:
   - “Pattern Expresses Cleanly When”
   - “Pattern Friction Emerges When”
-- Reduced cognitive density.
-- Continue button de-emphasized.
+- Continue button de-emphasis
+- Remove visual density
 
-No scoring, state machine, or synthesis form changes.
+---
+
+# Milestone 5.3 — Bullet Semantic Enrichment (PLANNED)
+
+Decision Pending:
+
+Option A:
+Keep bullets deterministic (dimension-driven)
+
+Option B:
+Allow LLM shaping for bullet sections as well (still structurally constrained)
+
+---
+
+# Known Active Issues
+
+1. Prompt copy drift (being reverted)
+2. Synthesis still archetypal (LLM prompt tuning required)
+3. Bullet sections not yet semantically grounded
+4. Title Hypothesis screen needs verification post-refactor
 
 ---
 
 # Definition of Done — 5.1
 
-The following flow works cleanly and deterministically:
-
 Create Session  
 → Resume Upload  
-→ Prompts 1–5  
+→ Prompts 1–5 (locked wording)  
 → Consolidation Ritual  
-→ Pattern Synthesis (LLM semantic fill, locked structure)  
+→ Encoding Ritual  
+→ Pattern Synthesis (LLM semantic fill, structurally locked)  
 → Title Hypothesis  
-→ Title Dialogue  
 → Job Ingest  
 → Alignment Output  
 
 Additionally:
 
-- No resume paste UI exists.
-- LLM synthesis is validated and guarded.
-- All responses JSON-only.
-- Every state externally visible.
-- No silent auto-chaining.
-- No debug scaffolding remains.
+- Prompts remain stable across sessions.
+- Synthesis feels lexically grounded in resume language.
+- No abstraction drift.
+- No repetition loops.
+- Deterministic validation enforced.
+
+---
+
+End of Milestones Snapshot

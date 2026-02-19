@@ -1,4 +1,4 @@
-NEW FILE
+git NEW FILE
 scripts/synthesis_guard_smoke.ts
 
 /* eslint-disable no-console */
