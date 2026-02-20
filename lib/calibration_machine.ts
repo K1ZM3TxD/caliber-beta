@@ -267,6 +267,15 @@ function hasBlacklist(line: string): boolean {
   return false
 }
 
+function firstBlacklistHit(lines: string[]): string | null {
+  for (const l of lines) {
+    for (const t of BLACKLIST_TERMS) {
+      if (t.re.test(l)) return t.label
+    }
+  }
+  return null
+}
+
 function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
   const identityByDim: Record<number, string> = {
     0: "You don’t just ship work — you set operating rules.",
@@ -421,8 +430,14 @@ function validateAndRepairSynthesisOnce(
   synthesisPatternSummary: string,
   personVector: PersonVector6,
   signals: ResumeSignals,
+  opts?: { log?: boolean },
 ): { patternSummary: string; didRepair: boolean } {
+  const shouldLog = Boolean(opts?.log)
+
   if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+    if (shouldLog) {
+      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    }
     const pd = primaryDimFromVector(personVector)
     const safe = buildSafeMinimalLines(pd, signals)
     return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
@@ -431,6 +446,9 @@ function validateAndRepairSynthesisOnce(
   const primaryDim = primaryDimFromVector(personVector)
   const baseLines = splitSynthesisLines(synthesisPatternSummary)
   if (baseLines.length < 3) {
+    if (shouldLog) {
+      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    }
     const safe = buildSafeMinimalLines(primaryDim, signals)
     return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
   }
@@ -469,26 +487,52 @@ function validateAndRepairSynthesisOnce(
     const contentWords = collectContentWords(lines)
     const counts = new Map<string, number>()
     for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
+
     let repeatBad = false
+    let repeatedWord: string | null = null
     for (const [w, c] of counts.entries()) {
       if (c <= 1) continue
       if (REPETITION_STOPWORDS.has(w)) continue
       repeatBad = true
+      repeatedWord = w
       break
     }
 
     if (!anyBlacklist && constructionOk && !repeatBad) {
       const after = joinSynthesisLines(lines)
       if (after !== before) didRepair = true
+      if (shouldLog) console.log("[caliber] synthesis_source=llm")
       return { patternSummary: after, didRepair }
     }
 
     if (pass === 1) {
+      if (shouldLog) {
+        if (anyBlacklist) {
+          const hit = firstBlacklistHit(lines)
+          console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_hit", ...(hit ? { hit } : {}) })
+        } else if (!constructionOk) {
+          console.warn("[caliber] synthesis_source=fallback", {
+            reason: "construction_invalid",
+            ...(lines[2] ? { construction: String(lines[2]).slice(0, 120) } : {}),
+          })
+        } else if (repeatBad) {
+          console.warn("[caliber] synthesis_source=fallback", {
+            reason: "repetition_unrepairable",
+            ...(repeatedWord ? { word: repeatedWord } : {}),
+          })
+        } else {
+          console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+        }
+      }
+
       const safe = buildSafeMinimalLines(primaryDim, signals)
       return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
     }
   }
 
+  if (shouldLog) {
+    console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+  }
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
 }
@@ -512,28 +556,6 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
   const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
-  type FallbackReason = "llm_call_failed" | "json_parse_failed" | "missing_keys" | "empty_strings"
-
-  const classifyFallbackReason = (msg: string): FallbackReason => {
-    const m = (msg || "").toLowerCase()
-    if (m.includes("non-json")) return "json_parse_failed"
-    if (m.includes("missing required fields")) return "missing_keys"
-    if (m.includes("empty content")) return "empty_strings"
-    return "llm_call_failed"
-  }
-
-  const logFallback = (reason: FallbackReason, detail: string) => {
-    console.log("synthesis_source=fallback")
-    console.log(`synthesis_fallback_reason=${reason}`)
-    if (reason === "json_parse_failed" || reason === "missing_keys") {
-      const d = String(detail ?? "")
-      console.log(`synthesis_model_response_len=${d.length}`)
-      console.log(`synthesis_model_response_head=${d.slice(0, 200)}`)
-    }
-  }
-
-  let lastErrorMessage = ""
-
   const tryOnce = async (): Promise<string | null> => {
     const semantic = await generateSemanticSynthesis({
       personVector: v,
@@ -552,34 +574,23 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
     }
 
     const raw = joinSynthesisLines(lines)
-    const repaired = validateAndRepairSynthesisOnce(raw, v, signals)
+    const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
     return repaired.patternSummary
   }
 
   try {
     const out1 = await tryOnce()
-    if (out1) {
-      console.log("synthesis_source=llm")
-      return out1
-    }
-  } catch (e: any) {
-    lastErrorMessage = String(e?.message ?? e ?? "")
+    if (out1) return out1
+  } catch {
     // retry once below
   }
 
   try {
     const out2 = await tryOnce()
-    if (out2) {
-      console.log("synthesis_source=llm")
-      return out2
-    }
-  } catch (e: any) {
-    lastErrorMessage = String(e?.message ?? e ?? "")
+    if (out2) return out2
+  } catch {
     // fall through
   }
-
-  const reason = classifyFallbackReason(lastErrorMessage)
-  logFallback(reason, lastErrorMessage)
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return joinSynthesisLines([safe[0], safe[1], safe[2]])
@@ -711,7 +722,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     patternSummary = buildDeterministicPatternSummary(v)
   }
 
-  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals)
+  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: true })
   patternSummary = repaired.patternSummary
 
   // Keep “Operate Best” + “Lose Energy” below, structural, no praise.
