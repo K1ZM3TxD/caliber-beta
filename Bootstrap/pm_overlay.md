@@ -58,6 +58,28 @@ If a task explanation exceeds 8 lines, it is too large.
 Reduce it.
 
 -----------------------------------
+SURGICAL FIX MODE (LOCKED)
+-----------------------------------
+
+Use when:
+- Debugging wiring/control-flow acceptance bugs
+- Validation/retry gates
+- Observability/logging gaps
+- Any change expressible as a <=10-line delta
+
+Rules (PM → Coder task shaping):
+- Forbid rewrites and refactors.
+- Specify exact file path + exact function/call-site.
+- Specify exact line edits (before → after).
+- No formatting/whitespace changes outside the specified lines.
+- Include one observable acceptance check (log line, branch taken, retry triggered, etc.).
+- If full-file output is requested, it must be byte-identical except the specified lines.
+
+Task header requirement:
+- After EXECUTION DIRECTIVE, include: "SURGICAL FIX MODE: ON".
+
+
+-----------------------------------
 EXECUTION DIRECTIVE RULE
 -----------------------------------
 
