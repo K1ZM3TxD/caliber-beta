@@ -1,4 +1,4 @@
-# Caliber — MILESTONES (Revised After Atomic Execution Shift)
+# Caliber — MILESTONES (Current Snapshot)
 
 This document defines the active build runway.
 
@@ -61,19 +61,17 @@ Deterministic scoring remains unchanged.
 
 # 5.1 EXECUTION STRUCTURE (ATOMIC SEQUENCING)
 
-Milestone 5.1 is now executed through strictly atomic tasks.
+Milestone 5.1 is executed through strictly atomic tasks.
 
 No multi-layer implementation allowed.
 
 Each subsection below represents an independent execution unit.
 
-Progress only advances after validation of each unit.
+Progress advances only after validation of each unit.
 
 ---
 
 ## 5.1A — Locked Calibration Prompts (COMPLETED / LOCKED)
-
-Prompts 1–5 are instrumentation and must remain deterministic.
 
 Final Locked Wording:
 
@@ -85,8 +83,6 @@ Final Locked Wording:
 
 Rules:
 - No AI rewriting
-- No structural reframing
-- No additional qualifiers
 - Canonical source only
 - Mechanical drift prevention enforced
 
@@ -94,31 +90,52 @@ Status: LOCKED
 
 ---
 
-## 5.1B — LLM Wiring (PENDING)
+## 5.1B — LLM Wiring (COMPLETED)
 
-Scope:
-- Replace deterministic synthesis path with LLM generation.
-- No validation changes.
-- No retry logic yet.
-- No UI changes.
-- Deterministic fallback preserved.
+Scope (as executed):
+- LLM is called to generate the 4 synthesis lines (JSON contract)
+- Deterministic fallback remains intact
+- No retry semantics beyond existing flow
+- No UI changes
 
-This step is wiring only.
+Notes:
+- LLM execution confirmed via non-deterministic outputs.
+- Missing OPENAI_API_KEY causes fallback; resolved via local env.
+
+Status: COMPLETE
 
 ---
 
-## 5.1C — Deterministic Validation Layer (PENDING)
+## 5.1C — Deterministic Validation Layer (ACTIVE)
 
-Scope:
-- Enforce strict JSON schema.
-- Enforce no repeated content words (>=5 chars).
-- Enforce construction layer verb pattern.
-- Enforce consequence length <= 7 words.
-- Enforce blacklist of abstraction phrases.
-- Reject non-compliant output.
+Purpose:
+- Prevent generic/archetypal drift and enforce structure deterministically.
 
-No retry logic yet.
-Fallback remains intact.
+Current behavior (observed):
+- Validator is rejecting some LLM outputs and falling back to deterministic dimension-safe lines.
+
+### 5.1C.1 — Repetition Rule Softening (COMPLETED)
+Decision:
+- Minor repetition should not force hard fallback.
+- Repetition enforcement shifted toward best-effort repair.
+
+Status: COMPLETE
+
+### 5.1C.2 — Blacklist Handling Precision (ACTIVE)
+Decision (LOCKED):
+- Single-token blacklist hits must be REPAIR-FIRST (deterministic replacement), then re-check.
+- Phrase-level archetype hits must remain HARD-FAIL to deterministic fallback.
+
+Implementation rule:
+- If blacklist hit contains whitespace → immediate fallback.
+- Else attempt replacement using a small deterministic map (initial seed list), then re-check.
+- Only fallback if unrepaired.
+
+Also add minimal observability:
+- Log when blacklist repair applied.
+- Log when phrase-level blacklist triggers fallback.
+
+Status: ACTIVE (next execution)
 
 ---
 
@@ -131,19 +148,21 @@ Scope:
   - Trigger deterministic fallback.
 - No UI changes.
 
+Status: PENDING
+
 ---
 
 ## 5.1E — Lexical Grounding Refinement (PENDING)
 
 Scope:
-- Reuse lexical anchors from resume and prompt answers.
-- Reduce over-constraint causing generic phrasing.
-- Allow “system” where not structurally harmful.
+- Improve prompt so synthesis reuses concrete lexical anchors from resume + answers.
+- Reduce archetypal phrasing and “generic corp” defaults.
 - Maintain:
   - No praise
-  - No repetition
   - No motivational tone
   - No metric blending
+
+Status: PENDING
 
 ---
 
@@ -151,16 +170,12 @@ Scope:
 
 UI-only changes.
 
-- Single column centered layout
-- Controlled vertical rhythm
-- Bullet block centered under headers
-- Bullet reframing:
-  - “Pattern Expresses Cleanly When”
-  - “Pattern Friction Emerges When”
-- Continue button de-emphasis
-- Remove visual density
+- Center bullet block under headers
+- Increase bullet font size to match body
+- Maintain single column, controlled rhythm
+- No scoring changes
 
-No scoring changes.
+Status: PENDING
 
 ---
 
@@ -178,7 +193,7 @@ Constraints:
 - Deterministic validation required.
 - Deterministic fallback retained.
 
-Execution will follow atomic sequencing once 5.1 is complete.
+Status: PLANNED (after 5.1 complete)
 
 ---
 
@@ -208,10 +223,9 @@ Create Session
 → Alignment Output  
 
 Additionally:
-
 - Prompts remain stable across sessions.
 - LLM output passes validation deterministically.
-- Retry logic enforced.
+- Retry logic enforced (5.1D).
 - Deterministic fallback preserved.
 - No abstraction drift.
 - No repetition loops.

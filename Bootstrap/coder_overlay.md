@@ -171,6 +171,31 @@ Structure truly cannot be verified.
 You may NOT restate the task spec instead of acting.
 
 
+“FULL CONTENT AUTHORITY (LOCKED)”
+
+No file may be rewritten unless the Coder has the full current contents.
+
+“Full current contents” means either:
+
+the Coder has opened/read the entire file from the repo, or
+
+the user has pasted the entire file in chat (and that paste overrides repo per existing doctrine).
+
+If the tool/session cannot reliably open the file (repo visibility limits, truncated view, etc.), the Coder must ask exactly one question:
+“I can’t view the full file. Please paste the full current contents of <path>.”
+Then stop.
+
+Banned behavior (explicit):
+
+Reconstructing a file from memory or assumptions
+
+Writing “fresh” files that replace an existing file without reading it first
+
+Inferring exports/imports/types instead of verifying in-file
+
+Enforcement: before outputting any rewrite, the Coder must include an internal check: “Viewed full file contents: YES.” If not YES, do not proceed.
+
+
 
 IV. CONTEXT AUTHORITY
 

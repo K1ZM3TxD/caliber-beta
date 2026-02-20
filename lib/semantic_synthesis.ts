@@ -2,6 +2,281 @@
 
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
+const VERB_STOPWORDS = new Set<string>([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "been",
+  "being",
+  "but",
+  "by",
+  "can",
+  "could",
+  "did",
+  "do",
+  "does",
+  "doing",
+  "done",
+  "dont",
+  "don’t",
+  "for",
+  "from",
+  "had",
+  "has",
+  "have",
+  "having",
+  "he",
+  "her",
+  "hers",
+  "him",
+  "his",
+  "how",
+  "i",
+  "if",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "it’s",
+  "just",
+  "me",
+  "might",
+  "more",
+  "most",
+  "my",
+  "no",
+  "not",
+  "of",
+  "on",
+  "or",
+  "our",
+  "out",
+  "she",
+  "so",
+  "some",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
+  "to",
+  "too",
+  "up",
+  "us",
+  "was",
+  "we",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "will",
+  "with",
+  "without",
+  "would",
+  "you",
+  "your",
+  "youre",
+  "you’re",
+])
+
+// Small deterministic synonym map used ONLY for the identityContrast verb rule.
+const VERB_SYNONYMS: Record<string, string[]> = {
+  build: ["create", "make", "craft", "assemble"],
+  create: ["build", "make", "craft"],
+  design: ["plan", "architect", "shape"],
+  plan: ["design", "map"],
+  map: ["plan", "chart"],
+  debug: ["diagnose", "troubleshoot"],
+  diagnose: ["debug", "troubleshoot"],
+  fix: ["repair", "resolve"],
+  repair: ["fix", "resolve"],
+  improve: ["refine", "tighten"],
+  refine: ["improve", "tighten"],
+  reduce: ["cut", "lower", "shrink"],
+  increase: ["raise", "grow", "expand"],
+  lead: ["guide", "run"],
+  run: ["lead", "operate"],
+  manage: ["run", "own"],
+  own: ["manage", "drive"],
+  ship: ["deliver", "release", "launch"],
+  launch: ["ship", "release"],
+  write: ["draft", "author"],
+  test: ["verify", "validate"],
+  validate: ["test", "verify"],
+  measure: ["track", "quantify"],
+  track: ["measure", "monitor"],
+}
+
+const COMMON_VERBS = new Set<string>([
+  // General action verbs (kept small + deterministic)
+  "build",
+  "create",
+  "design",
+  "plan",
+  "map",
+  "debug",
+  "diagnose",
+  "fix",
+  "repair",
+  "improve",
+  "refine",
+  "tighten",
+  "reduce",
+  "increase",
+  "lead",
+  "run",
+  "manage",
+  "own",
+  "ship",
+  "launch",
+  "write",
+  "draft",
+  "test",
+  "validate",
+  "verify",
+  "measure",
+  "track",
+  "monitor",
+  "analyze",
+  "audit",
+  "review",
+  "define",
+  "clarify",
+  "decide",
+  "align",
+  "sequence",
+  "simplify",
+  "surface",
+  "isolate",
+  "name",
+  "support",
+  "coordinate",
+  "route",
+  "deploy",
+  "implement",
+  "integrate",
+  "migrate",
+  "optimize", // note: may be blacklisted in synthesis content, but user text may contain it
+  "deliver",
+])
+
+function normalizeToken(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z]/g, "")
+    .trim()
+}
+
+function baseVerbForm(raw: string): string {
+  let w = normalizeToken(raw)
+  if (!w) return ""
+  if (VERB_STOPWORDS.has(w)) return ""
+  // very light stemming (deterministic; no heavy NLP)
+  if (w.length > 5 && w.endsWith("ies")) {
+    w = w.slice(0, -3) + "y"
+  } else if (w.length > 5 && w.endsWith("ing")) {
+    w = w.slice(0, -3)
+  } else if (w.length > 4 && w.endsWith("ed")) {
+    w = w.slice(0, -2)
+  } else if (w.length > 4 && w.endsWith("es")) {
+    w = w.slice(0, -2)
+  } else if (w.length > 3 && w.endsWith("s")) {
+    w = w.slice(0, -1)
+  }
+  if (!w || VERB_STOPWORDS.has(w)) return ""
+  return w
+}
+
+function tokenizeWords(text: string): string[] {
+  if (!text) return []
+  const m = text.match(/[A-Za-z’']+/g)
+  return Array.isArray(m) ? m : []
+}
+
+function looksVerbLikeToken(raw: string): boolean {
+  const t = normalizeToken(raw)
+  if (!t || t.length < 3) return false
+  if (VERB_STOPWORDS.has(t)) return false
+  if (COMMON_VERBS.has(t)) return true
+  if (t.endsWith("ed") || t.endsWith("ing")) return true
+  return false
+}
+
+function extractTopUserVerbs(args: { promptAnswers: Array<{ n: 1 | 2 | 3 | 4 | 5; answer: string }>; resumeText: string }): string[] {
+  const scores = new Map<string, number>()
+
+  const bump = (token: string, weight: number) => {
+    if (!token) return
+    if (VERB_STOPWORDS.has(token)) return
+    scores.set(token, (scores.get(token) ?? 0) + weight)
+  }
+
+  // Prompt answers (primary source, higher weight)
+  for (const pa of args.promptAnswers || []) {
+    const words = tokenizeWords(String(pa?.answer ?? ""))
+    for (const w of words) {
+      if (!looksVerbLikeToken(w)) continue
+      const base = baseVerbForm(w)
+      if (!base) continue
+      bump(base, 3)
+    }
+  }
+
+  // Resume text (secondary, lower weight)
+  const resumeWords = tokenizeWords(String(args.resumeText ?? ""))
+  for (const w of resumeWords) {
+    if (!looksVerbLikeToken(w)) continue
+    const base = baseVerbForm(w)
+    if (!base) continue
+    bump(base, 1)
+  }
+
+  const ranked = Array.from(scores.entries())
+    .filter(([verb]) => verb.length >= 3 && !VERB_STOPWORDS.has(verb))
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1]
+      // deterministic tie-break
+      return a[0].localeCompare(b[0])
+    })
+    .map(([verb]) => verb)
+
+  return ranked.slice(0, 5)
+}
+
+function identityContrastHasRequiredVerb(args: { identityContrast: string; requiredVerbs: string[] }): boolean {
+  const required = (args.requiredVerbs || []).filter(Boolean)
+  if (required.length === 0) return true // nothing to enforce
+
+  const tokens = tokenizeWords(args.identityContrast).map((w) => baseVerbForm(w)).filter(Boolean)
+  const tokenSet = new Set(tokens)
+
+  for (const v of required) {
+    const vv = baseVerbForm(v) || normalizeToken(v)
+    if (vv && tokenSet.has(vv)) return true
+
+    const syns = VERB_SYNONYMS[vv] ?? VERB_SYNONYMS[normalizeToken(v)] ?? []
+    for (const s of syns) {
+      const ss = baseVerbForm(s) || normalizeToken(s)
+      if (ss && tokenSet.has(ss)) return true
+    }
+  }
+
+  return false
+}
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
@@ -197,6 +472,20 @@ export async function generateSemanticSynthesis(args: {
 
   if (!identityContrast || !interventionContrast || !constructionLayer) {
     throw new Error("OpenAI JSON missing required fields")
+  }
+
+  // New validation rule: identityContrast must contain at least one high-signal user verb (or synonym).
+  const extractedVerbs = extractTopUserVerbs({ promptAnswers: args.promptAnswers || [], resumeText: args.resumeText || "" })
+  console.log("[caliber] synthesis_verbs_extracted", { verbs: extractedVerbs })
+
+  if (!identityContrastHasRequiredVerb({ identityContrast, requiredVerbs: extractedVerbs })) {
+    console.warn("[caliber] synthesis_identity_first_line_verb_rule_failed", {
+      verbs: extractedVerbs,
+      identityContrast: identityContrast.slice(0, 160),
+    })
+    throw new Error(
+      `Semantic synthesis validation failed: identityContrast must contain a user verb (or synonym). verbs=${JSON.stringify(extractedVerbs)}`,
+    )
   }
 
   return { identityContrast, interventionContrast, constructionLayer, consequenceDrop, operate_best_bullets, lose_energy_bullets }
