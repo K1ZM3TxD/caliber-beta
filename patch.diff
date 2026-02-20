@@ -1,0 +1,54 @@
+diff --git a/lib/calibration_machine.ts b/lib/calibration_machine.ts
+index 39a53a2..39a53a2 100644
+--- a/lib/calibration_machine.ts
++++ b/lib/calibration_machine.ts
+@@ -28,7 +28,7 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Person
+      }
+  
+      const raw = joinSynthesisLines(lines)
+-     const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
++     const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: true })
+      return repaired.patternSummary
+    }
+ 
+@@ -12,6 +12,29 @@ function validateAndRepairSynthesisOnce(
+ ): { patternSummary: string; didRepair: boolean } {
+   const shouldLog = Boolean(opts?.log)
+ 
++  const FIRST_LINE_VERB_SYNONYMS: Record<string, string[]> = {
++    clarify: ["clarify", "clarifies", "clarified"],
++    build: ["build", "builds", "built"],
++    test: ["test", "tests", "tested"],
++    adjust: ["adjust", "adjusts", "adjusted"],
++    check: ["check", "checks", "checked"],
++  }
++
++  const escapeRegExp = (s: string): string => s.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
++
++  const firstLineHasVerb = (line: string): boolean => {
++    const hay = String(line ?? "")
++    for (const variants of Object.values(FIRST_LINE_VERB_SYNONYMS)) {
++      for (const v of variants) {
++        const re = new RegExp(`\\b${escapeRegExp(v)}\\b`, "i")
++        if (re.test(hay)) return true
++      }
++    }
++    return false
++  }
++
+   if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+     if (shouldLog) {
+       console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+@@ -24,6 +47,13 @@ function validateAndRepairSynthesisOnce(
+     if (!anyBlacklist && constructionOk && !repeatBad) {
+       const after = joinSynthesisLines(lines)
+       if (after !== before) didRepair = true
++      if (!firstLineHasVerb(lines[0] ?? "")) {
++        if (shouldLog) {
++          console.log("[caliber] verb_rule=failed_first_line")
++        }
++        return { patternSummary: "", didRepair: false }
++      }
+       if (shouldLog) console.log("[caliber] synthesis_source=llm")
+       return { patternSummary: after, didRepair }
+     }
