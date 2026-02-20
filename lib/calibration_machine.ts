@@ -278,12 +278,12 @@ function firstBlacklistHit(lines: string[]): string | null {
 
 function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
   const identityByDim: Record<number, string> = {
-    0: "You don’t just ship work — you set operating rules.",
-    1: "You don’t just take ownership — you define boundaries.",
-    2: "You don’t just hit targets — you protect measurement integrity.",
-    3: "You don’t just work across scope — you hold constraints.",
-    4: "You don’t just learn quickly — you choose one depth path.",
-    5: "You don’t just coordinate stakeholders — you set handoffs.",
+    0: "You ship work. You set operating rules.",
+    1: "You take ownership. You define boundaries.",
+    2: "You hit targets. You protect measurement integrity.",
+    3: "You work across scope. You hold constraints.",
+    4: "You learn quickly. You choose one depth path.",
+    5: "You coordinate stakeholders. You set handoffs.",
   }
   const interventionByDim: Record<number, string> = {
     0: "When something isn’t working, you don’t force it — you tighten constraints.",
