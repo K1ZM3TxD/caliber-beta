@@ -339,7 +339,7 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
 
   const repeated = new Set<string>()
   for (const [w, c] of counts.entries()) {
-    if (c <= 1) continue
+    if (c < 3) continue
     if (REPETITION_STOPWORDS.has(w)) continue
     repeated.add(w)
   }
@@ -364,8 +364,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
     }
     const repl = replacementMap[rep]
     if (!repl) {
-      const safe = buildSafeMinimalLines(primaryDim, signals)
-      return [safe[0], safe[1], safe[2]]
+      // Best-effort only: if we don't have a safe replacement, skip this word.
+      continue
     }
 
     let seen = 0
@@ -375,7 +375,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
         const t = normalizeWordToken(chunk)
         if (t !== rep) return chunk
         seen += 1
-        if (seen <= 1) return chunk
+        // Keep first two occurrences; replace 3rd+.
+        if (seen <= 2) return chunk
         return repl
       })
       return outParts.join("")
@@ -385,13 +386,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
   const counts2 = new Map<string, number>()
   const words2 = collectContentWords(next)
   for (const w of words2) counts2.set(w, (counts2.get(w) ?? 0) + 1)
-  for (const [w, c] of counts2.entries()) {
-    if (c <= 1) continue
-    if (REPETITION_STOPWORDS.has(w)) continue
-    const safe = buildSafeMinimalLines(primaryDim, signals)
-    return [safe[0], safe[1], safe[2]]
-  }
 
+  // Best-effort only: even if some 3+ repeats remain, return partially repaired output.
   return next.map((x) => x.replace(/\s{2,}/g, " ").trim())
 }
 
@@ -491,7 +487,7 @@ function validateAndRepairSynthesisOnce(
     let repeatBad = false
     let repeatedWord: string | null = null
     for (const [w, c] of counts.entries()) {
-      if (c <= 1) continue
+      if (c < 3) continue
       if (REPETITION_STOPWORDS.has(w)) continue
       repeatBad = true
       repeatedWord = w
