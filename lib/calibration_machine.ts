@@ -267,6 +267,15 @@ function hasBlacklist(line: string): boolean {
   return false
 }
 
+function firstBlacklistHit(lines: string[]): string | null {
+  for (const l of lines) {
+    for (const t of BLACKLIST_TERMS) {
+      if (t.re.test(l)) return t.label
+    }
+  }
+  return null
+}
+
 function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
   const identityByDim: Record<number, string> = {
     0: "You don’t just ship work — you set operating rules.",
@@ -330,7 +339,7 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
 
   const repeated = new Set<string>()
   for (const [w, c] of counts.entries()) {
-    if (c <= 1) continue
+    if (c < 3) continue
     if (REPETITION_STOPWORDS.has(w)) continue
     repeated.add(w)
   }
@@ -355,8 +364,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
     }
     const repl = replacementMap[rep]
     if (!repl) {
-      const safe = buildSafeMinimalLines(primaryDim, signals)
-      return [safe[0], safe[1], safe[2]]
+      // Best-effort only: if we don't have a safe replacement, skip this word.
+      continue
     }
 
     let seen = 0
@@ -366,7 +375,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
         const t = normalizeWordToken(chunk)
         if (t !== rep) return chunk
         seen += 1
-        if (seen <= 1) return chunk
+        // Keep first two occurrences; replace 3rd+.
+        if (seen <= 2) return chunk
         return repl
       })
       return outParts.join("")
@@ -376,13 +386,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
   const counts2 = new Map<string, number>()
   const words2 = collectContentWords(next)
   for (const w of words2) counts2.set(w, (counts2.get(w) ?? 0) + 1)
-  for (const [w, c] of counts2.entries()) {
-    if (c <= 1) continue
-    if (REPETITION_STOPWORDS.has(w)) continue
-    const safe = buildSafeMinimalLines(primaryDim, signals)
-    return [safe[0], safe[1], safe[2]]
-  }
 
+  // Best-effort only: even if some 3+ repeats remain, return partially repaired output.
   return next.map((x) => x.replace(/\s{2,}/g, " ").trim())
 }
 
@@ -421,8 +426,14 @@ function validateAndRepairSynthesisOnce(
   synthesisPatternSummary: string,
   personVector: PersonVector6,
   signals: ResumeSignals,
+  opts?: { log?: boolean },
 ): { patternSummary: string; didRepair: boolean } {
+  const shouldLog = Boolean(opts?.log)
+
   if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+    if (shouldLog) {
+      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    }
     const pd = primaryDimFromVector(personVector)
     const safe = buildSafeMinimalLines(pd, signals)
     return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
@@ -431,26 +442,37 @@ function validateAndRepairSynthesisOnce(
   const primaryDim = primaryDimFromVector(personVector)
   const baseLines = splitSynthesisLines(synthesisPatternSummary)
   if (baseLines.length < 3) {
+    if (shouldLog) {
+      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    }
     const safe = buildSafeMinimalLines(primaryDim, signals)
     return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
   }
 
-  let lines = baseLines.slice(0, 4)
-  let didRepair = false
-
-  const findBlacklistHit = (line: string): { label: string; match: string } | null => {
-    for (const t of BLACKLIST_TERMS) {
-      const m = t.re.exec(line)
-      if (m && typeof m[0] === "string" && m[0].length > 0) {
-        return { label: t.label, match: m[0] }
+  const findFirstBlacklistMatch = (inLines: string[]): { label: string; match: string } | null => {
+    for (const l of inLines) {
+      for (const t of BLACKLIST_TERMS) {
+        const m = t.re.exec(l)
+        if (m && typeof m[0] === "string" && m[0].length > 0) {
+          return { label: t.label, match: m[0] }
+        }
       }
     }
     return null
   }
 
-  const applySingleTokenBlacklistRepair = (
+  const preserveCase = (fromText: string, repl: string): string => {
+    if (fromText.toUpperCase() === fromText) return repl.toUpperCase()
+    const first = fromText.slice(0, 1)
+    const rest = fromText.slice(1)
+    const isTitle = first.toUpperCase() === first && rest.toLowerCase() === rest
+    if (isTitle) return repl.slice(0, 1).toUpperCase() + repl.slice(1)
+    return repl
+  }
+
+  const attemptSingleTokenBlacklistRepair = (
     inLines: string[],
-  ): { lines: string[]; didApply: boolean; from: string; to: string } => {
+  ): { lines: string[]; applied: boolean; from: string; to: string } => {
     const replacementMap: Record<string, string> = {
       targets: "measures",
       target: "measure",
@@ -461,48 +483,39 @@ function validateAndRepairSynthesisOnce(
       leverage: "use",
     }
 
+    const hit = findFirstBlacklistMatch(inLines)
+    if (!hit) return { lines: inLines, applied: false, from: "", to: "" }
+
+    // Phrase-level drift: do NOT attempt repair here (caller handles hard fail).
+    if (/\s/.test(hit.match)) return { lines: inLines, applied: false, from: "", to: "" }
+
+    const key = normalizeWordToken(hit.match)
+    const replBase = replacementMap[key]
+    if (!replBase) return { lines: inLines, applied: false, from: "", to: "" }
+
+    const escaped = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
+    const re = new RegExp(`\\b${escaped}\\b`, "gi")
+
     let out = [...inLines]
-    let didApply = false
-    let loggedFrom = ""
-    let loggedTo = ""
-
-    const preserveCase = (fromText: string, repl: string): string => {
-      if (fromText.toUpperCase() === fromText) return repl.toUpperCase()
-      const first = fromText.slice(0, 1)
-      const rest = fromText.slice(1)
-      const isTitle = first.toUpperCase() === first && rest.toLowerCase() === rest
-      if (isTitle) return repl.slice(0, 1).toUpperCase() + repl.slice(1)
-      return repl
-    }
-
+    let applied = false
     for (let i = 0; i < out.length; i += 1) {
-      const hit = findBlacklistHit(out[i] ?? "")
-      if (!hit) continue
-
-      // Phrase-level drift hard-fails.
-      if (/\s/.test(hit.label)) {
-        return { lines: out, didApply: false, from: "", to: "" }
-      }
-
-      const key = normalizeWordToken(hit.match)
-      const replBase = replacementMap[key]
-      if (!replBase) {
-        return { lines: out, didApply: false, from: "", to: "" }
-      }
-
-      const re = new RegExp(`\\b${key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "gi")
+      if (!re.test(out[i] ?? "")) continue
       const before = out[i]
       out[i] = out[i].replace(re, (m) => preserveCase(m, replBase))
-
-      if (out[i] !== before && !didApply) {
-        didApply = true
-        loggedFrom = hit.match
-        loggedTo = replBase
-      }
+      if (out[i] !== before) applied = true
     }
 
-    return { lines: out, didApply, from: loggedFrom, to: loggedTo }
+    if (!applied) return { lines: inLines, applied: false, from: "", to: "" }
+
+    // After replacement, re-check: if the token still appears anywhere, treat as not repaired.
+    const stillHasToken = out.some((l) => re.test(l))
+    if (stillHasToken) return { lines: inLines, applied: false, from: "", to: "" }
+
+    return { lines: out, applied: true, from: hit.match, to: replBase }
   }
+
+  let lines = baseLines.slice(0, 4)
+  let didRepair = false
 
   for (let pass = 0; pass < 2; pass += 1) {
     const before = joinSynthesisLines(lines)
@@ -529,26 +542,21 @@ function validateAndRepairSynthesisOnce(
       didRepair = true
     }
 
-    // Repair-first for single-token blacklist hits; phrase-level hits hard-fail to fallback.
-    const firstHit = lines.map((l) => findBlacklistHit(l)).find((x) => x !== null) as { label: string; match: string } | null
-    if (firstHit) {
-      if (/\s/.test(firstHit.label)) {
-        console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_phrase_hit", hit: firstHit.match })
+    // Blacklist handling: phrase-level = hard fallback; single-token = repair-first, else fallback (existing behavior).
+    const hit = findFirstBlacklistMatch(lines)
+    if (hit) {
+      // Phrase-level drift hard-fails immediately.
+      if (/\s/.test(hit.match)) {
+        console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_phrase_hit", hit: hit.match })
         const safe = buildSafeMinimalLines(primaryDim, signals)
         return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
       }
 
-      const repaired = applySingleTokenBlacklistRepair(lines)
-      if (repaired.didApply) {
+      const repaired = attemptSingleTokenBlacklistRepair(lines)
+      if (repaired.applied) {
         console.log("[caliber] blacklist_repair=applied", { from: repaired.from, to: repaired.to })
         lines = repaired.lines
         didRepair = true
-      }
-
-      const stillHasBlacklist = lines.some((l) => hasBlacklist(l))
-      if (stillHasBlacklist) {
-        const safe = buildSafeMinimalLines(primaryDim, signals)
-        return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
       }
     }
 
@@ -558,26 +566,52 @@ function validateAndRepairSynthesisOnce(
     const contentWords = collectContentWords(lines)
     const counts = new Map<string, number>()
     for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
+
     let repeatBad = false
+    let repeatedWord: string | null = null
     for (const [w, c] of counts.entries()) {
-      if (c <= 1) continue
+      if (c < 3) continue
       if (REPETITION_STOPWORDS.has(w)) continue
       repeatBad = true
+      repeatedWord = w
       break
     }
 
     if (!anyBlacklist && constructionOk && !repeatBad) {
       const after = joinSynthesisLines(lines)
       if (after !== before) didRepair = true
+      if (shouldLog) console.log("[caliber] synthesis_source=llm")
       return { patternSummary: after, didRepair }
     }
 
     if (pass === 1) {
+      if (shouldLog) {
+        if (anyBlacklist) {
+          const hitLabel = firstBlacklistHit(lines)
+          console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_hit", ...(hitLabel ? { hit: hitLabel } : {}) })
+        } else if (!constructionOk) {
+          console.warn("[caliber] synthesis_source=fallback", {
+            reason: "construction_invalid",
+            ...(lines[2] ? { construction: String(lines[2]).slice(0, 120) } : {}),
+          })
+        } else if (repeatBad) {
+          console.warn("[caliber] synthesis_source=fallback", {
+            reason: "repetition_unrepairable",
+            ...(repeatedWord ? { word: repeatedWord } : {}),
+          })
+        } else {
+          console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+        }
+      }
+
       const safe = buildSafeMinimalLines(primaryDim, signals)
       return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
     }
   }
 
+  if (shouldLog) {
+    console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+  }
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
 }
@@ -601,28 +635,6 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
   const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
-  type FallbackReason = "llm_call_failed" | "json_parse_failed" | "missing_keys" | "empty_strings"
-
-  const classifyFallbackReason = (msg: string): FallbackReason => {
-    const m = (msg || "").toLowerCase()
-    if (m.includes("non-json")) return "json_parse_failed"
-    if (m.includes("missing required fields")) return "missing_keys"
-    if (m.includes("empty content")) return "empty_strings"
-    return "llm_call_failed"
-  }
-
-  const logFallback = (reason: FallbackReason, detail: string) => {
-    console.log("synthesis_source=fallback")
-    console.log(`synthesis_fallback_reason=${reason}`)
-    if (reason === "json_parse_failed" || reason === "missing_keys") {
-      const d = String(detail ?? "")
-      console.log(`synthesis_model_response_len=${d.length}`)
-      console.log(`synthesis_model_response_head=${d.slice(0, 200)}`)
-    }
-  }
-
-  let lastErrorMessage = ""
-
   const tryOnce = async (): Promise<string | null> => {
     const semantic = await generateSemanticSynthesis({
       personVector: v,
@@ -641,34 +653,23 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
     }
 
     const raw = joinSynthesisLines(lines)
-    const repaired = validateAndRepairSynthesisOnce(raw, v, signals)
+    const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
     return repaired.patternSummary
   }
 
   try {
     const out1 = await tryOnce()
-    if (out1) {
-      console.log("synthesis_source=llm")
-      return out1
-    }
-  } catch (e: any) {
-    lastErrorMessage = String(e?.message ?? e ?? "")
+    if (out1) return out1
+  } catch {
     // retry once below
   }
 
   try {
     const out2 = await tryOnce()
-    if (out2) {
-      console.log("synthesis_source=llm")
-      return out2
-    }
-  } catch (e: any) {
-    lastErrorMessage = String(e?.message ?? e ?? "")
+    if (out2) return out2
+  } catch {
     // fall through
   }
-
-  const reason = classifyFallbackReason(lastErrorMessage)
-  logFallback(reason, lastErrorMessage)
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return joinSynthesisLines([safe[0], safe[1], safe[2]])
@@ -800,7 +801,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     patternSummary = buildDeterministicPatternSummary(v)
   }
 
-  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals)
+  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: true })
   patternSummary = repaired.patternSummary
 
   // Keep “Operate Best” + “Lose Energy” below, structural, no praise.
@@ -871,219 +872,469 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
 }
 
 function newSessionId(): string {
-  return `sess_${Math.random().toString(16).slice(2)}`
+  return `sess_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`
 }
 
-function mkSession(id: string): CalibrationSession {
+function makeDefaultPrompt(question: string): any {
   return {
-    id,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    state: "RESUME_PENDING",
-    history: [],
-    resume: { rawText: null, accepted: false, signals: null },
+    question,
+    answer: null,
+    accepted: false,
+    frozen: false,
+    clarifier: {
+      asked: false,
+      question: null,
+      answer: null,
+    },
+  }
+}
+
+function createSession(): CalibrationSession {
+  const sessionId = newSessionId()
+  const session: CalibrationSession = {
+    sessionId,
+    state: "RESUME_INGEST",
+    resume: {
+      rawText: null,
+      completed: false,
+      signals: null,
+    },
     prompts: {
-      1: null,
-      2: null,
-      3: null,
-      4: null,
-      5: null,
-    } as any,
+      1: makeDefaultPrompt(CALIBRATION_PROMPTS[1]),
+      2: makeDefaultPrompt(CALIBRATION_PROMPTS[2]),
+      3: makeDefaultPrompt(CALIBRATION_PROMPTS[3]),
+      4: makeDefaultPrompt(CALIBRATION_PROMPTS[4]),
+      5: makeDefaultPrompt(CALIBRATION_PROMPTS[5]),
+    },
     personVector: { values: null, locked: false },
     encodingRitual: { completed: false },
-    synthesis: {
-      patternSummary: null,
-      operateBest: null,
-      loseEnergy: null,
-      identitySummary: null,
-      marketTitle: null,
-      titleExplanation: null,
-      lastTitleFeedback: null,
+    consolidationRitual: {
+      startedAtIso: null,
+      lastTickAtIso: null,
+      progressPct: 0,
+      step: 0,
+      message: null,
+      completed: false,
     },
+    synthesis: null,
+    job: { rawText: null, roleVector: null, completed: false },
     result: null,
+    history: [],
   }
+  storeSet(session)
+  return session
 }
 
-async function maybeFinalize(session: CalibrationSession): Promise<CalibrationSession> {
-  if (session.state !== "CONSOLIDATION_PENDING") return session
-  if (!promptsComplete1to5(session)) return session
-  if (!session.personVector.values || session.personVector.values.length !== 6) return session
-
-  const afterSynthesis = await synthesizeOnce(session)
-  const contract = toResultContract(afterSynthesis)
-
-  return {
-    ...afterSynthesis,
-    state: "FINAL",
-    updatedAt: nowIso(),
-    result: contract,
-  }
+// Strict allowlist: current_state -> allowed event types.
+// (CREATE_SESSION is handled before session lookup.)
+const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]>> = {
+  RESUME_INGEST: ["SUBMIT_RESUME", "ADVANCE"],
+  PROMPT_1: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_1_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_2: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_2_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_3: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_3_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_4: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_4_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  PROMPT_5: ["SUBMIT_PROMPT_ANSWER"],
+  PROMPT_5_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
+  CONSOLIDATION_PENDING: ["ADVANCE"],
+  CONSOLIDATION_RITUAL: ["ADVANCE"],
+  ENCODING_RITUAL: ["ADVANCE"],
+  PATTERN_SYNTHESIS: ["ADVANCE"],
+  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
+  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
+  JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
+  ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
+  TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
 }
 
-export async function dispatchCalibrationEvent(sessionId: string | null | undefined, event: CalibrationEvent): Promise<DispatchResult> {
-  if (!event || typeof event.type !== "string") return bad("BAD_EVENT", "Invalid event")
-
-  const incomingId = typeof sessionId === "string" && sessionId.trim().length > 0 ? sessionId.trim() : null
-
-  if (event.type === "SESSION_CREATE") {
-    const id = newSessionId()
-    const s0 = mkSession(id)
-    const s1: CalibrationSession = { ...s0, updatedAt: nowIso() }
-    storeSet(id, s1)
-    return { ok: true, session: s1 }
+function ensureAllowed(session: CalibrationSession, eventType: CalibrationEvent["type"]): Err | null {
+  const allowed = ALLOWLIST[session.state] ?? []
+  if (!allowed.includes(eventType)) {
+    return bad("INVALID_EVENT_FOR_STATE", `Event ${eventType} not allowed in state ${session.state}`)
   }
+  return null
+}
 
-  if (!incomingId) return bad("SESSION_NOT_FOUND", "Session not found")
-  const got = mustGet(incomingId)
-  if (!("id" in got)) return got
+/**
+ * Milestone 5.1 rule:
+ * - Each dispatch may advance at most one state.
+ * - No dead-end holds; UI can deterministically render from snapshot.
+ */
+export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise<DispatchResult> {
+  try {
+    if (!event || typeof event !== "object" || typeof (event as any).type !== "string") {
+      return bad("MISSING_REQUIRED_FIELD", "Missing event.type")
+    }
 
-  let session: CalibrationSession = got
-  const fromState = session.state
+    if (event.type === "CREATE_SESSION") {
+      const session = createSession()
+      return { ok: true, session }
+    }
 
-  switch (event.type) {
-    case "RESUME_SUBMIT": {
-      const rawText = typeof (event as any).rawText === "string" ? String((event as any).rawText) : ""
-      if (!meetsSignal(rawText)) return bad("RESUME_TOO_SHORT", "Resume text too short")
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        resume: { rawText, accepted: true, signals: session.resume.signals ?? null },
-        state: "PROMPT_1",
+    const sessionId = (event as any).sessionId
+    if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+      return bad("MISSING_REQUIRED_FIELD", "Missing sessionId")
+    }
+
+    const got = mustGet(sessionId)
+    if ((got as any).ok === false) return got as Err
+    let session = got as CalibrationSession
+
+    const allowErr = ensureAllowed(session, event.type)
+    if (allowErr) return allowErr
+
+    const from = session.state
+
+    switch (event.type) {
+      case "SUBMIT_RESUME": {
+        const resumeText = (event as any).resumeText
+        if (typeof resumeText !== "string" || resumeText.trim().length === 0) {
+          return bad("MISSING_REQUIRED_FIELD", "resumeText must be a non-empty string")
+        }
+
+        const text = resumeText.trim()
+        const hasBullets = /(^|\n)\s*[-*•]\s+/.test(text)
+        const hasDates = /\b(19|20)\d{2}\b/.test(text)
+        const hasTitles = /\b(Engineer|Manager|Director|VP|President|Lead|Head|Founder|Analyst|Consultant)\b/i.test(text)
+
+        session = {
+          ...session,
+          resume: {
+            rawText: text,
+            completed: true,
+            signals: {
+              charLen: text.length,
+              hasBullets,
+              hasDates,
+              hasTitles,
+            },
+          },
+        }
+
+        // Deterministic: remain in RESUME_INGEST; UI (or user) triggers ADVANCE explicitly.
+        storeSet(session)
+        return { ok: true, session }
       }
-      break
-    }
 
-    case "PROMPT_ANSWER": {
-      const n = Number((event as any).n) as 1 | 2 | 3 | 4 | 5
-      const answer = typeof (event as any).answer === "string" ? String((event as any).answer) : ""
-      if (!(n >= 1 && n <= 5)) return bad("BAD_EVENT", "Invalid prompt index")
-      if (!meetsSignal(answer)) return bad("ANSWER_TOO_SHORT", "Answer too short")
+      case "ADVANCE": {
+        if (session.state === "RESUME_INGEST") {
+          if (!session.resume.completed) return bad("MISSING_REQUIRED_FIELD", "Resume must be submitted before advancing")
+          const to: CalibrationState = "PROMPT_1"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
 
-      const idx = getPromptIndex(session.state)
-      if (idx !== n) return bad("BAD_STATE", "Not expecting that prompt")
+        if (session.state === "CONSOLIDATION_PENDING") {
+          if (!promptsComplete1to5(session)) {
+            return bad("RITUAL_NOT_READY", "Prompts 1–5 must be completed before consolidation ritual")
+          }
 
-      const existing = session.prompts[n] ?? { answer: null, accepted: false, clarifier: null }
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        prompts: {
-          ...session.prompts,
-          [n]: { ...existing, answer, accepted: true },
-        } as any,
-        state: nextPromptAfter(n),
+          const to: CalibrationState = "CONSOLIDATION_RITUAL"
+          const ritual = {
+            startedAtIso: nowIso(),
+            lastTickAtIso: nowIso(),
+            progressPct: 0,
+            step: 0,
+            message: "Initializing consolidation…",
+            completed: false,
+          }
+
+          session = pushHistory(
+            {
+              ...session,
+              state: to,
+              consolidationRitual: ritual,
+            },
+            from,
+            to,
+            event.type,
+          )
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        if (session.state === "CONSOLIDATION_RITUAL") {
+          const r = session.consolidationRitual
+          const lastTick = r.lastTickAtIso ? new Date(r.lastTickAtIso).getTime() : 0
+          const now = Date.now()
+          const deltaMs = now - lastTick
+
+          const stepAdvance = deltaMs >= 450 ? 1 : 0
+          const nextStep = r.step + stepAdvance
+          const nextPct = clampPct(r.progressPct + stepAdvance * 20)
+
+          const messages = [
+            "Consolidating signal…",
+            "Encoding structural traits…",
+            "Normalizing constraints…",
+            "Locking person-vector…",
+            "Preparing synthesis…",
+          ]
+
+          const nextMessage = messages[Math.min(nextStep, messages.length - 1)] ?? "Working…"
+
+          const nextRitual = {
+            ...r,
+            startedAtIso: r.startedAtIso ?? nowIso(),
+            lastTickAtIso: nowIso(),
+            step: nextStep,
+            progressPct: nextPct,
+            message: nextMessage,
+            completed: nextPct >= 100,
+          }
+
+          // If not complete, remain in CONSOLIDATION_RITUAL (no state change).
+          if (!nextRitual.completed) {
+            session = { ...session, consolidationRitual: nextRitual }
+            storeSet(session)
+            return { ok: true, session }
+          }
+
+          // Ritual completes -> move to ENCODING_RITUAL (externally visible).
+          const to: CalibrationState = "ENCODING_RITUAL"
+          let next = {
+            ...session,
+            state: to,
+            consolidationRitual: nextRitual,
+            encodingRitual: { completed: false },
+          }
+          next = pushHistory(next, from, to, event.type)
+          storeSet(next)
+          return { ok: true, session: next }
+        }
+
+        if (session.state === "ENCODING_RITUAL") {
+          // Single visible step: ENCODING_RITUAL -> PATTERN_SYNTHESIS.
+          // Do encoding + synthesis exactly once, then transition ONE state.
+          let next = encodePersonVectorOnce(session)
+          next = await synthesizeOnce(next)
+
+          const to: CalibrationState = "PATTERN_SYNTHESIS"
+          next = pushHistory({ ...next, state: to }, from, to, event.type)
+          storeSet(next)
+          return { ok: true, session: next }
+        }
+
+        if (session.state === "PATTERN_SYNTHESIS") {
+          const to: CalibrationState = "TITLE_HYPOTHESIS"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        if (session.state === "TITLE_HYPOTHESIS") {
+          const to: CalibrationState = "TITLE_DIALOGUE"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        if (session.state === "TITLE_DIALOGUE" || session.state === "JOB_INGEST") {
+          if (!session.job.completed || !session.job.roleVector || !session.personVector.values) {
+            return bad("JOB_REQUIRED", "Submit a job description before advancing")
+          }
+          const to: CalibrationState = "ALIGNMENT_OUTPUT"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        return bad("INVALID_EVENT_FOR_STATE", `ADVANCE not supported in state ${session.state}`)
       }
-      break
-    }
 
-    case "PROMPT_CLARIFIER": {
-      const n = Number((event as any).n) as 1 | 2 | 3 | 4 | 5
-      const answer = typeof (event as any).answer === "string" ? String((event as any).answer) : ""
-      if (!(n >= 1 && n <= 5)) return bad("BAD_EVENT", "Invalid prompt index")
-      if (!meetsSignal(answer)) return bad("ANSWER_TOO_SHORT", "Answer too short")
+      case "SUBMIT_PROMPT_ANSWER": {
+        const idx = getPromptIndex(session.state)
+        if (!idx) return bad("INVALID_EVENT_FOR_STATE", `Not in a prompt state: ${session.state}`)
 
-      if (session.state !== clarifierStateForIndex(n)) return bad("BAD_STATE", "Not expecting clarifier")
+        const slot = session.prompts[idx]
+        if (slot.frozen) return bad("PROMPT_FROZEN", `Prompt ${idx} is frozen`)
 
-      const existing = session.prompts[n] ?? { answer: null, accepted: false, clarifier: null }
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        prompts: {
-          ...session.prompts,
-          [n]: { ...existing, clarifier: { answer, accepted: true } },
-        } as any,
-        state: nextPromptAfter(n),
+        const answer = (event as any).answer
+        if (typeof answer !== "string" || answer.trim().length === 0) {
+          return bad("MISSING_REQUIRED_FIELD", "answer must be a non-empty string")
+        }
+
+        const trimmed = answer.trim()
+
+        // Signal gate: if weak and clarifier not yet used, move to clarifier state (visible) WITHOUT accepting.
+        if (!meetsSignal(trimmed) && !slot.clarifier.asked) {
+          const to = clarifierStateForIndex(idx)
+          const clarifierQ = "Please add concrete structural detail: scope, constraints, decisions, and measurable outcomes."
+
+          const nextSlot = {
+            ...slot,
+            clarifier: {
+              asked: true,
+              question: clarifierQ,
+              answer: null,
+            },
+          }
+
+          session = {
+            ...session,
+            prompts: { ...session.prompts, [idx]: nextSlot } as any,
+          }
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        // Accept and advance exactly one state.
+        const nextSlot = {
+          ...slot,
+          answer: trimmed,
+          accepted: true,
+          frozen: true,
+        }
+
+        const to = nextPromptAfter(idx)
+        session = {
+          ...session,
+          prompts: { ...session.prompts, [idx]: nextSlot } as any,
+        }
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
-      break
-    }
 
-    case "PROMPT_NEED_CLARIFIER": {
-      const n = Number((event as any).n) as 1 | 2 | 3 | 4 | 5
-      if (!(n >= 1 && n <= 5)) return bad("BAD_EVENT", "Invalid prompt index")
-      const idx = getPromptIndex(session.state)
-      if (idx !== n) return bad("BAD_STATE", "Not expecting that prompt")
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        state: clarifierStateForIndex(n),
+      case "SUBMIT_PROMPT_CLARIFIER_ANSWER": {
+        const idx = getPromptIndex(session.state)
+        if (!idx) return bad("INVALID_EVENT_FOR_STATE", `Not in a prompt clarifier state: ${session.state}`)
+        if (session.state !== clarifierStateForIndex(idx)) {
+          return bad("INVALID_EVENT_FOR_STATE", `Not in correct clarifier state for prompt ${idx}`)
+        }
+
+        const slot = session.prompts[idx]
+        if (slot.frozen) return bad("PROMPT_FROZEN", `Prompt ${idx} is frozen`)
+
+        const answer = (event as any).answer
+        if (typeof answer !== "string" || answer.trim().length === 0) {
+          return bad("MISSING_REQUIRED_FIELD", "answer must be a non-empty string")
+        }
+
+        const trimmed = answer.trim()
+
+        // If still insufficient after clarifier, fail deterministically (no silent acceptance).
+        if (!meetsSignal(trimmed)) {
+          return bad("INSUFFICIENT_SIGNAL_AFTER_CLARIFIER", "Answer still too short after clarifier; add more structural detail")
+        }
+
+        const nextSlot = {
+          ...slot,
+          answer: trimmed,
+          accepted: true,
+          frozen: true,
+          clarifier: {
+            ...slot.clarifier,
+            answer: trimmed,
+          },
+        }
+
+        const to = nextPromptAfter(idx)
+        session = {
+          ...session,
+          prompts: { ...session.prompts, [idx]: nextSlot } as any,
+        }
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
-      break
-    }
 
-    case "ENCODE_VECTOR": {
-      const encoded = encodePersonVectorOnce(session)
-      session = { ...encoded, updatedAt: nowIso() }
-      break
-    }
-
-    case "CONSOLIDATE": {
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        state: "CONSOLIDATION_PENDING",
+      case "TITLE_FEEDBACK": {
+        const feedback = (event as any).feedback
+        if (typeof feedback !== "string") return bad("MISSING_REQUIRED_FIELD", "feedback must be a string")
+        session = {
+          ...session,
+          synthesis: {
+            ...(session.synthesis ?? {
+              patternSummary: null,
+              operateBest: null,
+              loseEnergy: null,
+              identitySummary: null,
+              marketTitle: null,
+              titleExplanation: null,
+              lastTitleFeedback: null,
+            }),
+            lastTitleFeedback: feedback,
+          },
+        }
+        storeSet(session)
+        return { ok: true, session }
       }
-      break
-    }
 
-    case "RUN_INGEST_JOB": {
-      try {
-        await ingestJob({ sessionId: session.id })
-      } catch {
-        // ignore
+      case "SUBMIT_JOB_TEXT": {
+        const jobText = (event as any).jobText
+        if (typeof jobText !== "string" || jobText.trim().length === 0) {
+          return bad("MISSING_REQUIRED_FIELD", "jobText must be a non-empty string")
+        }
+        if (!session.personVector.values || !session.personVector.locked) {
+          return bad("JOB_ENCODING_INCOMPLETE", "Person vector must be encoded before job ingest")
+        }
+
+        let roleVector: any = null
+        try {
+          const ingest = ingestJob(jobText.trim())
+          roleVector = ingest.roleVector as any
+        } catch (e: any) {
+          return bad("BAD_REQUEST", String(e?.detail ?? e?.message ?? "Invalid job text"))
+        }
+
+        const to: CalibrationState = "JOB_INGEST"
+        session = {
+          ...session,
+          job: { rawText: jobText.trim(), roleVector, completed: true },
+          result: null,
+        }
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
-      session = { ...session, updatedAt: nowIso() }
-      break
-    }
 
-    case "RUN_INTEGRATION_SEAM": {
-      try {
-        await runIntegrationSeam({ sessionId: session.id })
-      } catch {
-        // ignore
+      case "COMPUTE_ALIGNMENT_OUTPUT": {
+        if (session.state !== "ALIGNMENT_OUTPUT") {
+          return bad("INVALID_EVENT_FOR_STATE", `Event ${event.type} not allowed in state ${session.state}`)
+        }
+        if (!session.job.completed || !session.job.rawText) return bad("JOB_REQUIRED", "Submit a job description first")
+        if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
+
+        const seam = runIntegrationSeam({
+          jobText: session.job.rawText,
+          experienceVector: session.personVector.values as any,
+        })
+
+        if (!seam.ok) {
+          return bad("BAD_REQUEST", seam.error.message)
+        }
+
+        const contract = toResultContract({
+          alignment: seam.result.alignment,
+          skillMatch: seam.result.skillMatch,
+          stretchLoad: seam.result.stretchLoad,
+        })
+
+        const to: CalibrationState = "TERMINAL_COMPLETE"
+        session = {
+          ...session,
+          result: contract,
+        }
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
-      session = { ...session, updatedAt: nowIso() }
-      break
-    }
 
-    case "SET_MARKET_TITLE": {
-      const marketTitle = typeof (event as any).marketTitle === "string" ? String((event as any).marketTitle).trim() : ""
-      const titleExplanation =
-        typeof (event as any).titleExplanation === "string" ? String((event as any).titleExplanation).trim() : ""
-      if (marketTitle.length === 0 || titleExplanation.length === 0) return bad("BAD_EVENT", "Missing title fields")
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        synthesis: {
-          ...(session.synthesis ?? ({} as any)),
-          marketTitle,
-          titleExplanation,
-        },
+      case "ENCODING_COMPLETE": {
+        // Kept for compatibility; encoding is now guarded + run as part of ENCODING_RITUAL ADVANCE.
+        return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is not a public event in v1 flow")
       }
-      break
-    }
 
-    case "SET_IDENTITY_SUMMARY": {
-      const identitySummary = typeof (event as any).identitySummary === "string" ? String((event as any).identitySummary).trim() : ""
-      if (identitySummary.length === 0) return bad("BAD_EVENT", "Missing identity summary")
-      session = {
-        ...session,
-        updatedAt: nowIso(),
-        synthesis: {
-          ...(session.synthesis ?? ({} as any)),
-          identitySummary,
-        },
-      }
-      break
+      default:
+        return bad("BAD_REQUEST", `Unknown event type: ${(event as any).type}`)
     }
-
-    default:
-      return bad("BAD_EVENT", "Unknown event")
+  } catch (e: any) {
+    return bad("INTERNAL", String(e?.message ?? "Unexpected error"))
   }
-
-  const toState = session.state
-  session = pushHistory(session, fromState, toState, event.type)
-
-  session = await maybeFinalize(session)
-
-  storeSet(session.id, session)
-  return { ok: true, session }
 }
