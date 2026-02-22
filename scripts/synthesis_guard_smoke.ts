@@ -1,6 +1,3 @@
-git NEW FILE
-scripts/synthesis_guard_smoke.ts
-
 /* eslint-disable no-console */
 
 import { dispatchCalibrationEvent } from "../lib/calibration_machine"
@@ -113,7 +110,6 @@ function assertConsequence(line: string, id: string, iv: string, label: string) 
 }
 
 function answerForPrompt(seed: string, n: number): string {
-  // Keep it long enough to avoid clarifier; vary wording to perturb the encoding hash.
   return `(${seed}) Prompt ${n}: concrete ownership, scoped execution, limits, decisions, measurable outcomes, and clear handoffs across teams and workstreams.`
 }
 
@@ -150,7 +146,6 @@ function runOneCase(caseId: string, resumeText: string) {
     assertConsequence(lines[3], lines[0], lines[1], `${caseId}_CONSEQUENCE`)
   }
 
-  // Explicit: "cadence" should be zero.
   assert(!summary.toLowerCase().includes("cadence"), `${caseId}: "cadence" appeared -> ${summary}`)
 
   console.log(`PASS: ${caseId}`)
