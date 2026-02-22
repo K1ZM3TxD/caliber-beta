@@ -66,6 +66,10 @@ export default function CalibrationPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const prevStateRef = useRef<CalibrationState | null>(null);
 
+  // Prevent duplicate timers + prevent runaway ADVANCE spam.
+  const autoProgressIntervalRef = useRef<number | null>(null);
+  const advanceInFlightRef = useRef<boolean>(false);
+
   useEffect(() => {
     const nextState = session?.state ?? null;
     const prevState = prevStateRef.current;
@@ -177,15 +181,46 @@ export default function CalibrationPage() {
 
   // Auto-progress only for ritual states (server remains authoritative).
   useEffect(() => {
-    if (!session) return;
-    if (session.state !== 'CONSOLIDATION_PENDING' && session.state !== 'CONSOLIDATION_RITUAL' && session.state !== 'ENCODING_RITUAL') return;
+    const clearAutoProgress = () => {
+      if (autoProgressIntervalRef.current != null) {
+        window.clearInterval(autoProgressIntervalRef.current);
+        autoProgressIntervalRef.current = null;
+      }
+      advanceInFlightRef.current = false;
+    };
+
+    if (!session) {
+      clearAutoProgress();
+      return;
+    }
+
+    const shouldRun =
+      session.state === 'CONSOLIDATION_PENDING' || session.state === 'CONSOLIDATION_RITUAL' || session.state === 'ENCODING_RITUAL';
+
+    if (!shouldRun) {
+      clearAutoProgress();
+      return;
+    }
+
+    // Guard against duplicate intervals (ensure only ONE exists).
+    if (autoProgressIntervalRef.current != null) return;
 
     const sessionId = session.sessionId;
-    const handle = window.setInterval(() => {
-      sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent);
+
+    autoProgressIntervalRef.current = window.setInterval(() => {
+      if (advanceInFlightRef.current) return;
+      advanceInFlightRef.current = true;
+
+      Promise.resolve(sendEvent({ type: 'ADVANCE', sessionId } as CalibrationEvent))
+        .catch(() => {})
+        .finally(() => {
+          advanceInFlightRef.current = false;
+        });
     }, 800);
 
-    return () => window.clearInterval(handle);
+    return () => {
+      clearAutoProgress();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionId, session?.state]);
 
@@ -286,9 +321,7 @@ export default function CalibrationPage() {
 
           <div className="mt-6 flex items-center justify-end">
             <button
-              onClick={() =>
-                sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)
-              }
+              onClick={() => sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)}
               disabled={isSubmitting || promptAnswer.trim().length === 0}
               className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >

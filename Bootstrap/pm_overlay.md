@@ -22,7 +22,9 @@ Milestones advance only upon explicit user confirmation.
 
 Documents are updated only during:
 "Break — Update Documents"
-
+Full rewrite with updates 
+Output complete document for continuity
+Output document in Black Box with paste ability 
 No silent document edits.
 
 -----------------------------------

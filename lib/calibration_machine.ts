@@ -267,23 +267,14 @@ function hasBlacklist(line: string): boolean {
   return false
 }
 
-function firstBlacklistHit(lines: string[]): string | null {
-  for (const l of lines) {
-    for (const t of BLACKLIST_TERMS) {
-      if (t.re.test(l)) return t.label
-    }
-  }
-  return null
-}
-
 function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
   const identityByDim: Record<number, string> = {
-    0: "You ship work. You set operating rules.",
-    1: "You take ownership. You define boundaries.",
-    2: "You hit targets. You protect measurement integrity.",
-    3: "You work across scope. You hold constraints.",
-    4: "You learn quickly. You choose one depth path.",
-    5: "You coordinate stakeholders. You set handoffs.",
+    0: "You don’t just ship work — you set operating rules.",
+    1: "You don’t just take ownership — you define boundaries.",
+    2: "You don’t just hit targets — you protect measurement integrity.",
+    3: "You don’t just work across scope — you hold constraints.",
+    4: "You don’t just learn quickly — you choose one depth path.",
+    5: "You don’t just coordinate stakeholders — you set handoffs.",
   }
   const interventionByDim: Record<number, string> = {
     0: "When something isn’t working, you don’t force it — you tighten constraints.",
@@ -339,7 +330,7 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
 
   const repeated = new Set<string>()
   for (const [w, c] of counts.entries()) {
-    if (c < 3) continue
+    if (c <= 1) continue
     if (REPETITION_STOPWORDS.has(w)) continue
     repeated.add(w)
   }
@@ -364,8 +355,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
     }
     const repl = replacementMap[rep]
     if (!repl) {
-      // Best-effort only: if we don't have a safe replacement, skip this word.
-      continue
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      return [safe[0], safe[1], safe[2]]
     }
 
     let seen = 0
@@ -375,8 +366,7 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
         const t = normalizeWordToken(chunk)
         if (t !== rep) return chunk
         seen += 1
-        // Keep first two occurrences; replace 3rd+.
-        if (seen <= 2) return chunk
+        if (seen <= 1) return chunk
         return repl
       })
       return outParts.join("")
@@ -386,8 +376,13 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
   const counts2 = new Map<string, number>()
   const words2 = collectContentWords(next)
   for (const w of words2) counts2.set(w, (counts2.get(w) ?? 0) + 1)
+  for (const [w, c] of counts2.entries()) {
+    if (c <= 1) continue
+    if (REPETITION_STOPWORDS.has(w)) continue
+    const safe = buildSafeMinimalLines(primaryDim, signals)
+    return [safe[0], safe[1], safe[2]]
+  }
 
-  // Best-effort only: even if some 3+ repeats remain, return partially repaired output.
   return next.map((x) => x.replace(/\s{2,}/g, " ").trim())
 }
 
@@ -422,96 +417,61 @@ function enforceConsequenceGate(lines: string[]): string[] {
   return lines.slice(0, 4)
 }
 
+type ValidatorOutcome =
+  | "PASS"
+  | "REPAIR_APPLIED"
+  | "RETRY_REQUIRED"
+  | "FALLBACK_BLACKLIST_PHRASE"
+  | "FALLBACK_UNREPAIRABLE"
+  | "FALLBACK_STRUCTURE_INVALID"
+
 function validateAndRepairSynthesisOnce(
   synthesisPatternSummary: string,
   personVector: PersonVector6,
   signals: ResumeSignals,
   opts?: { log?: boolean },
-): { patternSummary: string; didRepair: boolean } {
+): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
   const shouldLog = Boolean(opts?.log)
 
-  if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
-    if (shouldLog) {
-      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-    }
-    const pd = primaryDimFromVector(personVector)
-    const safe = buildSafeMinimalLines(pd, signals)
-    return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+  const primaryDim = primaryDimFromVector(personVector)
+
+  const safeFallback = (): string => {
+    const safe = buildSafeMinimalLines(primaryDim, signals)
+    return joinSynthesisLines([safe[0], safe[1], safe[2]])
   }
 
-  const primaryDim = primaryDimFromVector(personVector)
+  const finalize = (
+    patternSummary: string,
+    didRepair: boolean,
+    outcome: ValidatorOutcome,
+  ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } => {
+    if (typeof patternSummary !== "string" || patternSummary.trim().length === 0) {
+      return { patternSummary: safeFallback(), didRepair: true, outcome: "FALLBACK_STRUCTURE_INVALID" }
+    }
+    return { patternSummary, didRepair, outcome }
+  }
+
+  if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
+  }
+
   const baseLines = splitSynthesisLines(synthesisPatternSummary)
   if (baseLines.length < 3) {
-    if (shouldLog) {
-      console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-    }
-    const safe = buildSafeMinimalLines(primaryDim, signals)
-    return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
   }
 
   const findFirstBlacklistMatch = (inLines: string[]): { label: string; match: string } | null => {
-    for (const l of inLines) {
+    for (const line of inLines) {
       for (const t of BLACKLIST_TERMS) {
-        const m = t.re.exec(l)
-        if (m && typeof m[0] === "string" && m[0].length > 0) {
+        const m = t.re.exec(line)
+        if (m && typeof m[0] === "string" && m[0].trim().length > 0) {
           return { label: t.label, match: m[0] }
         }
       }
     }
     return null
-  }
-
-  const preserveCase = (fromText: string, repl: string): string => {
-    if (fromText.toUpperCase() === fromText) return repl.toUpperCase()
-    const first = fromText.slice(0, 1)
-    const rest = fromText.slice(1)
-    const isTitle = first.toUpperCase() === first && rest.toLowerCase() === rest
-    if (isTitle) return repl.slice(0, 1).toUpperCase() + repl.slice(1)
-    return repl
-  }
-
-  const attemptSingleTokenBlacklistRepair = (
-    inLines: string[],
-  ): { lines: string[]; applied: boolean; from: string; to: string } => {
-    const replacementMap: Record<string, string> = {
-      targets: "measures",
-      target: "measure",
-      impact: "effect",
-      value: "result",
-      engagement: "use",
-      optimize: "tighten",
-      leverage: "use",
-    }
-
-    const hit = findFirstBlacklistMatch(inLines)
-    if (!hit) return { lines: inLines, applied: false, from: "", to: "" }
-
-    // Phrase-level drift: do NOT attempt repair here (caller handles hard fail).
-    if (/\s/.test(hit.match)) return { lines: inLines, applied: false, from: "", to: "" }
-
-    const key = normalizeWordToken(hit.match)
-    const replBase = replacementMap[key]
-    if (!replBase) return { lines: inLines, applied: false, from: "", to: "" }
-
-    const escaped = key.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")
-    const re = new RegExp(`\\b${escaped}\\b`, "gi")
-
-    let out = [...inLines]
-    let applied = false
-    for (let i = 0; i < out.length; i += 1) {
-      if (!re.test(out[i] ?? "")) continue
-      const before = out[i]
-      out[i] = out[i].replace(re, (m) => preserveCase(m, replBase))
-      if (out[i] !== before) applied = true
-    }
-
-    if (!applied) return { lines: inLines, applied: false, from: "", to: "" }
-
-    // After replacement, re-check: if the token still appears anywhere, treat as not repaired.
-    const stillHasToken = out.some((l) => re.test(l))
-    if (stillHasToken) return { lines: inLines, applied: false, from: "", to: "" }
-
-    return { lines: out, applied: true, from: hit.match, to: replBase }
   }
 
   let lines = baseLines.slice(0, 4)
@@ -542,38 +502,28 @@ function validateAndRepairSynthesisOnce(
       didRepair = true
     }
 
-    // Blacklist handling: phrase-level = hard fallback; single-token = repair-first, else fallback (existing behavior).
     const hit = findFirstBlacklistMatch(lines)
     if (hit) {
-      // Phrase-level drift hard-fails immediately.
+      // Phrase-level hits are HARD-FAIL. (match contains whitespace)
       if (/\s/.test(hit.match)) {
-        console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_phrase_hit", hit: hit.match })
-        const safe = buildSafeMinimalLines(primaryDim, signals)
-        return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
-      }
-
-      const repaired = attemptSingleTokenBlacklistRepair(lines)
-      if (repaired.applied) {
-        console.log("[caliber] blacklist_repair=applied", { from: repaired.from, to: repaired.to })
-        lines = repaired.lines
-        didRepair = true
+        if (shouldLog) {
+          console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_phrase_hit", hit: hit.match })
+        }
+        return finalize(safeFallback(), true, "FALLBACK_BLACKLIST_PHRASE")
       }
     }
 
-    const anyBlacklist = lines.some((l) => hasBlacklist(l))
+    const anyBlacklist = Boolean(hit)
     const constructionOk = isValidConstructionLine(lines[2] ?? "")
 
     const contentWords = collectContentWords(lines)
     const counts = new Map<string, number>()
     for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
-
     let repeatBad = false
-    let repeatedWord: string | null = null
     for (const [w, c] of counts.entries()) {
-      if (c < 3) continue
+      if (c <= 1) continue
       if (REPETITION_STOPWORDS.has(w)) continue
       repeatBad = true
-      repeatedWord = w
       break
     }
 
@@ -581,39 +531,25 @@ function validateAndRepairSynthesisOnce(
       const after = joinSynthesisLines(lines)
       if (after !== before) didRepair = true
       if (shouldLog) console.log("[caliber] synthesis_source=llm")
-      return { patternSummary: after, didRepair }
+      return finalize(after, didRepair, didRepair ? "REPAIR_APPLIED" : "PASS")
     }
 
+    // First pass: never hard-fallback for retryable issues.
+    if (pass === 0) {
+      if (shouldLog) console.log("[caliber] validator_outcome=RETRY_REQUIRED")
+      return finalize(joinSynthesisLines(lines), didRepair, "RETRY_REQUIRED")
+    }
+
+    // Second pass: fallback classification.
     if (pass === 1) {
-      if (shouldLog) {
-        if (anyBlacklist) {
-          const hitLabel = firstBlacklistHit(lines)
-          console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_hit", ...(hitLabel ? { hit: hitLabel } : {}) })
-        } else if (!constructionOk) {
-          console.warn("[caliber] synthesis_source=fallback", {
-            reason: "construction_invalid",
-            ...(lines[2] ? { construction: String(lines[2]).slice(0, 120) } : {}),
-          })
-        } else if (repeatBad) {
-          console.warn("[caliber] synthesis_source=fallback", {
-            reason: "repetition_unrepairable",
-            ...(repeatedWord ? { word: repeatedWord } : {}),
-          })
-        } else {
-          console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-        }
-      }
-
-      const safe = buildSafeMinimalLines(primaryDim, signals)
-      return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+      if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "validator_failed_second_pass" })
+      const outcome: ValidatorOutcome = anyBlacklist ? "FALLBACK_UNREPAIRABLE" : "FALLBACK_STRUCTURE_INVALID"
+      return finalize(safeFallback(), true, outcome)
     }
   }
 
-  if (shouldLog) {
-    console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-  }
-  const safe = buildSafeMinimalLines(primaryDim, signals)
-  return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), didRepair: true }
+  if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+  return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
 }
 
 async function buildSemanticPatternSummary(session: CalibrationSession, v: PersonVector6): Promise<string> {
@@ -633,43 +569,41 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
     }
   }
 
-  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
+ const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
-  const tryOnce = async (): Promise<string | null> => {
-    const semantic = await generateSemanticSynthesis({
-      personVector: v,
-      resumeText,
-      promptAnswers,
-    })
+const tryOnce = async (): Promise<string | null> => {
+  const semantic = await generateSemanticSynthesis({ personVector: v, resumeText, promptAnswers })
 
-    const lines: string[] = [
-      String(semantic.identityContrast ?? "").trim(),
-      String(semantic.interventionContrast ?? "").trim(),
-      String(semantic.constructionLayer ?? "").trim(),
-    ]
+  const lines: string[] = [
+    String(semantic.identityContrast ?? "").trim(),
+    String(semantic.interventionContrast ?? "").trim(),
+    String(semantic.constructionLayer ?? "").trim(),
+  ]
 
-    if (coherenceStrong(v) && typeof semantic.consequenceDrop === "string" && semantic.consequenceDrop.trim().length > 0) {
-      lines.push(semantic.consequenceDrop.trim())
-    }
-
-    const raw = joinSynthesisLines(lines)
-    const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
-    return repaired.patternSummary
+  if (coherenceStrong(v) && typeof semantic.consequenceDrop === "string" && semantic.consequenceDrop.trim().length > 0) {
+    lines.push(semantic.consequenceDrop.trim())
   }
 
-  try {
-    const out1 = await tryOnce()
-    if (out1) return out1
-  } catch {
-    // retry once below
-  }
+  const raw = joinSynthesisLines(lines)
+  const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
 
-  try {
-    const out2 = await tryOnce()
-    if (out2) return out2
-  } catch {
-    // fall through
-  }
+  if (repaired.outcome === "RETRY_REQUIRED") return null
+  return repaired.patternSummary
+}
+
+try {
+  const out1 = await tryOnce()
+  if (out1) return out1
+} catch {
+  // retry once below
+}
+
+try {
+  const out2 = await tryOnce()
+  if (out2) return out2
+} catch {
+  // fall through
+}
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
   return joinSynthesisLines([safe[0], safe[1], safe[2]])
@@ -801,7 +735,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     patternSummary = buildDeterministicPatternSummary(v)
   }
 
-  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: true })
+  const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: false })
   patternSummary = repaired.patternSummary
 
   // Keep “Operate Best” + “Lose Energy” below, structural, no praise.
@@ -845,11 +779,11 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     "Work where dependencies are implicit and routing is inconsistent.",
   ]
 
-  const primaryDim = primaryDimFromVector(v)
-  const opDims = highDims.length > 0 ? highDims : [primaryDim]
+  const primaryDim2 = primaryDimFromVector(v)
+  const opDims = highDims.length > 0 ? highDims : [primaryDim2]
   for (const d of opDims.slice(0, 3)) operateBest.push(operateBestByDim[d] ?? operateFallback[0])
 
-  const leDims = lowDims.length > 0 ? lowDims : [primaryDim]
+  const leDims = lowDims.length > 0 ? lowDims : [primaryDim2]
   for (const d of leDims.slice(0, 3)) loseEnergy.push(loseEnergyByDim[d] ?? loseFallback[0])
 
   while (operateBest.length < 3) operateBest.push(pickFirst(operateFallback.filter((x) => !operateBest.includes(x)), operateFallback[0]))
