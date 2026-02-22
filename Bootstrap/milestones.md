@@ -91,11 +91,10 @@ Progress advances only after validation of each unit.
 
 ## 5.1A — Calibration Prompts (COMPLETED)
 
-<<<<<<< HEAD
+
 Final Locked Wording:
-=======
+
 Final Wording:
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 
 1. In your most recent role, what part of the work felt most like you?  
 
