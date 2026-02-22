@@ -6,6 +6,22 @@ import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/l
 
 type NormalizedError = { code: string; message: string };
 
+function Stage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 w-screen h-[100svh] bg-[#0B0B0B] text-[#F2F2F2] flex items-center justify-center">
+      <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
+    </div>
+  );
+}
+
+function ErrorBox({ error }: { error: NormalizedError | null }) {
+  return error ? (
+    <pre className="mb-6 text-left whitespace-pre-wrap break-words text-[12px] opacity-90">
+      {JSON.stringify({ ok: false, error }, null, 2)}
+    </pre>
+  ) : null;
+}
+
 function safeString(v: any): string {
   if (typeof v === 'string') return v;
   if (v == null) return '';
@@ -102,7 +118,8 @@ export default function CalibrationPage() {
 
       if (!res.ok) {
         const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
-        const message = safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
+        const message =
+          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
         setError({ code, message });
         return;
       }
@@ -143,7 +160,8 @@ export default function CalibrationPage() {
 
       if (!res.ok) {
         const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
-        const message = safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
+        const message =
+          safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
         setError({ code, message });
         return;
       }
@@ -165,19 +183,6 @@ export default function CalibrationPage() {
     if (!f) return;
     setSelectedFile(f);
   }
-
-  const Stage = ({ children }: { children: React.ReactNode }) => (
-    <div className="fixed inset-0 w-screen h-[100svh] bg-[#0B0B0B] text-[#F2F2F2] flex items-center justify-center">
-      <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
-    </div>
-  );
-
-  const ErrorBox = () =>
-    error ? (
-      <pre className="mb-6 text-left whitespace-pre-wrap break-words text-[12px] opacity-90">
-        {JSON.stringify({ ok: false, error }, null, 2)}
-      </pre>
-    ) : null;
 
   // Auto-progress only for ritual states (server remains authoritative).
   useEffect(() => {
@@ -228,7 +233,7 @@ export default function CalibrationPage() {
   if (!session) {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[12px] tracking-[0.22em] opacity-80">WELCOME TO</div>
         <div className="mt-2 text-[56px] leading-[1.05] font-semibold">Caliber</div>
         <div className="mt-4 text-[16px] opacity-90">The alignment tool for job calibration.</div>
@@ -253,7 +258,7 @@ export default function CalibrationPage() {
   if (state === 'RESUME_INGEST') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
 
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
         <div className="mt-6 text-[28px] leading-tight font-semibold">Upload Resume</div>
@@ -302,7 +307,7 @@ export default function CalibrationPage() {
     const q = session.prompts?.[promptIndex]?.question || '(missing question)';
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -321,7 +326,9 @@ export default function CalibrationPage() {
 
           <div className="mt-6 flex items-center justify-end">
             <button
-              onClick={() => sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)}
+              onClick={() =>
+                sendEvent({ type: 'SUBMIT_PROMPT_ANSWER', sessionId: session.sessionId, answer: promptAnswer } as CalibrationEvent)
+              }
               disabled={isSubmitting || promptAnswer.trim().length === 0}
               className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
@@ -338,7 +345,7 @@ export default function CalibrationPage() {
     const cq = session.prompts?.[promptIndex]?.clarifier?.question || '(missing clarifier question)';
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -379,7 +386,7 @@ export default function CalibrationPage() {
   if (state === 'CONSOLIDATION_PENDING') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
         <div className="mt-8 text-[16px] opacity-90">Preparing consolidation ritual…</div>
         <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
@@ -394,7 +401,7 @@ export default function CalibrationPage() {
 
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -421,7 +428,7 @@ export default function CalibrationPage() {
   if (state === 'ENCODING_RITUAL') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
         <div className="mt-8 text-[16px] opacity-90">Encoding your pattern…</div>
         <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
@@ -433,7 +440,7 @@ export default function CalibrationPage() {
   if (state === 'PATTERN_SYNTHESIS') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[680px]">
@@ -487,7 +494,7 @@ export default function CalibrationPage() {
   if (state === 'TITLE_HYPOTHESIS') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -545,7 +552,7 @@ export default function CalibrationPage() {
   if (state === 'TITLE_DIALOGUE') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -605,7 +612,7 @@ export default function CalibrationPage() {
   if (state === 'JOB_INGEST') {
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -649,7 +656,7 @@ export default function CalibrationPage() {
     const hasResult = !!session.result;
     return (
       <Stage>
-        <ErrorBox />
+        <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
@@ -676,7 +683,7 @@ export default function CalibrationPage() {
   // Fallback (non-debug)
   return (
     <Stage>
-      <ErrorBox />
+      <ErrorBox error={error} />
       <div className="text-[32px] leading-tight font-semibold">Caliber</div>
       <div className="mt-8 text-[16px] opacity-90">Loading…</div>
     </Stage>
