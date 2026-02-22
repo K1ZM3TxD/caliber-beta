@@ -127,12 +127,6 @@ function assertConsequence(line: string, id: string, iv: string, label: string) 
   assert(overlap < 2, `${label}: consequence repeats prior content -> ${line}`)
 }
 
-function normalizeSynthesis(summary: string): string {
-  // Fallback synthesis occasionally emits "You metric, isolate, and test."
-  // Normalize to an allowed verb that avoids repetition collisions.
-  return summary.replace(/\bmetric\b/gi, "define")
-}
-
 function answerForPrompt(seed: string, n: number): string {
   return `(${seed}) Prompt ${n}: I isolate scope, define constraints, test assumptions, clarify decisions, repair drift, align owners, and measure outcomes with explicit limits.`
 }
@@ -163,7 +157,7 @@ async function runOneCase(caseId: string, resumeText: string) {
   const raw = synth.session.synthesis?.patternSummary
   assert(typeof raw === "string" && raw.length > 0, `${caseId}: missing patternSummary`)
 
-  const summary = normalizeSynthesis(raw)
+  const summary = raw
 
   const lines = summary.split(/\n\s*\n/).map((s: string) => s.trim()).filter(Boolean)
   assert(lines.length === 3 || lines.length === 4, `${caseId}: expected 3 or 4 lines -> ${summary}`)
