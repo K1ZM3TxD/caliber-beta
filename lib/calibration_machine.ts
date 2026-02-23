@@ -4,6 +4,7 @@ import { ingestJob } from "@/lib/job_ingest"
 import { runIntegrationSeam } from "@/lib/integration_seam"
 import { toResultContract } from "@/lib/result_contract"
 import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
+import { extractLexicalAnchors } from "@/lib/anchor_extraction"
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
 
 type Ok = { ok: true; session: CalibrationSession }
@@ -87,7 +88,7 @@ function clampPct(n: number): number {
   return Math.round(n)
 }
 
-// Deterministic “encoding” placeholder: stable per session based on already-collected text.
+// Deterministic "encoding" placeholder: stable per session based on already-collected text.
 function encodePersonVectorOnce(session: CalibrationSession): CalibrationSession {
   if (session.personVector.locked && session.personVector.values) return session
 
@@ -171,7 +172,7 @@ function stripPraiseAdjectives(line: string): string {
   ]
   let out = line
   for (const w of praise) {
-    const re = new RegExp(`\\b${w.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "gi")
+    const re = new RegExp(`\\b${w.replace(/[-/\\^$*+?.()|[\\]{}]/g, "\\$&")}\\b`, "gi")
     out = out.replace(re, "")
   }
   out = out.replace(/\s{2,}/g, " ").trim()
@@ -182,7 +183,7 @@ function stripPraiseAdjectives(line: string): string {
 function normalizeWordToken(raw: string): string {
   const cleaned = raw
     .toLowerCase()
-    .replace(/[’']/g, "")
+    .replace(/['']/g, "")
     .replace(/[^a-z0-9]/g, "")
     .trim()
   return cleaned
@@ -213,7 +214,7 @@ const BLACKLIST_TERMS: Array<{ label: string; re: RegExp }> = [
   { label: "synergy", re: /\bsynergy\b/i },
   { label: "scalable", re: /\bscalable\b/i },
   { label: "framework", re: /\bframework\b/i },
-  { label: "system’s", re: /\bsystem[’']s\b/i },
+  { label: "system's", re: /\bsystem['']s\b/i },
   { label: "system", re: /\bsystem\b/i },
 ]
 
@@ -230,7 +231,7 @@ const SYNONYM_MAP: Array<{ from: RegExp; to: string }> = [
   { from: /\bsynergy\b/gi, to: "fit" },
   { from: /\bscalable\b/gi, to: "repeatable" },
   { from: /\bframework\b/gi, to: "method" },
-  { from: /\bsystem[’']s\b/gi, to: "workflow’s" },
+  { from: /\bsystem['']s\b/gi, to: "workflow's" },
   { from: /\bsystem\b/gi, to: "workflow" },
 ]
 
@@ -269,20 +270,20 @@ function hasBlacklist(line: string): boolean {
 
 function buildSafeMinimalLines(primaryDim: number, _signals: ResumeSignals): [string, string, string] {
   const identityByDim: Record<number, string> = {
-    0: "You don’t just ship work — you set operating rules.",
-    1: "You don’t just take ownership — you define boundaries.",
-    2: "You don’t just hit targets — you protect measurement integrity.",
-    3: "You don’t just work across scope — you hold constraints.",
-    4: "You don’t just learn quickly — you choose one depth path.",
-    5: "You don’t just coordinate stakeholders — you set handoffs.",
+    0: "You don't just ship work — you set operating rules.",
+    1: "You don't just take ownership — you define boundaries.",
+    2: "You don't just hit targets — you protect measurement integrity.",
+    3: "You don't just work across scope — you hold constraints.",
+    4: "You don't just learn quickly — you choose one depth path.",
+    5: "You don't just coordinate stakeholders — you set handoffs.",
   }
   const interventionByDim: Record<number, string> = {
-    0: "When something isn’t working, you don’t force it — you tighten constraints.",
-    1: "When something isn’t working, you don’t wait — you route the call.",
-    2: "When something isn’t working, you don’t argue — you audit the measure.",
-    3: "When something isn’t working, you don’t adapt silently — you reject drift.",
-    4: "When something isn’t working, you don’t keep exploring — you pick one thread.",
-    5: "When something isn’t working, you don’t reply to everyone — you set one handoff.",
+    0: "When something isn't working, you don't force it — you tighten constraints.",
+    1: "When something isn't working, you don't wait — you route the call.",
+    2: "When something isn't working, you don't argue — you audit the measure.",
+    3: "When something isn't working, you don't adapt silently — you reject drift.",
+    4: "When something isn't working, you don't keep exploring — you pick one thread.",
+    5: "When something isn't working, you don't reply to everyone — you set one handoff.",
   }
   const constructionVerbsByDim: Record<number, [string, string, string]> = {
     0: ["notice", "clarify", "sequence"],
@@ -491,12 +492,12 @@ function validateAndRepairSynthesisOnce(
     lines = enforceConsequenceGate(lines)
     lines = enforceRepetitionControl(lines, primaryDim, signals)
 
-    if (!/^You\s+don[’']t\s+just\s+/i.test(lines[0] ?? "")) {
+    if (!/^You\s+don['']t\s+just\s+/i.test(lines[0] ?? "")) {
       const safe = buildSafeMinimalLines(primaryDim, signals)
       lines = [safe[0], safe[1], safe[2]]
       didRepair = true
     }
-    if (!/^When\s+something\s+isn[’']t\s+working,/i.test(lines[1] ?? "")) {
+    if (!/^When\s+something\s+isn['']t\s+working,/i.test(lines[1] ?? "")) {
       const safe = buildSafeMinimalLines(primaryDim, signals)
       lines = [safe[0], safe[1], safe[2]]
       didRepair = true
@@ -572,7 +573,21 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
 const tryOnce = async (): Promise<string | null> => {
-  const semantic = await generateSemanticSynthesis({ personVector: v, resumeText, promptAnswers })
+  const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
+  const anchorSourceText = `${resumeText}\n${promptAnswersText}`
+  const anchors = extractLexicalAnchors(anchorSourceText)
+
+  const anchorsText = anchors.combined
+    .slice(0, 12)
+    .map(a => `${a.term}(${a.count})`)
+    .join(", ")
+
+  const semantic = await generateSemanticSynthesis({
+    personVector: v,
+    resumeText,
+    promptAnswers,
+    lexicalAnchorsText: anchorsText
+  } as any)
 
   const lines: string[] = [
     String(semantic.identityContrast ?? "").trim(),
@@ -698,14 +713,14 @@ function buildDeterministicPatternSummary(v: PersonVector6): string {
   const iv = interventionByDim[primaryDim][v[primaryDim]]
   const verbs = constructionByDim[primaryDim] ?? ["notice", "diagnose", "build"]
 
-  const identityContrast = `You don’t just ${id.x} — you ${id.y}.`
-  const interventionContrast = `When something isn’t working, you don’t ${iv.a} — you ${iv.b}.`
+  const identityContrast = `You don't just ${id.x} — you ${id.y}.`
+  const interventionContrast = `When something isn't working, you don't ${iv.a} — you ${iv.b}.`
   const constructionLayer = `You ${verbs[0]}, ${verbs[1]}, and ${verbs[2]}.`
 
   let consequenceDrop: string | null = null
   if (coherenceStrong(v)) {
     const consequenceByDim: Record<number, string> = {
-      0: "You change the system’s cadence.",
+      0: "You change the system's cadence.",
       1: "You change the decision boundary.",
       2: "You change the measurement rules.",
       3: "You change the scope boundary.",
@@ -738,7 +753,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
   const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: false })
   patternSummary = repaired.patternSummary
 
-  // Keep “Operate Best” + “Lose Energy” below, structural, no praise.
+  // Keep "Operate Best" + "Lose Energy" below, structural, no praise.
   const operateBest: string[] = []
   const loseEnergy: string[] = []
 
