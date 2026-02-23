@@ -125,6 +125,7 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
     `  ${blacklistTokens.join(" | ")}`,
     "- Use concrete structural nouns (examples): scope, constraints, decisions, routing, ownership, measures, handoffs, tradeoffs.",
     "- Keep each line <= 120 characters.",
+    "- If anchors are provided, Identity and Intervention lines must reuse at least two anchor terms verbatim when semantically valid.",
     "",
     "INPUTS:",
     `personVector: ${JSON.stringify(args.personVector)}`,
@@ -134,6 +135,9 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
     "",
     "promptAnswers:",
     JSON.stringify(args.promptAnswers || []),
+    "",
+    "ANCHORS:",
+    `${(args as any).lexicalAnchorsText ?? "(none provided)"}`,
   ]
 
   async function callModel(extraUserLines?: string[]): Promise<{ parsed: any; raw: string }> {
