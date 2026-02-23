@@ -444,11 +444,6 @@ export default function CalibrationPage() {
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[680px]">
-          {/* Locked 4-line synthesis block — centered, dominant, slightly increased line-height */}
-          <div className="text-center text-[18px] leading-[1.75] opacity-95 whitespace-pre-wrap">
-            {session.synthesis?.patternSummary || '(missing synthesis)'}
-          </div>
-
           {/* 56px gap */}
           <div className="mt-14">
             <div className="text-center text-[13px] font-semibold opacity-90">Pattern Expresses Cleanly When</div>
