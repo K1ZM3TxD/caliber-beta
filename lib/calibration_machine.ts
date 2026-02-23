@@ -361,7 +361,8 @@ function enforceRepetitionControl(lines: string[], primaryDim: number, signals: 
     }
 
     let seen = 0
-    next = next.map((line) => {
+    next = next.map((line, idx) => {
+      if (idx === 2) return line
       const parts = line.split(/\b/)
       const outParts = parts.map((chunk) => {
         const t = normalizeWordToken(chunk)
@@ -600,7 +601,7 @@ const tryOnce = async (): Promise<string | null> => {
   }
 
   const raw = joinSynthesisLines(lines)
-  const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: false })
+  const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: true })
 
   if (repaired.outcome === "RETRY_REQUIRED") return null
   return repaired.patternSummary
