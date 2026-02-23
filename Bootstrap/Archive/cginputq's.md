@@ -1,7 +1,9 @@
 prompt 1
 
 
-design, creating systems, making sop's. Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions. 
+
+design, creating systems, making sop's. Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions.
+
 
 
 prompt 2
@@ -9,15 +11,19 @@ prompt 2
 endless sales cycles, quota driven incentive, jumping from one task to another without real depth or clarity, overall choas in the company being short staffed and small.
 
 
+
 prompt 3
 
 listening and empathy. Guidance. protocol delegation, pitch decks, graphics
 
 
+
 prompt 4
 
 
+
 problem solving, product development, customer needs and finding gaps in the market.
+
 
 
 prompt 5
@@ -36,9 +42,9 @@ Pronouns: he/him | Willing to relocate: Beaverton, Wilsonville, WA State | Autho
 
 U.S.
 
-Empathy-Driven Designer \& Energy Consultant | UX-Focused Product \& Experience
+Designer \& Energy Consultant | UX-Focused Product \& Experience Design
 
-Design
+
 
 Empathy-driven designer and energy consultant with a track record of turning user insight into
 
@@ -55,6 +61,8 @@ UX and product design — roles that merge creativity, user empathy, and systems
 better experiences.
 
 Work Experience
+
+
 
 Energy Consultant | Sunward Power — Portland, OR
 

@@ -1,62 +1,78 @@
-\# CALIBER\_DOCTRINE.md
+CALIBER\_DOCTRINE.md
 
 
 
-\# Caliber Doctrine
+(Anchor-First Architecture Version)
 
 
 
-This document defines the philosophical foundation and identity constraints of Caliber.
+Caliber Doctrine
 
 
 
-It changes only if the product itself changes direction.
+This document defines the non-negotiable philosophical and structural foundation of Caliber.
 
 
 
-Execution mechanics belong in KERNEL.md.
-
-Task runway belongs in MILESTONES.md.
+If this document changes, the product has changed.
 
 
 
----
+Execution mechanics live in KERNEL.md.
+
+Task sequencing lives in MILESTONES.md.
 
 
 
-\# I. Philosophical Thesis
+I. Philosophical Thesis
 
 
 
-Caiber illuminates it doesn't decide.
+Caliber compresses demonstrated behavior into structural pattern.
+
+
+
+Caliber does not invent identity.
+
+Caliber does not infer personality.
+
+Caliber does not generate narrative meaning.
+
+
+
+Caliber extracts and compresses repeated mechanics.
+
+
 
 Precision creates clarity.
 
-Clarity creates momentum.
+Clarity creates recognition.
 
-Caliber is not a personality test.
-
-Caliber is not motivational coaching.
-
-Caliber is not skill branding.
+Recognition creates momentum.
 
 
 
-Caliber surfaces structural operating patterns.
+Caliber reveals:
 
 
 
-It reveals:
+How a person stabilizes work
 
 
 
-\- How a person stabilizes work
+How they intervene when structure fails
 
-\- How they intervene when systems break
 
-\- How they construct constraints
 
-\- Where they naturally create order
+How they construct constraints
+
+
+
+Where they naturally impose order
+
+
+
+What they rebuild when incentives distort clarity
 
 
 
@@ -64,19 +80,71 @@ Caliber describes structure — not traits.
 
 
 
-The goal is recognition, not flattery.
+The goal is recognition, not affirmation.
+
+The output must feel exposed, not praised.
 
 
 
-Outputs should feel earned, not inspirational.
+II. Anchor-Grounded Synthesis
 
 
 
----
+Caliber operates under Anchor-First Architecture.
 
 
 
-\# II. What Caliber Refuses To Be
+All synthesis must be lexically grounded in user-provided signal.
+
+
+
+This means:
+
+
+
+Repeated verbs carry highest weight.
+
+
+
+Repeated operational nouns carry high weight.
+
+
+
+Identity language carries low weight.
+
+
+
+Emotional framing carries minimal weight.
+
+
+
+Resume headline language is not privileged.
+
+
+
+Synthesis must reuse high-frequency mechanical anchors.
+
+
+
+Novel archetype language is considered drift.
+
+
+
+Abstraction without lexical grounding is invalid.
+
+
+
+The LLM is not an author.
+
+It is a constrained compressor operating under anchor bias.
+
+
+
+If output cannot be traced to visible input signal, it fails.
+
+
+
+III. What Caliber Refuses To Be
 
 
 
@@ -84,75 +152,141 @@ Caliber must not:
 
 
 
-\- Produce praise-driven narratives
-
-\- Use archetypal personality labels
-
-\- Drift into corporate filler language
-
-\- Blend unrelated performance dimensions
-
-\- Present abstract generalities detached from input signal
+Produce praise-driven narratives
 
 
 
-Outputs must be justified by input signal.
-
-Not artificially differentiated.
+Generate inspirational framing
 
 
 
----
+Use archetypal personality labels
 
 
 
-\# III. Structural Identity
+Inflate emotional identity
 
 
 
-Pattern Synthesis follows a strict cadence:
+Drift into corporate filler language
 
 
 
-1\. Identity Contrast
-
-2\. Intervention Contrast
-
-3\. Construction Layer
-
-4\. Conditional Consequence Drop (earned only)
+Abstract beyond lexical anchors
 
 
 
-This structure is part of product identity.
+Rephrase marketing copy into softer marketing copy
 
 
 
-Naturalness must emerge from specificity — not loosened structure.
+Caliber is not coaching.
+
+Caliber is not branding.
+
+Caliber is not confidence reinforcement.
 
 
 
----
+If it sounds flattering, it is likely wrong.
 
 
 
-\# IV. Separation Doctrine
+IV. Structural Cadence
 
 
 
-The following domains are independent and must never blend:
+Pattern Synthesis follows a strict backbone:
 
 
 
-\- alignment
-
-\- skillMatch
-
-\- stretchLoad
+Identity Contrast
 
 
 
-stretchLoad originates only from its engine.
+Intervention Contrast
+
+
+
+Construction Layer
+
+
+
+Conditional Consequence Drop (earned only)
+
+
+
+This structure is product identity.
+
+
+
+Naturalness must emerge from specificity, not loosened structure.
+
+
+
+Loosening cadence does not improve quality.
+
+Grounding improves quality.
+
+
+
+V. Enforcement Model
+
+
+
+Philosophy is enforced in code, not implied in prompts.
+
+
+
+The system must:
+
+
+
+Extract lexical anchors before synthesis
+
+
+
+Enforce anchor reuse after synthesis
+
+
+
+Penalize invention
+
+
+
+Penalize praise framing
+
+
+
+Retry once if anchor overlap fails
+
+
+
+Fall back deterministically if constraints fail
+
+
+
+Constraint-centered architecture overrides prompt-centered philosophy.
+
+
+
+VI. Domain Separation Doctrine
+
+
+
+The following domains remain strictly independent:
+
+
+
+alignment
+
+
+
+skillMatch
+
+
+
+stretchLoad
 
 
 
@@ -160,73 +294,97 @@ No recomputation.
 
 No reframing.
 
-No blending.
+No blending across engines.
 
 
 
----
+Each engine speaks only for itself.
 
 
 
-\# V. Fallback Philosophy
+VII. Fallback Philosophy
 
 
 
-Deterministic fallback exists solely as structural protection.
+Deterministic fallback exists solely to preserve structural integrity.
 
 
 
-It:
+Fallback:
 
 
 
-\- Preserves cadence
-
-\- Prevents failure states
-
-\- Is not the primary user experience
+Preserves cadence
 
 
 
-Fallback should rarely surface in stable builds.
+Preserves doctrine compliance
 
 
 
----
+Prevents abstraction drift
 
 
 
-\# VI. Quality Standard
+Is not a creative alternative
 
 
 
-A synthesis is acceptable only if:
+If fallback becomes common, extraction logic is failing.
 
 
 
-\- It reflects visible input signal.
-
-\- It avoids motivational tone.
-
-\- It avoids praise.
-
-\- It avoids repetition loops.
-
-\- It avoids abstraction drift.
-
-\- It feels structurally specific.
+VIII. Quality Standard
 
 
 
-If it sounds generic, it is wrong — even if technically valid.
+A synthesis is valid only if:
 
 
 
----
+It reflects repeated lexical anchors.
 
 
 
-\# VII. Change Threshold
+It avoids motivational tone.
+
+
+
+It avoids praise.
+
+
+
+It avoids repetition loops.
+
+
+
+It avoids abstraction drift.
+
+
+
+It feels mechanically specific.
+
+
+
+It exposes structure, not personality.
+
+
+
+If it sounds generic, it is wrong.
+
+If it sounds flattering, it is wrong.
+
+If it cannot be traced to anchors, it is wrong.
+
+
+
+Technical validity is insufficient.
+
+Philosophical compliance is required.
+
+
+
+IX. Change Threshold
 
 
 
@@ -234,15 +392,21 @@ This document changes only if:
 
 
 
-\- The product shifts from structural patterning to personality modeling.
-
-\- The cadence backbone is altered.
-
-\- The separation doctrine changes.
-
-\- The definition of structural specificity changes.
+Caliber shifts from anchor-grounded structural compression to personality modeling.
 
 
 
-Otherwise, execution changes belong elsewhere.
+The cadence backbone is altered.
+
+
+
+The enforcement model changes from constraint-first to prompt-first.
+
+
+
+The definition of structural specificity changes.
+
+
+
+All other adjustments belong in execution layers.
 
