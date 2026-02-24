@@ -41,7 +41,22 @@ Kernel defines how it enforces it.
 If execution diverges from doctrine, execution changes — not doctrine.
 
 
+## Primary Mode: Calibration Core (Current)
 
+Caliber is being built as a calibration engine first.
+
+The narrative Pattern Summary layer is temporarily frozen.
+
+Current spine:
+
+1. Resume ingest
+2. 5-question signal capture
+3. Deterministic anchor extraction (user-visible)
+4. Job description ingest
+5. Anchor overlap + gap surface
+6. Title producer (mechanical, anchor-driven)
+
+Narrative synthesis returns only after the calibration core is stable and validated.
 
 
 \# Core Execution Principle
