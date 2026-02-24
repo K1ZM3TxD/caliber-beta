@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/prompt_drift_guard.ts",
+    "test": "tsx scripts/prompt_drift_guard.ts && tsx scripts/drift_detection_guard_smoke.ts",
     "smoke:drift": "tsx scripts/drift_detection_guard_smoke.ts",
     "smoke:integration": "tsx scripts/smoke_integration.ts",
     "smoke:synthesis": "tsx scripts/synthesis_guard_smoke.ts"
