@@ -286,8 +286,40 @@ Threshold tuning should occur only after anchor quality stabilizes.
 
 Status: Complete and Stable
 
+Milestone 6.2 — Signal Classification Layer (Deterministic)
 
-\## Milestone 6.2 — Anti-Abstraction Enforcement
+Objective:
+
+Differentiate Signal-Dominant anchors from Skill-Dominant anchors based on cross-context repetition.
+
+Implementation:
+
+Tag anchors with source and context_type.
+
+Implement deterministic classification rules.
+
+Produce:
+
+signalAnchors[]
+
+skillAnchors[]
+
+Update alignment engine to weight signalAnchors higher than skillAnchors.
+
+Acceptance Criteria:
+
+Identical input → identical classification.
+
+Resume-only repetition never classifies as signal.
+
+Breakdown-context repetition required for signal status.
+
+Alignment score visibly differentiates signal vs skill match.
+
+Status: NEXT
+
+
+\## Milestone 6.3 — Anti-Abstraction Enforcement
 
 
 
@@ -323,7 +355,7 @@ Status: NEXT
 
 
 
-\## Milestone 6.3 — Validator Outcome Matrix (Refactor)
+\## Milestone 6.4 — Validator Outcome Matrix (Refactor)
 
 
 
@@ -365,7 +397,7 @@ Status: PLANNED
 
 
 
-\## Milestone 6.4 — Observability Upgrade
+\## Milestone 6.5 — Observability Upgrade
 
 
 
