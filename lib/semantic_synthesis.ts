@@ -320,6 +320,7 @@ export async function generateSemanticSynthesis(args: {
     }
 
     const firstFlags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+    console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: firstFlags.praise_flag, abstraction_flag: firstFlags.abstraction_flag, validator_outcome: "RETRY_REQUIRED" }))
     const retryExtraLines = [
       "MISSING ANCHORS (must include several verbatim terms):",
       missing.slice(0, 24).join(", "),

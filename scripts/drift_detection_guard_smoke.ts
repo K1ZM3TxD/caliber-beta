@@ -3,7 +3,7 @@
 // Run: npx tsx scripts/drift_detection_guard_smoke.ts
 /* eslint-disable no-console */
 
-import { detectDriftFlags } from "../lib/semantic_synthesis"
+import { detectDriftFlags, formatSynthesisLogLine, ValidatorOutcome } from "../lib/semantic_synthesis"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`FAIL: ${message}`)
@@ -128,5 +128,49 @@ const anchoredFlags = detectDriftFlags("You are a visionary who maps scope.", ["
 assert(anchoredFlags.abstraction_flag === false, "abstraction_flag must be false when drift term is in anchorTerms")
 assert(!anchoredFlags.drift_terms.includes("visionary"), "drift_terms must NOT include 'visionary' when it is an anchor")
 console.log(`PASS [bonus] anchor suppression: 'visionary' in anchors → abstraction_flag=false`)
+
+// ---------------------------------------------------------------------------
+// 5. RETRY_REQUIRED outcome: first-pass log when score < MIN_OVERLAP
+// ---------------------------------------------------------------------------
+
+// Simulate the first-pass log line that production code emits when score < MIN_OVERLAP
+// (synthesis_source=llm, validator_outcome=RETRY_REQUIRED)
+const retryRequiredLine = formatSynthesisLogLine({
+  synthesis_source: "llm",
+  anchor_overlap_score: 0.10,
+  missing_anchor_count: 18,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "RETRY_REQUIRED",
+})
+assert(retryRequiredLine.includes("synthesis_source=llm"), `first-pass retry line must have synthesis_source=llm; got: ${retryRequiredLine}`)
+assert(retryRequiredLine.includes("validator_outcome=RETRY_REQUIRED"), `first-pass retry line must have validator_outcome=RETRY_REQUIRED; got: ${retryRequiredLine}`)
+console.log(`PASS [5] first-pass RETRY_REQUIRED log: "${retryRequiredLine}"`)
+
+// Simulate the retry-attempt log line (synthesis_source=retry, validator_outcome=PASS)
+const retryPassLine = formatSynthesisLogLine({
+  synthesis_source: "retry",
+  anchor_overlap_score: 0.50,
+  missing_anchor_count: 12,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "PASS",
+})
+assert(retryPassLine.includes("synthesis_source=retry"), `retry line must have synthesis_source=retry; got: ${retryPassLine}`)
+assert(retryPassLine.includes("validator_outcome=PASS"), `retry line must have validator_outcome=PASS; got: ${retryPassLine}`)
+console.log(`PASS [5] retry-attempt PASS log: "${retryPassLine}"`)
+
+// Simulate the retry-attempt log line (synthesis_source=retry, validator_outcome=FALLBACK_ANCHOR_FAILURE)
+const retryFailLine = formatSynthesisLogLine({
+  synthesis_source: "retry",
+  anchor_overlap_score: 0.10,
+  missing_anchor_count: 18,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "FALLBACK_ANCHOR_FAILURE",
+})
+assert(retryFailLine.includes("synthesis_source=retry"), `retry fallback line must have synthesis_source=retry; got: ${retryFailLine}`)
+assert(retryFailLine.includes("validator_outcome=FALLBACK_ANCHOR_FAILURE"), `retry fallback line must have validator_outcome=FALLBACK_ANCHOR_FAILURE; got: ${retryFailLine}`)
+console.log(`PASS [5] retry-attempt FALLBACK_ANCHOR_FAILURE log: "${retryFailLine}"`)
 
 console.log("\nALL ACCEPTANCE CHECKS PASSED")
