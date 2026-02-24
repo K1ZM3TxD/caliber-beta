@@ -1,53 +1,57 @@
-\# KERNEL.md
+# KERNEL.md
 
-Execution Doctrine — Anchor-First Architecture
+Execution Doctrine — Anchor-First Architecture  
+(Updated: Cloud-Canonical Workflow + 6.x Complete)
 
-
-
-Stable enforcement rules.
-
-Updated deliberately.
-
-
-
-Philosophy lives in CALIBER\_DOCTRINE.md  
-
+Philosophy lives in CALIBER_DOCTRINE.md  
 Task sequencing lives in MILESTONES.md  
 
-This document defines mechanical enforcement.
+This document defines mechanical enforcement and workflow invariants.
 
+---
 
+# Authority Order
 
-
-
-\# Authority Order
-
-
-
-1\. CALIBER\_DOCTRINE.md — Identity + philosophy  
-
-2\. KERNEL.md — Enforcement mechanics  
-
-3\. MILESTONES.md — Task sequencing + status  
-
-
+1. CALIBER_DOCTRINE.md — Identity + philosophy  
+2. KERNEL.md — Enforcement mechanics + workflow invariants  
+3. MILESTONES.md — Task sequencing + status  
 
 Doctrine defines what Caliber is.  
-
-Kernel defines how it enforces it.
-
-
+Kernel defines how it enforces it.  
 
 If execution diverges from doctrine, execution changes — not doctrine.
 
+---
 
-## Primary Mode: Calibration Core (Current)
+# Canonical Development Environment (Cloud-First)
 
-Caliber is being built as a calibration engine first.
+Caliber now operates under a cloud-canonical workflow.
 
-The narrative Pattern Summary layer is temporarily frozen.
+Canonical environment:
+- GitHub Codespaces
+- Branch: `copilot/work`
 
-Current spine:
+Rules:
+
+- All development occurs in Codespaces.
+- All commits land on `copilot/work`.
+- Local machines are optional, not authoritative.
+- No branch drift between agent and runtime.
+- `package-lock.json` reflects Codespaces environment.
+
+When stable:
+- `copilot/work` → merge into `main`.
+
+There is one active execution branch.
+No parallel canonical branches.
+
+---
+
+# Primary Mode: Calibration Core (Active)
+
+The Pattern Summary narrative layer remains frozen.
+
+Active spine:
 
 1. Resume ingest
 2. 5-question signal capture
@@ -56,370 +60,169 @@ Current spine:
 5. Anchor overlap + gap surface
 6. Title producer (mechanical, anchor-driven)
 
-Narrative synthesis returns only after the calibration core is stable and validated.
+OperateBest / loseEnergy bullet grounding is entering controlled extension phase.
 
+---
 
-\# Core Execution Principle
+# Core Execution Principle
 
-
-
-We do not persuade the model to behave.
-
-
-
+We do not persuade the model to behave.  
 We constrain it until behavior aligns.
-
-
 
 All synthesis is governed by structural pressure, not prompt rhetoric.
 
+---
 
+# Anchor-First Pipeline (Mandatory)
 
+All synthesis must follow:
 
-
-\# Anchor-First Pipeline (Mandatory)
-
-
-
-All pattern synthesis must follow this sequence:
-
-
-
-1\. Extract lexical anchors from input signal
-
-&nbsp;  - Repeated verbs
-
-&nbsp;  - Repeated operational nouns
-
-&nbsp;  - High-frequency mechanical terms
-
-
-
-2\. Generate synthesis via LLM under anchor-aware prompt
-
-
-
-3\. Validate anchor overlap and doctrine compliance
-
-
-
-4\. If overlap fails → retry once with missing anchors injected
-
-
-
-5\. If retry fails → deterministic fallback
-
-
-
-This sequence is mandatory.
-
-
+1. Extract lexical anchors (deterministic)
+2. Generate via LLM under anchor-aware prompt
+3. Validate:
+   - Structural validity
+   - Blacklist enforcement
+   - Anchor overlap
+   - Anti-praise
+   - Anti-abstraction
+4. Retry at most once (if overlap fails)
+5. Deterministic fallback if retry fails
 
 Skipping enforcement violates doctrine.
 
+---
 
+# Enforcement Hierarchy
 
+Order of enforcement:
 
+1. Structural validity
+2. Blacklist enforcement (bypasses retry)
+3. Anchor overlap threshold
+4. Anti-praise
+5. Anti-abstraction
+6. Repetition control
 
-\# Enforcement Hierarchy
+Blacklist detection:
+- Deterministic
+- Case-insensitive
+- Immediate fallback
+- No retry
 
+---
 
+# Overlap Enforcement
 
-When evaluating synthesis, enforcement order is:
+score = overlapCount / anchorTerms.length  
+MIN_OVERLAP = 0.35  
 
+Outcomes:
 
+- score ≥ threshold → PASS
+- score < threshold → RETRY_REQUIRED
+- retry success → PASS
+- retry fail → FALLBACK_ANCHOR_FAILURE
 
-1\. Cadence compliance (structure)
+Retry occurs once only.
 
-2\. Anchor overlap threshold
+---
 
-3\. Anti-praise enforcement
+# Validator Outcome Matrix (Stable)
 
-4\. Anti-abstraction enforcement
+Allowed outcomes:
 
-5\. Repetition control
+- PASS
+- RETRY_REQUIRED
+- FALLBACK_ANCHOR_FAILURE
+- FALLBACK_STRUCTURE_INVALID
+- FALLBACK_BLACKLIST_PHRASE
 
+No silent branches permitted.
 
+All synthesis logs must include:
 
-Cadence alone is insufficient.  
+- synthesis_source
+- anchor_overlap_score
+- missing_anchor_count
+- praise_flag
+- abstraction_flag
+- validator_outcome
+- fallback_reason (fallbacks only)
 
-Lexical grounding is primary.
+Single-line. Deterministic. Machine-parseable.
 
+---
 
+# Observability Doctrine
 
+Every synthesis attempt must log exactly once.
 
+Fallback must include fallback_reason:
 
-\# Lexical Anchor Rules
+- structure_invalid
+- anchor_failure
+- blacklist_phrase
 
+If fallback frequency rises → extraction logic is failing.
 
+---
 
-\## Anchor Weighting
+# Structural Invariants
 
+Must never break:
 
-
-\- Repeated verbs → highest weight
-
-\- Repeated operational nouns → high weight
-
-\- Identity descriptors → low weight
-
-\- Emotional framing → minimal weight
-
-\- Resume headlines → no special privilege
-
-
-
-\## Failure Conditions
-
-
-
-Output fails if:
-
-
-
-\- It introduces novel archetype language not present in anchors.
-
-\- It rephrases marketing copy into softer marketing copy.
-
-\- It invents identity not grounded in extracted anchors.
-
-
-
-Anchors assist structure.  
-
-Anchors do not override grammar.
-
-
+- Required line starters
+- Contrast structure
+- No first-person voice
+- Construction line grammar
+- No noun collision artifacts
+- No abstraction drift beyond anchors
 
 Structure > Anchor pressure.
 
+---
 
+# Bullet Grounding Extension (7.x Phase)
 
+OperateBest validator scaffolding exists:
+- validateOperateBestBullets
+- formatOperateBestLogLine
+- Shared enforcement stack
+- bullet_group=operateBest logging
 
+Current status:
+- Validator implemented
+- Not yet fully wired into runtime generation flow
 
-\# Overlap Enforcement
+Next enforcement milestone:
+- Wire operateBest validation into live calibration flow
+- Preserve identical enforcement stack
+- Do not blend engines
 
+loseEnergy remains untouched until operateBest stabilizes.
 
+---
 
-After LLM synthesis:
-
-
-
-score = overlapCount / anchorTerms.length  
-
-MIN\_OVERLAP = 0.35
-
-
-
-Decision logic:
-
-
-
-\- score >= 0.35 → accept (llm)
-
-\- score < 0.35 → retry once
-
-\- retry still < 0.35 → deterministic fallback
-
-
-
-Retry occurs at most once.
-
-
-
-
-
-\# Structural Invariants
-
-
-
-These must never break:
-
-
-
-\- Required line starters remain exact.
-
-\- Contrast structure must remain intact.
-
-\- Never switch to first-person voice.
-
-\- Construction line must match allowed verb pattern.
-
-\- No noun collision artifacts.
-
-\- No cadence distortion under anchor pressure.
-
-
-
-If anchor pressure degrades grammar, anchor usage must be reduced — not structure.
-
-
-
-
-
-\# Guardrails (Reclassified)
-
-
-
-The previous “Safety Rails” framing is obsolete.
-
-
-
-Guardrails are structural, not aesthetic.
-
-
-
-\- Blacklist enforcement → structural integrity
-
-\- Repetition thresholds → clarity enforcement
-
-\- Construction strictness → cadence integrity
-
-
-
-Loosening guardrails does not improve quality.  
-
-Improving extraction improves quality.
-
-
-
-
-
-\# Observability Doctrine
-
-
-
-We must observe philosophical failure — not just runtime failure.
-
-
-
-Every synthesis attempt must log:
-
-
-
-\- synthesis\_source = llm | retry | fallback
-
-\- anchor\_overlap\_score
-
-\- missing\_anchor\_count
-
-\- praise\_flag
-
-\- abstraction\_flag
-
-
-
-Logs must be:
-
-
-
-\- Single-line
-
-\- Precise
-
-\- Minimal
-
-\- Machine-parsable
-
-\- Emitted exactly once per attempt
-
-
-
-If fallback frequency rises, extraction logic is failing.
-
-
-
-
-
-\# Verifiability Doctrine
-
-
-
-If a change cannot be measured, it is not done.
-
-
-
-Acceptable verification methods:
-
-
-
-\- Anchor overlap scoring
-
-\- Deterministic regression tests
-
-\- Log signature validation
-
-\- Reproducible failure case
-
-
-
-“Feels better” is not a metric.
-
-
-
-
-
-\# Output Policy
-
-
-
-For humans:
-
-\- Full-file rewrites preferred when pasting supports workflow.
-
-
-
-For coders / agents:
-
-\- Surgical diffs only when explicitly labeled “surgical.”
-
-\- No speculative refactors.
-
-\- Minimal surface change per task.
-
-
-
-
-
-\# Definition of Done
-
-
+# Definition of Done
 
 A task is complete only when:
 
+- Acceptance criteria are met
+- Enforcement passes
+- Logs are emitted
+- Change is minimal and scoped
+- Outcome is mechanically verifiable
+- Codespaces environment remains canonical
 
+Technical success without enforcement is failure.
 
-\- Acceptance criteria are met.
+---
 
-\- Anchor enforcement passes.
+# Change Control
 
-\- Doctrine compliance passes.
-
-\- Logging is present.
-
-\- Change is minimal and scoped.
-
-\- Outcome is mechanically verifiable.
-
-
-
-Technical success without philosophical compliance is failure.
-
-
-
-
-
-\# Change Control
-
-
-
-Philosophy changes → CALIBER\_DOCTRINE.md  
-
+Philosophy changes → CALIBER_DOCTRINE.md  
 Enforcement changes → KERNEL.md  
-
-Task sequencing → MILESTONES.md  
-
-
+Execution sequencing → MILESTONES.md  
+Workflow environment changes → KERNEL.md  
 
 Execution evolves. Doctrine remains stable.
-
