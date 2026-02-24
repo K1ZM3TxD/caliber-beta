@@ -1,20 +1,14 @@
-function detectDriftFlags(synthesisText, anchorTerms) {
-  const praiseTerms = ["inspiring","impressive","exceptional","outstanding","remarkable","amazing","fantastic","brilliant","world-class","stellar"];
-  const abstractionTerms = ["visionary","thought leader","changemaker","trailblazer","rockstar","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"];
-  const archetypeTerms = ["strategist","operator","builder","architect","executor","leader","innovator"];
+// lib/semantic_synthesis.ts
 
-  let praise_flag = false;
-  let abstraction_flag = false;
-  const drift_terms = new Set();
+import { extractAnchors } from "@/lib/anchors"
 
-<<<<<<< HEAD
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
 // --- Milestone 6.0+6.1: Anchor overlap enforcement ---
 const MIN_OVERLAP = 0.35
 
 function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return s.replace(/[.*+?^${}()|[\\]\]/g, "\\$&")
 }
 
 function countWholeWordMatches(text: string, terms: string[]): { overlapCount: number; missing: string[] } {
@@ -128,20 +122,17 @@ export async function generateSemanticSynthesis(args: {
     "system's",
   ]
 
-  // --- B) Prepare promptAnswers array ---
-const promptAnswersArr = (args.promptAnswers || []).map((a) => a.answer || "")
+  const promptAnswersArr = (args.promptAnswers || []).map((a) => a.answer || "")
 
-// --- C) Compute anchors once ---
-const anchors = extractAnchors({
-  resumeText: args.resumeText || "",
-  promptAnswers: promptAnswersArr,
-})
+  const anchors = extractAnchors({
+    resumeText: args.resumeText || "",
+    promptAnswers: promptAnswersArr,
+  })
 
-const topVerbs = anchors.verbs_top.slice(0, 12)
-const topNouns = anchors.nouns_top.slice(0, 12)
-const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
+  const topVerbs = anchors.verbs_top.slice(0, 12)
+  const topNouns = anchors.nouns_top.slice(0, 12)
+  const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
 
-  // --- D+E) Build prompt with anchor block; support retry with missing anchors ---
   const basePromptLines = [
     "Return JSON only. No markdown. No extra keys.",
     "",
@@ -191,33 +182,29 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
   async function callModel(extraUserLines?: string[]): Promise<{ parsed: any; raw: string }> {
     const promptLines = [...basePromptLines]
     if (extraUserLines && extraUserLines.length > 0) {
-      // Insert missing-anchor injection after the LEXICAL ANCHORS block
       const anchorIdx = promptLines.findIndex((l) => l.startsWith("Nouns:"))
       if (anchorIdx >= 0) {
         promptLines.splice(anchorIdx + 1, 0, "", ...extraUserLines)
       } else {
         promptLines.push("", ...extraUserLines)
       }
-=======
-  // Check for praise terms
-  praiseTerms.forEach(term => {
-    const regex = new RegExp(`\\b${term}\\b`, 'i');
-    if (regex.test(synthesisText)) {
-      praise_flag = true;
->>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
     }
-  });
 
-  // Check for abstraction or archetype drift terms
-  [...abstractionTerms, ...archetypeTerms].forEach(term => {
-    const regex = new RegExp(`\\b${term}\\b`, 'i');
-    if (regex.test(synthesisText) && !anchorTerms.map(anchor => anchor.toLowerCase()).includes(term.toLowerCase())) {
-      abstraction_flag = true;
-      drift_terms.add(term);
+    const userPrompt = promptLines.filter(Boolean).join("\n")
+
+    const body = {
+      model,
+      temperature: temp,
+      messages: [
+        {
+          role: "system",
+          content: "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
+        },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
     }
-  });
 
-<<<<<<< HEAD
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -266,7 +253,6 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
   }
 
   try {
-    // --- First attempt ---
     const { parsed } = await callModel()
     const fields = extractFields(parsed)
 
@@ -275,11 +261,6 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
       throw new Error("OpenAI JSON missing required fields")
     }
 
-    // --- I) Inline acceptance comment ---
-    // Overlap evaluation example:
-    //   anchorTerms sample: ["scope", "constraints", "handoffs"]
-    //   synthesisTextForOverlap: "You don't just handle scope — you tighten constraints. When something isn't working, you map handoffs."
-    //   expected overlap_count: 3, score: 3/3 = 1.00
     const synthesisTextForOverlap = [
       fields.identity_contrast,
       fields.intervention_contrast,
@@ -292,28 +273,24 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
     const score = overlapCount / denom
     const missingCount = denom - overlapCount
 
-    // --- G) Check overlap threshold ---
-if (score >= MIN_OVERLAP) {
-  const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
- console.log(
-  "synthesis_source=llm anchor_overlap_score=" +
-  score.toFixed(2) +
-  " missing_anchor_count=" +
-  missingCount +
-  " praise_flag=" + flags.praise_flag +
-  " abstraction_flag=" + flags.abstraction_flag
-)
-=======
->>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
-  return {
-    praise_flag,
-    abstraction_flag,
-    drift_terms: Array.from(drift_terms).sort(),
-  };
-}
+    if (score >= MIN_OVERLAP) {
+      const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+      console.log(
+        "synthesis_source=llm anchor_overlap_score=" +
+        score.toFixed(2) +
+        " missing_anchor_count=" +
+        missingCount +
+        " praise_flag=" + flags.praise_flag +
+        " abstraction_flag=" + flags.abstraction_flag
+      )
+      return {
+        identityContrast: fields.identity_contrast,
+        interventionContrast: fields.intervention_contrast,
+        constructionLayer: fields.construction_layer,
+        consequenceDrop: fields.conditional_consequence,
+      }
+    }
 
-<<<<<<< HEAD
-    // --- G) Retry once with missing anchors injected ---
     const retryExtraLines = [
       "MISSING ANCHORS (must include several verbatim terms):",
       missing.slice(0, 24).join(", "),
@@ -323,11 +300,9 @@ if (score >= MIN_OVERLAP) {
     const retryFields = extractFields(retryParsed)
 
     if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
-      // Retry returned incomplete — fall through to deterministic fallback below
       const finalScore = score
       const finalMissingCount = missingCount
       console.log("synthesis_source=fallback anchor_overlap_score=" + finalScore.toFixed(2) + " missing_anchor_count=" + finalMissingCount + " praise_flag=false abstraction_flag=false")
-      // (falls through to deterministic fallback)
     } else {
       const retrySynthesisText = [
         retryFields.identity_contrast,
@@ -341,16 +316,15 @@ if (score >= MIN_OVERLAP) {
       const retryScore = retryResult.overlapCount / retryDenom
       const retryMissingCount = retryDenom - retryResult.overlapCount
 
-      // --- F) REQUIRED LOG LINE (retry attempt) ---
       const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
       console.log(
-  "synthesis_source=retry anchor_overlap_score=" +
-  retryScore.toFixed(2) +
-  " missing_anchor_count=" +
-  retryMissingCount +
-  " praise_flag=" + retryFlags.praise_flag +
-  " abstraction_flag=" + retryFlags.abstraction_flag
-)
+        "synthesis_source=retry anchor_overlap_score=" +
+        retryScore.toFixed(2) +
+        " missing_anchor_count=" +
+        retryMissingCount +
+        " praise_flag=" + retryFlags.praise_flag +
+        " abstraction_flag=" + retryFlags.abstraction_flag
+      )
 
       if (retryScore >= MIN_OVERLAP) {
         return {
@@ -361,30 +335,27 @@ if (score >= MIN_OVERLAP) {
         }
       }
 
-      // Retry still below threshold — deterministic fallback
       const finalScore = retryScore
       const finalMissingCount = retryMissingCount
       const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-     console.log(
-  "synthesis_source=fallback anchor_overlap_score=" +
-  finalScore.toFixed(2) +
-  " missing_anchor_count=" +
-  finalMissingCount +
-  " praise_flag=" + fallbackFlags.praise_flag +
-  " abstraction_flag=" + fallbackFlags.abstraction_flag
-)
+      console.log(
+        "synthesis_source=fallback anchor_overlap_score=" +
+        finalScore.toFixed(2) +
+        " missing_anchor_count=" + finalMissingCount +
+        " praise_flag=" + fallbackFlags.praise_flag +
+        " abstraction_flag=" + fallbackFlags.abstraction_flag
+      )
     }
 
-    // --- H) Deterministic fallback JSON (anchor-failure only) ---
     const n0 = topNouns[0] || "work"
     const n1 = topNouns[1] || "scope"
     const n2 = topNouns[2] || "constraints"
     const n3 = topNouns[3] || "handoffs"
-    const v0 = allowedVerbs[0] // "notice"
-    const v1 = allowedVerbs[1] // "surface"
-    const v2 = allowedVerbs[2] // "map"
-    const v3 = allowedVerbs[3] // "isolate"
-    const v4 = allowedVerbs[4] // "name"
+    const v0 = allowedVerbs[0]
+    const v1 = allowedVerbs[1]
+    const v2 = allowedVerbs[2]
+    const v3 = allowedVerbs[3]
+    const v4 = allowedVerbs[4]
 
     const fallbackIdentity = `You don't just ${n0}—you ${v0} ${n1}.`
     const fallbackIntervention = `When something isn't working, ${v1} ${n2} and ${v2} ${n3}.`
@@ -398,7 +369,6 @@ if (score >= MIN_OVERLAP) {
       consequenceDrop: fallbackConsequence,
     }
   } catch (e) {
-    // Ensure fallback trace is present even when upstream catches.
     if (String((e as any)?.message ?? "").trim().length === 0) {
       console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
     }
@@ -406,22 +376,17 @@ if (score >= MIN_OVERLAP) {
   }
 }
 
-=======
-// ... existing content ... // the following section updates the log statements ... //
-[{llm, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
-[{retry, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
-[{fallback, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
->>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
-// --- SELF-CHECK: Drift detection validation ---
 if (process.env.NODE_ENV === "development" || process.env.RUN_SELF_CHECK === "true") {
   const testFlags = detectDriftFlags("inspiring visionary strategist", [])
-  console.assert(testFlags.praise_flag === true, "Self-check failed: praise_flag should be true")
-  console.assert(testFlags.abstraction_flag === true, "Self-check failed: abstraction_flag should be true")
-  console.assert(testFlags.drift_terms.includes("inspiring"), "Self-check failed: drift_terms should include 'inspiring'")
-  console.assert(testFlags.drift_terms.includes("visionary"), "Self-check failed: drift_terms should include 'visionary'")
-  console.assert(testFlags.drift_terms.includes("strategist"), "Self-check failed: drift_terms should include 'strategist'")
+  if (testFlags.praise_flag !== true) throw new Error("drift_self_check=fail: praise_flag should be true")
+  if (testFlags.abstraction_flag !== true) throw new Error("drift_self_check=fail: abstraction_flag should be true")
+  if (!testFlags.drift_terms.includes("inspiring")) throw new Error("drift_self_check=fail: drift_terms should include 'inspiring'")
+  if (!testFlags.drift_terms.includes("visionary")) throw new Error("drift_self_check=fail: drift_terms should include 'visionary'")
+  if (!testFlags.drift_terms.includes("strategist")) throw new Error("drift_self_check=fail: drift_terms should include 'strategist'")
   
   const testFlags2 = detectDriftFlags("inspiring visionary strategist", ["strategist"])
-  console.assert(testFlags2.abstraction_flag === true, "Self-check failed: abstraction_flag should still be true (visionary)")
-  console.assert(!testFlags2.drift_terms.includes("strategist"), "Self-check failed: drift_terms should NOT include 'strategist' when in anchors")
+  if (testFlags2.abstraction_flag !== true) throw new Error("drift_self_check=fail: abstraction_flag should still be true (visionary)")
+  if (testFlags2.drift_terms.includes("strategist")) throw new Error("drift_self_check=fail: drift_terms should NOT include 'strategist' when in anchors")
+  
+  console.log("drift_self_check=pass")
 }
