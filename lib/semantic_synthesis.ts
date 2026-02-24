@@ -25,7 +25,7 @@ function countWholeWordMatches(text: string, terms: string[]): { overlapCount: n
   return { overlapCount, missing }
 }
 
-function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: boolean; abstraction_flag: boolean; drift_terms: string[] } {
+export function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: boolean; abstraction_flag: boolean; drift_terms: string[] } {
   const normalized = (s || "").toLowerCase()
   const anchorSet = new Set(anchorTerms.map(t => t.toLowerCase()))
   
