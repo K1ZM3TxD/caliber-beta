@@ -3,7 +3,7 @@
 // Run: tsx scripts/drift_retry_injection_guard.ts
 /* eslint-disable no-console */
 
-import { detectDriftFlags, buildRetryExtraLinesFromFlags, formatSynthesisLogLine } from "../lib/semantic_synthesis"
+import { detectDriftFlags, buildRetryExtraLinesFromFlags, formatSynthesisLogLine, ValidatorOutcome } from "../lib/semantic_synthesis"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -41,14 +41,16 @@ console.log(`PASS drift_retry_injection_guard: abstraction_flag=true drift_terms
 console.log(`PASS retry line: "${removeDriftLine}"`)
 console.log(`PASS log: ${logLine}`)
 
-// Step 3: verify formatSynthesisLogLine with abstraction_flag=true
+// Step 3: verify formatSynthesisLogLine with abstraction_flag=true and validator_outcome
 const formattedLogLine = formatSynthesisLogLine({
   synthesis_source: "llm",
   anchor_overlap_score: 0,
   missing_anchor_count: 0,
   praise_flag: false,
   abstraction_flag: firstFlags.abstraction_flag,
+  validator_outcome: "PASS",
 })
 assert(formattedLogLine.includes("abstraction_flag=true"), `formatted log line must contain "abstraction_flag=true"; got: ${formattedLogLine}`)
 assert(formattedLogLine.startsWith("synthesis_source=llm anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=true"), `formatted log line must match expected format; got: ${formattedLogLine}`)
+assert(formattedLogLine.includes("validator_outcome=PASS"), `formatted log line must contain "validator_outcome=PASS"; got: ${formattedLogLine}`)
 console.log(`PASS formatSynthesisLogLine: "${formattedLogLine}"`)
