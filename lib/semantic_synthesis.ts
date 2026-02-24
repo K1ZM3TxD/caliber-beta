@@ -76,6 +76,22 @@ export function buildRetryExtraLinesFromFlags(
   return ["REMOVE DRIFT TERMS: " + flags.drift_terms.join(", ")]
 }
 
+export function formatSynthesisLogLine(input: {
+  synthesis_source: "llm" | "retry" | "fallback"
+  anchor_overlap_score: number
+  missing_anchor_count: number
+  praise_flag: boolean
+  abstraction_flag: boolean
+}): string {
+  return (
+    "synthesis_source=" + input.synthesis_source +
+    " anchor_overlap_score=" + input.anchor_overlap_score.toFixed(2) +
+    " missing_anchor_count=" + input.missing_anchor_count +
+    " praise_flag=" + input.praise_flag +
+    " abstraction_flag=" + input.abstraction_flag
+  )
+}
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
@@ -225,14 +241,14 @@ export async function generateSemanticSynthesis(args: {
 
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "")
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false }))
       throw new Error(`OpenAI error: ${resp.status} ${txt}`)
     }
 
     const data = (await resp.json()) as any
     const content = String(data?.choices?.[0]?.message?.content ?? "").trim()
     if (!content) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false }))
       throw new Error("OpenAI returned empty content")
     }
 
@@ -240,7 +256,7 @@ export async function generateSemanticSynthesis(args: {
     try {
       parsed = JSON.parse(content)
     } catch {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false }))
       throw new Error("OpenAI returned non-JSON content")
     }
 
@@ -266,7 +282,7 @@ export async function generateSemanticSynthesis(args: {
     const fields = extractFields(parsed)
 
     if (!fields.identity_contrast || !fields.intervention_contrast || !fields.construction_layer || !fields.conditional_consequence) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false }))
       throw new Error("OpenAI JSON missing required fields")
     }
 
@@ -284,14 +300,7 @@ export async function generateSemanticSynthesis(args: {
 
     if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
-      console.log(
-        "synthesis_source=llm anchor_overlap_score=" +
-        score.toFixed(2) +
-        " missing_anchor_count=" +
-        missingCount +
-        " praise_flag=" + flags.praise_flag +
-        " abstraction_flag=" + flags.abstraction_flag
-      )
+      console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: flags.praise_flag, abstraction_flag: flags.abstraction_flag }))
       return {
         identityContrast: fields.identity_contrast,
         interventionContrast: fields.intervention_contrast,
@@ -313,7 +322,7 @@ export async function generateSemanticSynthesis(args: {
     if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
       const finalScore = score
       const finalMissingCount = missingCount
-      console.log("synthesis_source=fallback anchor_overlap_score=" + finalScore.toFixed(2) + " missing_anchor_count=" + finalMissingCount + " praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false }))
     } else {
       const retrySynthesisText = [
         retryFields.identity_contrast,
@@ -328,14 +337,7 @@ export async function generateSemanticSynthesis(args: {
       const retryMissingCount = retryDenom - retryResult.overlapCount
 
       const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      console.log(
-        "synthesis_source=retry anchor_overlap_score=" +
-        retryScore.toFixed(2) +
-        " missing_anchor_count=" +
-        retryMissingCount +
-        " praise_flag=" + retryFlags.praise_flag +
-        " abstraction_flag=" + retryFlags.abstraction_flag
-      )
+      console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag }))
 
       if (retryScore >= MIN_OVERLAP) {
         return {
@@ -349,13 +351,7 @@ export async function generateSemanticSynthesis(args: {
       const finalScore = retryScore
       const finalMissingCount = retryMissingCount
       const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      console.log(
-        "synthesis_source=fallback anchor_overlap_score=" +
-        finalScore.toFixed(2) +
-        " missing_anchor_count=" + finalMissingCount +
-        " praise_flag=" + fallbackFlags.praise_flag +
-        " abstraction_flag=" + fallbackFlags.abstraction_flag
-      )
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag }))
     }
 
     const n0 = topNouns[0] || "work"
@@ -381,7 +377,7 @@ export async function generateSemanticSynthesis(args: {
     }
   } catch (e) {
     if (String((e as any)?.message ?? "").trim().length === 0) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false }))
     }
     throw e
   }
