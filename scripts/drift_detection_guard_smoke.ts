@@ -3,7 +3,7 @@
 // Run: npx tsx scripts/drift_detection_guard_smoke.ts
 /* eslint-disable no-console */
 
-import { detectDriftFlags, formatSynthesisLogLine, ValidatorOutcome, containsBlacklistPhrase } from "../lib/semantic_synthesis"
+import { detectDriftFlags, formatSynthesisLogLine, formatOperateBestLogLine, validateOperateBestBullets, ValidatorOutcome, containsBlacklistPhrase } from "../lib/semantic_synthesis"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`FAIL: ${message}`)
@@ -251,5 +251,53 @@ assert(
   `FALLBACK_ANCHOR_FAILURE log must contain "validator_outcome=FALLBACK_ANCHOR_FAILURE fallback_reason=anchor_failure"; got: ${anchorFailLogLine}`,
 )
 console.log(`PASS [7] FALLBACK_ANCHOR_FAILURE log contains fallback_reason=anchor_failure: "${anchorFailLogLine}"`)
+
+// ---------------------------------------------------------------------------
+// 8. operateBest bullet validation: PASS and FALLBACK_ANCHOR_FAILURE paths
+// ---------------------------------------------------------------------------
+
+// Anchor terms shared with the 3-line synthesis
+const operateBestAnchors = ["ownership", "decision", "routing", "constraints", "scope", "handoffs", "measures", "mapping"]
+
+// 8a. PASS: bullets contain multiple anchor terms → score >= MIN_OVERLAP
+const passMetrics = validateOperateBestBullets(
+  ["Explicit ownership and decision routing.", "Stable constraints across scope.", "Clear mapping of handoffs."],
+  operateBestAnchors,
+)
+assert(passMetrics.validator_outcome === "PASS", `operateBest PASS expected; got: ${passMetrics.validator_outcome}`)
+const operateBestPassLine = formatOperateBestLogLine({
+  synthesis_source: "llm",
+  anchor_overlap_score: passMetrics.anchor_overlap_score,
+  missing_anchor_count: passMetrics.missing_anchor_count,
+  praise_flag: passMetrics.praise_flag,
+  abstraction_flag: passMetrics.abstraction_flag,
+  validator_outcome: passMetrics.validator_outcome,
+  ...(passMetrics.fallback_reason !== undefined ? { fallback_reason: passMetrics.fallback_reason } : {}),
+})
+assert(operateBestPassLine.includes("bullet_group=operateBest"), `PASS operateBest log must contain "bullet_group=operateBest"; got: ${operateBestPassLine}`)
+assert(!operateBestPassLine.includes("fallback_reason="), `PASS operateBest log must NOT contain "fallback_reason="; got: ${operateBestPassLine}`)
+console.log(`PASS [8a] operateBest PASS log: "${operateBestPassLine}"`)
+
+// 8b. FALLBACK_ANCHOR_FAILURE: bullets have no anchor overlap
+const failMetrics = validateOperateBestBullets(
+  ["Be inspiring and lead boldly.", "Visionary mindset drives success."],
+  operateBestAnchors,
+)
+assert(failMetrics.validator_outcome === "FALLBACK_ANCHOR_FAILURE", `operateBest FALLBACK_ANCHOR_FAILURE expected; got: ${failMetrics.validator_outcome}`)
+const operateBestFailLine = formatOperateBestLogLine({
+  synthesis_source: "fallback",
+  anchor_overlap_score: failMetrics.anchor_overlap_score,
+  missing_anchor_count: failMetrics.missing_anchor_count,
+  praise_flag: failMetrics.praise_flag,
+  abstraction_flag: failMetrics.abstraction_flag,
+  validator_outcome: failMetrics.validator_outcome,
+  ...(failMetrics.fallback_reason !== undefined ? { fallback_reason: failMetrics.fallback_reason } : {}),
+})
+assert(operateBestFailLine.includes("bullet_group=operateBest"), `FALLBACK_ANCHOR_FAILURE operateBest log must contain "bullet_group=operateBest"; got: ${operateBestFailLine}`)
+assert(
+  operateBestFailLine.includes("validator_outcome=FALLBACK_ANCHOR_FAILURE fallback_reason=anchor_failure bullet_group=operateBest"),
+  `FALLBACK_ANCHOR_FAILURE operateBest log must contain expected fields; got: ${operateBestFailLine}`,
+)
+console.log(`PASS [8b] operateBest FALLBACK_ANCHOR_FAILURE log: "${operateBestFailLine}"`)
 
 console.log("\nALL ACCEPTANCE CHECKS PASSED")

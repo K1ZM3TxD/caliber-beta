@@ -108,6 +108,77 @@ export function containsBlacklistPhrase(text: string, tokens: string[]): boolean
   return tokens.some((t) => lower.includes((t || "").toLowerCase()))
 }
 
+export function formatOperateBestLogLine(input: Parameters<typeof formatSynthesisLogLine>[0]): string {
+  return formatSynthesisLogLine(input) + " bullet_group=operateBest"
+}
+
+const OPERATE_BEST_BLACKLIST_TOKENS = [
+  "cadence",
+  "operating structure",
+  "operating model",
+  "leverage",
+  "impact",
+  "value",
+  "optimize",
+  "synergy",
+  "scalable",
+  "framework",
+  "system's",
+  "system\u2019s",
+]
+
+export function validateOperateBestBullets(
+  bullets: string[],
+  anchorTerms: string[],
+  blacklistTokens?: string[],
+): {
+  anchor_overlap_score: number
+  missing_anchor_count: number
+  praise_flag: boolean
+  abstraction_flag: boolean
+  validator_outcome: ValidatorOutcome
+  fallback_reason?: string
+} {
+  const text = bullets.join(" ")
+  const tokens = blacklistTokens ?? OPERATE_BEST_BLACKLIST_TOKENS
+
+  if (containsBlacklistPhrase(text, tokens)) {
+    return {
+      anchor_overlap_score: 0,
+      missing_anchor_count: Math.max(1, anchorTerms.length),
+      praise_flag: false,
+      abstraction_flag: false,
+      validator_outcome: "FALLBACK_BLACKLIST_PHRASE",
+      fallback_reason: "blacklist_phrase",
+    }
+  }
+
+  const { overlapCount } = countWholeWordMatches(text, anchorTerms)
+  const denom = Math.max(1, anchorTerms.length)
+  const score = overlapCount / denom
+  const missingCount = denom - overlapCount
+  const flags = detectDriftFlags(text, anchorTerms)
+
+  if (score >= MIN_OVERLAP) {
+    return {
+      anchor_overlap_score: score,
+      missing_anchor_count: missingCount,
+      praise_flag: flags.praise_flag,
+      abstraction_flag: flags.abstraction_flag,
+      validator_outcome: "PASS",
+    }
+  }
+
+  return {
+    anchor_overlap_score: score,
+    missing_anchor_count: missingCount,
+    praise_flag: flags.praise_flag,
+    abstraction_flag: flags.abstraction_flag,
+    validator_outcome: "FALLBACK_ANCHOR_FAILURE",
+    fallback_reason: "anchor_failure",
+  }
+}
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
