@@ -78,7 +78,6 @@ export function buildRetryExtraLinesFromFlags(
 
 export type ValidatorOutcome =
   | "PASS"
-  | "REPAIR_APPLIED"
   | "RETRY_REQUIRED"
   | "FALLBACK_ANCHOR_FAILURE"
   | "FALLBACK_STRUCTURE_INVALID"
