@@ -2,6 +2,9 @@
   "name": "app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.11.1"
+  },
   "scripts": {
     "prompt:guard": "tsx scripts/prompt_drift_guard.ts",
     "dev": "next dev",
