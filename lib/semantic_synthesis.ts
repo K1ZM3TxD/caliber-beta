@@ -102,6 +102,11 @@ export function formatSynthesisLogLine(input: {
   )
 }
 
+export function containsBlacklistPhrase(text: string, tokens: string[]): boolean {
+  const lower = (text || "").toLowerCase()
+  return tokens.some((t) => lower.includes((t || "").toLowerCase()))
+}
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
@@ -308,7 +313,9 @@ export async function generateSemanticSynthesis(args: {
     const score = overlapCount / denom
     const missingCount = denom - overlapCount
 
-    if (score >= MIN_OVERLAP) {
+    if (containsBlacklistPhrase(synthesisTextForOverlap, blacklistTokens)) {
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_BLACKLIST_PHRASE" }))
+    } else if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
       console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: flags.praise_flag, abstraction_flag: flags.abstraction_flag, validator_outcome: "PASS" }))
       return {
@@ -317,53 +324,53 @@ export async function generateSemanticSynthesis(args: {
         constructionLayer: fields.construction_layer,
         consequenceDrop: fields.conditional_consequence,
       }
-    }
-
-    const firstFlags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
-    console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: firstFlags.praise_flag, abstraction_flag: firstFlags.abstraction_flag, validator_outcome: "RETRY_REQUIRED" }))
-    const retryExtraLines = [
-      "MISSING ANCHORS (must include several verbatim terms):",
-      missing.slice(0, 24).join(", "),
-      ...buildRetryExtraLinesFromFlags(firstFlags),
-    ]
-
-    const { parsed: retryParsed } = await callModel(retryExtraLines)
-    const retryFields = extractFields(retryParsed)
-
-    if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
-      const finalScore = score
-      const finalMissingCount = missingCount
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
     } else {
-      const retrySynthesisText = [
-        retryFields.identity_contrast,
-        retryFields.intervention_contrast,
-        retryFields.construction_layer,
-        retryFields.conditional_consequence,
-      ].join(" ")
+      const firstFlags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+      console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: firstFlags.praise_flag, abstraction_flag: firstFlags.abstraction_flag, validator_outcome: "RETRY_REQUIRED" }))
+      const retryExtraLines = [
+        "MISSING ANCHORS (must include several verbatim terms):",
+        missing.slice(0, 24).join(", "),
+        ...buildRetryExtraLinesFromFlags(firstFlags),
+      ]
 
-      const retryResult = countWholeWordMatches(retrySynthesisText, anchorTerms)
-      const retryDenom = Math.max(1, anchorTerms.length)
-      const retryScore = retryResult.overlapCount / retryDenom
-      const retryMissingCount = retryDenom - retryResult.overlapCount
+      const { parsed: retryParsed } = await callModel(retryExtraLines)
+      const retryFields = extractFields(retryParsed)
 
-      const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      const retryOutcome: ValidatorOutcome = retryScore >= MIN_OVERLAP ? "PASS" : "FALLBACK_ANCHOR_FAILURE"
-      console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag, validator_outcome: retryOutcome }))
+      if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
+        const finalScore = score
+        const finalMissingCount = missingCount
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      } else {
+        const retrySynthesisText = [
+          retryFields.identity_contrast,
+          retryFields.intervention_contrast,
+          retryFields.construction_layer,
+          retryFields.conditional_consequence,
+        ].join(" ")
 
-      if (retryScore >= MIN_OVERLAP) {
-        return {
-          identityContrast: retryFields.identity_contrast,
-          interventionContrast: retryFields.intervention_contrast,
-          constructionLayer: retryFields.construction_layer,
-          consequenceDrop: retryFields.conditional_consequence,
+        const retryResult = countWholeWordMatches(retrySynthesisText, anchorTerms)
+        const retryDenom = Math.max(1, anchorTerms.length)
+        const retryScore = retryResult.overlapCount / retryDenom
+        const retryMissingCount = retryDenom - retryResult.overlapCount
+
+        const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
+        const retryOutcome: ValidatorOutcome = retryScore >= MIN_OVERLAP ? "PASS" : "FALLBACK_ANCHOR_FAILURE"
+        console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag, validator_outcome: retryOutcome }))
+
+        if (retryScore >= MIN_OVERLAP) {
+          return {
+            identityContrast: retryFields.identity_contrast,
+            interventionContrast: retryFields.intervention_contrast,
+            constructionLayer: retryFields.construction_layer,
+            consequenceDrop: retryFields.conditional_consequence,
+          }
         }
-      }
 
-      const finalScore = retryScore
-      const finalMissingCount = retryMissingCount
-      const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag, validator_outcome: "FALLBACK_ANCHOR_FAILURE" }))
+        const finalScore = retryScore
+        const finalMissingCount = retryMissingCount
+        const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag, validator_outcome: "FALLBACK_ANCHOR_FAILURE" }))
+      }
     }
 
     const n0 = topNouns[0] || "work"

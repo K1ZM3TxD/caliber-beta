@@ -3,7 +3,7 @@
 // Run: npx tsx scripts/drift_detection_guard_smoke.ts
 /* eslint-disable no-console */
 
-import { detectDriftFlags, formatSynthesisLogLine, ValidatorOutcome } from "../lib/semantic_synthesis"
+import { detectDriftFlags, formatSynthesisLogLine, ValidatorOutcome, containsBlacklistPhrase } from "../lib/semantic_synthesis"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`FAIL: ${message}`)
@@ -172,5 +172,54 @@ const retryFailLine = formatSynthesisLogLine({
 assert(retryFailLine.includes("synthesis_source=retry"), `retry fallback line must have synthesis_source=retry; got: ${retryFailLine}`)
 assert(retryFailLine.includes("validator_outcome=FALLBACK_ANCHOR_FAILURE"), `retry fallback line must have validator_outcome=FALLBACK_ANCHOR_FAILURE; got: ${retryFailLine}`)
 console.log(`PASS [5] retry-attempt FALLBACK_ANCHOR_FAILURE log: "${retryFailLine}"`)
+
+// ---------------------------------------------------------------------------
+// 6. FALLBACK_BLACKLIST_PHRASE: output containing a known blacklist token
+// ---------------------------------------------------------------------------
+
+// Known blacklist tokens from lib/semantic_synthesis.ts blacklistTokens array
+const blacklistTokens = [
+  "cadence",
+  "operating structure",
+  "operating model",
+  "leverage",
+  "impact",
+  "value",
+  "optimize",
+  "synergy",
+  "scalable",
+  "framework",
+  "system's",
+  "system\u2019s",
+]
+
+// Feed synthesisText containing a known blacklist phrase ("optimize")
+const blacklistText = "You don't just map scope—you optimize constraints and decide handoffs."
+assert(
+  containsBlacklistPhrase(blacklistText, blacklistTokens),
+  `containsBlacklistPhrase must return true for text containing "optimize"; got false`,
+)
+console.log(`PASS [6] containsBlacklistPhrase=true for text containing "optimize"`)
+
+// Clean text must NOT trigger the blacklist
+const cleanTextBlacklist = "You don't just map scope—you clarify constraints and decide handoffs."
+assert(
+  !containsBlacklistPhrase(cleanTextBlacklist, blacklistTokens),
+  `containsBlacklistPhrase must return false for clean text; got true`,
+)
+console.log(`PASS [6] containsBlacklistPhrase=false for clean text`)
+
+// Assert the produced formatted log line includes validator_outcome=FALLBACK_BLACKLIST_PHRASE
+const blacklistLogLine = formatSynthesisLogLine({
+  synthesis_source: "fallback",
+  anchor_overlap_score: 0,
+  missing_anchor_count: 0,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "FALLBACK_BLACKLIST_PHRASE",
+})
+assert(blacklistLogLine.includes("synthesis_source=fallback"), `blacklist log must have synthesis_source=fallback; got: ${blacklistLogLine}`)
+assert(blacklistLogLine.includes("validator_outcome=FALLBACK_BLACKLIST_PHRASE"), `blacklist log must have validator_outcome=FALLBACK_BLACKLIST_PHRASE; got: ${blacklistLogLine}`)
+console.log(`PASS [6] FALLBACK_BLACKLIST_PHRASE log: "${blacklistLogLine}"`)
 
 console.log("\nALL ACCEPTANCE CHECKS PASSED")
