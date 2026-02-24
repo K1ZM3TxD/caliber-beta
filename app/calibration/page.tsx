@@ -311,7 +311,6 @@ export default function CalibrationPage() {
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Prompt {promptIndex}</div>
           <div className="mt-3 text-[16px] leading-relaxed opacity-95 whitespace-pre-wrap">{q}</div>
 
           <div className="mt-6">
@@ -349,7 +348,6 @@ export default function CalibrationPage() {
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Prompt {promptIndex} — Clarifier</div>
           <div className="mt-3 text-[16px] leading-relaxed opacity-95 whitespace-pre-wrap">{cq}</div>
 
           <div className="mt-6">
