@@ -105,7 +105,7 @@ export default function CalibrationPage() {
               {(synthesis?.missing_anchor_terms ?? []).length > 0 ? (
                 <div>
                   <span className="font-semibold">Missing terms: </span>
-                  {(synthesis!.missing_anchor_terms as string[]).join(", ")}
+                  {synthesis?.missing_anchor_terms?.join(", ")}
                 </div>
               ) : null}
             </div>

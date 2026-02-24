@@ -573,7 +573,7 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
-let lastMetrics = { anchor_overlap_score: 0, missing_anchor_count: 0, missing_anchor_terms: [] as string[] }
+let fallbackMetrics = { anchor_overlap_score: 0, missing_anchor_count: 0, missing_anchor_terms: [] as string[] }
 
 const tryOnce = async (): Promise<{ patternSummary: string; anchor_overlap_score: number; missing_anchor_count: number; missing_anchor_terms: string[] } | null> => {
   const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
@@ -592,7 +592,7 @@ const tryOnce = async (): Promise<{ patternSummary: string; anchor_overlap_score
   } as any)
 
   const { anchor_overlap_score, missing_anchor_count, missing_anchor_terms } = semantic
-  lastMetrics = { anchor_overlap_score, missing_anchor_count, missing_anchor_terms }
+  fallbackMetrics = { anchor_overlap_score, missing_anchor_count, missing_anchor_terms }
 
   const lines: string[] = [
     String(semantic.identityContrast ?? "").trim(),
@@ -626,7 +626,7 @@ try {
 }
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
-  return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), ...lastMetrics }
+  return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), ...fallbackMetrics }
 }
 
 // Deterministic synthesis fallback (phrase banks).

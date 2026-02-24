@@ -276,10 +276,10 @@ export async function generateSemanticSynthesis(args: {
     const score = overlapCount / denom
     const missingCount = denom - overlapCount
 
-    // Track best-known metrics for fallback path
-    let bestScore = score
-    let bestMissingCount = missingCount
-    let bestMissingTerms = missing
+    // Track fallback metrics in case neither LLM path meets threshold
+    let fallbackScore = score
+    let fallbackMissingCount = missingCount
+    let fallbackMissingTerms = missing
 
     if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
@@ -311,7 +311,7 @@ export async function generateSemanticSynthesis(args: {
     const retryFields = extractFields(retryParsed)
 
     if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
-      console.log("synthesis_source=fallback anchor_overlap_score=" + bestScore.toFixed(2) + " missing_anchor_count=" + bestMissingCount + " praise_flag=false abstraction_flag=false")
+      console.log("synthesis_source=fallback anchor_overlap_score=" + fallbackScore.toFixed(2) + " missing_anchor_count=" + fallbackMissingCount + " praise_flag=false abstraction_flag=false")
     } else {
       const retrySynthesisText = [
         retryFields.identity_contrast,
@@ -347,14 +347,14 @@ export async function generateSemanticSynthesis(args: {
         }
       }
 
-      bestScore = retryScore
-      bestMissingCount = retryMissingCount
-      bestMissingTerms = retryResult.missing
+      fallbackScore = retryScore
+      fallbackMissingCount = retryMissingCount
+      fallbackMissingTerms = retryResult.missing
       const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
       console.log(
         "synthesis_source=fallback anchor_overlap_score=" +
-        bestScore.toFixed(2) +
-        " missing_anchor_count=" + bestMissingCount +
+        fallbackScore.toFixed(2) +
+        " missing_anchor_count=" + fallbackMissingCount +
         " praise_flag=" + fallbackFlags.praise_flag +
         " abstraction_flag=" + fallbackFlags.abstraction_flag
       )
@@ -380,9 +380,9 @@ export async function generateSemanticSynthesis(args: {
       interventionContrast: fallbackIntervention,
       constructionLayer: fallbackConstruction,
       consequenceDrop: fallbackConsequence,
-      anchor_overlap_score: bestScore,
-      missing_anchor_count: bestMissingCount,
-      missing_anchor_terms: bestMissingTerms,
+      anchor_overlap_score: fallbackScore,
+      missing_anchor_count: fallbackMissingCount,
+      missing_anchor_terms: fallbackMissingTerms,
     }
   } catch (e) {
     if (String((e as any)?.message ?? "").trim().length === 0) {
