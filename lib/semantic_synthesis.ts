@@ -25,6 +25,48 @@ function countWholeWordMatches(text: string, terms: string[]): { overlapCount: n
   return { overlapCount, missing }
 }
 
+function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: boolean; abstraction_flag: boolean; drift_terms: string[] } {
+  const normalized = (s || "").toLowerCase()
+  const anchorSet = new Set(anchorTerms.map(t => t.toLowerCase()))
+  
+  const praiseList = ["inspiring","impressive","exceptional","outstanding","remarkable","amazing","fantastic","brilliant","world-class","stellar"]
+  const abstractionList = ["visionary","thought leader","changemaker","trailblazer","rockstar","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"]
+  const archetypeList = ["strategist","operator","builder","architect","executor","leader","innovator"]
+  
+  const driftSet = new Set<string>()
+  let praiseFlag = false
+  let abstractionFlag = false
+  
+  for (const term of praiseList) {
+    const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
+    if (re.test(normalized)) {
+      praiseFlag = true
+      driftSet.add(term)
+    }
+  }
+  
+  for (const term of abstractionList) {
+    const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
+    if (re.test(normalized)) {
+      abstractionFlag = true
+      driftSet.add(term)
+    }
+  }
+  
+  for (const term of archetypeList) {
+    if (!anchorSet.has(term.toLowerCase())) {
+      const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
+      if (re.test(normalized)) {
+        abstractionFlag = true
+        driftSet.add(term)
+      }
+    }
+  }
+  
+  const driftTerms = Array.from(driftSet).sort()
+  return { praise_flag: praiseFlag, abstraction_flag: abstractionFlag, drift_terms: driftTerms }
+}
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
@@ -77,7 +119,7 @@ export async function generateSemanticSynthesis(args: {
     "scalable",
     "framework",
     "system's",
-    "system’s",
+    "system's",
   ]
 
   // --- B) Prepare promptAnswers array ---
@@ -243,12 +285,14 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
 
     // --- G) Check overlap threshold ---
 if (score >= MIN_OVERLAP) {
+  const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
  console.log(
   "synthesis_source=llm anchor_overlap_score=" +
   score.toFixed(2) +
   " missing_anchor_count=" +
   missingCount +
-  " praise_flag=false abstraction_flag=false"
+  " praise_flag=" + flags.praise_flag +
+  " abstraction_flag=" + flags.abstraction_flag
 )
   return {
     identityContrast: fields.identity_contrast,
@@ -287,12 +331,14 @@ if (score >= MIN_OVERLAP) {
       const retryMissingCount = retryDenom - retryResult.overlapCount
 
       // --- F) REQUIRED LOG LINE (retry attempt) ---
+      const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
       console.log(
   "synthesis_source=retry anchor_overlap_score=" +
   retryScore.toFixed(2) +
   " missing_anchor_count=" +
   retryMissingCount +
-  " praise_flag=false abstraction_flag=false"
+  " praise_flag=" + retryFlags.praise_flag +
+  " abstraction_flag=" + retryFlags.abstraction_flag
 )
 
       if (retryScore >= MIN_OVERLAP) {
@@ -307,12 +353,14 @@ if (score >= MIN_OVERLAP) {
       // Retry still below threshold — deterministic fallback
       const finalScore = retryScore
       const finalMissingCount = retryMissingCount
+      const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
      console.log(
   "synthesis_source=fallback anchor_overlap_score=" +
   finalScore.toFixed(2) +
   " missing_anchor_count=" +
   finalMissingCount +
-  " praise_flag=false abstraction_flag=false"
+  " praise_flag=" + fallbackFlags.praise_flag +
+  " abstraction_flag=" + fallbackFlags.abstraction_flag
 )
     }
 
@@ -327,8 +375,8 @@ if (score >= MIN_OVERLAP) {
     const v3 = allowedVerbs[3] // "isolate"
     const v4 = allowedVerbs[4] // "name"
 
-    const fallbackIdentity = `You don’t just ${n0}—you ${v0} ${n1}.`
-    const fallbackIntervention = `When something isn’t working, ${v1} ${n2} and ${v2} ${n3}.`
+    const fallbackIdentity = `You don't just ${n0}—you ${v0} ${n1}.`
+    const fallbackIntervention = `When something isn't working, ${v1} ${n2} and ${v2} ${n3}.`
     const fallbackConstruction = `You ${v0}, ${v3}, and ${v4}.`
     const fallbackConsequence = (topNouns.slice(0, 3).join(" ") || "clear constraints decisions").split(" ").slice(0, 7).join(" ")
 
@@ -347,4 +395,16 @@ if (score >= MIN_OVERLAP) {
   }
 }
 
-
+// --- SELF-CHECK: Drift detection validation ---
+if (process.env.NODE_ENV === "development" || process.env.RUN_SELF_CHECK === "true") {
+  const testFlags = detectDriftFlags("inspiring visionary strategist", [])
+  console.assert(testFlags.praise_flag === true, "Self-check failed: praise_flag should be true")
+  console.assert(testFlags.abstraction_flag === true, "Self-check failed: abstraction_flag should be true")
+  console.assert(testFlags.drift_terms.includes("inspiring"), "Self-check failed: drift_terms should include 'inspiring'")
+  console.assert(testFlags.drift_terms.includes("visionary"), "Self-check failed: drift_terms should include 'visionary'")
+  console.assert(testFlags.drift_terms.includes("strategist"), "Self-check failed: drift_terms should include 'strategist'")
+  
+  const testFlags2 = detectDriftFlags("inspiring visionary strategist", ["strategist"])
+  console.assert(testFlags2.abstraction_flag === true, "Self-check failed: abstraction_flag should still be true (visionary)")
+  console.assert(!testFlags2.drift_terms.includes("strategist"), "Self-check failed: drift_terms should NOT include 'strategist' when in anchors")
+}
