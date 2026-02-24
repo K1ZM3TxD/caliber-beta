@@ -1,3 +1,24 @@
+## ⚠️ PHASE SHIFT — Calibration Core First (Temporary Freeze on Summary Engine)
+
+As of this milestone update, development priority has shifted.
+
+The Pattern Summary / Narrative Synthesis layer is temporarily frozen.
+
+The product is now being developed as a Calibration Engine first.
+
+Primary focus:
+
+1. Resume ingest
+2. 5-question signal capture
+3. Deterministic anchor extraction
+4. Job description ingest
+5. Anchor overlap & gap surface
+6. Title producer (mechanical, anchor-driven)
+
+The narrative summary layer will return after the calibration core is stable and validated.
+
+This prevents over-investment in surface polish before structural alignment logic is proven.
+
 Caliber — MILESTONES (Anchor-First Architecture)
 
 
