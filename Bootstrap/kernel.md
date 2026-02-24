@@ -75,9 +75,40 @@ All synthesis is governed by structural pressure, not prompt rhetoric.
 
 
 
-
-
 \# Anchor-First Pipeline (Mandatory)
+
+Signal Classification Layer (Deterministic)
+
+Anchor extraction must tag each anchor with:
+
+source: resume | q1 | q2 | q3 | q4 | q5
+
+context_type:
+
+breakdown
+
+constraint_construction
+
+incentive_distortion
+
+neutral
+
+Signal Classification Rules:
+
+An anchor qualifies as Signal-Dominant only if:
+
+It appears in at least one breakdown-context answer
+AND
+
+It appears in at least one additional distinct context (resume or other Q)
+
+Resume-only repetition classifies as Skill-Dominant.
+
+Signal alignment scoring must prioritize Signal-Dominant anchors.
+
+Skill coverage scoring must use Skill-Dominant anchors.
+
+Signal weight > Skill weight in composite alignment.
 
 
 
