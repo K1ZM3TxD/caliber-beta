@@ -90,8 +90,9 @@ export function formatSynthesisLogLine(input: {
   praise_flag: boolean
   abstraction_flag: boolean
   validator_outcome: ValidatorOutcome
+  fallback_reason?: string
 }): string {
-  return (
+  const baseLogLine = (
     "synthesis_source=" + input.synthesis_source +
     " anchor_overlap_score=" + input.anchor_overlap_score.toFixed(2) +
     " missing_anchor_count=" + input.missing_anchor_count +
@@ -99,6 +100,7 @@ export function formatSynthesisLogLine(input: {
     " abstraction_flag=" + input.abstraction_flag +
     " validator_outcome=" + input.validator_outcome
   )
+  return input.fallback_reason !== undefined ? baseLogLine + " fallback_reason=" + input.fallback_reason : baseLogLine
 }
 
 export function containsBlacklistPhrase(text: string, tokens: string[]): boolean {
@@ -255,14 +257,14 @@ export async function generateSemanticSynthesis(args: {
 
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "")
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error(`OpenAI error: ${resp.status} ${txt}`)
     }
 
     const data = (await resp.json()) as any
     const content = String(data?.choices?.[0]?.message?.content ?? "").trim()
     if (!content) {
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI returned empty content")
     }
 
@@ -270,7 +272,7 @@ export async function generateSemanticSynthesis(args: {
     try {
       parsed = JSON.parse(content)
     } catch {
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI returned non-JSON content")
     }
 
@@ -296,7 +298,7 @@ export async function generateSemanticSynthesis(args: {
     const fields = extractFields(parsed)
 
     if (!fields.identity_contrast || !fields.intervention_contrast || !fields.construction_layer || !fields.conditional_consequence) {
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI JSON missing required fields")
     }
 
@@ -313,7 +315,7 @@ export async function generateSemanticSynthesis(args: {
     const missingCount = denom - overlapCount
 
     if (containsBlacklistPhrase(synthesisTextForOverlap, blacklistTokens)) {
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_BLACKLIST_PHRASE" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_BLACKLIST_PHRASE", fallback_reason: "blacklist_phrase" }))
     } else if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
       console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: flags.praise_flag, abstraction_flag: flags.abstraction_flag, validator_outcome: "PASS" }))
@@ -338,7 +340,7 @@ export async function generateSemanticSynthesis(args: {
       if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
         const finalScore = score
         const finalMissingCount = missingCount
-        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       } else {
         const retrySynthesisText = [
           retryFields.identity_contrast,
@@ -354,7 +356,7 @@ export async function generateSemanticSynthesis(args: {
 
         const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
         const retryOutcome: ValidatorOutcome = retryScore >= MIN_OVERLAP ? "PASS" : "FALLBACK_ANCHOR_FAILURE"
-        console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag, validator_outcome: retryOutcome }))
+        console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag, validator_outcome: retryOutcome, ...(retryOutcome === "FALLBACK_ANCHOR_FAILURE" ? { fallback_reason: "anchor_failure" } : {}) }))
 
         if (retryScore >= MIN_OVERLAP) {
           return {
@@ -368,7 +370,7 @@ export async function generateSemanticSynthesis(args: {
         const finalScore = retryScore
         const finalMissingCount = retryMissingCount
         const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag, validator_outcome: "FALLBACK_ANCHOR_FAILURE" }))
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag, validator_outcome: "FALLBACK_ANCHOR_FAILURE", fallback_reason: "anchor_failure" }))
       }
     }
 
@@ -395,7 +397,7 @@ export async function generateSemanticSynthesis(args: {
     }
   } catch (e) {
     if (String((e as any)?.message ?? "").trim().length === 0) {
-      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID" }))
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
     }
     throw e
   }

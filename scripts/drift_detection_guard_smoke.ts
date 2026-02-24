@@ -222,4 +222,34 @@ assert(blacklistLogLine.includes("synthesis_source=fallback"), `blacklist log mu
 assert(blacklistLogLine.includes("validator_outcome=FALLBACK_BLACKLIST_PHRASE"), `blacklist log must have validator_outcome=FALLBACK_BLACKLIST_PHRASE; got: ${blacklistLogLine}`)
 console.log(`PASS [6] FALLBACK_BLACKLIST_PHRASE log: "${blacklistLogLine}"`)
 
+// ---------------------------------------------------------------------------
+// 7. fallback_reason field: PASS does NOT contain it; FALLBACK_ANCHOR_FAILURE does
+// ---------------------------------------------------------------------------
+
+const passLogLine = formatSynthesisLogLine({
+  synthesis_source: "llm",
+  anchor_overlap_score: 0.50,
+  missing_anchor_count: 6,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "PASS",
+})
+assert(!passLogLine.includes("fallback_reason="), `PASS log must NOT contain "fallback_reason="; got: ${passLogLine}`)
+console.log(`PASS [7] PASS log does not contain fallback_reason=: "${passLogLine}"`)
+
+const anchorFailLogLine = formatSynthesisLogLine({
+  synthesis_source: "retry",
+  anchor_overlap_score: 0.10,
+  missing_anchor_count: 18,
+  praise_flag: false,
+  abstraction_flag: false,
+  validator_outcome: "FALLBACK_ANCHOR_FAILURE",
+  fallback_reason: "anchor_failure",
+})
+assert(
+  anchorFailLogLine.includes("validator_outcome=FALLBACK_ANCHOR_FAILURE fallback_reason=anchor_failure"),
+  `FALLBACK_ANCHOR_FAILURE log must contain "validator_outcome=FALLBACK_ANCHOR_FAILURE fallback_reason=anchor_failure"; got: ${anchorFailLogLine}`,
+)
+console.log(`PASS [7] FALLBACK_ANCHOR_FAILURE log contains fallback_reason=anchor_failure: "${anchorFailLogLine}"`)
+
 console.log("\nALL ACCEPTANCE CHECKS PASSED")
