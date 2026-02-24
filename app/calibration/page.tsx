@@ -3,8 +3,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
+import TypewriterText from '@/app/components/TypewriterText';
 
 type NormalizedError = { code: string; message: string };
+
+const BULLET_STAGGER_MS = 100;
 
 function Stage({ children }: { children: React.ReactNode }) {
   return (
@@ -388,7 +391,7 @@ export default function CalibrationPage() {
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
-        <div className="mt-8 text-[16px] opacity-90">Preparing consolidation ritual…</div>
+        <div className="mt-8 text-[16px] opacity-90"><TypewriterText text="Preparing consolidation ritual…" /></div>
         <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
       </Stage>
     );
@@ -406,7 +409,7 @@ export default function CalibrationPage() {
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
           <div className="text-[14px] font-semibold opacity-90">Consolidation Ritual</div>
-          <div className="mt-3 text-[15px] leading-relaxed opacity-90 whitespace-pre-wrap">{msg}</div>
+          <div className="mt-3 text-[15px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={msg} /></div>
 
           <div className="mt-6">
             <div className="flex items-center justify-between text-[12px] opacity-80">
@@ -430,7 +433,7 @@ export default function CalibrationPage() {
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
-        <div className="mt-8 text-[16px] opacity-90">Encoding your pattern…</div>
+        <div className="mt-8 text-[16px] opacity-90"><TypewriterText text="Encoding your pattern…" /></div>
         <div className="mt-4 text-[12px] opacity-70">Auto-progressing…</div>
       </Stage>
     );
@@ -451,7 +454,7 @@ export default function CalibrationPage() {
             <div className="mt-4">
               <ul className="list-disc pl-5 text-left text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.operateBest || []).map((b, i) => (
-                  <li key={i}>{b}</li>
+                  <li key={i}><TypewriterText text={b} delayMs={i * BULLET_STAGGER_MS + 300} /></li>
                 ))}
               </ul>
             </div>
@@ -464,7 +467,7 @@ export default function CalibrationPage() {
             <div className="mt-4">
               <ul className="list-disc pl-5 text-left text-[14px] leading-relaxed opacity-90">
                 {(session.synthesis?.loseEnergy || []).map((b, i) => (
-                  <li key={i}>{b}</li>
+                  <li key={i}><TypewriterText text={b} delayMs={i * BULLET_STAGGER_MS + 300} /></li>
                 ))}
               </ul>
             </div>
@@ -497,17 +500,17 @@ export default function CalibrationPage() {
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">identitySummary</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.identitySummary || ''}</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={session.synthesis?.identitySummary || ''} /></div>
           </div>
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={session.synthesis?.marketTitle || ''} /></div>
           </div>
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={session.synthesis?.titleExplanation || ''} /></div>
           </div>
 
           <div className="mt-8">
@@ -555,12 +558,12 @@ export default function CalibrationPage() {
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={session.synthesis?.marketTitle || ''} /></div>
           </div>
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
+            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap"><TypewriterText text={session.synthesis?.titleExplanation || ''} /></div>
           </div>
 
           {session.synthesis?.lastTitleFeedback && (
@@ -668,7 +671,7 @@ export default function CalibrationPage() {
               </button>
             </div>
           ) : (
-            <pre className="mt-6 whitespace-pre-wrap break-words text-[12px] opacity-90">{JSON.stringify(session.result, null, 2)}</pre>
+            <pre className="mt-6 whitespace-pre-wrap break-words text-[12px] opacity-90"><TypewriterText text={JSON.stringify(session.result, null, 2)} cps={80} /></pre>
           )}
         </div>
       </Stage>
