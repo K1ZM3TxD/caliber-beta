@@ -1,7 +1,13 @@
-// lib/semantic_synthesis.ts
+function detectDriftFlags(synthesisText, anchorTerms) {
+  const praiseTerms = ["inspiring","impressive","exceptional","outstanding","remarkable","amazing","fantastic","brilliant","world-class","stellar"];
+  const abstractionTerms = ["visionary","thought leader","changemaker","trailblazer","rockstar","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"];
+  const archetypeTerms = ["strategist","operator","builder","architect","executor","leader","innovator"];
 
-import { extractAnchors } from "@/lib/anchors"
+  let praise_flag = false;
+  let abstraction_flag = false;
+  const drift_terms = new Set();
 
+<<<<<<< HEAD
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
 // --- Milestone 6.0+6.1: Anchor overlap enforcement ---
@@ -192,23 +198,26 @@ const anchorTerms = [...topVerbs, ...topNouns].slice(0, 24)
       } else {
         promptLines.push("", ...extraUserLines)
       }
+=======
+  // Check for praise terms
+  praiseTerms.forEach(term => {
+    const regex = new RegExp(`\\b${term}\\b`, 'i');
+    if (regex.test(synthesisText)) {
+      praise_flag = true;
+>>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
     }
+  });
 
-    const userPrompt = promptLines.filter(Boolean).join("\n")
-
-    const body = {
-      model,
-      temperature: temp,
-      messages: [
-        {
-          role: "system",
-          content: "You are a constrained generator. Output JSON only. Follow the schema and hard rules exactly. Do not include commentary.",
-        },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
+  // Check for abstraction or archetype drift terms
+  [...abstractionTerms, ...archetypeTerms].forEach(term => {
+    const regex = new RegExp(`\\b${term}\\b`, 'i');
+    if (regex.test(synthesisText) && !anchorTerms.map(anchor => anchor.toLowerCase()).includes(term.toLowerCase())) {
+      abstraction_flag = true;
+      drift_terms.add(term);
     }
+  });
 
+<<<<<<< HEAD
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -294,14 +303,16 @@ if (score >= MIN_OVERLAP) {
   " praise_flag=" + flags.praise_flag +
   " abstraction_flag=" + flags.abstraction_flag
 )
+=======
+>>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
   return {
-    identityContrast: fields.identity_contrast,
-    interventionContrast: fields.intervention_contrast,
-    constructionLayer: fields.construction_layer,
-    consequenceDrop: fields.conditional_consequence,
-  }
+    praise_flag,
+    abstraction_flag,
+    drift_terms: Array.from(drift_terms).sort(),
+  };
 }
 
+<<<<<<< HEAD
     // --- G) Retry once with missing anchors injected ---
     const retryExtraLines = [
       "MISSING ANCHORS (must include several verbatim terms):",
@@ -395,6 +406,12 @@ if (score >= MIN_OVERLAP) {
   }
 }
 
+=======
+// ... existing content ... // the following section updates the log statements ... //
+[{llm, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
+[{retry, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
+[{fallback, praise_flag=${flags.praise_flag}, abstraction_flag=${flags.abstraction_flag}}] 
+>>>>>>> 8a334577244b2a2d0e0af68afc7b4af9597e7c02
 // --- SELF-CHECK: Drift detection validation ---
 if (process.env.NODE_ENV === "development" || process.env.RUN_SELF_CHECK === "true") {
   const testFlags = detectDriftFlags("inspiring visionary strategist", [])
