@@ -30,7 +30,7 @@ function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: bool
   const anchorSet = new Set(anchorTerms.map(t => t.toLowerCase()))
   
   const praiseList = ["inspiring","impressive","exceptional","outstanding","remarkable","amazing","fantastic","brilliant","world-class","stellar"]
-  const abstractionList = ["visionary","thought leader","changemaker","trailblazer","rockstar","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"]
+  const abstractionList = ["visionary","empathetic","charismatic","natural leader","thought leader","high performer","rockstar","changemaker","trailblazer","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"]
   const archetypeList = ["strategist","operator","builder","architect","executor","leader","innovator"]
   
   const driftSet = new Set<string>()
@@ -46,10 +46,12 @@ function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: bool
   }
   
   for (const term of abstractionList) {
-    const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
-    if (re.test(normalized)) {
-      abstractionFlag = true
-      driftSet.add(term)
+    if (!anchorSet.has(term.toLowerCase())) {
+      const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
+      if (re.test(normalized)) {
+        abstractionFlag = true
+        driftSet.add(term)
+      }
     }
   }
   
@@ -291,10 +293,14 @@ export async function generateSemanticSynthesis(args: {
       }
     }
 
+    const firstFlags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
     const retryExtraLines = [
       "MISSING ANCHORS (must include several verbatim terms):",
       missing.slice(0, 24).join(", "),
     ]
+    if (firstFlags.abstraction_flag && firstFlags.drift_terms.length > 0) {
+      retryExtraLines.push("REMOVE DRIFT TERMS: " + firstFlags.drift_terms.join(", "))
+    }
 
     const { parsed: retryParsed } = await callModel(retryExtraLines)
     const retryFields = extractFields(retryParsed)
