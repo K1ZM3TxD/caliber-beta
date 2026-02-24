@@ -1,6 +1,8 @@
 /* eslint-disable no-console */
 
 import { dispatchCalibrationEvent } from "../lib/calibration_machine"
+import { formatOperateBestLogLine, validateOperateBestBullets } from "../lib/operate_best_validator"
+import { SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "../lib/semantic_synthesis"
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -178,6 +180,44 @@ async function runOneCase(caseId: string, resumeText: string) {
   console.log(`PASS: ${caseId}`)
 }
 
+function runOperateBestLogGuards() {
+  const passBullets = [
+    "Work with explicit ownership and decision boundaries.",
+    "Work where constraints and routing are stable.",
+    "Work with mapped handoffs and explicit measures.",
+  ]
+  const passAnchors = ["ownership", "decision", "boundaries", "constraints", "routing", "handoffs", "measures"]
+  const passResult = validateOperateBestBullets(passBullets, passAnchors, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS)
+  const passLine = formatOperateBestLogLine({ ...passResult, synthesis_source: "llm" })
+
+  assert(!/\r|\n/.test(passLine), "OPERATE_BEST_PASS: log line must be single-line")
+  assert(passLine.includes("bullet_group=operateBest"), "OPERATE_BEST_PASS: missing bullet_group=operateBest")
+  assert(passLine.includes("validator_outcome=PASS"), "OPERATE_BEST_PASS: missing validator_outcome=PASS")
+  assert(!passLine.includes("fallback_reason="), "OPERATE_BEST_PASS: should not include fallback_reason")
+
+  const fallbackBullets = [
+    "Work with broad ambiguity and fluid execution.",
+    "Work where structure shifts between cycles.",
+    "Work with ad hoc coordination under pressure.",
+  ]
+  const fallbackAnchors = ["ownership", "routing", "handoffs", "constraints", "decisions", "measures"]
+  const fallbackResult = validateOperateBestBullets(fallbackBullets, fallbackAnchors, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS)
+  const fallbackLine = formatOperateBestLogLine({ ...fallbackResult, synthesis_source: "llm" })
+
+  assert(!/\r|\n/.test(fallbackLine), "OPERATE_BEST_FALLBACK: log line must be single-line")
+  assert(fallbackLine.includes("bullet_group=operateBest"), "OPERATE_BEST_FALLBACK: missing bullet_group=operateBest")
+  assert(
+    fallbackLine.includes("validator_outcome=FALLBACK_ANCHOR_FAILURE"),
+    "OPERATE_BEST_FALLBACK: missing validator_outcome=FALLBACK_ANCHOR_FAILURE",
+  )
+  assert(
+    fallbackLine.includes("fallback_reason=anchor_failure"),
+    "OPERATE_BEST_FALLBACK: missing fallback_reason=anchor_failure",
+  )
+
+  console.log("PASS: operateBest log guards")
+}
+
 async function main() {
   const resumes = [
     "Operator leading cross-team delivery; owns decisions, defines constraints, and drives measurable outcomes across planning, execution, and handoffs.",
@@ -195,6 +235,8 @@ async function main() {
   for (let i = 0; i < resumes.length; i += 1) {
     await runOneCase(`CASE_${i + 1}`, resumes[i])
   }
+
+  runOperateBestLogGuards()
 
   console.log("PASS: synthesis language guard fixtures (10 cases)")
 }

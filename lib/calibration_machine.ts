@@ -3,9 +3,10 @@ import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
 import { runIntegrationSeam } from "@/lib/integration_seam"
 import { toResultContract } from "@/lib/result_contract"
-import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
+import { generateSemanticSynthesis, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "@/lib/semantic_synthesis"
 import { extractLexicalAnchors } from "@/lib/anchor_extraction"
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
+import { formatOperateBestLogLine, validateOperateBestBullets } from "@/lib/operate_best_validator"
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
@@ -749,6 +750,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
   const v = vec as PersonVector6
 
   let patternSummary = ""
+  let synthesis_source: "llm" | "fallback" = "llm"
   let anchor_overlap_score = 0
   let missing_anchor_count = 0
   let missing_anchor_terms: string[] = []
@@ -760,6 +762,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     missing_anchor_terms = built.missing_anchor_terms
   } catch {
     patternSummary = buildDeterministicPatternSummary(v)
+    synthesis_source = "fallback"
   }
 
   const repaired = validateAndRepairSynthesisOnce(patternSummary, v, session.resume.signals as ResumeSignals, { log: false })
@@ -817,6 +820,26 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
   while (loseEnergy.length < 3) loseEnergy.push(pickFirst(loseFallback.filter((x) => !loseEnergy.includes(x)), loseFallback[0]))
   operateBest.splice(3)
   loseEnergy.splice(3)
+
+  const promptAnswersText = [1, 2, 3, 4, 5]
+    .map((i) => {
+      const slot = session.prompts[i as 1 | 2 | 3 | 4 | 5]
+      if (typeof slot?.answer === "string" && slot.answer.trim().length > 0) return slot.answer.trim()
+      if (typeof slot?.clarifier?.answer === "string" && slot.clarifier.answer.trim().length > 0) return slot.clarifier.answer.trim()
+      return ""
+    })
+    .filter(Boolean)
+    .join("\n")
+
+  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
+  const anchorTerms = extractLexicalAnchors({ resumeText, promptAnswersText }).combined.slice(0, 24).map((x) => x.term)
+
+  const operateBestValidation = validateOperateBestBullets(
+    operateBest,
+    anchorTerms,
+    SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS,
+  )
+  console.log(formatOperateBestLogLine({ ...operateBestValidation, synthesis_source }))
 
   return {
     ...session,

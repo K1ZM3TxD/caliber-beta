@@ -4,6 +4,21 @@ import { extractAnchors } from "@/lib/anchors"
 
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
+export const SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS = [
+  "cadence",
+  "operating structure",
+  "operating model",
+  "leverage",
+  "impact",
+  "value",
+  "optimize",
+  "synergy",
+  "scalable",
+  "framework",
+  "system's",
+  "system's",
+] as const
+
 // --- Milestone 6.0+6.1: Anchor overlap enforcement ---
 const MIN_OVERLAP = 0.35
 
@@ -110,20 +125,7 @@ export async function generateSemanticSynthesis(args: {
     "measure",
   ]
 
-  const blacklistTokens = [
-    "cadence",
-    "operating structure",
-    "operating model",
-    "leverage",
-    "impact",
-    "value",
-    "optimize",
-    "synergy",
-    "scalable",
-    "framework",
-    "system's",
-    "system's",
-  ]
+  const blacklistTokens = SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS
 
   const promptAnswersArr = (args.promptAnswers || []).map((a) => a.answer || "")
 
