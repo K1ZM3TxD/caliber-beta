@@ -76,6 +76,9 @@ export async function generateSemanticSynthesis(args: {
   interventionContrast: string
   constructionLayer: string
   consequenceDrop?: string
+  anchor_overlap_score: number
+  missing_anchor_count: number
+  missing_anchor_terms: string[]
 }> {
   const apiKey = (process.env.OPENAI_API_KEY || "").trim()
   if (!apiKey) {
@@ -273,6 +276,11 @@ export async function generateSemanticSynthesis(args: {
     const score = overlapCount / denom
     const missingCount = denom - overlapCount
 
+    // Track fallback metrics in case neither LLM path meets threshold
+    let fallbackScore = score
+    let fallbackMissingCount = missingCount
+    let fallbackMissingTerms = missing
+
     if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
       console.log(
@@ -288,6 +296,9 @@ export async function generateSemanticSynthesis(args: {
         interventionContrast: fields.intervention_contrast,
         constructionLayer: fields.construction_layer,
         consequenceDrop: fields.conditional_consequence,
+        anchor_overlap_score: score,
+        missing_anchor_count: missingCount,
+        missing_anchor_terms: missing,
       }
     }
 
@@ -300,9 +311,7 @@ export async function generateSemanticSynthesis(args: {
     const retryFields = extractFields(retryParsed)
 
     if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
-      const finalScore = score
-      const finalMissingCount = missingCount
-      console.log("synthesis_source=fallback anchor_overlap_score=" + finalScore.toFixed(2) + " missing_anchor_count=" + finalMissingCount + " praise_flag=false abstraction_flag=false")
+      console.log("synthesis_source=fallback anchor_overlap_score=" + fallbackScore.toFixed(2) + " missing_anchor_count=" + fallbackMissingCount + " praise_flag=false abstraction_flag=false")
     } else {
       const retrySynthesisText = [
         retryFields.identity_contrast,
@@ -332,16 +341,20 @@ export async function generateSemanticSynthesis(args: {
           interventionContrast: retryFields.intervention_contrast,
           constructionLayer: retryFields.construction_layer,
           consequenceDrop: retryFields.conditional_consequence,
+          anchor_overlap_score: retryScore,
+          missing_anchor_count: retryMissingCount,
+          missing_anchor_terms: retryResult.missing,
         }
       }
 
-      const finalScore = retryScore
-      const finalMissingCount = retryMissingCount
+      fallbackScore = retryScore
+      fallbackMissingCount = retryMissingCount
+      fallbackMissingTerms = retryResult.missing
       const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
       console.log(
         "synthesis_source=fallback anchor_overlap_score=" +
-        finalScore.toFixed(2) +
-        " missing_anchor_count=" + finalMissingCount +
+        fallbackScore.toFixed(2) +
+        " missing_anchor_count=" + fallbackMissingCount +
         " praise_flag=" + fallbackFlags.praise_flag +
         " abstraction_flag=" + fallbackFlags.abstraction_flag
       )
@@ -367,6 +380,9 @@ export async function generateSemanticSynthesis(args: {
       interventionContrast: fallbackIntervention,
       constructionLayer: fallbackConstruction,
       consequenceDrop: fallbackConsequence,
+      anchor_overlap_score: fallbackScore,
+      missing_anchor_count: fallbackMissingCount,
+      missing_anchor_terms: fallbackMissingTerms,
     }
   } catch (e) {
     if (String((e as any)?.message ?? "").trim().length === 0) {

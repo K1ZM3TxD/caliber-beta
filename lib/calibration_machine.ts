@@ -554,7 +554,7 @@ function validateAndRepairSynthesisOnce(
   return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
 }
 
-async function buildSemanticPatternSummary(session: CalibrationSession, v: PersonVector6): Promise<string> {
+async function buildSemanticPatternSummary(session: CalibrationSession, v: PersonVector6): Promise<{ patternSummary: string; anchor_overlap_score: number; missing_anchor_count: number; missing_anchor_terms: string[] }> {
   const primaryDim = primaryDimFromVector(v)
   const signals = session.resume.signals as ResumeSignals
 
@@ -573,10 +573,11 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
-const tryOnce = async (): Promise<string | null> => {
+let fallbackMetrics = { anchor_overlap_score: 0, missing_anchor_count: 0, missing_anchor_terms: [] as string[] }
+
+const tryOnce = async (): Promise<{ patternSummary: string; anchor_overlap_score: number; missing_anchor_count: number; missing_anchor_terms: string[] } | null> => {
   const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
-  const anchorSourceText = `${resumeText}\n${promptAnswersText}`
-  const anchors = extractLexicalAnchors(anchorSourceText)
+  const anchors = extractLexicalAnchors({ resumeText, promptAnswersText })
 
   const anchorsText = anchors.combined
     .slice(0, 12)
@@ -589,6 +590,9 @@ const tryOnce = async (): Promise<string | null> => {
     promptAnswers,
     lexicalAnchorsText: anchorsText
   } as any)
+
+  const { anchor_overlap_score, missing_anchor_count, missing_anchor_terms } = semantic
+  fallbackMetrics = { anchor_overlap_score, missing_anchor_count, missing_anchor_terms }
 
   const lines: string[] = [
     String(semantic.identityContrast ?? "").trim(),
@@ -604,7 +608,7 @@ const tryOnce = async (): Promise<string | null> => {
   const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: true })
 
   if (repaired.outcome === "RETRY_REQUIRED") return null
-  return repaired.patternSummary
+  return { patternSummary: repaired.patternSummary, anchor_overlap_score, missing_anchor_count, missing_anchor_terms }
 }
 
 try {
@@ -622,7 +626,7 @@ try {
 }
 
   const safe = buildSafeMinimalLines(primaryDim, signals)
-  return joinSynthesisLines([safe[0], safe[1], safe[2]])
+  return { patternSummary: joinSynthesisLines([safe[0], safe[1], safe[2]]), ...fallbackMetrics }
 }
 
 // Deterministic synthesis fallback (phrase banks).
@@ -745,8 +749,15 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
   const v = vec as PersonVector6
 
   let patternSummary = ""
+  let anchor_overlap_score = 0
+  let missing_anchor_count = 0
+  let missing_anchor_terms: string[] = []
   try {
-    patternSummary = await buildSemanticPatternSummary(session, v)
+    const built = await buildSemanticPatternSummary(session, v)
+    patternSummary = built.patternSummary
+    anchor_overlap_score = built.anchor_overlap_score
+    missing_anchor_count = built.missing_anchor_count
+    missing_anchor_terms = built.missing_anchor_terms
   } catch {
     patternSummary = buildDeterministicPatternSummary(v)
   }
@@ -817,6 +828,9 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
       marketTitle: session.synthesis?.marketTitle ?? null,
       titleExplanation: session.synthesis?.titleExplanation ?? null,
       lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
+      anchor_overlap_score,
+      missing_anchor_count,
+      missing_anchor_terms,
     },
   }
 }
@@ -1046,7 +1060,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
           // Ritual completes -> move to ENCODING_RITUAL (externally visible).
           const to: CalibrationState = "ENCODING_RITUAL"
-          let next = {
+          let next: CalibrationSession = {
             ...session,
             state: to,
             consolidationRitual: nextRitual,
