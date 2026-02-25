@@ -552,26 +552,27 @@ export default function CalibrationPage() {
   if (state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE') {
     const hasResult = !!session.result;
     const result = (session.result ?? {}) as {
-      alignment?: number;
-      skillMatch?: number;
+      signalAlignment?: number;
+      skillCoverage?: number;
       stretchLoad?: number;
       structuralNote?: string | null;
-      anchors?: { verbs?: unknown[]; nouns?: unknown[] };
+      signalAnchors?: unknown[];
+      skillAnchors?: unknown[];
     };
 
-    const alignmentRaw = typeof result.alignment === 'number' ? result.alignment : null;
-    const skillMatchRaw = typeof result.skillMatch === 'number' ? result.skillMatch : null;
+    const signalAlignmentRaw = typeof result.signalAlignment === 'number' ? result.signalAlignment : null;
+    const skillCoverageRaw = typeof result.skillCoverage === 'number' ? result.skillCoverage : null;
     const stretchLoadRaw = typeof result.stretchLoad === 'number' ? result.stretchLoad : null;
     const structuralNoteRaw = typeof result.structuralNote === 'string' ? result.structuralNote : null;
-    const verbsRaw = Array.isArray(result.anchors?.verbs) ? result.anchors.verbs : [];
-    const nounsRaw = Array.isArray(result.anchors?.nouns) ? result.anchors.nouns : [];
+    const signalAnchorsRaw = Array.isArray(result.signalAnchors) ? result.signalAnchors : [];
+    const skillAnchorsRaw = Array.isArray(result.skillAnchors) ? result.skillAnchors : [];
 
-    const alignmentDisplay = alignmentRaw != null && Number.isFinite(alignmentRaw) ? alignmentRaw.toFixed(1) : '—';
-    const skillMatchDisplay = skillMatchRaw != null && Number.isFinite(skillMatchRaw) ? skillMatchRaw.toFixed(1) : '—';
-    const stretchLoadDisplay = stretchLoadRaw != null && Number.isFinite(stretchLoadRaw) ? `${stretchLoadRaw}%` : '—';
+    const signalAlignmentDisplay = signalAlignmentRaw != null && Number.isFinite(signalAlignmentRaw) ? signalAlignmentRaw.toFixed(1) : '—';
+    const skillCoverageDisplay = skillCoverageRaw != null && Number.isFinite(skillCoverageRaw) ? skillCoverageRaw.toFixed(1) : '—';
+    const stretchLoadDisplay = stretchLoadRaw != null && Number.isFinite(stretchLoadRaw) ? `${stretchLoadRaw.toFixed(1)}%` : '—';
 
-    const verbsDisplay = verbsRaw.filter((x: unknown): x is string => typeof x === 'string');
-    const nounsDisplay = nounsRaw.filter((x: unknown): x is string => typeof x === 'string');
+    const signalAnchorsDisplay = signalAnchorsRaw.filter((x: unknown): x is string => typeof x === 'string');
+    const skillAnchorsDisplay = skillAnchorsRaw.filter((x: unknown): x is string => typeof x === 'string');
 
     return (
       <Stage>
@@ -593,17 +594,17 @@ export default function CalibrationPage() {
             </div>
           ) : (
             <div className="mt-6 space-y-8">
-              {/* Alignment - Primary metric */}
+              {/* Signal Alignment - Primary metric */}
               <div>
-                <div className="text-[12px] font-semibold opacity-70">Alignment</div>
-                <div className="mt-2 text-[48px] leading-none font-semibold">{alignmentDisplay}</div>
+                <div className="text-[12px] font-semibold opacity-70">Signal Alignment</div>
+                <div className="mt-2 text-[48px] leading-none font-semibold">{signalAlignmentDisplay}</div>
               </div>
 
-              {/* Skill Match + Stretch Load - Secondary metrics */}
+              {/* Skill Coverage + Stretch Load - Secondary metrics */}
               <div className="flex gap-12">
                 <div>
-                  <div className="text-[12px] font-semibold opacity-70">Skill Match</div>
-                  <div className="mt-2 text-[24px] leading-none font-semibold">{skillMatchDisplay}</div>
+                  <div className="text-[12px] font-semibold opacity-70">Skill Coverage</div>
+                  <div className="mt-2 text-[24px] leading-none font-semibold">{skillCoverageDisplay}</div>
                 </div>
                 <div>
                   <div className="text-[12px] font-semibold opacity-70">Stretch Load</div>
@@ -611,35 +612,35 @@ export default function CalibrationPage() {
                 </div>
               </div>
 
-              {/* Anchors - Verbs */}
-              {verbsDisplay.length > 0 && (
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Verbs</div>
-                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
-                    {verbsDisplay.map((term, idx) => (
-                      <li key={`verb-${idx}`}>{term}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Anchors - Nouns */}
-              {nounsDisplay.length > 0 && (
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Nouns</div>
-                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
-                    {nounsDisplay.map((term, idx) => (
-                      <li key={`noun-${idx}`}>{term}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
               {/* Structural Note - Only when triggered */}
               {structuralNoteRaw && (
-                <div className="mt-8 p-4 bg-[#1a1a1a] rounded-md border border-[#333]">
+                <div className="p-4 bg-[#1a1a1a] rounded-md border border-[#333]">
                   <div className="text-[12px] font-semibold opacity-70 mb-2">Structural Note</div>
                   <div className="text-[14px] leading-relaxed opacity-90">{structuralNoteRaw}</div>
+                </div>
+              )}
+
+              {/* Signal Spine */}
+              {signalAnchorsDisplay.length > 0 && (
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Signal Spine</div>
+                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                    {signalAnchorsDisplay.map((term, idx) => (
+                      <li key={`signal-anchor-${idx}`}>{term}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Skill Trace */}
+              {skillAnchorsDisplay.length > 0 && (
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Skill Trace</div>
+                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                    {skillAnchorsDisplay.map((term, idx) => (
+                      <li key={`skill-anchor-${idx}`}>{term}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
