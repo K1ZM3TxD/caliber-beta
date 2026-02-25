@@ -142,6 +142,18 @@ It is a constrained compressor operating under anchor bias.
 
 If output cannot be traced to visible input signal, it fails.
 
+Signal Hierarchy Clarification
+
+Not all repetition carries equal structural weight.
+
+Repetition under breakdown, constraint construction, or incentive distortion carries higher weight than repetition under incentive-shaped contexts.
+
+Resume repetition alone does not establish structural signal.
+
+Signal must demonstrate cross-context stability, especially under breakdown conditions.
+
+Structural fit prioritizes signal alignment over skill repetition.
+
 
 
 III. What Caliber Refuses To Be

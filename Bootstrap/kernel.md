@@ -29,52 +29,8 @@ Caliber now operates under a cloud-canonical workflow.
 
 Canonical environment:
 - GitHub Codespaces
-- Branch: `copilot/work`
-
-Rules:
-
-- All development occurs in Codespaces.
-- All commits land on `copilot/work`.
-- Local machines are optional, not authoritative.
-- No branch drift between agent and runtime.
-- `package-lock.json` reflects Codespaces environment.
-
-When stable:
-- `copilot/work` → merge into `main`.
-
-There is one active execution branch.
-No parallel canonical branches.
-
----
-
-# Primary Mode: Calibration Core (Active)
-
-The Pattern Summary narrative layer remains frozen.
-
-Active spine:
-
 1. Resume ingest
-2. 5-question signal capture
-3. Deterministic anchor extraction (user-visible; applies GENERIC_ANCHOR_BANLIST in addition to stopwords to remove generic/boilerplate/education/business filler)
-4. Job description ingest
 5. Anchor overlap + gap surface
-6. Title producer (mechanical, anchor-driven)
-
-OperateBest / loseEnergy bullet grounding is entering controlled extension phase.
-
----
-
-# Core Execution Principle
-
-We do not persuade the model to behave.  
-We constrain it until behavior aligns.
-
-All synthesis is governed by structural pressure, not prompt rhetoric.
-
----
-
-# Anchor-First Pipeline (Mandatory)
-
 All synthesis must follow:
 
 1. Extract lexical anchors (deterministic; applies GENERIC_ANCHOR_BANLIST in addition to stopwords to enforce anchor quality)
@@ -87,6 +43,102 @@ All synthesis must follow:
    - Anti-abstraction
 4. Retry at most once (if overlap fails)
 5. Deterministic fallback if retry fails
+
+## Signal Classification Layer (Deterministic)
+
+Anchor extraction must tag each anchor with:
+
+source: resume | q1 | q2 | q3 | q4 | q5
+
+context_type:
+  - breakdown
+  - constraint_construction
+  - incentive_distortion
+  - neutral
+
+Signal Classification Rules:
+
+An anchor qualifies as Signal-Dominant only if:
+  - It appears in at least one breakdown-context answer
+  - AND it appears in at least one additional distinct context (resume or other Q)
+
+Resume-only repetition classifies as Skill-Dominant.
+
+Signal alignment scoring must prioritize Signal-Dominant anchors.
+Skill coverage scoring must use Skill-Dominant anchors.
+Signal weight > Skill weight in composite alignment.
+
+All pattern synthesis must follow this sequence:
+
+1. Extract lexical anchors from input signal
+   - Repeated verbs
+   - Repeated operational nouns
+   - High-frequency mechanical terms
+2. Generate synthesis via LLM under anchor-aware prompt
+3. Validate anchor overlap and doctrine compliance
+context_type:
+
+breakdown
+
+constraint_construction
+
+incentive_distortion
+
+neutral
+
+Signal Classification Rules:
+
+An anchor qualifies as Signal-Dominant only if:
+
+It appears in at least one breakdown-context answer
+AND
+
+It appears in at least one additional distinct context (resume or other Q)
+
+Resume-only repetition classifies as Skill-Dominant.
+
+Signal alignment scoring must prioritize Signal-Dominant anchors.
+
+Skill coverage scoring must use Skill-Dominant anchors.
+
+Signal weight > Skill weight in composite alignment.
+
+
+
+All pattern synthesis must follow this sequence:
+
+
+
+1\. Extract lexical anchors from input signal
+
+&nbsp;  - Repeated verbs
+
+&nbsp;  - Repeated operational nouns
+
+&nbsp;  - High-frequency mechanical terms
+
+
+
+2\. Generate synthesis via LLM under anchor-aware prompt
+
+
+
+3\. Validate anchor overlap and doctrine compliance
+
+
+
+4\. If overlap fails → retry once with missing anchors injected
+
+
+
+5\. If retry fails → deterministic fallback
+
+
+
+This sequence is mandatory.
+
+
+>>>>>>> main
 
 Skipping enforcement violates doctrine.
 
