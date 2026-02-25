@@ -34,6 +34,7 @@ const CONCRETE_VERBS = new Set([
   "stabilize",
   "structure",
   "architect",
+  "plan",
 ])
 
 const STOPWORDS = new Set([

@@ -1,264 +1,270 @@
-import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
-import { storeGet, storeSet } from "@/lib/calibration_store"
-import { ingestJob, isJobIngestError } from "@/lib/job_ingest"
-import { runIntegrationSeam, formatIncompleteCoverageMessage, DIMENSION_LABELS } from "@/lib/integration_seam"
-import { toResultContract, extractSignalAnchors, generateSuggestedTitles } from "@/lib/result_contract"
-import { generateSemanticSynthesis, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "@/lib/semantic_synthesis"
-import { extractLexicalAnchors } from "@/lib/anchor_extraction"
-import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
-import { formatOperateBestLogLine, validateOperateBestBullets } from "@/lib/operate_best_validator"
 
-type Ok = { ok: true; session: CalibrationSession }
-type Err = { ok: false; error: CalibrationError }
-export type DispatchResult = Ok | Err
 
-function nowIso(): string {
-  return new Date().toISOString()
-}
 
-function bad(code: CalibrationError["code"], message: string, missingDimensions?: string[]): Err {
-  const error: CalibrationError = { code, message }
-  if (missingDimensions && missingDimensions.length > 0) {
-    error.missingDimensions = missingDimensions
-  }
-  return { ok: false, error }
-}
 
-function pushHistory(session: CalibrationSession, from: CalibrationState, to: CalibrationState, event: string): CalibrationSession {
-  if (from === to) return session
-  return {
-    ...session,
-    history: [...(Array.isArray(session.history) ? session.history : []), { at: nowIso(), from, to, event }],
-  }
-}
 
-function mustGet(sessionId: string): CalibrationSession | Err {
-  const s = storeGet(sessionId)
-  if (!s) return bad("SESSION_NOT_FOUND", "Session not found")
-  return s
-}
 
-function promptsComplete1to5(session: CalibrationSession): boolean {
-  for (let i = 1 as const; i <= 5; i = (i + 1) as any) {
-    const slot = session.prompts[i]
-    if (!slot) return false
-    if (!slot.accepted) return false
-    if (typeof slot.answer !== "string" || slot.answer.trim().length === 0) return false
-  }
-  return true
-}
+import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "./calibration_types.js"
+import { storeGet, storeSet } from "./calibration_store.js"
+import { ingestJob, isJobIngestError } from "./job_ingest.js"
+import { runIntegrationSeam, formatIncompleteCoverageMessage, DIMENSION_LABELS } from "./integration_seam.js"
+import { toResultContract, extractSignalAnchors, generateSuggestedTitles } from "./result_contract.js"
+import { generateSemanticSynthesis, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "./semantic_synthesis.js"
+import { extractLexicalAnchors } from "./anchor_extraction.js"
+import { CALIBRATION_PROMPTS } from "./calibration_prompts.js"
+import { formatOperateBestLogLine, validateOperateBestBullets } from "./operate_best_validator.js"
 
-function meetsSignal(text: string): boolean {
-  return text.trim().length >= 40
-}
+// Core logic extracted for pass control
+function validateAndRepairSynthesisOnceCore(
+  synthesisPatternSummary: string,
+  personVector: PersonVector6,
+  signals: ResumeSignals,
+  opts: { log?: boolean } | undefined,
+  pass: number
+): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
+  const shouldLog = Boolean(opts?.log)
 
-function clarifierStateForIndex(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
-  return `PROMPT_${n}_CLARIFIER` as CalibrationState
-}
+  const primaryDim = primaryDimFromVector(personVector)
 
-function getPromptIndex(state: CalibrationState): 1 | 2 | 3 | 4 | 5 | null {
-  switch (state) {
-    case "PROMPT_1":
-    case "PROMPT_1_CLARIFIER":
-      return 1
-    case "PROMPT_2":
-    case "PROMPT_2_CLARIFIER":
-      return 2
-    case "PROMPT_3":
-    case "PROMPT_3_CLARIFIER":
-      return 3
-    case "PROMPT_4":
-    case "PROMPT_4_CLARIFIER":
-      return 4
-    case "PROMPT_5":
-    case "PROMPT_5_CLARIFIER":
-      return 5
-    default:
-      return null
-  }
-}
-
-function nextPromptAfter(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
-  if (n === 1) return "PROMPT_2"
-  if (n === 2) return "PROMPT_3"
-  if (n === 3) return "PROMPT_4"
-  if (n === 4) return "PROMPT_5"
-  return "CONSOLIDATION_PENDING"
-}
-
-function clampPct(n: number): number {
-  if (!Number.isFinite(n)) return 0
-  if (n < 0) return 0
-  if (n > 100) return 100
-  return Math.round(n)
-}
-
-// Deterministic "encoding" placeholder: stable per session based on already-collected text.
-function encodePersonVectorOnce(session: CalibrationSession): CalibrationSession {
-  if (session.personVector.locked && session.personVector.values) return session
-
-  const parts: string[] = []
-  if (typeof session.resume.rawText === "string") parts.push(session.resume.rawText)
-  for (let i = 1 as const; i <= 5; i = (i + 1) as any) {
-    const a = session.prompts[i]?.answer
-    if (typeof a === "string") parts.push(a)
-    const ca = session.prompts[i]?.clarifier?.answer
-    if (typeof ca === "string") parts.push(ca)
-  }
-  const joined = parts.join("\n").trim()
-
-  let acc = 0
-  for (let i = 0; i < joined.length; i += 1) {
-    acc = (acc + joined.charCodeAt(i) * (i + 1)) >>> 0
+  const safeFallback = (): string => {
+    const safe = buildSafeMinimalLines(primaryDim, signals)
+    return joinSynthesisLines([safe[0], safe[1], safe[2]])
   }
 
-  const dims: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2] = [
-    ((acc + 11) % 3) as 0 | 1 | 2,
-    ((acc + 23) % 3) as 0 | 1 | 2,
-    ((acc + 37) % 3) as 0 | 1 | 2,
-    ((acc + 41) % 3) as 0 | 1 | 2,
-    ((acc + 59) % 3) as 0 | 1 | 2,
-    ((acc + 71) % 3) as 0 | 1 | 2,
-  ]
-
-  return {
-    ...session,
-    personVector: { values: dims, locked: true },
-    encodingRitual: { completed: true },
+  const finalize = (
+    patternSummary: string,
+    didRepair: boolean,
+    outcome: ValidatorOutcome,
+  ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } => {
+    if (typeof patternSummary !== "string" || patternSummary.trim().length === 0) {
+      return { patternSummary: safeFallback(), didRepair: true, outcome: "FALLBACK_STRUCTURE_INVALID" }
+    }
+    return { patternSummary, didRepair, outcome }
   }
-}
 
-type ContrastPair = { x: string; y: string } // identity contrast
-type InterventionPair = { a: string; b: string } // intervention contrast
-
-function pickFirst<T>(items: T[], fallback: T): T {
-  return items.length > 0 ? items[0] : fallback
-}
-
-function coherenceStrong(vec: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]): boolean {
-  // Earned consequence drop only when the vector shows clear shape (enough non-neutral dimensions).
-  let nonNeutral = 0
-  for (const v of vec) if (v !== 1) nonNeutral += 1
-  return nonNeutral >= 4
-}
-
-type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
-type ResumeSignals = { charLen: number; hasBullets: boolean; hasDates: boolean; hasTitles: boolean } | null | undefined
-
-function primaryDimFromVector(v: PersonVector6): number {
-  for (let i = 0; i < 6; i += 1) if (v[i] !== 1) return i
-  return 0
-}
-
-function splitSynthesisLines(patternSummary: string): string[] {
-  return patternSummary
-    .split(/\n\s*\n/g)
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0)
-}
-
-function joinSynthesisLines(lines: string[]): string {
-  return lines.join("\n\n")
-}
-
-function stripPraiseAdjectives(line: string): string {
-  const praise = [
-    "best",
-    "great",
-    "exceptional",
-    "excellent",
-    "amazing",
-    "outstanding",
-    "brilliant",
-    "impressive",
-    "remarkable",
-    "world-class",
-    "elite",
-  ]
-  let out = line
-  for (const w of praise) {
-    const re = new RegExp(`\\b${w.replace(/[-/\\^$*+?.()|[\\]{}]/g, "\\$&")}\\b`, "gi")
-    out = out.replace(re, "")
+  if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
   }
-  out = out.replace(/\s{2,}/g, " ").trim()
-  out = out.replace(/\s+([.,!?;:])/g, "$1")
-  return out
-}
 
-function normalizeWordToken(raw: string): string {
-  const cleaned = raw
-    .toLowerCase()
-    .replace(/['']/g, "")
-    .replace(/[^a-z0-9]/g, "")
-    .trim()
-  return cleaned
-}
+  const baseLines = splitSynthesisLines(synthesisPatternSummary)
+  if (baseLines.length < 3) {
+    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
+  }
 
-function collectContentWords(lines: string[]): string[] {
-  const words: string[] = []
-  for (const line of lines) {
-    const parts = line.split(/\s+/g)
-    for (const p of parts) {
-      const t = normalizeWordToken(p)
-      if (t.length >= 5) words.push(t)
+  const findFirstBlacklistMatch = (inLines: string[]): { label: string; match: string } | null => {
+    for (const line of inLines) {
+      for (const t of BLACKLIST_TERMS) {
+        const m = t.re.exec(line)
+        if (m && typeof m[0] === "string" && m[0].trim().length > 0) {
+          return { label: t.label, match: m[0] }
+        }
+      }
+    }
+    return null;
+  }
+
+  let lines = baseLines.slice(0, 4)
+  let didRepair = false
+
+  let outcome: ValidatorOutcome = "PASS";
+  const before = joinSynthesisLines(lines)
+
+  lines = lines.map((l) => stripPraiseAdjectives(l))
+  lines = lines.map((l) => applyDeterministicTermReplacements(l))
+
+  if (!isValidConstructionLine(lines[2] ?? "")) {
+    lines[2] = rewriteConstructionLine(primaryDim)
+    didRepair = true
+  }
+
+  lines = enforceConsequenceGate(lines)
+  lines = enforceRepetitionControl(lines, primaryDim, signals)
+
+  // Cadence starter checks (deferred safe-line replacement to pass 1)
+  const starter0 = /^You\s+don['']t\s+just\s+/i.test(lines[0] ?? "")
+  const starter1 = /^When\s+something\s+isn['']t\s+working,/i.test(lines[1] ?? "")
+
+  if (!starter0 || !starter1) {
+    if (pass === 0) {
+      outcome = "RETRY_REQUIRED";
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=${didRepair}`);
+      // On pass 0, return the original input (minimally normalized), not safe minimal lines
+      return { patternSummary: synthesisPatternSummary, didRepair: false, outcome };
+    } else {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      lines = [safe[0], safe[1], safe[2]]
+      didRepair = true
+      outcome = "FALLBACK_STRUCTURE_INVALID";
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+      return finalize(joinSynthesisLines(lines), true, outcome)
     }
   }
-  return words
+
+  const hit = findFirstBlacklistMatch(lines)
+  if (hit) {
+    // Phrase-level hits are HARD-FAIL. (match contains whitespace)
+    if (/\s/.test(hit.match)) {
+      outcome = "FALLBACK_BLACKLIST_PHRASE";
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+      return finalize(safeFallback(), true, outcome);
+    }
+  }
+
+  const anyBlacklist = Boolean(hit)
+  const constructionOk = isValidConstructionLine(lines[2] ?? "")
+
+  const contentWords = collectContentWords(lines)
+  const counts = new Map<string, number>()
+  // Core logic extracted for pass control
+  function validateAndRepairSynthesisOnceCore(
+    synthesisPatternSummary: string,
+    personVector: PersonVector6,
+    signals: ResumeSignals,
+    opts: { log?: boolean } | undefined,
+    pass: number
+  ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
+    const shouldLog = Boolean(opts?.log)
+    const primaryDim = primaryDimFromVector(personVector)
+    const safeFallback = (): string => {
+      const safe = buildSafeMinimalLines(primaryDim, signals)
+      return joinSynthesisLines([safe[0], safe[1], safe[2]])
+    }
+    const finalize = (
+      patternSummary: string,
+      didRepair: boolean,
+      outcome: ValidatorOutcome,
+    ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } => {
+      if (typeof patternSummary !== "string" || patternSummary.trim().length === 0) {
+        return { patternSummary: safeFallback(), didRepair: true, outcome: "FALLBACK_STRUCTURE_INVALID" }
+      }
+      return { patternSummary, didRepair, outcome }
+    }
+    if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
+      if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+      return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
+    }
+    const baseLines = splitSynthesisLines(synthesisPatternSummary)
+    if (baseLines.length < 3) {
+      if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+      return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
+    }
+    const findFirstBlacklistMatch = (inLines: string[]): { label: string; match: string } | null => {
+      for (const line of inLines) {
+        for (const t of BLACKLIST_TERMS) {
+          const m = t.re.exec(line)
+          if (m && typeof m[0] === "string" && m[0].trim().length > 0) {
+            return { label: t.label, match: m[0] }
+          }
+        }
+      }
+      return null;
+    }
+    let lines = baseLines.slice(0, 4)
+    let didRepair = false
+    let outcome: ValidatorOutcome = "PASS";
+    const before = joinSynthesisLines(lines)
+    lines = lines.map((l) => stripPraiseAdjectives(l))
+    lines = lines.map((l) => applyDeterministicTermReplacements(l))
+    if (!isValidConstructionLine(lines[2] ?? "")) {
+      lines[2] = rewriteConstructionLine(primaryDim)
+      didRepair = true
+    }
+    lines = enforceConsequenceGate(lines)
+    lines = enforceRepetitionControl(lines, primaryDim, signals)
+    // Cadence starter checks (deferred safe-line replacement to pass 1)
+    const starter0 = /^You\s+don['']t\s+just\s+/i.test(lines[0] ?? "")
+    const starter1 = /^When\s+something\s+isn['']t\s+working,/i.test(lines[1] ?? "")
+    if (!starter0 || !starter1) {
+      if (pass === 0) {
+        outcome = "RETRY_REQUIRED";
+        if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=${didRepair}`);
+        // On pass 0, return the original input (minimally normalized), not safe minimal lines
+        return { patternSummary: synthesisPatternSummary, didRepair: false, outcome };
+      } else {
+        const safe = buildSafeMinimalLines(primaryDim, signals)
+        lines = [safe[0], safe[1], safe[2]]
+        didRepair = true
+        outcome = "FALLBACK_STRUCTURE_INVALID";
+        if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+        return finalize(joinSynthesisLines(lines), true, outcome)
+      }
+    }
+    const hit = findFirstBlacklistMatch(lines)
+    if (hit) {
+      // Phrase-level hits are HARD-FAIL. (match contains whitespace)
+      if (/\s/.test(hit.match)) {
+        outcome = "FALLBACK_BLACKLIST_PHRASE";
+        if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+        return finalize(safeFallback(), true, outcome);
+      }
+    }
+    const anyBlacklist = Boolean(hit)
+    const constructionOk = isValidConstructionLine(lines[2] ?? "")
+    const contentWords = collectContentWords(lines)
+    const counts = new Map<string, number>()
+    for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
+    let repeatBad = false
+    for (const [w, c] of counts.entries()) {
+      if (c <= 1) continue
+      if (REPETITION_STOPWORDS.has(w)) continue
+      repeatBad = true
+      break
+    }
+    if (!anyBlacklist && constructionOk && !repeatBad) {
+      const after = joinSynthesisLines(lines)
+      if (after !== before) didRepair = true
+      outcome = didRepair ? "REPAIR_APPLIED" : "PASS";
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=${didRepair}`);
+      return finalize(after, didRepair, outcome)
+    }
+    // First pass: never hard-fallback for retryable issues except cadence (handled above)
+    if (pass === 0) {
+      outcome = "RETRY_REQUIRED";
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=${didRepair}`);
+      return finalize(joinSynthesisLines(lines), didRepair, outcome)
+    }
+    // Second pass: fallback classification.
+    if (pass === 1) {
+      if (anyBlacklist) {
+        outcome = "FALLBACK_ANCHOR_FAILURE";
+      } else {
+        outcome = "FALLBACK_STRUCTURE_INVALID";
+      }
+      if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+      return finalize(safeFallback(), true, outcome);
+    }
+    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
+
+    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID");
 }
 
-// Guardrail constants (MUST exist exactly once in this module).
-const REPETITION_STOPWORDS = new Set<string>(["you", "dont", "just", "when", "something", "isnt", "working", "through"])
 
-const BLACKLIST_TERMS: Array<{ label: string; re: RegExp }> = [
-  { label: "cadence", re: /\bcadence\b/i },
-  { label: "operating structure", re: /\boperating\s+(structure|model)\b/i },
-  { label: "leverage", re: /\bleverage\b/i },
-  { label: "impact", re: /\bimpact\b/i },
-  { label: "value", re: /\bvalue\b/i },
-  { label: "optimize", re: /\boptimi[sz]e\b/i },
-  { label: "synergy", re: /\bsynergy\b/i },
-  { label: "scalable", re: /\bscalable\b/i },
-  { label: "framework", re: /\bframework\b/i },
-  { label: "system's", re: /\bsystem['']s\b/i },
-  { label: "system", re: /\bsystem\b/i },
-]
+// Exported wrapper
+function validateAndRepairSynthesisOnce(
+  synthesisPatternSummary: string,
+  personVector: PersonVector6,
+  signals: ResumeSignals,
+  opts?: { log?: boolean, pass?: number },
+): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
+  if (typeof opts?.pass === 'number') {
+    // Deterministic single-pass mode for testing
+    const pass = opts.pass;
+    return validateAndRepairSynthesisOnceCore(synthesisPatternSummary, personVector, signals, opts, pass);
+  } else {
+    // Default: run both passes, return on first terminal outcome
+    for (let pass = 0; pass < 2; pass += 1) {
+      const result = validateAndRepairSynthesisOnceCore(synthesisPatternSummary, personVector, signals, opts, pass);
+      // If terminal outcome, return
+      if (result.outcome !== 'RETRY_REQUIRED') return result;
+    }
+    // If both passes return RETRY_REQUIRED, fallback
+    return validateAndRepairSynthesisOnceCore(synthesisPatternSummary, personVector, signals, opts, 1);
+  }
+}
 
-const SYNONYM_MAP: Array<{ from: RegExp; to: string }> = [
-  { from: /\bship\s+work\b/gi, to: "do the work" },
-  { from: /\bcadence\b/gi, to: "rhythm" },
-  { from: /\boperating\s+structure\b/gi, to: "operating rules" },
-  { from: /\boperating\s+model\b/gi, to: "operating rules" },
-  { from: /\bpush\s+through\b/gi, to: "force it" },
-  { from: /\bleverage\b/gi, to: "use" },
-  { from: /\bimpact\b/gi, to: "effect" },
-  { from: /\bvalue\b/gi, to: "use" },
-  { from: /\boptimi[sz]e\b/gi, to: "tighten" },
-  { from: /\bsynergy\b/gi, to: "fit" },
-  { from: /\bscalable\b/gi, to: "repeatable" },
-  { from: /\bframework\b/gi, to: "method" },
-  { from: /\bsystem['']s\b/gi, to: "workflow's" },
-  { from: /\bsystem\b/gi, to: "workflow" },
-]
 
-const CONSTRUCTION_ALLOWED_VERBS = new Set<string>([
-  "notice",
-  "surface",
-  "map",
-  "isolate",
-  "name",
-  "define",
-  "clarify",
-  "tighten",
-  "sequence",
-  "test",
-  "simplify",
-  "decide",
-  "design",
-  "build",
-  "repair",
-  "align",
-  "measure",
-])
 
 function applyDeterministicTermReplacements(line: string): string {
   let out = line
@@ -428,133 +434,28 @@ type ValidatorOutcome =
   | "PASS"
   | "REPAIR_APPLIED"
   | "RETRY_REQUIRED"
-  | "FALLBACK_BLACKLIST_PHRASE"
-  | "FALLBACK_UNREPAIRABLE"
+  | "FALLBACK_ANCHOR_FAILURE"
   | "FALLBACK_STRUCTURE_INVALID"
+  | "FALLBACK_BLACKLIST_PHRASE"
 
-function validateAndRepairSynthesisOnce(
-  synthesisPatternSummary: string,
-  personVector: PersonVector6,
-  signals: ResumeSignals,
-  opts?: { log?: boolean },
-): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
-  const shouldLog = Boolean(opts?.log)
 
-  const primaryDim = primaryDimFromVector(personVector)
-
-  const safeFallback = (): string => {
-    const safe = buildSafeMinimalLines(primaryDim, signals)
-    return joinSynthesisLines([safe[0], safe[1], safe[2]])
+  // First pass: never hard-fallback for retryable issues except cadence (handled above)
+  if (pass === 0) {
+    outcome = "RETRY_REQUIRED";
+    if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=${didRepair}`);
+    return finalize(joinSynthesisLines(lines), didRepair, outcome)
   }
 
-  const finalize = (
-    patternSummary: string,
-    didRepair: boolean,
-    outcome: ValidatorOutcome,
-  ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } => {
-    if (typeof patternSummary !== "string" || patternSummary.trim().length === 0) {
-      return { patternSummary: safeFallback(), didRepair: true, outcome: "FALLBACK_STRUCTURE_INVALID" }
+  // Second pass: fallback classification.
+  if (pass === 1) {
+    if (anyBlacklist) {
+      outcome = "FALLBACK_ANCHOR_FAILURE";
+    } else {
+      outcome = "FALLBACK_STRUCTURE_INVALID";
     }
-    return { patternSummary, didRepair, outcome }
+    if (shouldLog) console.log(`[caliber] validator_outcome=${outcome} did_repair=true`);
+    return finalize(safeFallback(), true, outcome);
   }
-
-  if (typeof synthesisPatternSummary !== "string" || synthesisPatternSummary.trim().length === 0) {
-    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
-  }
-
-  const baseLines = splitSynthesisLines(synthesisPatternSummary)
-  if (baseLines.length < 3) {
-    if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
-    return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
-  }
-
-  const findFirstBlacklistMatch = (inLines: string[]): { label: string; match: string } | null => {
-    for (const line of inLines) {
-      for (const t of BLACKLIST_TERMS) {
-        const m = t.re.exec(line)
-        if (m && typeof m[0] === "string" && m[0].trim().length > 0) {
-          return { label: t.label, match: m[0] }
-        }
-      }
-    }
-    return null
-  }
-
-  let lines = baseLines.slice(0, 4)
-  let didRepair = false
-
-  for (let pass = 0; pass < 2; pass += 1) {
-    const before = joinSynthesisLines(lines)
-
-    lines = lines.map((l) => stripPraiseAdjectives(l))
-    lines = lines.map((l) => applyDeterministicTermReplacements(l))
-
-    if (!isValidConstructionLine(lines[2] ?? "")) {
-      lines[2] = rewriteConstructionLine(primaryDim)
-      didRepair = true
-    }
-
-    lines = enforceConsequenceGate(lines)
-    lines = enforceRepetitionControl(lines, primaryDim, signals)
-
-    if (!/^You\s+don['']t\s+just\s+/i.test(lines[0] ?? "")) {
-      const safe = buildSafeMinimalLines(primaryDim, signals)
-      lines = [safe[0], safe[1], safe[2]]
-      didRepair = true
-    }
-    if (!/^When\s+something\s+isn['']t\s+working,/i.test(lines[1] ?? "")) {
-      const safe = buildSafeMinimalLines(primaryDim, signals)
-      lines = [safe[0], safe[1], safe[2]]
-      didRepair = true
-    }
-
-    const hit = findFirstBlacklistMatch(lines)
-    if (hit) {
-      // Phrase-level hits are HARD-FAIL. (match contains whitespace)
-      if (/\s/.test(hit.match)) {
-        if (shouldLog) {
-          console.warn("[caliber] synthesis_source=fallback", { reason: "blacklist_phrase_hit", hit: hit.match })
-        }
-        return finalize(safeFallback(), true, "FALLBACK_BLACKLIST_PHRASE")
-      }
-    }
-
-    const anyBlacklist = Boolean(hit)
-    const constructionOk = isValidConstructionLine(lines[2] ?? "")
-
-    const contentWords = collectContentWords(lines)
-    const counts = new Map<string, number>()
-    for (const w of contentWords) counts.set(w, (counts.get(w) ?? 0) + 1)
-    let repeatBad = false
-    for (const [w, c] of counts.entries()) {
-      if (c <= 1) continue
-      if (REPETITION_STOPWORDS.has(w)) continue
-      repeatBad = true
-      break
-    }
-
-    if (!anyBlacklist && constructionOk && !repeatBad) {
-      const after = joinSynthesisLines(lines)
-      if (after !== before) didRepair = true
-      if (shouldLog) console.log("[caliber] synthesis_source=llm")
-      return finalize(after, didRepair, didRepair ? "REPAIR_APPLIED" : "PASS")
-    }
-
-    // First pass: never hard-fallback for retryable issues.
-    if (pass === 0) {
-      if (shouldLog) console.log("[caliber] validator_outcome=RETRY_REQUIRED")
-      return finalize(joinSynthesisLines(lines), didRepair, "RETRY_REQUIRED")
-    }
-
-    // Second pass: fallback classification.
-    if (pass === 1) {
-      if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "validator_failed_second_pass" })
-      const outcome: ValidatorOutcome = anyBlacklist ? "FALLBACK_UNREPAIRABLE" : "FALLBACK_STRUCTURE_INVALID"
-      return finalize(safeFallback(), true, outcome)
-    }
-  }
-
   if (shouldLog) console.warn("[caliber] synthesis_source=fallback", { reason: "construction_invalid" })
   return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
 }

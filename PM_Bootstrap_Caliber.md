@@ -1,4 +1,4 @@
-# PM_BOOTSTRAP.md
+# PM_Bootstrap_Caliber.md
 
 Purpose:
 This file is the reboot anchor for Caliber PM (ChatGPT PM role). It defines what must be loaded at the start of any new PM session to prevent drift.
@@ -25,5 +25,6 @@ Non-Negotiables:
 - Domain separation must remain intact
 - Observability required where specified in KERNEL.md / MILESTONES.md
 - Narrative summary layer remains frozen until Calibration Core is validated
+- Follow BREAK_UPDATE_RITUAL.md for all break/update cycles and doc edits.
 
 ---

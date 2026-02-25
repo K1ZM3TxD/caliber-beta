@@ -1,6 +1,6 @@
 // lib/semantic_synthesis.ts
 
-import { extractAnchors } from "@/lib/anchors"
+import { extractAnchors } from "./anchors"
 
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
@@ -82,10 +82,16 @@ function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: bool
   return { praise_flag: praiseFlag, abstraction_flag: abstractionFlag, drift_terms: driftTerms }
 }
 
+
 export async function generateSemanticSynthesis(args: {
   personVector: PersonVector6
   resumeText: string
   promptAnswers: Array<{ n: 1 | 2 | 3 | 4 | 5; answer: string }>
+  /**
+   * Optional model function for deterministic or test-time injection.
+   * If not provided, defaults to OpenAI API call.
+   */
+  modelFn?: (prompt: string) => Promise<{ parsed: any; raw: string }>
 }): Promise<{
   identityContrast: string
   interventionContrast: string
@@ -95,15 +101,20 @@ export async function generateSemanticSynthesis(args: {
   missing_anchor_count: number
   missing_anchor_terms: string[]
 }> {
-  const apiKey = (process.env.OPENAI_API_KEY || "").trim()
-  if (!apiKey) {
-    console.log("synthesis_source=fallback")
-    throw new Error("Missing OPENAI_API_KEY")
+  const modelFn = args.modelFn;
+  let apiKey = "";
+  let model = "";
+  let temp = 0.35;
+  if (!modelFn) {
+    apiKey = (process.env.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      console.log("synthesis_source=fallback");
+      throw new Error("Missing OPENAI_API_KEY");
+    }
+    model = (process.env.OPENAI_MODEL_SEMANTIC_SYNTHESIS || "gpt-4o-mini").trim();
+    const temperature = Number.parseFloat(process.env.OPENAI_TEMP_SEMANTIC_SYNTHESIS || "0.35");
+    temp = Number.isFinite(temperature) ? Math.max(0, Math.min(1, temperature)) : 0.35;
   }
-
-  const model = (process.env.OPENAI_MODEL_SEMANTIC_SYNTHESIS || "gpt-4o-mini").trim()
-  const temperature = Number.parseFloat(process.env.OPENAI_TEMP_SEMANTIC_SYNTHESIS || "0.35")
-  const temp = Number.isFinite(temperature) ? Math.max(0, Math.min(1, temperature)) : 0.35
 
   const allowedVerbs = [
     "notice",
@@ -185,18 +196,21 @@ export async function generateSemanticSynthesis(args: {
   ]
 
   async function callModel(extraUserLines?: string[]): Promise<{ parsed: any; raw: string }> {
-    const promptLines = [...basePromptLines]
+    const promptLines = [...basePromptLines];
     if (extraUserLines && extraUserLines.length > 0) {
-      const anchorIdx = promptLines.findIndex((l) => l.startsWith("Nouns:"))
+      const anchorIdx = promptLines.findIndex((l) => l.startsWith("Nouns:"));
       if (anchorIdx >= 0) {
-        promptLines.splice(anchorIdx + 1, 0, "", ...extraUserLines)
+        promptLines.splice(anchorIdx + 1, 0, "", ...extraUserLines);
       } else {
-        promptLines.push("", ...extraUserLines)
+        promptLines.push("", ...extraUserLines);
       }
     }
-
-    const userPrompt = promptLines.filter(Boolean).join("\n")
-
+    const userPrompt = promptLines.filter(Boolean).join("\n");
+    if (modelFn) {
+      // Use injected model function for deterministic or test-time logic
+      return await modelFn(userPrompt);
+    }
+    // Default: OpenAI API call
     const body = {
       model,
       temperature: temp,
@@ -208,8 +222,7 @@ export async function generateSemanticSynthesis(args: {
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
-    }
-
+    };
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -217,30 +230,26 @@ export async function generateSemanticSynthesis(args: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-    })
-
+    });
     if (!resp.ok) {
-      const txt = await resp.text().catch(() => "")
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
-      throw new Error(`OpenAI error: ${resp.status} ${txt}`)
+      const txt = await resp.text().catch(() => "");
+      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false");
+      throw new Error(`OpenAI error: ${resp.status} ${txt}`);
     }
-
-    const data = (await resp.json()) as any
-    const content = String(data?.choices?.[0]?.message?.content ?? "").trim()
+    const data = (await resp.json()) as any;
+    const content = String(data?.choices?.[0]?.message?.content ?? "").trim();
     if (!content) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
-      throw new Error("OpenAI returned empty content")
+      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false");
+      throw new Error("OpenAI returned empty content");
     }
-
-    let parsed: any = null
+    let parsed: any = null;
     try {
-      parsed = JSON.parse(content)
+      parsed = JSON.parse(content);
     } catch {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
-      throw new Error("OpenAI returned non-JSON content")
+      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false");
+      throw new Error("OpenAI returned non-JSON content");
     }
-
-    return { parsed, raw: content }
+    return { parsed, raw: content };
   }
 
   function extractFields(parsed: any): {
@@ -283,8 +292,11 @@ export async function generateSemanticSynthesis(args: {
     let fallbackMissingCount = missingCount
     let fallbackMissingTerms = missing
 
-    if (score >= MIN_OVERLAP) {
-      const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+
+    // --- Drift enforcement: retry on drift or overlap fail ---
+    const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+    const needsRetry = score < MIN_OVERLAP || flags.praise_flag || flags.abstraction_flag
+    if (!needsRetry) {
       console.log(
         "synthesis_source=llm anchor_overlap_score=" +
         score.toFixed(2) +
@@ -304,10 +316,17 @@ export async function generateSemanticSynthesis(args: {
       }
     }
 
-    const retryExtraLines = [
-      "MISSING ANCHORS (must include several verbatim terms):",
-      missing.slice(0, 24).join(", "),
-    ]
+    // Prepare retry extra lines
+    const retryExtraLines = []
+    if (missing.length > 0) {
+      retryExtraLines.push("MISSING ANCHORS (must include several verbatim terms):")
+      retryExtraLines.push(missing.slice(0, 24).join(", "))
+    }
+    if (flags.drift_terms.length > 0) {
+      retryExtraLines.push("DRIFT TERMS DETECTED (must remove; do not use synonyms):")
+      retryExtraLines.push(flags.drift_terms.join(", "))
+      retryExtraLines.push("Rewrite lines to remove drift terms. Use anchor terms and concrete operational nouns instead. No archetype labels unless present in anchors.")
+    }
 
     const { parsed: retryParsed } = await callModel(retryExtraLines)
     const retryFields = extractFields(retryParsed)
@@ -337,7 +356,7 @@ export async function generateSemanticSynthesis(args: {
         " abstraction_flag=" + retryFlags.abstraction_flag
       )
 
-      if (retryScore >= MIN_OVERLAP) {
+      if (retryScore >= MIN_OVERLAP && !retryFlags.praise_flag && !retryFlags.abstraction_flag) {
         return {
           identityContrast: retryFields.identity_contrast,
           interventionContrast: retryFields.intervention_contrast,
@@ -362,20 +381,30 @@ export async function generateSemanticSynthesis(args: {
       )
     }
 
-    const n0 = topNouns[0] || "work"
-    const n1 = topNouns[1] || "scope"
-    const n2 = topNouns[2] || "constraints"
-    const n3 = topNouns[3] || "handoffs"
-    const v0 = allowedVerbs[0]
-    const v1 = allowedVerbs[1]
-    const v2 = allowedVerbs[2]
-    const v3 = allowedVerbs[3]
-    const v4 = allowedVerbs[4]
 
-    const fallbackIdentity = `You don't just ${n0}—you ${v0} ${n1}.`
-    const fallbackIntervention = `When something isn't working, ${v1} ${n2} and ${v2} ${n3}.`
-    const fallbackConstruction = `You ${v0}, ${v3}, and ${v4}.`
-    const fallbackConsequence = (topNouns.slice(0, 3).join(" ") || "clear constraints decisions").split(" ").slice(0, 7).join(" ")
+    // Helper to pick the first available anchor for fallback
+    function pickFallback(...candidates: (string | undefined)[]): string {
+      for (const c of candidates) {
+        if (c && c.trim().length > 0) return c;
+      }
+      return "work";
+    }
+
+    const n0 = pickFallback(topNouns[0], topVerbs[0], anchorTerms[0], "work");
+    const n1 = pickFallback(topNouns[1], topVerbs[1], anchorTerms[1], "scope");
+    const n2 = pickFallback(topNouns[2], topVerbs[2], anchorTerms[2], "constraints");
+    const n3 = pickFallback(topNouns[3], topVerbs[3], anchorTerms[3], "handoffs");
+    const v0 = pickFallback(topVerbs[0], topNouns[0], anchorTerms[0], allowedVerbs[0]);
+    const v1 = pickFallback(topVerbs[1], topNouns[1], anchorTerms[1], allowedVerbs[1]);
+    const v2 = pickFallback(topVerbs[2], topNouns[2], anchorTerms[2], allowedVerbs[2]);
+    const v3 = pickFallback(topVerbs[3], topNouns[3], anchorTerms[3], allowedVerbs[3]);
+    const v4 = pickFallback(topVerbs[4], topNouns[4], anchorTerms[4], allowedVerbs[4]);
+
+    // Fallback lines always use anchor terms if present
+    const fallbackIdentity = `You don't just ${n0}—you ${v0} ${n1}.`;
+    const fallbackIntervention = `When something isn't working, ${v1} ${n2} and ${v2} ${n3}.`;
+    const fallbackConstruction = `You ${v0}, ${v3}, and ${v4}.`;
+    const fallbackConsequence = (topNouns.length > 0 ? topNouns.slice(0, 3).join(" ") : (anchorTerms.length > 0 ? anchorTerms.slice(0, 3).join(" ") : "clear constraints decisions")).split(" ").slice(0, 7).join(" ");
 
     return {
       identityContrast: fallbackIdentity,

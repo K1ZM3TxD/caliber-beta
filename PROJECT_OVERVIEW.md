@@ -5,9 +5,16 @@
 
 ---
 
+
 ## PM Chat Reboot Entry Point
 
 PM_BOOTSTRAP.md is the canonical entrypoint for rebooting PM chat sessions. It lists the authoritative documents to load and the authority order for Caliber PM operations.
+
+---
+
+## Governance & Workflow Ritual
+
+All governance doc updates (DOCTRINE/KERNEL/MILESTONES/PROJECT_OVERVIEW/PM_BOOTSTRAP) must follow BREAK_UPDATE_RITUAL.md for break/update cycles and doc edits. This ensures clean, reviewable diffs and stable authority order.
 
 ---
 

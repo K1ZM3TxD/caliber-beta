@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "tsx scripts/prompt_drift_guard.ts",
     "smoke:integration": "tsx scripts/smoke_integration.ts",
-    "smoke:synthesis": "tsx scripts/synthesis_guard_smoke.ts"
+    "smoke:synthesis": "tsx scripts/synthesis_guard_smoke.ts",
+    "test:validator": "tsx -r tsconfig-paths/register scripts/validator_outcome_matrix.ts"
   },
   "dependencies": {
     "mammoth": "^1.9.0",
@@ -21,12 +22,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "jest": "^30.2.0",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.6",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }
