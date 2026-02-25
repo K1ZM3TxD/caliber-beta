@@ -64,6 +64,155 @@ const STOPWORDS = new Set<string>([
   "then",
 ])
 
+// Generic resume boilerplate terms that add noise without structural signal.
+// These are high-frequency, low-information terms commonly found in resumes.
+// Keep deterministic + conservative — only add terms that are clearly generic.
+const GENERIC_ANCHOR_BANLIST = new Set<string>([
+  // Generic business/work terms
+  "business",
+  "experience",
+  "experiences",
+  "experienced",
+  "professional",
+  "professionals",
+  "work",
+  "worked",
+  "working",
+  "company",
+  "companies",
+  "organization",
+  "organizations",
+  "team",
+  "teams",
+  "project",
+  "projects",
+  
+  // Education boilerplate
+  "university",
+  "universities",
+  "college",
+  "degree",
+  "studied",
+  "studying",
+  "student",
+  "students",
+  "education",
+  "educational",
+  "graduate",
+  "graduated",
+  "graduating",
+  
+  // Generic skills/qualities
+  "communication",
+  "communications",
+  "excellence",
+  "excellent",
+  "skill",
+  "skills",
+  "skilled",
+  "ability",
+  "abilities",
+  "capable",
+  "capable",
+  "strong",
+  "proven",
+  "successful",
+  "effectively",
+  "efficiently",
+  "responsible",
+  "responsibilities",
+  
+  // Generic action verbs (too common to be signal)
+  "developed",
+  "developing",
+  "maintained",
+  "maintaining",
+  "managed",
+  "managing",
+  "taking",
+  "building",
+  "created",
+  "creating",
+  "supported",
+  "supporting",
+  "provided",
+  "providing",
+  "used",
+  "using",
+  "helped",
+  "helping",
+  "assisted",
+  "assisting",
+  "ensured",
+  "ensuring",
+  "performed",
+  "performing",
+  "completed",
+  "completing",
+  "conducted",
+  "conducting",
+  "participated",
+  "participating",
+  
+  // Generic understanding/knowledge terms
+  "understanding",
+  "understood",
+  "knowledge",
+  "knowledgeable",
+  "learned",
+  "learning",
+  "training",
+  "trained",
+  
+  // Time/duration boilerplate
+  "years",
+  "year",
+  "months",
+  "month",
+  "daily",
+  "weekly",
+  "monthly",
+  
+  // Generic results terms
+  "results",
+  "resulted",
+  "resulting",
+  "achieved",
+  "achieving",
+  "achievement",
+  "achievements",
+  "success",
+  "successfully",
+  
+  // Generic role terms
+  "role",
+  "roles",
+  "position",
+  "positions",
+  "job",
+  "jobs",
+  "career",
+  "careers",
+  
+  // Other common resume filler
+  "various",
+  "multiple",
+  "several",
+  "many",
+  "including",
+  "included",
+  "related",
+  "relevant",
+  "required",
+  "requirements",
+  "needed",
+  "needs",
+  "focused",
+  "focusing",
+  "based",
+  "basing",
+])
+
 const VERB_SUFFIXES = ["ing", "ed", "ize", "ise"]
 const NOUN_SUFFIXES = ["tion", "sion", "ment", "ness", "ship", "ity", "ance", "ence"]
 
@@ -98,6 +247,7 @@ function countEligibleTokens(tokens: string[]): Map<string, number> {
   for (const t of tokens) {
     if (t.length < 3) continue
     if (STOPWORDS.has(t)) continue
+    if (GENERIC_ANCHOR_BANLIST.has(t)) continue
     counts.set(t, (counts.get(t) ?? 0) + 1)
   }
   return counts
