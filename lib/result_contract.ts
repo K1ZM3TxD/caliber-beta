@@ -238,99 +238,170 @@ export function extractSignalAnchors(input: SignalExtractionInput): string[] {
 }
 
 // ======== Title Generation ========
-const TITLE_TEMPLATES = [
-  "{verb} {noun}",
-  "{noun} {verb}er",
-  "Senior {noun} {verb}er",
-  "{noun} Lead",
-  "{verb} Specialist",
-]
 
-function capitalize(s: string): string {
-  if (!s) return ""
-  return s.charAt(0).toUpperCase() + s.slice(1)
+/**
+ * Fixed allowlist of valid job title templates.
+ * NEVER generate titles by concatenating raw anchor tokens.
+ * Each title is a complete, natural job title string.
+ */
+const TITLE_ALLOWLIST: readonly string[] = [
+  // Systems / Operations track
+  "Systems Analyst",
+  "Operations Analyst",
+  "Systems Operations Manager",
+  "Operations Specialist",
+  "Systems Administrator",
+  // Process / Compliance track
+  "Process Improvement Analyst",
+  "Compliance Analyst",
+  "Quality Assurance Specialist",
+  "Process Engineer",
+  "Standards Coordinator",
+  // Implementation / Technical track
+  "Implementation Specialist",
+  "Technical Operations Manager",
+  "Solutions Architect",
+  "Integration Specialist",
+  "Technical Lead",
+  // Program / Strategy track
+  "Program Coordinator",
+  "Program Manager",
+  "Strategy Analyst",
+  "Business Operations Manager",
+  "Account Operations Manager",
+  // Neutral fallbacks (always valid)
+  "Senior Specialist",
+  "Operations Manager",
+  "Project Coordinator",
+  "Business Analyst",
+  "Technical Specialist",
+] as const
+
+/**
+ * Track definitions for lexical matching.
+ * Each track has trigger patterns (regex-safe lowercase substrings) and associated title indices.
+ */
+interface TitleTrack {
+  readonly name: string
+  readonly triggers: readonly string[]
+  readonly titleIndices: readonly number[] // indices into TITLE_ALLOWLIST
 }
+
+const TITLE_TRACKS: readonly TitleTrack[] = [
+  {
+    name: "systems_operations",
+    triggers: ["system", "systems", "ops", "operations", "workflow", "process"],
+    titleIndices: [0, 1, 2, 3, 4], // Systems/Operations titles
+  },
+  {
+    name: "process_compliance",
+    triggers: ["audit", "enforce", "compliance", "standard", "quality", "policy", "govern"],
+    titleIndices: [5, 6, 7, 8, 9], // Process/Compliance titles
+  },
+  {
+    name: "implementation",
+    triggers: ["rebuild", "stabilize", "fix", "troubleshoot", "implement", "deploy", "integrate", "migrate"],
+    titleIndices: [10, 11, 12, 13, 14], // Implementation/Technical titles
+  },
+  {
+    name: "program_strategy",
+    triggers: ["program", "strategy", "strategic", "coordinate", "plan", "lead", "manage", "direct"],
+    titleIndices: [15, 16, 17, 18, 19], // Program/Strategy titles
+  },
+] as const
+
+// Fallback title indices (neutral titles that work for any profile)
+const FALLBACK_TITLE_INDICES: readonly number[] = [20, 21, 22, 23, 24]
 
 /**
  * generateSuggestedTitles — Generate 5 deterministic job title suggestions from signal anchors.
  * 
+ * Algorithm:
+ * 1. Match signalAnchors against track trigger patterns (lexical only)
+ * 2. Score each title template by how many trigger groups it matches
+ * 3. Tie-break by template string ascending (deterministic)
+ * 4. Deduplicate and fill with fallbacks if needed
+ * 5. Return exactly 5 unique titles
+ * 
  * Rules:
- * - Uses signal anchor terms only (no skill anchors)
+ * - Uses signal anchor terms ONLY (no skill anchors)
  * - Deterministic: same inputs => same outputs
- * - Falls back to generic templates if insufficient anchors
- * - Returns exactly 5 unique titles
+ * - Always returns exactly 5 valid job titles from the allowlist
+ * - Never concatenates raw anchor tokens
  */
 export function generateSuggestedTitles(signalAnchors: string[]): string[] {
-  // Extract verb-like and noun-like terms from signal anchors
-  const verbLike: string[] = []
-  const nounLike: string[] = []
+  // Normalize anchors to lowercase for matching
+  const normalizedAnchors = signalAnchors.map(a => a.toLowerCase())
   
-  for (const term of signalAnchors) {
-    const lower = term.toLowerCase()
-    // Verb suffixes
-    if (lower.endsWith("ing") || lower.endsWith("ed") || lower.endsWith("ize") || lower.endsWith("ise")) {
-      verbLike.push(term)
+  // Score each track by how many of its triggers match signal anchors
+  const trackScores: Map<number, number> = new Map() // trackIndex -> match count
+  
+  for (let trackIdx = 0; trackIdx < TITLE_TRACKS.length; trackIdx++) {
+    const track = TITLE_TRACKS[trackIdx]
+    let matchCount = 0
+    
+    for (const trigger of track.triggers) {
+      // Check if any anchor contains this trigger
+      for (const anchor of normalizedAnchors) {
+        if (anchor.includes(trigger)) {
+          matchCount++
+          break // Count each trigger once
+        }
+      }
     }
-    // Noun suffixes
-    else if (lower.endsWith("tion") || lower.endsWith("sion") || lower.endsWith("ment") || 
-             lower.endsWith("ness") || lower.endsWith("ship") || lower.endsWith("ity") ||
-             lower.endsWith("ance") || lower.endsWith("ence")) {
-      nounLike.push(term)
-    }
-    // Default to noun if unclear
-    else {
-      nounLike.push(term)
+    
+    trackScores.set(trackIdx, matchCount)
+  }
+  
+  // Build scored list of title indices
+  // Each title gets the score of its track, or 0 if no track matches
+  const titleScores: Array<{ index: number; score: number; title: string }> = []
+  const seenTitles = new Set<string>()
+  
+  // Add titles from tracks that matched (sorted by track score descending)
+  const sortedTracks = Array.from(trackScores.entries())
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => {
+      // Sort by score descending, then by track index ascending for determinism
+      if (b[1] !== a[1]) return b[1] - a[1]
+      return a[0] - b[0]
+    })
+  
+  for (const [trackIdx, score] of sortedTracks) {
+    const track = TITLE_TRACKS[trackIdx]
+    for (const titleIdx of track.titleIndices) {
+      const title = TITLE_ALLOWLIST[titleIdx]
+      if (!seenTitles.has(title)) {
+        seenTitles.add(title)
+        titleScores.push({ index: titleIdx, score, title })
+      }
     }
   }
   
-  const titles: string[] = []
-  const usedTitles = new Set<string>()
+  // Sort by score descending, then by title string ascending for determinism
+  titleScores.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.title.localeCompare(b.title)
+  })
   
-  // Generate titles using combinations
-  for (let i = 0; i < TITLE_TEMPLATES.length && titles.length < 5; i++) {
-    const template = TITLE_TEMPLATES[i]
-    const verb = verbLike[i % Math.max(verbLike.length, 1)] ?? "Operations"
-    const noun = nounLike[i % Math.max(nounLike.length, 1)] ?? "Systems"
-    
-    // Convert verb forms for role names
-    let verbRoot = verb
-    if (verbRoot.endsWith("ing")) {
-      verbRoot = verbRoot.slice(0, -3)
-    } else if (verbRoot.endsWith("ed")) {
-      verbRoot = verbRoot.slice(0, -2)
-    }
-    
-    let title = template
-      .replace("{verb}", capitalize(verbRoot))
-      .replace("{noun}", capitalize(noun))
-    
-    // Clean up awkward constructs
-    title = title.replace(/er$/i, (match) => match) // keep -er suffix
-    
-    if (!usedTitles.has(title.toLowerCase())) {
-      usedTitles.add(title.toLowerCase())
-      titles.push(title)
+  // Take top 5, filling with fallbacks if needed
+  const result: string[] = []
+  
+  for (const { title } of titleScores) {
+    if (result.length >= 5) break
+    result.push(title)
+  }
+  
+  // Fill remaining slots with fallbacks
+  for (const fallbackIdx of FALLBACK_TITLE_INDICES) {
+    if (result.length >= 5) break
+    const title = TITLE_ALLOWLIST[fallbackIdx]
+    if (!result.includes(title)) {
+      result.push(title)
     }
   }
   
-  // Fallback if we don't have enough unique titles
-  const fallbacks = [
-    "Technical Lead",
-    "Senior Specialist",
-    "Operations Manager",
-    "Systems Architect",
-    "Strategy Consultant",
-  ]
-  
-  for (const fb of fallbacks) {
-    if (titles.length >= 5) break
-    if (!usedTitles.has(fb.toLowerCase())) {
-      usedTitles.add(fb.toLowerCase())
-      titles.push(fb)
-    }
-  }
-  
-  return titles.slice(0, 5)
+  return result.slice(0, 5)
 }
 
 // ======== Scoring Functions ========
