@@ -54,7 +54,7 @@ function isValidExperienceVector(v: unknown): v is number[] {
   return true
 }
 
-const DIMENSION_LABELS: Record<JobIngestDimensionKey, string> = {
+export const DIMENSION_LABELS: Record<JobIngestDimensionKey, string> = {
   structuralMaturity: "Structural Maturity",
   authorityScope: "Authority Scope",
   revenueOrientation: "Revenue Orientation",
@@ -63,7 +63,7 @@ const DIMENSION_LABELS: Record<JobIngestDimensionKey, string> = {
   stakeholderDensity: "Stakeholder Density",
 }
 
-function formatIncompleteCoverageMessage(meta: unknown, fallbackDetail: string): string {
+export function formatIncompleteCoverageMessage(meta: unknown, fallbackDetail: string): string {
   try {
     const missing = (meta as any)?.missingDimensions
     if (!Array.isArray(missing) || missing.length === 0) return fallbackDetail

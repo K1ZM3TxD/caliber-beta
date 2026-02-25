@@ -1,7 +1,7 @@
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
-import { ingestJob } from "@/lib/job_ingest"
-import { runIntegrationSeam } from "@/lib/integration_seam"
+import { ingestJob, isJobIngestError } from "@/lib/job_ingest"
+import { runIntegrationSeam, formatIncompleteCoverageMessage, DIMENSION_LABELS } from "@/lib/integration_seam"
 import { toResultContract, extractSignalAnchors, generateSuggestedTitles } from "@/lib/result_contract"
 import { generateSemanticSynthesis, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "@/lib/semantic_synthesis"
 import { extractLexicalAnchors } from "@/lib/anchor_extraction"
@@ -16,8 +16,12 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-function bad(code: CalibrationError["code"], message: string): Err {
-  return { ok: false, error: { code, message } }
+function bad(code: CalibrationError["code"], message: string, missingDimensions?: string[]): Err {
+  const error: CalibrationError = { code, message }
+  if (missingDimensions && missingDimensions.length > 0) {
+    error.missingDimensions = missingDimensions
+  }
+  return { ok: false, error }
 }
 
 function pushHistory(session: CalibrationSession, from: CalibrationState, to: CalibrationState, event: string): CalibrationSession {
@@ -1298,8 +1302,31 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         try {
           const ingest = ingestJob(jobText.trim())
           roleVector = ingest.roleVector as any
-        } catch (e: any) {
-          return bad("BAD_REQUEST", String(e?.detail ?? e?.message ?? "Invalid job text"))
+        } catch (e: unknown) {
+          // Handle INCOMPLETE_DIMENSION_COVERAGE with formatted message and missingDimensions
+          if (isJobIngestError(e) && e.code === "INCOMPLETE_DIMENSION_COVERAGE") {
+            const meta = e.meta
+            const missingKeys = Array.isArray(meta?.missingDimensions) ? meta.missingDimensions : []
+            
+            // Observability: single-line log once per attempt
+            console.log(`job_ingest_incomplete_coverage missing_dimensions=${missingKeys.join(",")} missing_count=${missingKeys.length}`)
+            
+            // Format human-readable message
+            const message = formatIncompleteCoverageMessage(meta, e.detail)
+            
+            // Map keys to labels for UI
+            const missingLabels: string[] = []
+            for (const key of missingKeys) {
+              const label = (DIMENSION_LABELS as Record<string, string>)[key]
+              if (typeof label === "string") missingLabels.push(label)
+            }
+            
+            return bad("BAD_REQUEST", message, missingLabels)
+          }
+          
+          // Other job ingest errors
+          const detail = isJobIngestError(e) ? e.detail : String((e as any)?.message ?? "Invalid job text")
+          return bad("BAD_REQUEST", detail)
         }
 
         const to: CalibrationState = "JOB_INGEST"

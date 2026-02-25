@@ -33,6 +33,7 @@ export interface CalibrationError {
     | "PROMPT_FROZEN"
     | "INSUFFICIENT_SIGNAL_AFTER_CLARIFIER"
   message: string
+  missingDimensions?: string[]
 }
 
 export type CalibrationEvent = { type: string; sessionId?: string; [key: string]: any }

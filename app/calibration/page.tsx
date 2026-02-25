@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
 
-type NormalizedError = { code: string; message: string };
+type NormalizedError = { code: string; message: string; missingDimensions?: string[] };
 
 function Stage({ children }: { children: React.ReactNode }) {
   return (
@@ -15,11 +15,34 @@ function Stage({ children }: { children: React.ReactNode }) {
 }
 
 function ErrorBox({ error }: { error: NormalizedError | null }) {
-  return error ? (
-    <pre className="mb-6 text-left whitespace-pre-wrap break-words text-[12px] opacity-90">
-      {JSON.stringify({ ok: false, error }, null, 2)}
-    </pre>
-  ) : null;
+  if (!error) return null;
+  
+  // Check if this is a missing dimensions error
+  const isMissingDimensionsError = error.missingDimensions && error.missingDimensions.length > 0;
+  
+  if (isMissingDimensionsError) {
+    return (
+      <div className="mb-6 text-left p-4 rounded-md border border-[#3A3A3A] bg-[#1A1A1A]">
+        <div className="text-[14px] font-semibold text-[#F2F2F2] mb-2">Job description needs more detail</div>
+        <div className="text-[13px] opacity-90 mb-3">{error.message}</div>
+        {error.missingDimensions && (
+          <ul className="list-disc list-inside text-[12px] opacity-70 space-y-1">
+            {error.missingDimensions.map((dim, idx) => (
+              <li key={idx}>{dim}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+  
+  // Default error display (non-JSON)
+  return (
+    <div className="mb-6 text-left p-4 rounded-md border border-[#3A3A3A] bg-[#1A1A1A]">
+      <div className="text-[14px] font-semibold text-[#F2F2F2] mb-2">Error</div>
+      <div className="text-[13px] opacity-90">{error.message}</div>
+    </div>
+  );
 }
 
 function safeString(v: any): string {
@@ -120,7 +143,10 @@ export default function CalibrationPage() {
         const code = safeString(payload?.error?.code) || safeString(payload?.code) || 'HTTP_ERROR';
         const message =
           safeString(payload?.error?.message) || safeString(payload?.message) || `Request failed with status ${res.status}`;
-        setError({ code, message });
+        const missingDimensions = Array.isArray(payload?.error?.missingDimensions) 
+          ? payload.error.missingDimensions.filter((d: unknown) => typeof d === 'string')
+          : undefined;
+        setError({ code, message, missingDimensions });
         return;
       }
 
