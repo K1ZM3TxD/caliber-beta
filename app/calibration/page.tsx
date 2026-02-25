@@ -108,6 +108,10 @@ export default function CalibrationPage() {
   // Prevent duplicate timers + prevent runaway ADVANCE spam.
   const autoProgressIntervalRef = useRef<number | null>(null);
   const advanceInFlightRef = useRef<boolean>(false);
+  
+  // Lock refs for one-shot auto-progress states (JOB_INGEST, ALIGNMENT_OUTPUT)
+  const jobIngestAdvancedRef = useRef<string | null>(null);
+  const alignmentOutputComputedRef = useRef<string | null>(null);
 
   useEffect(() => {
     const nextState = session?.state ?? null;
@@ -272,6 +276,44 @@ export default function CalibrationPage() {
     sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.state, isSubmitting, session?.sessionId]);
+
+  // Auto-advance for JOB_INGEST → ALIGNMENT_OUTPUT
+  useEffect(() => {
+    if (session?.state !== 'JOB_INGEST') {
+      // Reset lock when leaving JOB_INGEST
+      if (jobIngestAdvancedRef.current === session?.sessionId) {
+        jobIngestAdvancedRef.current = null;
+      }
+      return;
+    }
+    if (isSubmitting) return;
+    // Prevent duplicate advances for same session
+    if (jobIngestAdvancedRef.current === session.sessionId) return;
+    
+    jobIngestAdvancedRef.current = session.sessionId;
+    sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state, isSubmitting, session?.sessionId]);
+
+  // Auto-compute for ALIGNMENT_OUTPUT (when no result yet)
+  useEffect(() => {
+    if (session?.state !== 'ALIGNMENT_OUTPUT') {
+      // Reset lock when leaving ALIGNMENT_OUTPUT
+      if (alignmentOutputComputedRef.current === session?.sessionId) {
+        alignmentOutputComputedRef.current = null;
+      }
+      return;
+    }
+    if (isSubmitting) return;
+    // Already have results - no need to compute
+    if (session.result) return;
+    // Prevent duplicate compute for same session
+    if (alignmentOutputComputedRef.current === session.sessionId) return;
+    
+    alignmentOutputComputedRef.current = session.sessionId;
+    sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state, isSubmitting, session?.sessionId, session?.result]);
 
   // LANDING
   if (!session) {
@@ -549,45 +591,13 @@ export default function CalibrationPage() {
     );
   }
 
-  // JOB_INGEST
+  // JOB_INGEST - Show computing state (auto-advances)
   if (state === 'JOB_INGEST') {
     return (
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
-
-        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Job Ingest</div>
-
-          <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">Job description</div>
-            <textarea
-              value={jobText}
-              onChange={(e) => setJobText(e.target.value)}
-              rows={10}
-              className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
-              placeholder="Paste the job description…"
-            />
-          </div>
-
-          <div className="mt-6 flex items-center justify-end gap-3">
-            <button
-              onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
-              disabled={isSubmitting || jobText.trim().length === 0}
-              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Submitting…' : 'Submit'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
-            >
-              {isSubmitting ? 'Submitting…' : 'Continue'}
-            </button>
-          </div>
-        </div>
+        <div className="mt-10 text-[16px] opacity-90">Computing alignment…</div>
       </Stage>
     );
   }
@@ -618,6 +628,17 @@ export default function CalibrationPage() {
     const signalAnchorsDisplay = signalAnchorsRaw.filter((x: unknown): x is string => typeof x === 'string');
     const skillAnchorsDisplay = skillAnchorsRaw.filter((x: unknown): x is string => typeof x === 'string');
 
+    // Show computing state if no result yet (auto-computes)
+    if (!hasResult) {
+      return (
+        <Stage>
+          <ErrorBox error={error} />
+          <div className="text-[32px] leading-tight font-semibold">Caliber</div>
+          <div className="mt-10 text-[16px] opacity-90">Computing results…</div>
+        </Stage>
+      );
+    }
+
     return (
       <Stage>
         <ErrorBox error={error} />
@@ -626,69 +647,57 @@ export default function CalibrationPage() {
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
           <div className="text-[14px] font-semibold opacity-90">Results</div>
 
-          {!hasResult ? (
-            <div className="mt-6 flex items-center justify-end">
-              <button
-                onClick={() => sendEvent({ type: 'COMPUTE_ALIGNMENT_OUTPUT', sessionId: session.sessionId } as CalibrationEvent)}
-                disabled={isSubmitting}
-                className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Computing…' : 'Compute Results'}
-              </button>
+          <div className="mt-6 space-y-8">
+            {/* Signal Alignment - Primary metric */}
+            <div>
+              <div className="text-[12px] font-semibold opacity-70">Signal Alignment</div>
+              <div className="mt-2 text-[48px] leading-none font-semibold">{signalAlignmentDisplay}</div>
             </div>
-          ) : (
-            <div className="mt-6 space-y-8">
-              {/* Signal Alignment - Primary metric */}
+
+            {/* Skill Coverage + Stretch Load - Secondary metrics */}
+            <div className="flex gap-12">
               <div>
-                <div className="text-[12px] font-semibold opacity-70">Signal Alignment</div>
-                <div className="mt-2 text-[48px] leading-none font-semibold">{signalAlignmentDisplay}</div>
+                <div className="text-[12px] font-semibold opacity-70">Skill Coverage</div>
+                <div className="mt-2 text-[24px] leading-none font-semibold">{skillCoverageDisplay}</div>
               </div>
-
-              {/* Skill Coverage + Stretch Load - Secondary metrics */}
-              <div className="flex gap-12">
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Skill Coverage</div>
-                  <div className="mt-2 text-[24px] leading-none font-semibold">{skillCoverageDisplay}</div>
-                </div>
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Stretch Load</div>
-                  <div className="mt-2 text-[24px] leading-none font-semibold">{stretchLoadDisplay}</div>
-                </div>
+              <div>
+                <div className="text-[12px] font-semibold opacity-70">Stretch Load</div>
+                <div className="mt-2 text-[24px] leading-none font-semibold">{stretchLoadDisplay}</div>
               </div>
-
-              {/* Structural Note - Only when triggered */}
-              {structuralNoteRaw && (
-                <div className="p-4 bg-[#1a1a1a] rounded-md border border-[#333]">
-                  <div className="text-[12px] font-semibold opacity-70 mb-2">Structural Note</div>
-                  <div className="text-[14px] leading-relaxed opacity-90">{structuralNoteRaw}</div>
-                </div>
-              )}
-
-              {/* Signal Spine */}
-              {signalAnchorsDisplay.length > 0 && (
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Signal Spine</div>
-                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
-                    {signalAnchorsDisplay.map((term, idx) => (
-                      <li key={`signal-anchor-${idx}`}>{term}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Skill Trace */}
-              {skillAnchorsDisplay.length > 0 && (
-                <div>
-                  <div className="text-[12px] font-semibold opacity-70">Skill Trace</div>
-                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
-                    {skillAnchorsDisplay.map((term, idx) => (
-                      <li key={`skill-anchor-${idx}`}>{term}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
-          )}
+
+            {/* Structural Note - Only when triggered */}
+            {structuralNoteRaw && (
+              <div className="p-4 bg-[#1a1a1a] rounded-md border border-[#333]">
+                <div className="text-[12px] font-semibold opacity-70 mb-2">Structural Note</div>
+                <div className="text-[14px] leading-relaxed opacity-90">{structuralNoteRaw}</div>
+              </div>
+            )}
+
+            {/* Signal Spine */}
+            {signalAnchorsDisplay.length > 0 && (
+              <div>
+                <div className="text-[12px] font-semibold opacity-70">Signal Spine</div>
+                <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                  {signalAnchorsDisplay.map((term, idx) => (
+                    <li key={`signal-anchor-${idx}`}>{term}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Skill Trace */}
+            {skillAnchorsDisplay.length > 0 && (
+              <div>
+                <div className="text-[12px] font-semibold opacity-70">Skill Trace</div>
+                <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                  {skillAnchorsDisplay.map((term, idx) => (
+                    <li key={`skill-anchor-${idx}`}>{term}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
       </Stage>
     );
