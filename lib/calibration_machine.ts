@@ -2,7 +2,7 @@ import type { CalibrationEvent, CalibrationSession, CalibrationState, Calibratio
 import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
 import { runIntegrationSeam } from "@/lib/integration_seam"
-import { toResultContract } from "@/lib/result_contract"
+import { toResultContract, extractSignalAnchors, generateSuggestedTitles } from "@/lib/result_contract"
 import { generateSemanticSynthesis, SEMANTIC_SYNTHESIS_BLACKLIST_TOKENS } from "@/lib/semantic_synthesis"
 import { extractLexicalAnchors } from "@/lib/anchor_extraction"
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
@@ -851,6 +851,7 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
       marketTitle: session.synthesis?.marketTitle ?? null,
       titleExplanation: session.synthesis?.titleExplanation ?? null,
       lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
+      suggestedTitles: session.synthesis?.suggestedTitles ?? null,
       anchor_overlap_score,
       missing_anchor_count,
       missing_anchor_terms,
@@ -1116,7 +1117,35 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "TITLE_HYPOTHESIS") {
+          // Compute suggested titles from signal anchors
+          const resumeText = session.resume.rawText ?? ""
+          const promptAnswers: Record<1 | 2 | 3 | 4 | 5, string> = {
+            1: session.prompts[1]?.answer ?? "",
+            2: session.prompts[2]?.answer ?? "",
+            3: session.prompts[3]?.answer ?? "",
+            4: session.prompts[4]?.answer ?? "",
+            5: session.prompts[5]?.answer ?? "",
+          }
+          const signalAnchors = extractSignalAnchors({ resumeText, promptAnswers })
+          const suggestedTitles = generateSuggestedTitles(signalAnchors)
+          
           const to: CalibrationState = "TITLE_DIALOGUE"
+          session = {
+            ...session,
+            synthesis: {
+              ...(session.synthesis ?? {
+                patternSummary: null,
+                operateBest: null,
+                loseEnergy: null,
+                identitySummary: null,
+                marketTitle: null,
+                titleExplanation: null,
+                lastTitleFeedback: null,
+                suggestedTitles: null,
+              }),
+              suggestedTitles,
+            },
+          }
           session = pushHistory({ ...session, state: to }, from, to, event.type)
           storeSet(session)
           return { ok: true, session }
@@ -1247,6 +1276,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               marketTitle: null,
               titleExplanation: null,
               lastTitleFeedback: null,
+              suggestedTitles: null,
             }),
             lastTitleFeedback: feedback,
           },

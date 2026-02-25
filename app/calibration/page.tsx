@@ -229,6 +229,24 @@ export default function CalibrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionId, session?.state]);
 
+  // Auto-advance for PATTERN_SYNTHESIS (frozen state)
+  useEffect(() => {
+    if (session?.state !== 'PATTERN_SYNTHESIS') return;
+    if (isSubmitting) return;
+
+    sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state, isSubmitting, session?.sessionId]);
+
+  // Auto-advance for TITLE_HYPOTHESIS (frozen state)
+  useEffect(() => {
+    if (session?.state !== 'TITLE_HYPOTHESIS') return;
+    if (isSubmitting) return;
+
+    sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state, isSubmitting, session?.sessionId]);
+
   // LANDING
   if (!session) {
     return (
@@ -434,15 +452,8 @@ export default function CalibrationPage() {
     );
   }
 
-  // PATTERN_SYNTHESIS (FROZEN - auto-advance)
+  // PATTERN_SYNTHESIS (FROZEN - auto-advance handled by top-level useEffect)
   if (state === 'PATTERN_SYNTHESIS') {
-    // Auto-advance since synthesis is frozen
-    useEffect(() => {
-      if (!isSubmitting && state === 'PATTERN_SYNTHESIS') {
-        sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
-      }
-    }, [state]);
-
     return (
       <Stage>
         <ErrorBox error={error} />
@@ -452,15 +463,8 @@ export default function CalibrationPage() {
     );
   }
 
-  // TITLE_HYPOTHESIS (FROZEN - auto-advance to job input)
+  // TITLE_HYPOTHESIS (FROZEN - auto-advance handled by top-level useEffect)
   if (state === 'TITLE_HYPOTHESIS') {
-    // Auto-advance since title synthesis is frozen
-    useEffect(() => {
-      if (!isSubmitting && state === 'TITLE_HYPOTHESIS') {
-        sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
-      }
-    }, [state]);
-
     return (
       <Stage>
         <ErrorBox error={error} />
@@ -472,6 +476,8 @@ export default function CalibrationPage() {
 
   // TITLE_DIALOGUE (FROZEN - show job input directly)
   if (state === 'TITLE_DIALOGUE') {
+    const suggestedTitles = session.synthesis?.suggestedTitles ?? []
+    
     return (
       <Stage>
         <ErrorBox error={error} />
@@ -479,6 +485,18 @@ export default function CalibrationPage() {
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
           <div className="text-[14px] font-semibold opacity-90">Job Description</div>
+
+          {/* Suggested Titles (derived from signal anchors) */}
+          {suggestedTitles.length > 0 && (
+            <div className="mt-6">
+              <div className="text-[12px] font-semibold opacity-70">Suggested Titles</div>
+              <ol className="mt-2 list-decimal list-inside space-y-1 text-[14px] opacity-80">
+                {suggestedTitles.map((title, idx) => (
+                  <li key={idx}>{title}</li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div className="mt-6">
             <div className="text-[12px] font-semibold opacity-70">Paste the job description to evaluate</div>

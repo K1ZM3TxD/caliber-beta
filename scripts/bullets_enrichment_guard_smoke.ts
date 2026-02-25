@@ -28,16 +28,16 @@ function mockFetchOnce(jsonObj: any) {
 
 async function runFlowToSynthesis() {
   const created = await dispatchCalibrationEvent({ type: "CREATE_SESSION" } as any)
-  assert(created.ok, "CREATE_SESSION failed")
+  if (!created.ok) throw new Error("CREATE_SESSION failed")
   const sessionId = created.session.sessionId
 
   const resumeText =
     "Worked across scope and constraints; mapped ownership and routing; documented handoffs; fixed measurement drift; kept scope bounded across cycles."
   const r1 = await dispatchCalibrationEvent({ type: "SUBMIT_RESUME", sessionId, resumeText } as any)
-  assert(r1.ok, "SUBMIT_RESUME failed")
+  if (!r1.ok) throw new Error("SUBMIT_RESUME failed")
 
   const a1 = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-  assert(a1.ok, "ADVANCE to PROMPT_1 failed")
+  if (!a1.ok) throw new Error("ADVANCE to PROMPT_1 failed")
 
   const answers = [
     "I did the routing and decision boundary work, clarified constraints, and kept handoffs explicit across stakeholders.",
@@ -50,28 +50,28 @@ async function runFlowToSynthesis() {
   let s = a1.session
   for (let i = 0; i < 5; i += 1) {
     const res = await dispatchCalibrationEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answers[i] } as any)
-    assert(res.ok, `SUBMIT_PROMPT_ANSWER ${i + 1} failed`)
+    if (!res.ok) throw new Error(`SUBMIT_PROMPT_ANSWER ${i + 1} failed`)
     s = res.session
   }
 
   // Consolidation pending -> ritual
   const c1 = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-  assert(c1.ok, "ADVANCE to CONSOLIDATION_RITUAL failed")
+  if (!c1.ok) throw new Error("ADVANCE to CONSOLIDATION_RITUAL failed")
   s = c1.session
 
   // Tick ritual until complete (needs >=450ms between ticks)
   while (s.state === "CONSOLIDATION_RITUAL") {
     await sleep(500)
     const tick = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-    assert(tick.ok, "ADVANCE tick failed")
+    if (!tick.ok) throw new Error("ADVANCE tick failed")
     s = tick.session
     if (s.state === "ENCODING_RITUAL") break
   }
 
   const enc = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-  assert(enc.ok, "ADVANCE encoding->synthesis failed")
+  if (!enc.ok) throw new Error("ADVANCE encoding->synthesis failed")
   s = enc.session
-  assert(s.state === "PATTERN_SYNTHESIS", "Did not reach PATTERN_SYNTHESIS")
+  if (s.state !== "PATTERN_SYNTHESIS") throw new Error("Did not reach PATTERN_SYNTHESIS")
   return s
 }
 
@@ -87,10 +87,10 @@ async function testHappyPathUsesLLMBullets() {
   })
 
   const s = await runFlowToSynthesis()
-  assert(Array.isArray(s.synthesis?.operateBest), "Missing operateBest")
-  assert(s.synthesis!.operateBest.includes("Explicit ownership and decision routing."), "LLM bullets not used for operateBest")
-  assert(Array.isArray(s.synthesis?.loseEnergy), "Missing loseEnergy")
-  assert(s.synthesis!.loseEnergy.includes("Decisions without an owner."), "LLM bullets not used for loseEnergy")
+  if (!Array.isArray(s.synthesis?.operateBest)) throw new Error("Missing operateBest")
+  if (!s.synthesis.operateBest.includes("Explicit ownership and decision routing.")) throw new Error("LLM bullets not used for operateBest")
+  if (!Array.isArray(s.synthesis?.loseEnergy)) throw new Error("Missing loseEnergy")
+  if (!s.synthesis.loseEnergy.includes("Decisions without an owner.")) throw new Error("LLM bullets not used for loseEnergy")
 }
 
 async function testValidationRejectsPraiseAndFallsBack() {
@@ -105,7 +105,7 @@ async function testValidationRejectsPraiseAndFallsBack() {
 
   const s = await runFlowToSynthesis()
   const joined = (s.synthesis?.operateBest ?? []).join(" ")
-  assert(!/great/i.test(joined), "Praise bullet survived validation (should have fallen back)")
+  if (/great/i.test(joined)) throw new Error("Praise bullet survived validation (should have fallen back)")
 }
 
 async function testRepetitionAcrossSynthesisAndBulletsRejected() {
@@ -120,7 +120,7 @@ async function testRepetitionAcrossSynthesisAndBulletsRejected() {
 
   const s = await runFlowToSynthesis()
   const joined = (s.synthesis?.operateBest ?? []).join(" ")
-  assert(!/Clear ownership boundaries\./.test(joined), "Repetition bullet survived validation (should have fallen back)")
+  if (/Clear ownership boundaries\./.test(joined)) throw new Error("Repetition bullet survived validation (should have fallen back)")
 }
 
 async function main() {

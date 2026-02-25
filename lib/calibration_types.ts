@@ -97,6 +97,7 @@ export interface CalibrationSession {
 
     // Title dialogue
     lastTitleFeedback: string | null
+    suggestedTitles: string[] | null
 
     // Anchor metrics
     anchor_overlap_score?: number

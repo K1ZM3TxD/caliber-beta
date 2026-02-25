@@ -167,6 +167,172 @@ function classifyAnchors(context: ScoringContext): {
   return { signalAnchors, skillAnchors }
 }
 
+// ======== Signal Extraction (for title generation) ========
+export type SignalExtractionInput = {
+  resumeText: string
+  promptAnswers: Record<1 | 2 | 3 | 4 | 5, string>
+}
+
+/**
+ * extractSignalAnchors — Extract signal-dominant terms without requiring job text.
+ * Used for generating suggested titles before job description is provided.
+ */
+export function extractSignalAnchors(input: SignalExtractionInput): string[] {
+  const resumeText = String(input.resumeText ?? "")
+  const promptAnswers = input.promptAnswers
+  
+  const q1 = String(promptAnswers[1] ?? "")
+  const q2 = String(promptAnswers[2] ?? "")
+  const q3 = String(promptAnswers[3] ?? "")
+  const q4 = String(promptAnswers[4] ?? "")
+  const q5 = String(promptAnswers[5] ?? "")
+  
+  // Build contexts with tags
+  const contexts: Array<{ source: SourceTag; context_type: ContextType; text: string }> = [
+    { source: "resume", context_type: "neutral", text: resumeText },
+    { source: "q1", context_type: BREAKDOWN_PROMPT_INDEX === 1 ? "breakdown" : "neutral", text: q1 },
+    { source: "q2", context_type: BREAKDOWN_PROMPT_INDEX === 2 ? "breakdown" : "neutral", text: q2 },
+    { source: "q3", context_type: BREAKDOWN_PROMPT_INDEX === 3 ? "breakdown" : "neutral", text: q3 },
+    { source: "q4", context_type: BREAKDOWN_PROMPT_INDEX === 4 ? "breakdown" : "neutral", text: q4 },
+    { source: "q5", context_type: BREAKDOWN_PROMPT_INDEX === 5 ? "breakdown" : "neutral", text: q5 },
+  ]
+  
+  // Extract all anchors from combined text
+  const promptAnswersText = [q1, q2, q3, q4, q5].join("\n")
+  const anchorOutput = extractLexicalAnchors({ resumeText, promptAnswersText })
+  const allTerms = anchorOutput.combined
+  
+  // Classify each term
+  const signalCandidates: TermClassification[] = []
+  
+  for (const entry of allTerms) {
+    const term = entry.term
+    
+    // Find which contexts contain this term
+    const presentInContexts = contexts.filter(ctx => hasWholeWord(ctx.text, term))
+    const distinctContextCount = presentInContexts.length
+    const breakdownPresence = presentInContexts.some(ctx => ctx.context_type === "breakdown")
+    
+    // Signal-Dominant: breakdown + at least one other distinct context
+    const isSignalDominant = breakdownPresence && distinctContextCount >= 2
+    
+    if (isSignalDominant) {
+      signalCandidates.push({
+        term,
+        frequency: entry.count,
+        breakdownPresence,
+        distinctContextCount,
+      })
+    }
+  }
+  
+  // Sort: breakdown_presence desc, freq desc, term asc
+  signalCandidates.sort((a, b) => {
+    if (a.breakdownPresence !== b.breakdownPresence) return a.breakdownPresence ? -1 : 1
+    if (b.frequency !== a.frequency) return b.frequency - a.frequency
+    return a.term.localeCompare(b.term)
+  })
+  
+  // Apply cap and return terms only
+  return signalCandidates.slice(0, SIGNAL_ANCHOR_CAP).map(x => x.term)
+}
+
+// ======== Title Generation ========
+const TITLE_TEMPLATES = [
+  "{verb} {noun}",
+  "{noun} {verb}er",
+  "Senior {noun} {verb}er",
+  "{noun} Lead",
+  "{verb} Specialist",
+]
+
+function capitalize(s: string): string {
+  if (!s) return ""
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+/**
+ * generateSuggestedTitles — Generate 5 deterministic job title suggestions from signal anchors.
+ * 
+ * Rules:
+ * - Uses signal anchor terms only (no skill anchors)
+ * - Deterministic: same inputs => same outputs
+ * - Falls back to generic templates if insufficient anchors
+ * - Returns exactly 5 unique titles
+ */
+export function generateSuggestedTitles(signalAnchors: string[]): string[] {
+  // Extract verb-like and noun-like terms from signal anchors
+  const verbLike: string[] = []
+  const nounLike: string[] = []
+  
+  for (const term of signalAnchors) {
+    const lower = term.toLowerCase()
+    // Verb suffixes
+    if (lower.endsWith("ing") || lower.endsWith("ed") || lower.endsWith("ize") || lower.endsWith("ise")) {
+      verbLike.push(term)
+    }
+    // Noun suffixes
+    else if (lower.endsWith("tion") || lower.endsWith("sion") || lower.endsWith("ment") || 
+             lower.endsWith("ness") || lower.endsWith("ship") || lower.endsWith("ity") ||
+             lower.endsWith("ance") || lower.endsWith("ence")) {
+      nounLike.push(term)
+    }
+    // Default to noun if unclear
+    else {
+      nounLike.push(term)
+    }
+  }
+  
+  const titles: string[] = []
+  const usedTitles = new Set<string>()
+  
+  // Generate titles using combinations
+  for (let i = 0; i < TITLE_TEMPLATES.length && titles.length < 5; i++) {
+    const template = TITLE_TEMPLATES[i]
+    const verb = verbLike[i % Math.max(verbLike.length, 1)] ?? "Operations"
+    const noun = nounLike[i % Math.max(nounLike.length, 1)] ?? "Systems"
+    
+    // Convert verb forms for role names
+    let verbRoot = verb
+    if (verbRoot.endsWith("ing")) {
+      verbRoot = verbRoot.slice(0, -3)
+    } else if (verbRoot.endsWith("ed")) {
+      verbRoot = verbRoot.slice(0, -2)
+    }
+    
+    let title = template
+      .replace("{verb}", capitalize(verbRoot))
+      .replace("{noun}", capitalize(noun))
+    
+    // Clean up awkward constructs
+    title = title.replace(/er$/i, (match) => match) // keep -er suffix
+    
+    if (!usedTitles.has(title.toLowerCase())) {
+      usedTitles.add(title.toLowerCase())
+      titles.push(title)
+    }
+  }
+  
+  // Fallback if we don't have enough unique titles
+  const fallbacks = [
+    "Technical Lead",
+    "Senior Specialist",
+    "Operations Manager",
+    "Systems Architect",
+    "Strategy Consultant",
+  ]
+  
+  for (const fb of fallbacks) {
+    if (titles.length >= 5) break
+    if (!usedTitles.has(fb.toLowerCase())) {
+      usedTitles.add(fb.toLowerCase())
+      titles.push(fb)
+    }
+  }
+  
+  return titles.slice(0, 5)
+}
+
 // ======== Scoring Functions ========
 function computeSignalSkillScoring(context: ScoringContext): {
   signalAnchors: string[]
