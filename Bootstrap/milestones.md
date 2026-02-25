@@ -25,14 +25,25 @@ Status: COMPLETE
 6.1 — Overlap Enforcement + Retry Logic  
 Status: COMPLETE
 
-6.2 — Anti-Abstraction Enforcement  
+6.2 — Signal/Skill Classification + Weighted Scoring  
 Status: COMPLETE
+  - Deterministic signal vs skill classification: resume-only anchors never become signal; signal requires breakdown + distinct context.
+  - Caps: signalAnchors max 10, skillAnchors max 14.
+  - Scoring outputs: signalAlignment (0–100), skillCoverage (0–100), compositeAlignment (0–100 adaptive blend), stretchLoad (0–100 weighted missing anchors).
+  - Structural Note branch: triggers if signalAlignment ≤ 40 AND skillCoverage ≥ 70 (parallel branch).
+  - Observability: single-line log includes all new metrics, emitted once per scoring attempt.
 
 6.3 — Explicit Validator Outcome Matrix  
 Status: COMPLETE
 
+  6.0.x / 6.1.x: Anchor extraction now applies a deterministic GENERIC_ANCHOR_BANLIST filter (in addition to stopwords) to remove generic/boilerplate/education/business filler from anchors.
+
 6.4 — Observability Upgrade  
 Status: COMPLETE
+
+  Job Description ingest: INCOMPLETE_DIMENSION_COVERAGE is surfaced as missingDimensions labels in API + UI error box. Lexical coverage broadened for: structuralMaturity, roleAmbiguity, breadthVsDepth (lexical only; no semantic inference).
+
+  Job Description ingest: INCOMPLETE_DIMENSION_COVERAGE is surfaced as missingDimensions labels in API + UI error box. Lexical coverage broadened for: structuralMaturity, roleAmbiguity, breadthVsDepth (lexical only; no semantic inference).
 
 All 6.x logs deterministic.  
 Fallback_reason implemented.  
@@ -74,6 +85,10 @@ Status: BLOCKED (until operateBest stable)
 - No logic changes
 
 Mock-calibration remains archived candidate (future cleanup).
+
+# UI/UX Flow (2026)
+
+- JOB_INGEST and ALIGNMENT_OUTPUT states now auto-advance and auto-compute, showing "Computing ..." states in the UI. Duplicate event prevention is enforced via ref-based locks.
 
 ---
 

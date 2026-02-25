@@ -55,7 +55,7 @@ Active spine:
 
 1. Resume ingest
 2. 5-question signal capture
-3. Deterministic anchor extraction (user-visible)
+3. Deterministic anchor extraction (user-visible; applies GENERIC_ANCHOR_BANLIST in addition to stopwords to remove generic/boilerplate/education/business filler)
 4. Job description ingest
 5. Anchor overlap + gap surface
 6. Title producer (mechanical, anchor-driven)
@@ -77,7 +77,7 @@ All synthesis is governed by structural pressure, not prompt rhetoric.
 
 All synthesis must follow:
 
-1. Extract lexical anchors (deterministic)
+1. Extract lexical anchors (deterministic; applies GENERIC_ANCHOR_BANLIST in addition to stopwords to enforce anchor quality)
 2. Generate via LLM under anchor-aware prompt
 3. Validate:
    - Structural validity
@@ -153,9 +153,12 @@ Single-line. Deterministic. Machine-parseable.
 
 ---
 
+
 # Observability Doctrine
 
 Every synthesis attempt must log exactly once.
+
+Job Description ingest: INCOMPLETE_DIMENSION_COVERAGE is surfaced as missingDimensions labels in API + UI error box (enforced and logged as part of observability).
 
 Fallback must include fallback_reason:
 
