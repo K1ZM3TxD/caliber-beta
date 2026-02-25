@@ -3,6 +3,7 @@
 import { ingestJob, isJobIngestError, type JobIngestObject, type JobIngestDimensionKey } from "@/lib/job_ingest"
 import { computeSkillMatch, type SkillMatchResult } from "@/lib/skill_match"
 import { computeStretchLoad, type StretchLoadResult } from "@/lib/stretch_load"
+import { computeAlignmentScore, type AlignmentSignals } from "@/lib/alignment_score"
 
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
 import type { CalibrationEvent, CalibrationSession } from "@/lib/calibration_types"
@@ -29,12 +30,10 @@ export type IntegrationInput = {
 export type IntegrationSeamOk = {
   ok: true
   result: {
-    // NOTE: until a separate Alignment engine module exists in /lib,
-    // we treat the job ingestion/encoding output as the “alignment-side” raw output
-    // for integration smoke purposes. No blending occurs.
-    alignment: JobIngestObject
+    alignment: { score: number; explanation: string; signals: AlignmentSignals }
     skillMatch: SkillMatchResult
     stretchLoad: StretchLoadResult
+    jobIngest: JobIngestObject
   }
 }
 
@@ -117,6 +116,12 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     // ---- Ingest / encode (delegated) ----
     const ingestResult = ingestJob(jobText)
 
+    // ---- Alignment Score (formula from implementation_plan.md) ----
+    const alignment = computeAlignmentScore({
+      personVector: experienceVector as [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2],
+      roleVector: ingestResult.roleVector as [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2],
+    })
+
     // ---- Skill Match (delegated) ----
     const skillMatch = computeSkillMatch(ingestResult.roleVector, experienceVector)
 
@@ -126,9 +131,10 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     return {
       ok: true,
       result: {
-        alignment: ingestResult,
+        alignment,
         skillMatch,
         stretchLoad,
+        jobIngest: ingestResult,
       },
     }
   } catch (err: unknown) {
@@ -181,10 +187,10 @@ export type CalibrationDispatchOk = { ok: true; session: CalibrationSession }
 export type CalibrationDispatchErr = { ok: false; error: { code: string; message: string } }
 export type CalibrationDispatchResult = CalibrationDispatchOk | CalibrationDispatchErr
 
-export function dispatchCalibration(event: CalibrationEvent): CalibrationDispatchResult {
-  const res = dispatchCalibrationEvent(event)
+export async function dispatchCalibration(event: CalibrationEvent): Promise<CalibrationDispatchResult> {
+  const res = await dispatchCalibrationEvent(event)
   if (!res.ok) {
     return { ok: false, error: { code: res.error.code, message: res.error.message } }
   }
-  return { ok: true, session: res.value }
+  return { ok: true, session: res.session }
 }

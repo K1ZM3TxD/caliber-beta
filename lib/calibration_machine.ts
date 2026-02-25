@@ -1096,9 +1096,11 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
         if (session.state === "ENCODING_RITUAL") {
           // Single visible step: ENCODING_RITUAL -> PATTERN_SYNTHESIS.
-          // Do encoding + synthesis exactly once, then transition ONE state.
+          // Do encoding exactly once, then transition ONE state.
+          // NOTE: Semantic synthesis is FROZEN for Calibration Core First milestone.
+          // We skip synthesizeOnce() — no narrative pattern summary is computed.
           let next = encodePersonVectorOnce(session)
-          next = await synthesizeOnce(next)
+          // FROZEN: next = await synthesizeOnce(next)
 
           const to: CalibrationState = "PATTERN_SYNTHESIS"
           next = pushHistory({ ...next, state: to }, from, to, event.type)
@@ -1301,6 +1303,16 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           alignment: seam.result.alignment,
           skillMatch: seam.result.skillMatch,
           stretchLoad: seam.result.stretchLoad,
+        }, {
+          resumeText: String(session.resume.rawText ?? ""),
+          promptAnswers: {
+            1: String(session.prompts[1]?.answer ?? ""),
+            2: String(session.prompts[2]?.answer ?? ""),
+            3: String(session.prompts[3]?.answer ?? ""),
+            4: String(session.prompts[4]?.answer ?? ""),
+            5: String(session.prompts[5]?.answer ?? ""),
+          },
+          jobText: String(session.job.rawText ?? ""),
         })
 
         const to: CalibrationState = "TERMINAL_COMPLETE"

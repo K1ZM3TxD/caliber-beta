@@ -88,6 +88,13 @@ No further local/agent branch drift allowed.
 
 ---
 
+## 7.0b — Guard Scope Stabilization (In Progress)
+
+- Calibration prompt guard currently scans archived docs.
+- Policy decision: exclude Bootstrap/Archive/** from guard scope.
+- Runtime logic must remain untouched.
+- No enforcement weakening allowed.
+
 # NEXT EXECUTION STEPS
 
 1. Wire operateBest validation into live calibration flow

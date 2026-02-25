@@ -434,123 +434,43 @@ export default function CalibrationPage() {
     );
   }
 
-  // PATTERN_SYNTHESIS (freeze-gated screen)
+  // PATTERN_SYNTHESIS (FROZEN - auto-advance)
   if (state === 'PATTERN_SYNTHESIS') {
-    const overlapRaw =
-      (session as any)?.synthesis?.anchor_overlap_score ??
-      (session as any)?.synthesis?.anchorOverlapScore ??
-      (session as any)?.anchor_overlap_score;
-
-    const missingCountRaw =
-      (session as any)?.synthesis?.missing_anchor_count ??
-      (session as any)?.synthesis?.missingAnchorCount ??
-      (session as any)?.missing_anchor_count;
-
-    const missingTermsRaw =
-      (session as any)?.synthesis?.missing_anchor_terms ??
-      (session as any)?.synthesis?.missingAnchorTerms ??
-      (session as any)?.missing_anchor_terms;
-
-    const overlapDisplay = typeof overlapRaw === 'number' && Number.isFinite(overlapRaw) ? overlapRaw.toFixed(2) : '—';
-    const missingCountDisplay =
-      typeof missingCountRaw === 'number' && Number.isFinite(missingCountRaw) ? String(missingCountRaw) : '—';
-    const missingTerms =
-      Array.isArray(missingTermsRaw) && missingTermsRaw.every((t) => typeof t === 'string') ? (missingTermsRaw as string[]) : null;
+    // Auto-advance since synthesis is frozen
+    useEffect(() => {
+      if (!isSubmitting && state === 'PATTERN_SYNTHESIS') {
+        sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
+      }
+    }, [state]);
 
     return (
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
-
-        <div className="mt-10 mx-auto w-full max-w-[680px] text-center">
-          <div className="text-[24px] font-semibold leading-tight">Calibration Core Mode</div>
-          <div className="mt-6 text-[16px] leading-relaxed opacity-90">
-            Pattern Summary is temporarily frozen while anchor extraction + overlap + gap surfaces are validated.
-          </div>
-
-          <div className="mt-6 mx-auto w-full max-w-[520px] rounded-md border border-[#2A2A2A] bg-transparent px-5 py-4 text-left">
-            <div className="text-[12px] font-semibold opacity-70">Anchor Metrics</div>
-            <div className="mt-3 text-[14px] leading-relaxed opacity-90">
-              <div>Anchor overlap: {overlapDisplay}</div>
-              <div className="mt-1">Missing anchors: {missingCountDisplay}</div>
-              {missingTerms && missingTerms.length > 0 ? (
-                <div className="mt-2 opacity-90">Missing terms: {missingTerms.join(', ')}</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-10 flex items-center justify-center">
-            <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B]"
-            >
-              Restart
-            </button>
-          </div>
-        </div>
+        <div className="mt-8 text-[16px] opacity-90">Processing…</div>
       </Stage>
     );
   }
 
-  // TITLE_HYPOTHESIS
+  // TITLE_HYPOTHESIS (FROZEN - auto-advance to job input)
   if (state === 'TITLE_HYPOTHESIS') {
+    // Auto-advance since title synthesis is frozen
+    useEffect(() => {
+      if (!isSubmitting && state === 'TITLE_HYPOTHESIS') {
+        sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent);
+      }
+    }, [state]);
+
     return (
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
-
-        <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Title Hypothesis</div>
-
-          <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">identitySummary</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.identitySummary || ''}</div>
-          </div>
-
-          <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
-          </div>
-
-          <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
-          </div>
-
-          <div className="mt-8">
-            <div className="text-[12px] font-semibold opacity-70">Reaction / feedback</div>
-            <textarea
-              value={titleFeedback}
-              onChange={(e) => setTitleFeedback(e.target.value)}
-              rows={5}
-              className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
-              placeholder="Your reaction…"
-            />
-          </div>
-
-          <div className="mt-6 flex items-center justify-end gap-3">
-            <button
-              onClick={() => sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)}
-              disabled={isSubmitting || titleFeedback.trim().length === 0}
-              className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Submitting…' : 'Submit'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
-            >
-              {isSubmitting ? 'Submitting…' : 'Continue'}
-            </button>
-          </div>
-        </div>
+        <div className="mt-8 text-[16px] opacity-90">Processing…</div>
       </Stage>
     );
   }
 
-  // TITLE_DIALOGUE
+  // TITLE_DIALOGUE (FROZEN - show job input directly)
   if (state === 'TITLE_DIALOGUE') {
     return (
       <Stage>
@@ -558,51 +478,26 @@ export default function CalibrationPage() {
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Title Dialogue</div>
+          <div className="text-[14px] font-semibold opacity-90">Job Description</div>
 
           <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">marketTitle</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.marketTitle || ''}</div>
-          </div>
-
-          <div className="mt-6">
-            <div className="text-[12px] font-semibold opacity-70">titleExplanation</div>
-            <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis?.titleExplanation || ''}</div>
-          </div>
-
-          {session.synthesis?.lastTitleFeedback && (
-            <div className="mt-6">
-              <div className="text-[12px] font-semibold opacity-70">lastTitleFeedback</div>
-              <div className="mt-2 text-[14px] leading-relaxed opacity-90 whitespace-pre-wrap">{session.synthesis.lastTitleFeedback}</div>
-            </div>
-          )}
-
-          <div className="mt-8">
-            <div className="text-[12px] font-semibold opacity-70">Reaction / feedback</div>
+            <div className="text-[12px] font-semibold opacity-70">Paste the job description to evaluate</div>
             <textarea
-              value={titleFeedback}
-              onChange={(e) => setTitleFeedback(e.target.value)}
-              rows={5}
+              value={jobText}
+              onChange={(e) => setJobText(e.target.value)}
+              rows={10}
               className="mt-2 w-full resize-y rounded-md border border-[#2A2A2A] bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-[#3A3A3A]"
-              placeholder="Your reaction…"
+              placeholder="Paste the job description…"
             />
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="mt-6 flex items-center justify-end">
             <button
-              onClick={() => sendEvent({ type: 'TITLE_FEEDBACK', sessionId: session.sessionId, feedback: titleFeedback } as CalibrationEvent)}
-              disabled={isSubmitting || titleFeedback.trim().length === 0}
+              onClick={() => sendEvent({ type: 'SUBMIT_JOB_TEXT', sessionId: session.sessionId, jobText } as CalibrationEvent)}
+              disabled={isSubmitting || jobText.trim().length === 0}
               className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting…' : 'Submit'}
-            </button>
-
-            <button
-              onClick={() => sendEvent({ type: 'ADVANCE', sessionId: session.sessionId } as CalibrationEvent)}
-              disabled={isSubmitting}
-              className="px-6 py-3 rounded-md font-semibold border border-[#2A2A2A] text-[#F2F2F2] disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#111111]"
-            >
-              {isSubmitting ? 'Submitting…' : 'Continue'}
+              {isSubmitting ? 'Submitting…' : 'Submit Job'}
             </button>
           </div>
         </div>
@@ -656,13 +551,35 @@ export default function CalibrationPage() {
   // ALIGNMENT_OUTPUT / TERMINAL_COMPLETE
   if (state === 'ALIGNMENT_OUTPUT' || state === 'TERMINAL_COMPLETE') {
     const hasResult = !!session.result;
+    const result = (session.result ?? {}) as {
+      alignment?: number;
+      skillMatch?: number;
+      stretchLoad?: number;
+      structuralNote?: string | null;
+      anchors?: { verbs?: unknown[]; nouns?: unknown[] };
+    };
+
+    const alignmentRaw = typeof result.alignment === 'number' ? result.alignment : null;
+    const skillMatchRaw = typeof result.skillMatch === 'number' ? result.skillMatch : null;
+    const stretchLoadRaw = typeof result.stretchLoad === 'number' ? result.stretchLoad : null;
+    const structuralNoteRaw = typeof result.structuralNote === 'string' ? result.structuralNote : null;
+    const verbsRaw = Array.isArray(result.anchors?.verbs) ? result.anchors.verbs : [];
+    const nounsRaw = Array.isArray(result.anchors?.nouns) ? result.anchors.nouns : [];
+
+    const alignmentDisplay = alignmentRaw != null && Number.isFinite(alignmentRaw) ? alignmentRaw.toFixed(1) : '—';
+    const skillMatchDisplay = skillMatchRaw != null && Number.isFinite(skillMatchRaw) ? skillMatchRaw.toFixed(1) : '—';
+    const stretchLoadDisplay = stretchLoadRaw != null && Number.isFinite(stretchLoadRaw) ? `${stretchLoadRaw}%` : '—';
+
+    const verbsDisplay = verbsRaw.filter((x: unknown): x is string => typeof x === 'string');
+    const nounsDisplay = nounsRaw.filter((x: unknown): x is string => typeof x === 'string');
+
     return (
       <Stage>
         <ErrorBox error={error} />
         <div className="text-[32px] leading-tight font-semibold">Caliber</div>
 
         <div className="mt-10 mx-auto w-full max-w-[640px] text-left">
-          <div className="text-[14px] font-semibold opacity-90">Alignment Output</div>
+          <div className="text-[14px] font-semibold opacity-90">Results</div>
 
           {!hasResult ? (
             <div className="mt-6 flex items-center justify-end">
@@ -671,11 +588,61 @@ export default function CalibrationPage() {
                 disabled={isSubmitting}
                 className="px-6 py-3 rounded-md font-semibold bg-[#F2F2F2] text-[#0B0B0B] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Submitting…' : 'Compute'}
+                {isSubmitting ? 'Computing…' : 'Compute Results'}
               </button>
             </div>
           ) : (
-            <pre className="mt-6 whitespace-pre-wrap break-words text-[12px] opacity-90">{JSON.stringify(session.result, null, 2)}</pre>
+            <div className="mt-6 space-y-8">
+              {/* Alignment - Primary metric */}
+              <div>
+                <div className="text-[12px] font-semibold opacity-70">Alignment</div>
+                <div className="mt-2 text-[48px] leading-none font-semibold">{alignmentDisplay}</div>
+              </div>
+
+              {/* Skill Match + Stretch Load - Secondary metrics */}
+              <div className="flex gap-12">
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Skill Match</div>
+                  <div className="mt-2 text-[24px] leading-none font-semibold">{skillMatchDisplay}</div>
+                </div>
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Stretch Load</div>
+                  <div className="mt-2 text-[24px] leading-none font-semibold">{stretchLoadDisplay}</div>
+                </div>
+              </div>
+
+              {/* Anchors - Verbs */}
+              {verbsDisplay.length > 0 && (
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Verbs</div>
+                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                    {verbsDisplay.map((term, idx) => (
+                      <li key={`verb-${idx}`}>{term}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Anchors - Nouns */}
+              {nounsDisplay.length > 0 && (
+                <div>
+                  <div className="text-[12px] font-semibold opacity-70">Nouns</div>
+                  <ul className="mt-2 list-disc pl-5 space-y-1 text-[14px] leading-relaxed opacity-90">
+                    {nounsDisplay.map((term, idx) => (
+                      <li key={`noun-${idx}`}>{term}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Structural Note - Only when triggered */}
+              {structuralNoteRaw && (
+                <div className="mt-8 p-4 bg-[#1a1a1a] rounded-md border border-[#333]">
+                  <div className="text-[12px] font-semibold opacity-70 mb-2">Structural Note</div>
+                  <div className="text-[14px] leading-relaxed opacity-90">{structuralNoteRaw}</div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </Stage>
