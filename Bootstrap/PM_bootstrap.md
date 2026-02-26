@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PM_BOOTSTRAP.md — Caliber PM Mode (Bootstrap)
 
 ## Purpose
@@ -68,3 +69,14 @@ FILES/AREAS TO TOUCH:
 
 NOTES / CONSTRAINTS:
 - <important guardrails>
+=======
+# PM_bootstrap.md
+
+Always load the following context-pack files:
+
+1. CALIBER_CONTEXT_SUMMARY.md
+2. CALIBER_EXECUTION_CONTRACT.md
+3. CALIBER_ISSUES_LOG.md
+
+Task templates live in CALIBER_EXECUTION_CONTRACT.md.
+>>>>>>> 59d340a (Bootstrap: add PM context pack + PM bootstrap trigger)
