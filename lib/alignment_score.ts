@@ -18,11 +18,15 @@ function round1(n: number): number {
 }
 
 export function computeAlignmentScore(args: {
-  personVector: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
-  roleVector: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
+  personVector: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2],
+  roleVector: [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2],
+  signalAnchors?: string[],
+  skillAnchors?: string[],
 }): { score: number; explanation: string; signals: AlignmentSignals } {
-  const P = args.personVector
-  const R = args.roleVector
+  const P = args.personVector;
+  const R = args.roleVector;
+  const signalAnchors = args.signalAnchors || [];
+  const skillAnchors = args.skillAnchors || [];
 
   const d = [
     Math.abs(P[0] - R[0]),
@@ -31,27 +35,31 @@ export function computeAlignmentScore(args: {
     Math.abs(P[3] - R[3]),
     Math.abs(P[4] - R[4]),
     Math.abs(P[5] - R[5]),
-  ]
+  ];
 
-  let S = 0
-  let M = 0
+  let S = 0;
+  let M = 0;
   for (const di of d) {
-    if (di === 2) S++
-    else if (di === 1) M++
+    if (di === 2) S++;
+    else if (di === 1) M++;
   }
 
-  const n = 6
-  const W = 1.0 * S + 0.35 * M
-  const raw = 10 * (1 - W / n)
-  const score = round1(clamp(raw, 0, 10))
+  // Signal weighting: signal anchors count more
+  const signalWeight = signalAnchors.length * 1.5;
+  const skillWeight = skillAnchors.length * 1.0;
+  const totalWeight = signalWeight + skillWeight;
+  // Use totalWeight in scoring, but keep domain separation
+  const n = 6;
+  const W = 1.0 * S + 0.35 * M + totalWeight * 0.05;
+  const raw = 10 * (1 - W / n);
+  const score = round1(clamp(raw, 0, 10));
 
-  // Structural, non-emotional explanation; deterministic template.
   const explanation =
     S > 0
-      ? `Structural fit shows ${S} severe contradiction(s) and ${M} mild tension(s) across 6 dimensions.`
+      ? `Structural fit shows ${S} severe contradiction(s), ${M} mild tension(s), ${signalAnchors.length} signal anchor(s), and ${skillAnchors.length} skill anchor(s) across 6 dimensions.`
       : M > 0
-        ? `Structural fit shows ${M} mild tension(s) across 6 dimensions and no severe contradictions.`
-        : `Structural fit shows no contradictions across 6 dimensions.`
+        ? `Structural fit shows ${M} mild tension(s), ${signalAnchors.length} signal anchor(s), and ${skillAnchors.length} skill anchor(s) across 6 dimensions and no severe contradictions.`
+        : `Structural fit shows no contradictions, ${signalAnchors.length} signal anchor(s), and ${skillAnchors.length} skill anchor(s) across 6 dimensions.`;
 
   return {
     score,
@@ -64,5 +72,5 @@ export function computeAlignmentScore(args: {
       mildTensions: M,
       penaltyWeight: W,
     },
-  }
+  };
 }

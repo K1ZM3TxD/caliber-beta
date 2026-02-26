@@ -598,38 +598,71 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
 
+const { classifyAnchors } = require("./signal_classification")
 const tryOnce = async (): Promise<string | null> => {
   const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
   const anchorSourceText = `${resumeText}\n${promptAnswersText}`
   const anchors = extractLexicalAnchors(anchorSourceText)
 
+  // Build AnchorOccurrence array for classification
+  const anchorOccurrences = [];
+  // Resume tokens
+  for (const a of anchors.combined) {
+    anchorOccurrences.push({
+      term: a.term,
+      source: "resume",
+      context_type: "neutral"
+    });
+  }
+  // Prompt tokens (simulate context, real extraction should provide context)
+  for (let i = 1; i <= 5; i++) {
+    const ans = session.prompts[i]?.answer;
+    if (typeof ans === "string" && ans.trim().length > 0) {
+      const tokens = ans.trim().split(/\s+/);
+      for (const t of tokens) {
+        anchorOccurrences.push({
+          term: t.toLowerCase(),
+          source: `q${i}`,
+          context_type: "neutral"
+        });
+      }
+    }
+  }
+
+  const anchorTerms = anchors.combined.map(a => a.term);
+  const classification = classifyAnchors(anchorTerms, anchorOccurrences);
+  const signalCount = classification.signalAnchors.length;
+  const skillCount = classification.skillAnchors.length;
+
   const anchorsText = anchors.combined
     .slice(0, 12)
     .map(a => `${a.term}(${a.count})`)
-    .join(", ")
+    .join(", ");
 
   const semantic = await generateSemanticSynthesis({
     personVector: v,
     resumeText,
     promptAnswers,
     lexicalAnchorsText: anchorsText
-  } as any)
+  } as any);
 
   const lines: string[] = [
     String(semantic.identityContrast ?? "").trim(),
     String(semantic.interventionContrast ?? "").trim(),
     String(semantic.constructionLayer ?? "").trim(),
-  ]
+  ];
 
   if (coherenceStrong(v) && typeof semantic.consequenceDrop === "string" && semantic.consequenceDrop.trim().length > 0) {
-    lines.push(semantic.consequenceDrop.trim())
+    lines.push(semantic.consequenceDrop.trim());
   }
 
-  const raw = joinSynthesisLines(lines)
-  const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: true })
+  const raw = joinSynthesisLines(lines);
+  // Add minimal log for classification counts
+  console.log(`[caliber] signal_anchor_count=${signalCount} skill_anchor_count=${skillCount}`);
+  const repaired = validateAndRepairSynthesisOnce(raw, v, signals, { log: true });
 
-  if (repaired.outcome === "RETRY_REQUIRED") return null
-  return repaired.patternSummary
+  if (repaired.outcome === "RETRY_REQUIRED") return null;
+  return repaired.patternSummary;
 }
 
 try {
