@@ -252,7 +252,7 @@ export default function MockCalibrationPage() {
 
               <div className="mt-8 w-full max-w-2xl">
                 <div className="text-xs sm:text-sm font-medium" style={{ color: "#CFCFCF" }}>
-                  Prompt 1 of 5
+                  Question 1 of 5
                 </div>
 
                 <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">

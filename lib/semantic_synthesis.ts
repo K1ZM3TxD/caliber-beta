@@ -25,12 +25,12 @@ function countWholeWordMatches(text: string, terms: string[]): { overlapCount: n
   return { overlapCount, missing }
 }
 
-function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: boolean; abstraction_flag: boolean; drift_terms: string[] } {
+export function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: boolean; abstraction_flag: boolean; drift_terms: string[] } {
   const normalized = (s || "").toLowerCase()
   const anchorSet = new Set(anchorTerms.map(t => t.toLowerCase()))
   
   const praiseList = ["inspiring","impressive","exceptional","outstanding","remarkable","amazing","fantastic","brilliant","world-class","stellar"]
-  const abstractionList = ["visionary","thought leader","changemaker","trailblazer","rockstar","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"]
+  const abstractionList = ["visionary","empathetic","charismatic","natural leader","thought leader","high performer","rockstar","changemaker","trailblazer","guru","ninja","unicorn","authentic self","passion","purpose","destiny","calling"]
   const archetypeList = ["strategist","operator","builder","architect","executor","leader","innovator"]
   
   const driftSet = new Set<string>()
@@ -46,10 +46,12 @@ function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: bool
   }
   
   for (const term of abstractionList) {
-    const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
-    if (re.test(normalized)) {
-      abstractionFlag = true
-      driftSet.add(term)
+    if (!anchorSet.has(term.toLowerCase())) {
+      const re = new RegExp(`\\b${escapeRegex(term)}\\b`, "i")
+      if (re.test(normalized)) {
+        abstractionFlag = true
+        driftSet.add(term)
+      }
     }
   }
   
@@ -65,6 +67,116 @@ function detectDriftFlags(s: string, anchorTerms: string[]): { praise_flag: bool
   
   const driftTerms = Array.from(driftSet).sort()
   return { praise_flag: praiseFlag, abstraction_flag: abstractionFlag, drift_terms: driftTerms }
+}
+
+export function buildRetryExtraLinesFromFlags(
+  flags: ReturnType<typeof detectDriftFlags>,
+): string[] {
+  if (!flags.abstraction_flag || flags.drift_terms.length === 0) return []
+  return ["REMOVE DRIFT TERMS: " + flags.drift_terms.join(", ")]
+}
+
+export type ValidatorOutcome =
+  | "PASS"
+  | "RETRY_REQUIRED"
+  | "FALLBACK_ANCHOR_FAILURE"
+  | "FALLBACK_STRUCTURE_INVALID"
+  | "FALLBACK_BLACKLIST_PHRASE"
+
+export function formatSynthesisLogLine(input: {
+  synthesis_source: "llm" | "retry" | "fallback"
+  anchor_overlap_score: number
+  missing_anchor_count: number
+  praise_flag: boolean
+  abstraction_flag: boolean
+  validator_outcome: ValidatorOutcome
+  fallback_reason?: string
+}): string {
+  const baseLogLine = (
+    "synthesis_source=" + input.synthesis_source +
+    " anchor_overlap_score=" + input.anchor_overlap_score.toFixed(2) +
+    " missing_anchor_count=" + input.missing_anchor_count +
+    " praise_flag=" + input.praise_flag +
+    " abstraction_flag=" + input.abstraction_flag +
+    " validator_outcome=" + input.validator_outcome
+  )
+  return input.fallback_reason !== undefined ? baseLogLine + " fallback_reason=" + input.fallback_reason : baseLogLine
+}
+
+export function containsBlacklistPhrase(text: string, tokens: string[]): boolean {
+  const lower = (text || "").toLowerCase()
+  return tokens.some((t) => lower.includes((t || "").toLowerCase()))
+}
+
+export function formatOperateBestLogLine(input: Parameters<typeof formatSynthesisLogLine>[0]): string {
+  return formatSynthesisLogLine(input) + " bullet_group=operateBest"
+}
+
+const OPERATE_BEST_BLACKLIST_TOKENS = [
+  "cadence",
+  "operating structure",
+  "operating model",
+  "leverage",
+  "impact",
+  "value",
+  "optimize",
+  "synergy",
+  "scalable",
+  "framework",
+  "system's",
+  "system\u2019s",
+]
+
+export function validateOperateBestBullets(
+  bullets: string[],
+  anchorTerms: string[],
+  blacklistTokens?: string[],
+): {
+  anchor_overlap_score: number
+  missing_anchor_count: number
+  praise_flag: boolean
+  abstraction_flag: boolean
+  validator_outcome: ValidatorOutcome
+  fallback_reason?: string
+} {
+  const text = bullets.join(" ")
+  const tokens = blacklistTokens ?? OPERATE_BEST_BLACKLIST_TOKENS
+
+  if (containsBlacklistPhrase(text, tokens)) {
+    return {
+      anchor_overlap_score: 0,
+      missing_anchor_count: Math.max(1, anchorTerms.length),
+      praise_flag: false,
+      abstraction_flag: false,
+      validator_outcome: "FALLBACK_BLACKLIST_PHRASE",
+      fallback_reason: "blacklist_phrase",
+    }
+  }
+
+  const { overlapCount } = countWholeWordMatches(text, anchorTerms)
+  const denom = Math.max(1, anchorTerms.length)
+  const score = overlapCount / denom
+  const missingCount = denom - overlapCount
+  const flags = detectDriftFlags(text, anchorTerms)
+
+  if (score >= MIN_OVERLAP) {
+    return {
+      anchor_overlap_score: score,
+      missing_anchor_count: missingCount,
+      praise_flag: flags.praise_flag,
+      abstraction_flag: flags.abstraction_flag,
+      validator_outcome: "PASS",
+    }
+  }
+
+  return {
+    anchor_overlap_score: score,
+    missing_anchor_count: missingCount,
+    praise_flag: flags.praise_flag,
+    abstraction_flag: flags.abstraction_flag,
+    validator_outcome: "FALLBACK_ANCHOR_FAILURE",
+    fallback_reason: "anchor_failure",
+  }
 }
 
 export async function generateSemanticSynthesis(args: {
@@ -216,14 +328,14 @@ export async function generateSemanticSynthesis(args: {
 
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "")
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error(`OpenAI error: ${resp.status} ${txt}`)
     }
 
     const data = (await resp.json()) as any
     const content = String(data?.choices?.[0]?.message?.content ?? "").trim()
     if (!content) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI returned empty content")
     }
 
@@ -231,7 +343,7 @@ export async function generateSemanticSynthesis(args: {
     try {
       parsed = JSON.parse(content)
     } catch {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI returned non-JSON content")
     }
 
@@ -257,7 +369,7 @@ export async function generateSemanticSynthesis(args: {
     const fields = extractFields(parsed)
 
     if (!fields.identity_contrast || !fields.intervention_contrast || !fields.construction_layer || !fields.conditional_consequence) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
       throw new Error("OpenAI JSON missing required fields")
     }
 
@@ -273,78 +385,64 @@ export async function generateSemanticSynthesis(args: {
     const score = overlapCount / denom
     const missingCount = denom - overlapCount
 
-    if (score >= MIN_OVERLAP) {
+    if (containsBlacklistPhrase(synthesisTextForOverlap, blacklistTokens)) {
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_BLACKLIST_PHRASE", fallback_reason: "blacklist_phrase" }))
+    } else if (score >= MIN_OVERLAP) {
       const flags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
-      console.log(
-        "synthesis_source=llm anchor_overlap_score=" +
-        score.toFixed(2) +
-        " missing_anchor_count=" +
-        missingCount +
-        " praise_flag=" + flags.praise_flag +
-        " abstraction_flag=" + flags.abstraction_flag
-      )
+      console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: flags.praise_flag, abstraction_flag: flags.abstraction_flag, validator_outcome: "PASS" }))
       return {
         identityContrast: fields.identity_contrast,
         interventionContrast: fields.intervention_contrast,
         constructionLayer: fields.construction_layer,
         consequenceDrop: fields.conditional_consequence,
       }
-    }
-
-    const retryExtraLines = [
-      "MISSING ANCHORS (must include several verbatim terms):",
-      missing.slice(0, 24).join(", "),
-    ]
-
-    const { parsed: retryParsed } = await callModel(retryExtraLines)
-    const retryFields = extractFields(retryParsed)
-
-    if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
-      const finalScore = score
-      const finalMissingCount = missingCount
-      console.log("synthesis_source=fallback anchor_overlap_score=" + finalScore.toFixed(2) + " missing_anchor_count=" + finalMissingCount + " praise_flag=false abstraction_flag=false")
     } else {
-      const retrySynthesisText = [
-        retryFields.identity_contrast,
-        retryFields.intervention_contrast,
-        retryFields.construction_layer,
-        retryFields.conditional_consequence,
-      ].join(" ")
+      const firstFlags = detectDriftFlags(synthesisTextForOverlap, anchorTerms)
+      console.log(formatSynthesisLogLine({ synthesis_source: "llm", anchor_overlap_score: score, missing_anchor_count: missingCount, praise_flag: firstFlags.praise_flag, abstraction_flag: firstFlags.abstraction_flag, validator_outcome: "RETRY_REQUIRED" }))
+      const retryExtraLines = [
+        "MISSING ANCHORS (must include several verbatim terms):",
+        missing.slice(0, 24).join(", "),
+        ...buildRetryExtraLinesFromFlags(firstFlags),
+      ]
 
-      const retryResult = countWholeWordMatches(retrySynthesisText, anchorTerms)
-      const retryDenom = Math.max(1, anchorTerms.length)
-      const retryScore = retryResult.overlapCount / retryDenom
-      const retryMissingCount = retryDenom - retryResult.overlapCount
+      const { parsed: retryParsed } = await callModel(retryExtraLines)
+      const retryFields = extractFields(retryParsed)
 
-      const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      console.log(
-        "synthesis_source=retry anchor_overlap_score=" +
-        retryScore.toFixed(2) +
-        " missing_anchor_count=" +
-        retryMissingCount +
-        " praise_flag=" + retryFlags.praise_flag +
-        " abstraction_flag=" + retryFlags.abstraction_flag
-      )
+      if (!retryFields.identity_contrast || !retryFields.intervention_contrast || !retryFields.construction_layer || !retryFields.conditional_consequence) {
+        const finalScore = score
+        const finalMissingCount = missingCount
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
+      } else {
+        const retrySynthesisText = [
+          retryFields.identity_contrast,
+          retryFields.intervention_contrast,
+          retryFields.construction_layer,
+          retryFields.conditional_consequence,
+        ].join(" ")
 
-      if (retryScore >= MIN_OVERLAP) {
-        return {
-          identityContrast: retryFields.identity_contrast,
-          interventionContrast: retryFields.intervention_contrast,
-          constructionLayer: retryFields.construction_layer,
-          consequenceDrop: retryFields.conditional_consequence,
+        const retryResult = countWholeWordMatches(retrySynthesisText, anchorTerms)
+        const retryDenom = Math.max(1, anchorTerms.length)
+        const retryScore = retryResult.overlapCount / retryDenom
+        const retryMissingCount = retryDenom - retryResult.overlapCount
+
+        const retryFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
+        const retryOutcome: ValidatorOutcome = retryScore >= MIN_OVERLAP ? "PASS" : "FALLBACK_ANCHOR_FAILURE"
+        console.log(formatSynthesisLogLine({ synthesis_source: "retry", anchor_overlap_score: retryScore, missing_anchor_count: retryMissingCount, praise_flag: retryFlags.praise_flag, abstraction_flag: retryFlags.abstraction_flag, validator_outcome: retryOutcome, ...(retryOutcome === "FALLBACK_ANCHOR_FAILURE" ? { fallback_reason: "anchor_failure" } : {}) }))
+
+        if (retryScore >= MIN_OVERLAP) {
+          return {
+            identityContrast: retryFields.identity_contrast,
+            interventionContrast: retryFields.intervention_contrast,
+            constructionLayer: retryFields.construction_layer,
+            consequenceDrop: retryFields.conditional_consequence,
+          }
         }
-      }
 
-      const finalScore = retryScore
-      const finalMissingCount = retryMissingCount
-      const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
-      console.log(
-        "synthesis_source=fallback anchor_overlap_score=" +
-        finalScore.toFixed(2) +
-        " missing_anchor_count=" + finalMissingCount +
-        " praise_flag=" + fallbackFlags.praise_flag +
-        " abstraction_flag=" + fallbackFlags.abstraction_flag
-      )
+        const finalScore = retryScore
+        const finalMissingCount = retryMissingCount
+        const fallbackFlags = detectDriftFlags(retrySynthesisText, anchorTerms)
+        console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: finalScore, missing_anchor_count: finalMissingCount, praise_flag: fallbackFlags.praise_flag, abstraction_flag: fallbackFlags.abstraction_flag, validator_outcome: "FALLBACK_ANCHOR_FAILURE", fallback_reason: "anchor_failure" }))
+      }
     }
 
     const n0 = topNouns[0] || "work"
@@ -370,7 +468,7 @@ export async function generateSemanticSynthesis(args: {
     }
   } catch (e) {
     if (String((e as any)?.message ?? "").trim().length === 0) {
-      console.log("synthesis_source=fallback anchor_overlap_score=0.00 missing_anchor_count=0 praise_flag=false abstraction_flag=false")
+      console.log(formatSynthesisLogLine({ synthesis_source: "fallback", anchor_overlap_score: 0, missing_anchor_count: 0, praise_flag: false, abstraction_flag: false, validator_outcome: "FALLBACK_STRUCTURE_INVALID", fallback_reason: "structure_invalid" }))
     }
     throw e
   }

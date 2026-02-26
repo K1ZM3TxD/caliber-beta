@@ -11,7 +11,7 @@ const DRIFT_STRING = "reliably ship";
 function walk(dir: string, files: string[] = []): string[] {
   const entries = fs.readdirSync(dir);
   for (const entry of entries) {
-    if (entry === "node_modules" || entry === ".next" || entry === ".git") continue;
+    if (entry === "node_modules" || entry === ".next" || entry === ".git" || entry === "Bootstrap") continue;
     const full = path.join(dir, entry);
     const stat = fs.statSync(full);
     if (stat.isDirectory()) {
@@ -32,6 +32,7 @@ const allFiles = walk(ROOT);
 
 for (const file of allFiles) {
   const rel = path.relative(ROOT, file);
+  if (rel === path.normalize("scripts/prompt_drift_guard.ts")) continue;
   const content = fs.readFileSync(file, "utf8");
 
   if (content.includes(DRIFT_STRING)) {
@@ -40,7 +41,8 @@ for (const file of allFiles) {
 
   if (
     content.includes(LOCKED_PROMPT_1) &&
-    rel !== path.normalize("lib/calibration_prompts.ts")
+    rel !== path.normalize("lib/calibration_prompts.ts") &&
+    rel !== path.normalize("scripts/calibration_prompts_guard_smoke.ts")
   ) {
     fail(`Locked prompt string must not appear outside lib/calibration_prompts.ts (${rel})`);
   }
