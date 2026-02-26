@@ -1,3 +1,10 @@
+
+---
+
+Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
+
+Next milestone:
+- Backend wiring via hook: add useCalibrationSession and refactor page.tsx to call hook only; then resume-upload -> prompt 1.
 ## ⚠️ PHASE SHIFT — Calibration Core First (Temporary Freeze on Summary Engine)
 
 As of this milestone update, development priority has shifted.
