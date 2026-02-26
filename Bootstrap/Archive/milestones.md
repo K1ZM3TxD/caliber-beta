@@ -109,10 +109,7 @@ Final Wording:
 Rules:
 
 - No AI rewriting
-<<<<<<< HEAD
-=======
 
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 - Canonical source only
 
 - Mechanical drift prevention enforced
@@ -136,7 +133,6 @@ Status: COMPLETED
 
 ---
 
-<<<<<<< HEAD
 ## 5.1B — LLM Wiring (COMPLETED)
 
 Scope (as executed):
@@ -183,7 +179,6 @@ Also add minimal observability:
 - Log when phrase-level blacklist triggers fallback.
 
 Status: ACTIVE (next execution)
-=======
 ## 5.1C — Deterministic Validation Layer (ACTIVE)
 
 Purpose:
@@ -206,7 +201,6 @@ Decision:
 - Repetition enforcement shifted toward best-effort repair.
 
 Status: COMPLETED
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 
 ---
 
@@ -290,9 +284,7 @@ If validation fails:
 - No further retries.
 - No UI changes.
 
-<<<<<<< HEAD
 Status: PENDING
-=======
 Retry must not bypass validator.
 
 Current State:
@@ -302,7 +294,6 @@ Current State:
 - Will be finalized after 5.1C.4 completion.
 
 Status: PARTIAL
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 
 ---
 
@@ -313,14 +304,12 @@ Strategic Direction:
 Naturalness improvement will focus on lexical grounding, not stricter guardrails.
 
 Scope:
-<<<<<<< HEAD
 - Improve prompt so synthesis reuses concrete lexical anchors from resume + answers.
 - Reduce archetypal phrasing and “generic corp” defaults.
 - Maintain:
   - No praise
   - No motivational tone
   - No metric blending
-=======
 
 - Improve prompt so synthesis reuses concrete lexical anchors from resume + answers.
 - Reduce archetypal phrasing.
@@ -328,7 +317,6 @@ Scope:
 - Maintain no praise / no motivational tone.
 
 Status: NEXT
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 
 Status: PENDING
 
@@ -339,13 +327,10 @@ Status: PENDING
 UI-only changes:
 
 - Center bullet block under headers
-<<<<<<< HEAD
 - Increase bullet font size to match body
 - Maintain single column, controlled rhythm
-=======
 - Increase bullet font size
 - Maintain single column rhythm
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 - No scoring changes
 
 Status: PENDING
@@ -359,9 +344,7 @@ Enriched via single-pass segmented LLM.
 
 Constraints:
 
-<<<<<<< HEAD
 Status: PLANNED (after 5.1 complete)
-=======
 - Deterministic dimension selection
 - Fixed bullet structure
 - Vocabulary band constraint ±15%
@@ -370,7 +353,6 @@ Status: PLANNED (after 5.1 complete)
 - No skill blending
 - Deterministic validation retained
 - Deterministic fallback retained
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 
 
 Status: PLANNED
@@ -422,11 +404,9 @@ Create Session
 
 
 Additionally:
-<<<<<<< HEAD
 - Prompts remain stable across sessions.
 - LLM output passes validation deterministically.
 - Retry logic enforced (5.1D).
-=======
 
 - Prompts stable across sessions.
 
@@ -434,7 +414,6 @@ Additionally:
 
 - Validator does not return empty patternSummary.
 
->>>>>>> d89d869 (Sync local changes — milestone 5.1C.2 and related updates)
 - Deterministic fallback preserved.
 
 - No abstraction drift.

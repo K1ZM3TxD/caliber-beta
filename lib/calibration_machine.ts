@@ -6,6 +6,8 @@ import { toResultContract } from "@/lib/result_contract"
 import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
 import { extractLexicalAnchors } from "@/lib/anchor_extraction"
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
+import { detectAbstractionDrift } from "./abstraction_drift"
+export { validateAndRepairSynthesisOnce };
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
@@ -431,9 +433,10 @@ function validateAndRepairSynthesisOnce(
   synthesisPatternSummary: string,
   personVector: PersonVector6,
   signals: ResumeSignals,
-  opts?: { log?: boolean },
+  opts?: { log?: boolean, anchorTerms?: string[] },
 ): { patternSummary: string; didRepair: boolean; outcome: ValidatorOutcome } {
   const shouldLog = Boolean(opts?.log)
+  const anchorTerms = opts?.anchorTerms || []
 
   const primaryDim = primaryDimFromVector(personVector)
 
@@ -515,6 +518,14 @@ function validateAndRepairSynthesisOnce(
       }
     }
 
+    // --- Milestone 6.3: Anti-Abstraction Enforcement ---
+    const joined = joinSynthesisLines(lines)
+    const drift = detectAbstractionDrift({ text: joined, anchorTerms })
+    const abstraction_flag = drift.abstraction_flag
+    const praise_flag = drift.praise_flag
+    const drift_terms = drift.drift_terms
+    const abstraction_reason = drift.reason
+
     const anyBlacklist = Boolean(hit)
     const constructionOk = isValidConstructionLine(lines[2] ?? "")
 
@@ -529,16 +540,30 @@ function validateAndRepairSynthesisOnce(
       break
     }
 
-    if (!anyBlacklist && constructionOk && !repeatBad) {
+    // If abstraction drift detected, trigger retry if possible
+    if (abstraction_flag && pass === 0) {
+      if (shouldLog) console.log(`[caliber] validator_outcome=RETRY_REQUIRED abstraction_flag=true abstraction_reason=${abstraction_reason} drift_term_count=${drift_terms.length}`)
+      // Inject retry directive for drift terms
+      lines.push(`REMOVE DRIFT TERMS: ${drift_terms.join(", ")}`)
+      return finalize(joinSynthesisLines(lines), didRepair, "RETRY_REQUIRED")
+    }
+
+    // If abstraction drift detected after retry, fallback
+    if (abstraction_flag && pass === 1) {
+      if (shouldLog) console.log(`[caliber] validator_outcome=FALLBACK_STRUCTURE_INVALID abstraction_flag=true abstraction_reason=${abstraction_reason} drift_term_count=${drift_terms.length} fallback_reason=ABSTRACTION_DRIFT`)
+      return finalize(safeFallback(), true, "FALLBACK_STRUCTURE_INVALID")
+    }
+
+    if (!anyBlacklist && constructionOk && !repeatBad && !abstraction_flag) {
       const after = joinSynthesisLines(lines)
       if (after !== before) didRepair = true
-      if (shouldLog) console.log("[caliber] synthesis_source=llm")
+      if (shouldLog) console.log(`[caliber] synthesis_source=llm abstraction_flag=false abstraction_reason=NONE drift_term_count=0 validator_outcome=PASS`)
       return finalize(after, didRepair, didRepair ? "REPAIR_APPLIED" : "PASS")
     }
 
     // First pass: never hard-fallback for retryable issues.
     if (pass === 0) {
-      if (shouldLog) console.log("[caliber] validator_outcome=RETRY_REQUIRED")
+      if (shouldLog) console.log(`[caliber] validator_outcome=RETRY_REQUIRED abstraction_flag=${abstraction_flag} abstraction_reason=${abstraction_reason} drift_term_count=${drift_terms.length}`)
       return finalize(joinSynthesisLines(lines), didRepair, "RETRY_REQUIRED")
     }
 
