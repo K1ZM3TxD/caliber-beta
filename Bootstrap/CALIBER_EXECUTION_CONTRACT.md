@@ -12,7 +12,15 @@
   - Prefer Local mode for surgical edits; do not include uncommitted changes in cloud agent runs.
 - Evidence rule:
   - Coder must not claim runtime verification unless terminal output is included.
-# CALIBER_EXECUTION_CONTRACT
+
+## Remote Visibility Rule
+- PM/assistant can only act on files that are committed and pushed to GitHub.
+- Any “task complete” report MUST include: branch name, commit hash, and push/PR link (as applicable).
+
+## Divergence / Non-fast-forward Playbook
+- If push is rejected (non-fast-forward): do NOT keep rebasing the same diverged branch.
+- Preferred recovery: create a new branch from the remote tip, cherry-pick the local fix commit(s), push, open PR.
+- Explicit stop condition: if rebase produces conflicts in Bootstrap/*, abort and use the recovery branch approach.
 
 ## Coder Task Templates
 
@@ -38,19 +46,4 @@ TASK: [Describe the core logic task]
 
 REQUIREMENTS:
 - Regression/unit tests pass
-- Deterministic behavior confirmed
-- No dev server loop required
 ```
-
----
-
-
-**Guidance:**
-- Use Runtime/Integration template for any task requiring UI, endpoint, or runtime validation.
-- Use Core Logic template for pure logic, algorithm, or test-driven tasks.
-- Direct file modification is expected; Coder must not require user to paste code.
-- After each change, Coder must run tests and report:
-  - Summary of files changed
-  - Test results
-  - If failing: exact error and blocking reason
-- Minimal surface change, no speculative refactors, one task only, scope discipline.
