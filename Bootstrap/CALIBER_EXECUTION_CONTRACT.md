@@ -44,7 +44,13 @@ REQUIREMENTS:
 
 ---
 
+
 **Guidance:**
 - Use Runtime/Integration template for any task requiring UI, endpoint, or runtime validation.
 - Use Core Logic template for pure logic, algorithm, or test-driven tasks.
-- All tasks handed to Coder must be in a single fenced code block (black paste box only, no commentary).
+- Direct file modification is expected; Coder must not require user to paste code.
+- After each change, Coder must run tests and report:
+  - Summary of files changed
+  - Test results
+  - If failing: exact error and blocking reason
+- Minimal surface change, no speculative refactors, one task only, scope discipline.

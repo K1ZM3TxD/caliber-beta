@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # PM_BOOTSTRAP.md — Caliber PM Mode (Bootstrap)
 
 ## Purpose
@@ -70,6 +71,9 @@ FILES/AREAS TO TOUCH:
 NOTES / CONSTRAINTS:
 - <important guardrails>
 =======
+=======
+
+>>>>>>> b4fa214 (Update PM and Coder contracts for direct repo integration workflow: direct file modification, test validation, and reporting requirements)
 # PM_bootstrap.md
 
 Always load the following context-pack files:
@@ -79,4 +83,16 @@ Always load the following context-pack files:
 3. CALIBER_ISSUES_LOG.md
 
 Task templates live in CALIBER_EXECUTION_CONTRACT.md.
+<<<<<<< HEAD
 >>>>>>> 59d340a (Bootstrap: add PM context pack + PM bootstrap trigger)
+=======
+
+## Workflow Contract (Direct Repo Integration)
+
+- PM defines tasks and scope.
+- Coder applies changes directly to repository files (no copy/paste handoff).
+- Coder must validate changes by running tests before reporting completion.
+- Coder must report:
+	- Tests passed ✅
+	- OR exact failure details and blocking issue.
+>>>>>>> b4fa214 (Update PM and Coder contracts for direct repo integration workflow: direct file modification, test validation, and reporting requirements)
