@@ -531,6 +531,14 @@ export default function CalibrationPage() {
                 Score this job
               </button>
             )}
+            {step === "RESULTS" && (
+              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
+                <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
+                  Open dialogue (next step)
+                </button>
+                <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
+              </div>
+            )}
             {step === "PROCESSING" && processingAttempts > 90 && (
               <button type="button" onClick={advance} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Retry</button>
             )}
