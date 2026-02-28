@@ -420,9 +420,9 @@ Definition of surgical edit (mechanical):
 
 
 
-- Never include raw backslashes in task text (e.g., Windows paths like C:/Users/...).
-- If a backslash is required, represent as \\ or use forward slashes instead.
-- Avoid invalid JSON escape sequences (U, k, :) in any payload that might be JSON-encoded.
+Never include raw backslashes in task text (e.g., Windows paths like C:\Users\...).
+If a backslash is required, represent as \\ or use forward slashes instead.
+Avoid invalid JSON escape sequences (\U, \k, \:) in any payload that might be JSON-encoded.
 
 
 
