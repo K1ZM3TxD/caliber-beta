@@ -390,8 +390,8 @@ export default function CalibrationPage() {
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-auto">
       <div
-        className="w-full max-w-[760px] px-6"
-        style={{ minHeight: 520, height: "auto", display: "grid", gridTemplateRows: `${88}px ${120}px ${220 + 64}px` }}
+        className="w-full max-w-[760px] px-6 flex flex-col"
+        style={{ minHeight: 520, height: "auto" }}
       >
         {/* Row A: Header */}
         <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -430,8 +430,8 @@ export default function CalibrationPage() {
           )}
         </div>
         {/* Row C: Input + buttons */}
-        <div style={{ height: 284, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
-          <div style={{ height: 220, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
+          <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {step === "LANDING" && (
               <></>
             )}
@@ -513,7 +513,7 @@ export default function CalibrationPage() {
               <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
             )}
           </div>
-          <div style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
             {step === "LANDING" && (
               <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
             )}
