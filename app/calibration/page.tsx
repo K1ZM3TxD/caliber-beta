@@ -382,9 +382,9 @@ export default function CalibrationPage() {
           {step === "RESUME" && <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>}
           {step === "PROMPT" && <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">{promptIndex !== null ? promptText : "Loading prompt…"}</div>}
           {step === "TITLE_AND_JOB" && (
-            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ paddingTop: 36, marginTop: 12 }}>
+            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 56, paddingTop: 24 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{getTitleFromSession(session)}</div>
+              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
               {session?.titleExplanation && (
                 <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
               )}
@@ -413,6 +413,7 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
+              {/* Removed in-panel Score this job button; only one CTA in sticky footer */}
             </div>
           )}
           {step === "PROCESSING" && (
