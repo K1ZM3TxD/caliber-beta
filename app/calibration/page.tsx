@@ -518,6 +518,9 @@ export default function CalibrationPage() {
             {step === "RESUME" && (
               <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
             )}
+            {step === "PROMPT" && (
+              <button type="button" onClick={submitAnswer} disabled={busy || !hasAnswer} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy || !hasAnswer ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !hasAnswer ? "not-allowed" : "pointer", minWidth: 140 }}>Continue</button>
+            )}
             {step === "RESULTS" && (
               <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
                 <div className="text-2xl font-bold mb-4">Fit score + summary</div>
