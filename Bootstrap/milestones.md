@@ -9,20 +9,19 @@ Next milestone:
 
 As of this milestone update, development priority has shifted.
 
-The Pattern Summary / Narrative Synthesis layer is temporarily frozen.
-
-The product is now being developed as a Calibration Engine first.
+The product flow is now locked as follows:
 
 Primary focus:
 
-1. Resume ingest
-2. 5-question signal capture
-3. Deterministic anchor extraction
-4. Job description ingest
-5. Anchor overlap & gap surface
-6. Title producer (mechanical, anchor-driven)
+1. Resume upload
+2. Title suggestion/confirmation
+3. Job description paste
+4. Fit score (0–10) + summary
+5. LLM dialogue opens after score+summary (wander vs constrained not yet locked)
 
-The narrative summary layer will return after the calibration core is stable and validated.
+Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
+
+Narrative summary and dialogue mode will be enabled after score+summary.
 
 This prevents over-investment in surface polish before structural alignment logic is proven.
 

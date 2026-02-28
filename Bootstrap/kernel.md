@@ -41,22 +41,20 @@ Kernel defines how it enforces it.
 If execution diverges from doctrine, execution changes — not doctrine.
 
 
-## Primary Mode: Calibration Core (Current)
 
-Caliber is being built as a calibration engine first.
+## Current Spine: Locked Calibration Flow
 
-The narrative Pattern Summary layer is temporarily frozen.
+Caliber is now locked to the following product flow:
 
-Current spine:
+1. Resume upload
+2. Title suggestion/confirmation
+3. Job description paste
+4. Fit score (0–10) + summary
+5. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
 
-1. Resume ingest
-2. 5-question signal capture
-3. Deterministic anchor extraction (user-visible)
-4. Job description ingest
-5. Anchor overlap + gap surface
-6. Title producer (mechanical, anchor-driven)
+Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
 
-Narrative synthesis returns only after the calibration core is stable and validated.
+Narrative synthesis and dialogue mode will be enabled after score+summary.
 
 
 \# Core Execution Principle
