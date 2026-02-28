@@ -470,7 +470,20 @@ export default function CalibrationPage() {
               </div>
             )}
             {step === "PROMPT" && (
-              <textarea value={answerText} onChange={(e) => setAnswerText(e.target.value)} rows={7} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }} placeholder="Type your response here…" />
+              <textarea
+                value={answerText}
+                onChange={(e) => setAnswerText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!busy && hasAnswer) submitAnswer();
+                  }
+                }}
+                rows={7}
+                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
+                placeholder="Type your response here…"
+              />
             )}
             {step === "TITLES" && (
               <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
