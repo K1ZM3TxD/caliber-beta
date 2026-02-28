@@ -396,17 +396,33 @@ Acceptable verification methods:
 
 For humans:
 
-\- Full-file rewrites preferred when pasting supports workflow.
-
-
+- Surgical edits preferred by default (explicit replacements/insertions with anchors).
+- Full-file rewrites ONLY when necessary (small file, pervasive edits, or scattered changes where omission risk is high). Must include justification.
 
 For coders / agents:
 
-\- Surgical diffs only when explicitly labeled “surgical.”
+- Default output MUST be surgical edits (not full rewrites).
+- Full-file rewrite allowed ONLY with explicit justification per above.
+- No speculative refactors.
+- Minimal surface change per task.
 
-\- No speculative refactors.
+Definition of surgical edit (mechanical):
 
-\- Minimal surface change per task.
+- Must list file path(s)
+- For each file: exact "replace OLD -> NEW" blocks and/or "insert AFTER <anchor>" blocks
+- Avoid unified diffs unless explicitly requested
+
+
+
+
+
+\# JSON-safe Coder Payload
+
+
+
+- Never include raw backslashes in task text (e.g., Windows paths like C:/Users/...).
+- If a backslash is required, represent as \\ or use forward slashes instead.
+- Avoid invalid JSON escape sequences (U, k, :) in any payload that might be JSON-encoded.
 
 
 
@@ -432,7 +448,9 @@ A task is complete only when:
 
 \- Outcome is mechanically verifiable.
 
+If any documentation (*.md) is modified, coder MUST commit and push before reporting done.
 
+Coder MUST report: git status -sb, git diff --name-only, and the pushed commit SHA.
 
 Technical success without philosophical compliance is failure.
 
