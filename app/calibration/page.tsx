@@ -359,30 +359,32 @@ export default function CalibrationPage() {
   const encodingCompleted = Boolean(session?.encodingRitual?.completed);
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-auto">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start overflow-auto">
       <div
         className="w-full max-w-[760px] px-6 flex flex-col"
         style={{ minHeight: 520, height: "auto" }}
       >
         {/* Row A: Header */}
-        <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 10 }}>
           <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
-          <div style={{ minHeight: "2.2em" }}>
-            {/* Only show error banner if error is non-null and not JOB_REQUIRED */}
-            {error && !(step === "JOB_TEXT" && (!error || error.includes("JOB_REQUIRED"))) ? (
-              <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
-                {error}
-              </div>
-            ) : null}
-          </div>
         </div>
+        {/* Error banner row (separate, below header, above content) */}
+        {error && !(step === "JOB_TEXT" && (!error || error.includes("JOB_REQUIRED"))) ? (
+          <div className="w-full flex justify-center" style={{ marginTop: 0, marginBottom: 12, zIndex: 9, position: "relative" }}>
+            <div className="text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1", maxWidth: 520 }}>
+              {error}
+            </div>
+          </div>
+        ) : null}
+        {/* Top spacer to ensure content starts below header+error */}
+        <div style={{ height: 40 }} />
         {/* Row B: Prompt/step text */}
-        <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {step === "LANDING" && <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>}
           {step === "RESUME" && <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>}
           {step === "PROMPT" && <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">{promptIndex !== null ? promptText : "Loading prompt…"}</div>}
           {step === "TITLE_AND_JOB" && (
-            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 56, paddingTop: 24 }}>
+            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 0, paddingTop: 0 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
               <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
               {session?.titleExplanation && (
