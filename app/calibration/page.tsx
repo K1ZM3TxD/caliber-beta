@@ -36,7 +36,7 @@ function getStepFromState(state: unknown, session?: AnySession): UiStep {
   if (/^PROMPT_\d/.test(s)) return "PROMPT";
   if (s.startsWith("TITLE_")) return "TITLES";
   if (s === "JOB_INGEST") return "JOB_TEXT";
-  if (s === "PATTERN_SYNTHESIS" && session?.synthesis?.patternSummary) return "RESULTS";
+  if (s === "PATTERN_SYNTHESIS" && session?.patternSummary) return "RESULTS";
   return "PROCESSING";
 }
 // TITLES step: derive title and explanation
@@ -350,7 +350,10 @@ export default function CalibrationPage() {
       setJobText("");
       // Route based on returned state
       const n = getPromptIndexFromState(s?.state);
-      if (s?.result && typeof s.result.fitScore === "number" && s?.synthesis?.patternSummary) {
+      if (
+        typeof s?.result?.alignment?.score === "number" &&
+        Boolean(s?.patternSummary)
+      ) {
         setError(null);
         setStep("RESULTS");
       } else if (getPromptIndexFromState(s?.state) !== null) {
@@ -495,6 +498,12 @@ export default function CalibrationPage() {
                   type="text"
                   value={titleFeedback}
                   onChange={(e) => setTitleFeedback(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!titleBusy && titleFeedback.trim()) submitTitleFeedback(titleFeedback.trim());
+                    }
+                  }}
                   className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
                   style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
                   placeholder="Type your feedback…"
@@ -541,10 +550,10 @@ export default function CalibrationPage() {
                 <div className="text-2xl font-bold mb-4">Fit score + summary</div>
                 <div className="mb-4 text-center">
                   <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
-                    Fit score: {typeof session?.result?.fitScore === "number" ? session.result.fitScore : "-"} / 10
+                    Fit score: {typeof session?.result?.alignment?.score === "number" ? session.result.alignment.score : "-"} / 10
                   </div>
-                  {session?.synthesis?.patternSummary && (
-                    <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.synthesis.patternSummary}</div>
+                  {session?.patternSummary && (
+                    <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.patternSummary}</div>
                   )}
                 </div>
                 <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
