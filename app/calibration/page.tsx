@@ -39,36 +39,35 @@ function getStepFromState(state: unknown, session?: AnySession): UiStep {
   if (s === "PATTERN_SYNTHESIS" && session?.synthesis?.patternSummary) return "RESULTS";
   return "PROCESSING";
 }
-// TITLES step: derive title and feedback handler
+// TITLES step: derive title and explanation
 function getTitleFromSession(session: AnySession): string {
-  // Try canonical title field, fallback if missing
-  return session?.title ?? session?.jobTitle ?? session?.synthesis?.title ?? "(title pending)";
+  return session?.marketTitle ?? "(title pending)";
 }
-
-async function submitTitleFeedback(feedback: string) {
-  const sessionId = String(session?.sessionId ?? "");
-  if (!sessionId) {
-    setError("Missing sessionId (session not created).");
-    return;
+  // TITLES step: feedback handler (must be inside component for state access)
+  async function submitTitleFeedback(feedback: string) {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) {
+      setError("Missing sessionId (session not created).");
+      return;
+    }
+    setTitleBusy(true);
+    setError(null);
+    try {
+      // Use the contract event type for title feedback
+      const s = await postEvent({
+        type: "TITLE_FEEDBACK",
+        sessionId,
+        payload: feedback,
+      });
+      setSession(s);
+      setTitleFeedback("");
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setTitleBusy(false);
+    }
   }
-  setTitleBusy(true);
-  setError(null);
-  try {
-    // Use the contract event type for title feedback
-    const s = await postEvent({
-      type: "TITLE_FEEDBACK",
-      sessionId,
-      payload: feedback,
-    });
-    setSession(s);
-    setTitleFeedback("");
-    setStep(getStepFromState(s?.state, s));
-  } catch (e: any) {
-    setError(String(e?.message ?? e));
-  } finally {
-    setTitleBusy(false);
-  }
-}
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -488,7 +487,10 @@ export default function CalibrationPage() {
             {step === "TITLES" && (
               <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
                 <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-                <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{title}</div>
+                <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{getTitleFromSession(session)}</div>
+                {session?.titleExplanation && (
+                  <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
+                )}
                 <input
                   type="text"
                   value={titleFeedback}
