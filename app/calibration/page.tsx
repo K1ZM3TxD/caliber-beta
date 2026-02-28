@@ -29,7 +29,46 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "RESULTS" | "JOB_TEXT" | "TITLES";
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "TITLES" | "JOB_TEXT" | "PROCESSING" | "RESULTS";
+// Step router for session.state
+function getStepFromState(state: unknown, session?: AnySession): UiStep {
+  const s = String(state ?? "");
+  if (/^PROMPT_\d/.test(s)) return "PROMPT";
+  if (s.startsWith("TITLE_")) return "TITLES";
+  if (s === "JOB_INGEST") return "JOB_TEXT";
+  if (s === "PATTERN_SYNTHESIS" && session?.synthesis?.patternSummary) return "RESULTS";
+  return "PROCESSING";
+}
+// TITLES step: derive title and feedback handler
+function getTitleFromSession(session: AnySession): string {
+  // Try canonical title field, fallback if missing
+  return session?.title ?? session?.jobTitle ?? session?.synthesis?.title ?? "(title pending)";
+}
+
+async function submitTitleFeedback(feedback: string) {
+  const sessionId = String(session?.sessionId ?? "");
+  if (!sessionId) {
+    setError("Missing sessionId (session not created).");
+    return;
+  }
+  setTitleBusy(true);
+  setError(null);
+  try {
+    // Use the contract event type for title feedback
+    const s = await postEvent({
+      type: "TITLE_FEEDBACK",
+      sessionId,
+      payload: feedback,
+    });
+    setSession(s);
+    setTitleFeedback("");
+    setStep(getStepFromState(s?.state, s));
+  } catch (e: any) {
+    setError(String(e?.message ?? e));
+  } finally {
+    setTitleBusy(false);
+  }
+}
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -86,6 +125,7 @@ export default function CalibrationPage() {
 
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
+  const title = getTitleFromSession(session);
 
   function openFilePicker() {
     fileInputRef.current?.click();
@@ -129,7 +169,7 @@ export default function CalibrationPage() {
       // After resume-upload route, server deterministically advances away from RESUME_INGEST.
       // We’ll route UI based on the returned state.
       const n = getPromptIndexFromState(s?.state);
-      if (n) setStep("PROMPT");
+      if (n !== null) setStep("PROMPT");
       else setStep("PROCESSING");
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -158,7 +198,7 @@ export default function CalibrationPage() {
       setAnswerText("");
 
       const n = getPromptIndexFromState(s?.state);
-      if (n) {
+      if (n !== null) {
         setStep("PROMPT");
       } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
         setStep("RESULTS");
@@ -187,13 +227,15 @@ export default function CalibrationPage() {
 
       // Route based on returned state
       const n = getPromptIndexFromState(s?.state);
-      if (n) {
+      if (n !== null) {
         setStep("PROMPT");
       } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
         setStep("RESULTS");
       } else if (String(s?.state) === "JOB_INGEST") {
         setError(null);
         setStep("JOB_TEXT");
+      } else if (String(s?.state).startsWith("TITLE_")) {
+        setStep("TITLES");
       } else {
         setStep("PROCESSING");
       }
@@ -247,16 +289,17 @@ export default function CalibrationPage() {
         setSession(s);
         // Route to next step if interactive
         const n = getPromptIndexFromState(s?.state);
-        if (n !== null || String(s?.state).startsWith("TITLE_")) {
-          if (getStepFromState(s?.state) === "JOB_TEXT") {
-            setError(null);
-          }
-          setStep(getStepFromState(s?.state));
+        if (n !== null) {
+          setStep("PROMPT");
+        } else if (String(s?.state).startsWith("TITLE_")) {
+          setStep("TITLES");
         } else if (String(s?.state) === "JOB_INGEST") {
           setError(null);
           setStep("JOB_TEXT");
           clearInterval(interval);
           return;
+        } else if (String(s?.state) === "PATTERN_SYNTHESIS" && session?.synthesis?.patternSummary) {
+          setStep("RESULTS");
         } else {
           setStep("PROCESSING");
         }
@@ -307,13 +350,15 @@ export default function CalibrationPage() {
       setSession(s);
       setJobText("");
       // Route based on returned state
-      // Only show RESULTS if job was provided and compute finished
+      const n = getPromptIndexFromState(s?.state);
       if (s?.result && typeof s.result.fitScore === "number" && s?.synthesis?.patternSummary) {
         setError(null);
         setStep("RESULTS");
       } else if (getPromptIndexFromState(s?.state) !== null) {
         setError(null);
         setStep("PROMPT");
+      } else if (String(s?.state).startsWith("TITLE_")) {
+        setStep("TITLES");
       } else if (String(s?.state) === "PROCESSING") {
         setError(null);
         setStep("PROCESSING");
@@ -331,7 +376,6 @@ export default function CalibrationPage() {
         // Do not set error
       } else {
         setError(errMsg);
-        setStep("JOB_TEXT");
       }
     } finally {
       setJobBusy(false);
@@ -391,23 +435,17 @@ export default function CalibrationPage() {
             {step === "LANDING" && (
               <></>
             )}
-            {step === "RESULTS" && (
-              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
-                <div className="text-2xl font-bold mb-4">Fit score + summary</div>
-                <div className="mb-4 text-center">
-                  <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
-                    Fit score: {typeof session?.result?.fitScore === "number" ? session.result.fitScore : "-"} / 10
-                  </div>
-                  {session?.synthesis?.patternSummary && (
-                    <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.synthesis.patternSummary}</div>
-                  )}
-                </div>
-                <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
-                  Open dialogue (next step)
-                </button>
-                <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
-              </div>
-            )}
+            {step === "RESUME" && (
+              <div className="w-full max-w-[560px]">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                  className="hidden"
+                  onChange={onFileChange}
+                />
+                <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", height: 110 }}>
+                  <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
                     {!selectedFile ? (
                       <>
                         <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
@@ -434,7 +472,39 @@ export default function CalibrationPage() {
               <textarea value={answerText} onChange={(e) => setAnswerText(e.target.value)} rows={7} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }} placeholder="Type your response here…" />
             )}
             {step === "TITLES" && (
-              <input type="text" value={titleFeedback} onChange={(e) => setTitleFeedback(e.target.value)} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }} placeholder="Type your feedback…" disabled={titleBusy} />
+              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
+                <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
+                <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{title}</div>
+                <input
+                  type="text"
+                  value={titleFeedback}
+                  onChange={(e) => setTitleFeedback(e.target.value)}
+                  className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                  style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
+                  placeholder="Type your feedback…"
+                  disabled={titleBusy}
+                />
+                <div className="mt-4 flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => submitTitleFeedback(titleFeedback.trim())}
+                    disabled={titleBusy || !titleFeedback.trim()}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: titleBusy || !titleFeedback.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy || !titleFeedback.trim() ? "not-allowed" : "pointer", minWidth: 120 }}
+                  >
+                    Continue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitTitleFeedback("")}
+                    disabled={titleBusy}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: titleBusy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy ? "not-allowed" : "pointer", minWidth: 120 }}
+                  >
+                    Looks right
+                  </button>
+                </div>
+              </div>
             )}
             {step === "JOB_TEXT" && (
               <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
@@ -444,16 +514,21 @@ export default function CalibrationPage() {
             {step === "LANDING" && (
               <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
             )}
-            {step === "RESUME" && (
-              <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
-            )}
-            {step === "PROMPT" && (
-              <button type="button" onClick={submitAnswer} disabled={!hasAnswer || busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: !hasAnswer || busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: !hasAnswer || busy ? "not-allowed" : "pointer", boxShadow: !hasAnswer || busy ? "0 0 0 rgba(0,0,0,0)" : "0 8px 20px rgba(0,0,0,0.35)", transform: !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)", minWidth: 120 }}>Submit</button>
-            )}
-            {step === "TITLES" && (
-              <div style={{ display: "flex", gap: 16 }}>
-                <button type="button" onClick={() => submitTitleFeedback(titleFeedback.trim())} disabled={titleBusy || !titleFeedback.trim()} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: titleBusy || !titleFeedback.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy || !titleFeedback.trim() ? "not-allowed" : "pointer", minWidth: 120 }}>Continue</button>
-                <button type="button" onClick={() => submitTitleFeedback("")} disabled={titleBusy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: titleBusy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy ? "not-allowed" : "pointer", minWidth: 120 }}>Looks right</button>
+            {step === "RESULTS" && (
+              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
+                <div className="text-2xl font-bold mb-4">Fit score + summary</div>
+                <div className="mb-4 text-center">
+                  <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
+                    Fit score: {typeof session?.result?.fitScore === "number" ? session.result.fitScore : "-"} / 10
+                  </div>
+                  {session?.synthesis?.patternSummary && (
+                    <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.synthesis.patternSummary}</div>
+                  )}
+                </div>
+                <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
+                  Open dialogue (next step)
+                </button>
+                <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
               </div>
             )}
             {step === "JOB_TEXT" && (
