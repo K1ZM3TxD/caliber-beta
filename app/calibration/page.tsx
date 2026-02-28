@@ -328,24 +328,35 @@ export default function CalibrationPage() {
     setError(null);
     try {
       let s = session;
-      // If feedback is non-empty, send TITLE_FEEDBACK first
-      if (titleFeedback.trim()) {
-        s = await postEvent({
-          type: "TITLE_FEEDBACK",
-          sessionId: String(session?.sessionId ?? ""),
-          payload: titleFeedback.trim(),
-        });
-        setSession(s);
-        setTitleFeedback("");
-      }
-      // Then send JOB_PARSED event
+      // Always send TITLE_FEEDBACK at least once (payload = titleFeedback.trim() or empty string)
       s = await postEvent({
-        type: "JOB_PARSED",
+        type: "TITLE_FEEDBACK",
         sessionId: String(s?.sessionId ?? ""),
-        payload: jobText.trim(),
+        payload: titleFeedback.trim(),
       });
       setSession(s);
-      setJobText("");
+      setTitleFeedback("");
+
+      // If returned state is TITLE_DIALOGUE_LOOP, send a second TITLE_FEEDBACK with empty payload
+      if (String(s?.state) === "TITLE_DIALOGUE_LOOP") {
+        s = await postEvent({
+          type: "TITLE_FEEDBACK",
+          sessionId: String(s?.sessionId ?? ""),
+          payload: "",
+        });
+        setSession(s);
+      }
+
+      // Only after state is JOB_INGEST, send JOB_PARSED
+      if (String(s?.state) === "JOB_INGEST") {
+        s = await postEvent({
+          type: "JOB_PARSED",
+          sessionId: String(s?.sessionId ?? ""),
+          payload: jobText.trim(),
+        });
+        setSession(s);
+        setJobText("");
+      }
       setStep(getStepFromState(s?.state, s));
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -415,7 +426,7 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
-              {/* Removed in-panel Score this job button; only one CTA in sticky footer */}
+              {/* Only sticky footer Score CTA remains */}
             </div>
           )}
           {step === "PROCESSING" && (
@@ -501,9 +512,7 @@ export default function CalibrationPage() {
                   Score this job
               </button>
           )}
-          {step === "JOB_TEXT" && (
-              <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
-          )}
+            {/* Removed JOB_TEXT UI branch (should not exist in merged flow) */}
         </div>
         <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
           {step === "LANDING" && (
@@ -543,9 +552,7 @@ export default function CalibrationPage() {
                   <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
               </div>
           )}
-          {step === "JOB_TEXT" && (
-              <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
-          )}
+            {/* Removed JOB_TEXT UI branch (should not exist in merged flow) */}
         </div>
       </div>
     </div>
