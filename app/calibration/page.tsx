@@ -388,10 +388,10 @@ export default function CalibrationPage() {
   const encodingCompleted = session?.encodingRitual?.completed;
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-hidden">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-auto">
       <div
         className="w-full max-w-[760px] px-6"
-        style={{ height: 520, display: "grid", gridTemplateRows: `${88}px ${120}px ${220 + 64}px` }}
+        style={{ minHeight: 520, height: "auto", display: "grid", gridTemplateRows: `${88}px ${120}px ${220 + 64}px` }}
       >
         {/* Row A: Header */}
         <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
