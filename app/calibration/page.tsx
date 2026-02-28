@@ -260,62 +260,54 @@ export default function CalibrationPage() {
   const encodingCompleted = session?.encodingRitual?.completed;
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-hidden">
-      <div className="w-full max-w-[760px] px-6">
-        <div className="relative" style={{ color: "#F2F2F2" }}>
-          <div className="w-full flex flex-col items-center text-center">
-            <div
-              style={{
-                minHeight: "5.5em",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
-              <div style={{ minHeight: "2.2em" }}>
-                {error ? (
-                  <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
-                    {error}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            {/* LANDING */}
-            {step === "LANDING" ? (
-              <div className="mt-10 w-full max-w-[620px]">
-                <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  {tagline}
-                </p>
-
-                <div className="mt-10">
-                  <button
-                    type="button"
-                    onClick={begin}
-                    disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: busy ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    Begin Calibration
-                  </button>
-                </div>
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-hidden">
+      <div
+        className="w-full max-w-[760px] px-6"
+        style={{ height: 520, display: "grid", gridTemplateRows: `${88}px ${120}px ${220 + 64}px` }}
+      >
+        {/* Row A: Header */}
+        <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+          <div style={{ minHeight: "2.2em" }}>
+            {error ? (
+              <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
+                {error}
               </div>
             ) : null}
-
-            {/* RESUME */}
-            {step === "RESUME" ? (
-              <div className="mt-10 w-full max-w-[620px]">
-                <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Upload Resume</div>
-                <div className="mt-3 text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  {resumeSubtext}
-                </div>
-
+          </div>
+        </div>
+        {/* Row B: Prompt/step text */}
+        <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {step === "LANDING" && <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>}
+          {step === "RESUME" && <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>}
+          {step === "PROMPT" && <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">{promptIndex !== null ? promptText : "Loading prompt…"}</div>}
+          {step === "TITLES" && <div className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center"><span style={{ color: "#CFCFCF" }}>{title}</span></div>}
+          {step === "JOB_TEXT" && <div className="text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center"><span>Paste the job description.</span></div>}
+          {step === "PROCESSING" && (
+            <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
+              {typeof ritualProgress === "number" ? (
+                <>
+                  <div style={{ fontWeight: 500, fontSize: "1.1em" }}>
+                    Ritual progress: {Math.round(ritualProgress)}%
+                  </div>
+                  <div style={{ marginTop: 6 }}>{ritualMessage}</div>
+                </>
+              ) : encodingCompleted ? (
+                <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Encoding complete</div>
+              ) : (
+                <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Processing…</div>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Row C: Input + buttons */}
+        <div style={{ height: 284, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
+          <div style={{ height: 220, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {step === "LANDING" && (
+              <></>
+            )}
+            {step === "RESUME" && (
+              <div className="w-full max-w-[560px]">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -323,254 +315,62 @@ export default function CalibrationPage() {
                   className="hidden"
                   onChange={onFileChange}
                 />
-
-                <div className="mt-8 flex justify-center">
-                  <div className="w-full" style={{ maxWidth: 560 }}>
-                    <div
-                      className="rounded-md"
-                      style={{
-                        border: "1px dashed rgba(242,242,242,0.28)",
-                        backgroundColor: selectedFile ? "#121212" : "#0F0F0F",
-                        height: 140,
-                      }}
-                    >
-                      <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
-                        {!selectedFile ? (
-                          <>
-                            <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>
-                              Drag & drop your resume here
-                            </div>
-                            <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>
-                              or
-                            </div>
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                onClick={openFilePicker}
-                                disabled={busy}
-                                className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                style={{
-                                  backgroundColor: "rgba(242,242,242,0.14)",
-                                  color: "#F2F2F2",
-                                  border: "1px solid rgba(242,242,242,0.18)",
-                                  cursor: busy ? "not-allowed" : "pointer",
-                                }}
-                              >
-                                Choose file
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-sm sm:text-base font-medium">{selectedFile.name}</div>
-                            <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>
-                              File selected
-                            </div>
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                onClick={openFilePicker}
-                                disabled={busy}
-                                className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                style={{
-                                  backgroundColor: "rgba(242,242,242,0.10)",
-                                  color: "#F2F2F2",
-                                  border: "1px solid rgba(242,242,242,0.16)",
-                                  cursor: busy ? "not-allowed" : "pointer",
-                                }}
-                              >
-                                Choose different file
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>
-                      PDF, DOCX, or TXT
-                    </div>
+                <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", height: 110 }}>
+                  <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
+                    {!selectedFile ? (
+                      <>
+                        <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
+                        <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>or</div>
+                        <div className="mt-3">
+                          <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.14)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.18)", cursor: busy ? "not-allowed" : "pointer" }}>Choose file</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm sm:text-base font-medium">{selectedFile.name}</div>
+                        <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>File selected</div>
+                        <div className="mt-3">
+                          <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)", cursor: busy ? "not-allowed" : "pointer" }}>Choose different file</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-
-                <div className="mt-8">
-                  <button
-                    type="button"
-                    onClick={submitResume}
-                    disabled={!canContinueResume}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      transitionDuration: "200ms",
-                      backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)",
-                      color: "#0B0B0B",
-                      cursor: canContinueResume ? "pointer" : "not-allowed",
-                      boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none",
-                      transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)",
-                    }}
-                  >
-                    Continue
-                  </button>
-                </div>
+                <div className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</div>
               </div>
-            ) : null}
-
-            {/* PROMPT */}
-            {step === "PROMPT" ? (
-              <div className="mt-10 w-full max-w-2xl">
-                <div className="text-xs sm:text-sm font-medium" style={{ color: "#CFCFCF" }}>
-                  Prompt {promptIndex !== null ? promptIndex : "?"} of 5
-                </div>
-                <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">
-                  {promptIndex !== null ? promptText : "Loading prompt…"}
-                </div>
-
-                <div className="mt-7">
-                  <textarea
-                    value={answerText}
-                    onChange={(e) => setAnswerText(e.target.value)}
-                    rows={7}
-                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                    style={{
-                      backgroundColor: "#141414",
-                      color: "#F2F2F2",
-                      border: "1px solid rgba(242,242,242,0.14)",
-                      boxShadow: "none",
-                    }}
-                    placeholder="Type your response here…"
-                  />
-                </div>
-
-                <div className="mt-7">
-                  <button
-                    type="button"
-                    onClick={submitAnswer}
-                    disabled={!hasAnswer || busy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      transitionDuration: "200ms",
-                      backgroundColor: !hasAnswer || busy ? "rgba(242,242,242,0.70)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: !hasAnswer || busy ? "not-allowed" : "pointer",
-                      boxShadow: !hasAnswer || busy ? "0 0 0 rgba(0,0,0,0)" : "0 8px 20px rgba(0,0,0,0.35)",
-                      transform: !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)",
-                    }}
-                  >
-                    Submit
-                  </button>
-                </div>
+            )}
+            {step === "PROMPT" && (
+              <textarea value={answerText} onChange={(e) => setAnswerText(e.target.value)} rows={7} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }} placeholder="Type your response here…" />
+            )}
+            {step === "TITLES" && (
+              <input type="text" value={titleFeedback} onChange={(e) => setTitleFeedback(e.target.value)} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }} placeholder="Type your feedback…" disabled={titleBusy} />
+            )}
+            {step === "JOB_TEXT" && (
+              <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
+            )}
+          </div>
+          <div style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {step === "LANDING" && (
+              <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
+            )}
+            {step === "RESUME" && (
+              <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
+            )}
+            {step === "PROMPT" && (
+              <button type="button" onClick={submitAnswer} disabled={!hasAnswer || busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: !hasAnswer || busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: !hasAnswer || busy ? "not-allowed" : "pointer", boxShadow: !hasAnswer || busy ? "0 0 0 rgba(0,0,0,0)" : "0 8px 20px rgba(0,0,0,0.35)", transform: !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)", minWidth: 120 }}>Submit</button>
+            )}
+            {step === "TITLES" && (
+              <div style={{ display: "flex", gap: 16 }}>
+                <button type="button" onClick={() => submitTitleFeedback(titleFeedback.trim())} disabled={titleBusy || !titleFeedback.trim()} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: titleBusy || !titleFeedback.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy || !titleFeedback.trim() ? "not-allowed" : "pointer", minWidth: 120 }}>Continue</button>
+                <button type="button" onClick={() => submitTitleFeedback("")} disabled={titleBusy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: titleBusy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: titleBusy ? "not-allowed" : "pointer", minWidth: 120 }}>Looks right</button>
               </div>
-            ) : null}
-
-            {/* PROCESSING */}
-            {step === "PROCESSING" ? (
-              <div className="mt-10 w-full max-w-[620px]">
-                <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  {typeof ritualProgress === "number" ? (
-                    <>
-                      <div style={{ fontWeight: 500, fontSize: "1.1em" }}>
-                        Ritual progress: {Math.round(ritualProgress)}%
-                      </div>
-                      <div style={{ marginTop: 6 }}>{ritualMessage}</div>
-                    </>
-                  ) : encodingCompleted ? (
-                    <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Encoding complete</div>
-                  ) : (
-                    <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Processing…</div>
-                  )}
-                </div>
-                {processingAttempts > 90 ? (
-                  <div className="mt-7">
-                    <button
-                      type="button"
-                      onClick={advance}
-                      disabled={busy}
-                      className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{
-                        backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
-                        color: "#0B0B0B",
-                        cursor: busy ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* RESULTS */}
-            {step === "RESULTS" ? (
-              <div className="mt-10 w-full max-w-3xl text-left">
-                <div className="text-xl sm:text-2xl font-semibold tracking-tight">Pattern Summary</div>
-
-                <div
-                  className="mt-4 rounded-md px-4 py-4 whitespace-pre-wrap text-sm sm:text-base"
-                  style={{ backgroundColor: "#121212", border: "1px solid rgba(242,242,242,0.14)" }}
-                >
-                  {String(session?.synthesis?.patternSummary ?? "—")}
-                </div>
-
-                {/* Anchor metrics block */}
-                <div className="mt-8 text-left text-[14px] leading-relaxed opacity-80 space-y-2">
-                  <div>
-                    <span className="font-semibold">Anchor overlap: </span>
-                    {typeof (session?.synthesis?.anchor_overlap_score ??
-                      session?.synthesis?.anchorOverlapScore ??
-                      session?.anchor_overlap_score) === "number"
-                      ? (
-                          session?.synthesis?.anchor_overlap_score ??
-                          session?.synthesis?.anchorOverlapScore ??
-                          session?.anchor_overlap_score
-                        ).toFixed(2)
-                      : "—"}
-                  </div>
-
-                  <div>
-                    <span className="font-semibold">Missing anchors: </span>
-                    {typeof (session?.synthesis?.missing_anchor_count ??
-                      session?.synthesis?.missingAnchorCount ??
-                      session?.missing_anchor_count) === "number"
-                      ? (session?.synthesis?.missing_anchor_count ??
-                          session?.synthesis?.missingAnchorCount ??
-                          session?.missing_anchor_count)
-                      : "—"}
-                  </div>
-
-                  {(session?.synthesis?.missing_anchor_terms ??
-                    session?.synthesis?.missingAnchorTerms ??
-                    session?.missing_anchor_terms)?.length ? (
-                    <div>
-                      <span className="font-semibold">Missing terms: </span>
-                      {(session?.synthesis?.missing_anchor_terms ??
-                        session?.synthesis?.missingAnchorTerms ??
-                        session?.missing_anchor_terms
-                      ).join(", ")}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-7">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSession(null);
-                      setSelectedFile(null);
-                      setAnswerText("");
-                      setError(null);
-                      setStep("LANDING");
-                    }}
-                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: "rgba(242,242,242,0.10)",
-                      color: "#F2F2F2",
-                      border: "1px solid rgba(242,242,242,0.16)",
-                    }}
-                  >
-                    Restart
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            )}
+            {step === "JOB_TEXT" && (
+              <button type="button" onClick={submitJobText} disabled={jobBusy || !jobText.trim()} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}>Continue</button>
+            )}
+            {step === "PROCESSING" && processingAttempts > 90 && (
+              <button type="button" onClick={advance} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Retry</button>
+            )}
           </div>
         </div>
       </div>
