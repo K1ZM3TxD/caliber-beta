@@ -3,10 +3,17 @@
 
 ## Project Status / Current active work
 
-- Root route (/) now redirects to /calibration to avoid double landing.
-- Calibration UI now uses a stable UI shell approach (LANDING -> RESUME_INGEST -> confirmation), with typewriter tagline.
-- Backend wiring was attempted but is intentionally paused pending refactor into a hook for stability.
+- Calibration UI now starts with a single landing page and stable header.
+- Resume upload and all prompts (1–5) complete successfully.
+- After prompts, the Job Anchor Title page appears (role title confirmation).
+- UI routing and polling are improved; no blank hang screens after prompts.
 
-## Next planned step
+## Current Blocker
 
-- Create lib/useCalibrationSession.ts hook (begin session + upload resume) and then refactor app/calibration/page.tsx to call hook methods only (no fetch/FormData inside page).
+- TITLE_FEEDBACK API error: "feedback must be a string" (contract mismatch blocks progress to job description page).
+
+## Next Tasks (in order)
+
+1. Fix TITLE_FEEDBACK request shape to match API contract (send payload as string).
+2. Add Job Description paste page and connect SUBMIT_JOB_TEXT event.
+3. Implement alignment output placeholder page after job ingest.

@@ -2,10 +2,9 @@
 
 ## Current Open Issues
 
-- Coder reliability: repeated build-breaking edits; require evidence + strict guardrails.
-- Backend wiring needs refactor into hook to reduce page.tsx fragility.
-- Narrative layer unfreeze blocked on manual validation (explicit blocker)
-- Git visibility/branch divergence drift: Fixes existed locally but were not committed/pushed, causing PM bootstrap to fail. New rules require remote visibility and divergence recovery playbook (see CALIBER_EXECUTION_CONTRACT.md).
+1. TITLE_FEEDBACK contract mismatch: UI sends wrong field, API expects payload as string (blocks progress to job description page).
+2. Post-prompt routing/polling fragility: session state checks can be stale, causing UI to hang or misroute (partially mitigated, but still relevant).
+3. Alignment output UI not implemented: placeholder needed after job ingest to complete flow.
 
 ## Mitigations / Working Rules
 
