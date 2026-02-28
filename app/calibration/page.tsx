@@ -192,15 +192,17 @@ export default function CalibrationPage() {
       } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
         setStep("RESULTS");
       } else if (String(s?.state) === "JOB_INGEST") {
+        setError(null);
         setStep("JOB_TEXT");
       } else {
         setStep("PROCESSING");
       }
     } catch (e: any) {
-      // JOB_REQUIRED: route to JOB_TEXT, do not show error
+      // JOB_REQUIRED: route to JOB_TEXT, clear error
       const errMsg = String(e?.message ?? "");
       const errCode = e?.error?.code ?? "";
       if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+        setError(null);
         setStep("JOB_TEXT");
         // Do not set error
       } else {
@@ -246,8 +248,12 @@ export default function CalibrationPage() {
         // Route to next step if interactive
         const n = getPromptIndexFromState(s?.state);
         if (n !== null || String(s?.state).startsWith("TITLE_")) {
+          if (getStepFromState(s?.state) === "JOB_TEXT") {
+            setError(null);
+          }
           setStep(getStepFromState(s?.state));
         } else if (String(s?.state) === "JOB_INGEST") {
+          setError(null);
           setStep("JOB_TEXT");
           clearInterval(interval);
           return;
@@ -259,6 +265,7 @@ export default function CalibrationPage() {
         const errMsg = String(err?.message ?? "");
         const errCode = err?.error?.code ?? "";
         if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+          setError(null);
           setStep("JOB_TEXT");
           clearInterval(interval);
           // Do not set error
@@ -282,6 +289,7 @@ export default function CalibrationPage() {
 
   // Submit job text using correct contract
   async function submitJobText() {
+    setError(null);
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) {
       setError("Missing sessionId (session not created).");
@@ -289,7 +297,6 @@ export default function CalibrationPage() {
     }
     if (!jobText.trim()) return;
 
-    setError(null);
     setJobBusy(true);
     try {
       const s = await postEvent({
@@ -302,13 +309,17 @@ export default function CalibrationPage() {
       // Route based on returned state
       const n = getPromptIndexFromState(s?.state);
       if (n !== null) {
+        setError(null);
         setStep("PROMPT");
       } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
+        setError(null);
         setStep("RESULTS");
       } else if (String(s?.state) === "PROCESSING") {
+        setError(null);
         setStep("PROCESSING");
         // Auto-advance will re-enable
       } else {
+        setError(null);
         setStep("PROCESSING");
       }
     } catch (e: any) {
@@ -316,6 +327,7 @@ export default function CalibrationPage() {
       const errMsg = String(e?.message ?? "");
       const errCode = e?.error?.code ?? "";
       if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+        setError(null);
         setStep("JOB_TEXT");
         // Do not set error
       } else {
@@ -341,7 +353,8 @@ export default function CalibrationPage() {
         <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
           <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
           <div style={{ minHeight: "2.2em" }}>
-            {error ? (
+            {/* Only show error banner if error is non-null and not JOB_REQUIRED */}
+            {error && !(step === "JOB_TEXT" && (!error || error.includes("JOB_REQUIRED"))) ? (
               <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
                 {error}
               </div>
