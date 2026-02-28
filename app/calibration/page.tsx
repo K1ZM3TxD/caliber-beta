@@ -361,6 +361,10 @@ export default function CalibrationPage() {
     }
   }
 
+  const ritualProgress = session?.consolidationRitual?.progressPct;
+  const ritualMessage = session?.consolidationRitual?.message ?? session?.encodingRitual?.message ?? "";
+  const encodingCompleted = Boolean(session?.encodingRitual?.completed);
+
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-center overflow-auto">
       <div
