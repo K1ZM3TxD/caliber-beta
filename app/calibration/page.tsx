@@ -29,7 +29,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "RESULTS";
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "RESULTS" | "JOB_TEXT" | "TITLES";
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -307,17 +307,16 @@ export default function CalibrationPage() {
       setSession(s);
       setJobText("");
       // Route based on returned state
-      const n = getPromptIndexFromState(s?.state);
-      if (n !== null) {
-        setError(null);
-        setStep("PROMPT");
-      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
+      // Only show RESULTS if job was provided and compute finished
+      if (s?.result && typeof s.result.fitScore === "number" && s?.synthesis?.patternSummary) {
         setError(null);
         setStep("RESULTS");
+      } else if (getPromptIndexFromState(s?.state) !== null) {
+        setError(null);
+        setStep("PROMPT");
       } else if (String(s?.state) === "PROCESSING") {
         setError(null);
         setStep("PROCESSING");
-        // Auto-advance will re-enable
       } else {
         setError(null);
         setStep("PROCESSING");
@@ -332,6 +331,7 @@ export default function CalibrationPage() {
         // Do not set error
       } else {
         setError(errMsg);
+        setStep("JOB_TEXT");
       }
     } finally {
       setJobBusy(false);
@@ -391,17 +391,23 @@ export default function CalibrationPage() {
             {step === "LANDING" && (
               <></>
             )}
-            {step === "RESUME" && (
-              <div className="w-full max-w-[560px]">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                  className="hidden"
-                  onChange={onFileChange}
-                />
-                <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", height: 110 }}>
-                  <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
+            {step === "RESULTS" && (
+              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
+                <div className="text-2xl font-bold mb-4">Fit score + summary</div>
+                <div className="mb-4 text-center">
+                  <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
+                    Fit score: {typeof session?.result?.fitScore === "number" ? session.result.fitScore : "-"} / 10
+                  </div>
+                  {session?.synthesis?.patternSummary && (
+                    <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.synthesis.patternSummary}</div>
+                  )}
+                </div>
+                <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
+                  Open dialogue (next step)
+                </button>
+                <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
+              </div>
+            )}
                     {!selectedFile ? (
                       <>
                         <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
