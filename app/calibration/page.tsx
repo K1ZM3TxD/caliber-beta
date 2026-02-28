@@ -185,16 +185,27 @@ export default function CalibrationPage() {
       const s = await postEvent({ type: "ADVANCE", sessionId });
       setSession(s);
 
+      // Route based on returned state
       const n = getPromptIndexFromState(s?.state);
       if (n) {
         setStep("PROMPT");
       } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
         setStep("RESULTS");
+      } else if (String(s?.state) === "JOB_INGEST") {
+        setStep("JOB_TEXT");
       } else {
         setStep("PROCESSING");
       }
     } catch (e: any) {
-      setError(String(e?.message ?? e));
+      // JOB_REQUIRED: route to JOB_TEXT, do not show error
+      const errMsg = String(e?.message ?? "");
+      const errCode = e?.error?.code ?? "";
+      if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+        setStep("JOB_TEXT");
+        // Do not set error
+      } else {
+        setError(errMsg);
+      }
     } finally {
       setBusy(false);
     }
@@ -209,7 +220,8 @@ export default function CalibrationPage() {
 
   // Auto-advance for PROCESSING
   useEffect(() => {
-    if (step !== "PROCESSING") {
+    // Prevent polling if session.state is JOB_INGEST (job required)
+    if (step !== "PROCESSING" || String(session?.state) === "JOB_INGEST") {
       setProcessingAttempts(0);
       return;
     }
@@ -233,13 +245,27 @@ export default function CalibrationPage() {
         setSession(s);
         // Route to next step if interactive
         const n = getPromptIndexFromState(s?.state);
-        if (n !== null || String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
+        if (n !== null || String(s?.state).startsWith("TITLE_")) {
           setStep(getStepFromState(s?.state));
+        } else if (String(s?.state) === "JOB_INGEST") {
+          setStep("JOB_TEXT");
+          clearInterval(interval);
+          return;
         } else {
           setStep("PROCESSING");
         }
-      } catch (err) {
-        setError("A terminal error occurred. Please retry.");
+      } catch (err: any) {
+        // JOB_REQUIRED: route to JOB_TEXT, stop polling
+        const errMsg = String(err?.message ?? "");
+        const errCode = err?.error?.code ?? "";
+        if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
+          clearInterval(interval);
+          // Do not set error
+          return;
+        } else {
+          setError("A terminal error occurred. Please retry.");
+        }
       } finally {
         inFlightRef.current = false;
       }
@@ -253,6 +279,52 @@ export default function CalibrationPage() {
   const [jobBusy, setJobBusy] = useState(false);
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
+
+  // Submit job text using correct contract
+  async function submitJobText() {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) {
+      setError("Missing sessionId (session not created).");
+      return;
+    }
+    if (!jobText.trim()) return;
+
+    setError(null);
+    setJobBusy(true);
+    try {
+      const s = await postEvent({
+        type: "JOB_PARSED",
+        sessionId,
+        payload: jobText.trim(), // must be a string
+      });
+      setSession(s);
+      setJobText("");
+      // Route based on returned state
+      const n = getPromptIndexFromState(s?.state);
+      if (n !== null) {
+        setStep("PROMPT");
+      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
+        setStep("RESULTS");
+      } else if (String(s?.state) === "PROCESSING") {
+        setStep("PROCESSING");
+        // Auto-advance will re-enable
+      } else {
+        setStep("PROCESSING");
+      }
+    } catch (e: any) {
+      // JOB_REQUIRED: stay on JOB_TEXT, do not show error
+      const errMsg = String(e?.message ?? "");
+      const errCode = e?.error?.code ?? "";
+      if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
+        setStep("JOB_TEXT");
+        // Do not set error
+      } else {
+        setError(errMsg);
+      }
+    } finally {
+      setJobBusy(false);
+    }
+  }
 
   // Ritual progress helpers
   const ritualProgress = session?.consolidationRitual?.progressPct;
