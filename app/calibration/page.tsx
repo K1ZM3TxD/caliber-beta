@@ -328,16 +328,16 @@ export default function CalibrationPage() {
     setError(null);
     try {
       let s = session;
-      // Always send TITLE_FEEDBACK at least once (payload = titleFeedback.trim() or empty string)
+      // Always send TITLE_FEEDBACK with payload as string (trimmed, allow empty)
       s = await postEvent({
         type: "TITLE_FEEDBACK",
         sessionId: String(s?.sessionId ?? ""),
-        payload: titleFeedback.trim(),
+        payload: String(titleFeedback ?? "").trim(),
       });
       setSession(s);
       setTitleFeedback("");
 
-      // If returned state is TITLE_DIALOGUE_LOOP, send a second TITLE_FEEDBACK with empty payload
+      // If returned state is TITLE_DIALOGUE_LOOP, send a second TITLE_FEEDBACK with empty string
       if (String(s?.state) === "TITLE_DIALOGUE_LOOP") {
         s = await postEvent({
           type: "TITLE_FEEDBACK",
@@ -347,7 +347,7 @@ export default function CalibrationPage() {
         setSession(s);
       }
 
-      // Only after state is JOB_INGEST, send JOB_PARSED
+      // After TITLE_FEEDBACK, if state is JOB_INGEST, send JOB_PARSED
       if (String(s?.state) === "JOB_INGEST") {
         s = await postEvent({
           type: "JOB_PARSED",
@@ -426,7 +426,7 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
-              {/* Only sticky footer Score CTA remains */}
+              {/* Removed in-content Score button; only sticky footer CTA remains */}
             </div>
           )}
           {step === "PROCESSING" && (
