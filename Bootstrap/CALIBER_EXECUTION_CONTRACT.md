@@ -23,6 +23,17 @@
 - Explicit stop condition: if rebase produces conflicts in Bootstrap/*, abort and use the recovery branch approach.
 
 ## Coder Task Templates
+### Anti-JSON Guardrail (Bad Unicode escape)
+
+To prevent JSON parsing failures (e.g., Bad Unicode escape) in Coder handoff:
+
+1. Always paste Coder tasks as PLAIN TEXT inside a fenced block using:
+  ```text
+  [your task here]
+  ```
+2. Never paste Windows paths (e.g., C:\Users\...) or any backslash sequences directly into JSON or tool-input fields.
+3. If a task must include a path, use forward slashes (/) or wrap the path in a plain text block.
+4. If you see a JSON error referencing "Bad Unicode escape", check for stray backslashes and reformat as plain text.
 
 ### 1. Runtime/Integration Task Template
 ```
