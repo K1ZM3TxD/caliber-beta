@@ -207,18 +207,80 @@ export default function CalibrationPage() {
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText] = useTypewriter(step === "PROMPT" && promptIndex !== null ? (CALIBRATION_PROMPTS[promptIndex] ?? "") : "");
 
+  // Auto-advance for PROCESSING
+  useEffect(() => {
+    if (step !== "PROCESSING") {
+      setProcessingAttempts(0);
+      return;
+    }
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      attempts++;
+      setProcessingAttempts(attempts);
+      if (attempts > 90) {
+        inFlightRef.current = false;
+        return;
+      }
+      try {
+        const sessionId = String(session?.sessionId ?? "");
+        if (!sessionId) {
+          inFlightRef.current = false;
+          return;
+        }
+        const s = await postEvent({ type: "ADVANCE", sessionId });
+        setSession(s);
+        // Route to next step if interactive
+        const n = getPromptIndexFromState(s?.state);
+        if (n !== null || String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
+          setStep(getStepFromState(s?.state));
+        } else {
+          setStep("PROCESSING");
+        }
+      } catch (err) {
+        setError("A terminal error occurred. Please retry.");
+      } finally {
+        inFlightRef.current = false;
+      }
+    }, 700);
+    return () => clearInterval(interval);
+  }, [step, session?.sessionId]);
+
+  const [jobText, setJobText] = useState("");
+  const [titleFeedback, setTitleFeedback] = useState("");
+  const [titleBusy, setTitleBusy] = useState(false);
+  const [jobBusy, setJobBusy] = useState(false);
+  const [processingAttempts, setProcessingAttempts] = useState(0);
+  const inFlightRef = useRef(false);
+
+  // Ritual progress helpers
+  const ritualProgress = session?.consolidationRitual?.progressPct;
+  const ritualMessage = session?.consolidationRitual?.message ?? session?.encodingRitual?.message ?? "";
+  const encodingCompleted = session?.encodingRitual?.completed;
+
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex items-center justify-center overflow-hidden">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-hidden">
       <div className="w-full max-w-[760px] px-6">
-        <div className="relative min-h-[600px]" style={{ color: "#F2F2F2" }}>
-          <div className="h-full w-full flex flex-col items-center justify-center text-center">
-            <div className="flex flex-col items-center">
-              <div className="mt-2 font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
-              {error ? (
-                <div className="mt-4 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
-                  {error}
-                </div>
-              ) : null}
+        <div className="relative" style={{ color: "#F2F2F2" }}>
+          <div className="w-full flex flex-col items-center text-center">
+            <div
+              style={{
+                minHeight: "5.5em",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+              <div style={{ minHeight: "2.2em" }}>
+                {error ? (
+                  <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
+                    {error}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {/* LANDING */}
@@ -403,24 +465,36 @@ export default function CalibrationPage() {
             {step === "PROCESSING" ? (
               <div className="mt-10 w-full max-w-[620px]">
                 <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  Processing. Click advance until synthesis is ready.
+                  {typeof ritualProgress === "number" ? (
+                    <>
+                      <div style={{ fontWeight: 500, fontSize: "1.1em" }}>
+                        Ritual progress: {Math.round(ritualProgress)}%
+                      </div>
+                      <div style={{ marginTop: 6 }}>{ritualMessage}</div>
+                    </>
+                  ) : encodingCompleted ? (
+                    <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Encoding complete</div>
+                  ) : (
+                    <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Processing…</div>
+                  )}
                 </div>
-
-                <div className="mt-7">
-                  <button
-                    type="button"
-                    onClick={advance}
-                    disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: busy ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    Advance
-                  </button>
-                </div>
+                {processingAttempts > 90 ? (
+                  <div className="mt-7">
+                    <button
+                      type="button"
+                      onClick={advance}
+                      disabled={busy}
+                      className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      style={{
+                        backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
+                        color: "#0B0B0B",
+                        cursor: busy ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
