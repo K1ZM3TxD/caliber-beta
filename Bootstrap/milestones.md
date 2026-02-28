@@ -1,4 +1,3 @@
-
 ---
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.

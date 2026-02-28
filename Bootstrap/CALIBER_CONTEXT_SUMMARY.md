@@ -1,11 +1,10 @@
-
 # CALIBER_CONTEXT_SUMMARY
 
 ## Project Status / Current active work
 
 
 - Calibration UI now starts with a single landing page and stable header.
-- Resume upload, title suggestion/confirmation, and job description paste are implemented.
+- Resume upload -> 5 prompts -> Processing -> Title + Job Paste (combined) -> Processing -> Fit score + summary
 - After job description, the Fit score (0–10) + summary page appears.
 - LLM dialogue mode will open after score+summary (next phase toggle).
 
