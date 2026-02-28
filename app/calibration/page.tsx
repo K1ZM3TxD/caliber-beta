@@ -1,12 +1,35 @@
 // app/calibration/page.tsx
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
+
+const TYPE_MS = 55;
+const START_DELAY_MS = 200;
+function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, boolean] {
+  const [typed, setTyped] = useState("");
+  useEffect(() => {
+    let i = 0;
+    setTyped("");
+    if (!text) return;
+    let interval: any;
+    const timeout = setTimeout(() => {
+      interval = setInterval(() => {
+        setTyped(text.slice(0, ++i));
+        if (i >= text.length) clearInterval(interval);
+      }, msPerChar);
+    }, START_DELAY_MS);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [text, msPerChar]);
+  return [typed, typed === text];
+}
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "RESULTS" | "TITLES" | "JOB_TEXT";
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "RESULTS";
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -16,27 +39,20 @@ function getPromptIndexFromState(state: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function getStepFromState(state: unknown): UiStep {
-  const s = String(state ?? "");
-  if (/^PROMPT_\d/.test(s)) return "PROMPT";
-  if (s === "TITLE_HYPOTHESIS" || s === "TITLE_DIALOGUE_LOOP") return "TITLES";
-  if (s === "JOB_INGEST") return "JOB_TEXT";
-  if (s === "PATTERN_SYNTHESIS") return "RESULTS";
-  return "PROCESSING";
-}
-
 async function postEvent(event: any): Promise<AnySession> {
   const res = await fetch("/api/calibration", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ event }),
   });
+
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.ok) {
     const code = json?.error?.code ?? "REQUEST_FAILED";
     const message = json?.error?.message ?? `Request failed (${res.status})`;
     throw new Error(`${code}: ${message}`);
   }
+
   return json.session;
 }
 
@@ -184,66 +200,12 @@ export default function CalibrationPage() {
     }
   }
 
-  async function submitTitleFeedback(payload: string) {
-    const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created).");
-      return;
-    }
-    setError(null);
-    setTitleBusy(true);
-    try {
-      let s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, payload });
-      setSession(s);
-      setTitleFeedback("");
-      // If server returns TITLE_DIALOGUE_LOOP after Looks right, send again to resolve to JOB_INGEST
-      if (payload === "" && String(s?.state) === "TITLE_DIALOGUE_LOOP") {
-        s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, payload: "" });
-        setSession(s);
-      }
-      routeFromSession(s);
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setTitleBusy(false);
-    }
-  }
+  const canContinueResume = !!selectedFile && !busy;
 
-  async function submitJobText() {
-    const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created).");
-      return;
-    }
-    if (!jobText.trim()) return;
-    setError(null);
-    setJobBusy(true);
-    try {
-      const s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
-      setSession(s);
-      setJobText("");
-      routeFromSession(s);
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setJobBusy(false);
-    }
-  }
-
-  const [jobText, setJobText] = useState("");
-  const [titleFeedback, setTitleFeedback] = useState("");
-  const [titleBusy, setTitleBusy] = useState(false);
-  const [jobBusy, setJobBusy] = useState(false);
-
-  function routeFromSession(s: AnySession) {
-    setStep(getStepFromState(s?.state));
-  }
-
-  const title =
-    session?.synthesis?.marketTitle ??
-    session?.synthesis?.identitySummary ??
-    session?.titleHypothesis ??
-    "(title unavailable)";
+  // Typewriter hooks
+  const [tagline] = useTypewriter("The alignment tool for job calibration.");
+  const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
+  const [promptText] = useTypewriter(step === "PROMPT" && promptIndex !== null ? (CALIBRATION_PROMPTS[promptIndex] ?? "") : "");
 
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex items-center justify-center overflow-hidden">
@@ -252,9 +214,6 @@ export default function CalibrationPage() {
           <div className="h-full w-full flex flex-col items-center justify-center text-center">
             <div className="flex flex-col items-center">
               <div className="mt-2 font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
-              <div className="mt-3 text-sm" style={{ color: "#CFCFCF" }}>
-                {session?.state ? `state: ${session.state}` : "state: (none)"}
-              </div>
               {error ? (
                 <div className="mt-4 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
                   {error}
@@ -266,7 +225,7 @@ export default function CalibrationPage() {
             {step === "LANDING" ? (
               <div className="mt-10 w-full max-w-[620px]">
                 <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  The alignment tool for job calibration.
+                  {tagline}
                 </p>
 
                 <div className="mt-10">
@@ -292,7 +251,7 @@ export default function CalibrationPage() {
               <div className="mt-10 w-full max-w-[620px]">
                 <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Upload Resume</div>
                 <div className="mt-3 text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-                  Your experience holds the pattern.
+                  {resumeSubtext}
                 </div>
 
                 <input
@@ -393,104 +352,6 @@ export default function CalibrationPage() {
               </div>
             ) : null}
 
-            {/* TITLES */}
-            {step === "TITLES" ? (
-              <div className="mt-10 w-full max-w-2xl">
-                <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Let’s confirm your role title.</div>
-                <div className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
-                  <span style={{ color: "#CFCFCF" }}>{title}</span>
-                </div>
-                <div className="mt-10">
-                  <input
-                    type="text"
-                    value={titleFeedback}
-                    onChange={(e) => setTitleFeedback(e.target.value)}
-                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                    style={{
-                      backgroundColor: "#141414",
-                      color: "#F2F2F2",
-                      border: "1px solid rgba(242,242,242,0.14)",
-                      boxShadow: "none",
-                    }}
-                    placeholder="Type your feedback…"
-                    disabled={titleBusy}
-                  />
-                </div>
-                <div className="mt-7 flex gap-4 justify-center">
-                  <button
-                    type="button"
-                    onClick={() => submitTitleFeedback(titleFeedback.trim())}
-                    disabled={titleBusy || !titleFeedback.trim()}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: titleBusy || !titleFeedback.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: titleBusy || !titleFeedback.trim() ? "not-allowed" : "pointer",
-                      minWidth: 120,
-                    }}
-                  >
-                    Continue
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => submitTitleFeedback("")}
-                    disabled={titleBusy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: titleBusy ? "rgba(242,242,242,0.70)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: titleBusy ? "not-allowed" : "pointer",
-                      minWidth: 120,
-                    }}
-                  >
-                    Looks right
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* JOB TEXT */}
-            {step === "JOB_TEXT" ? (
-              <div className="mt-10 w-full max-w-2xl">
-                <div className="text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
-                  <span>Paste the job description.</span>
-                </div>
-                <div className="mt-10">
-                  <textarea
-                    value={jobText}
-                    onChange={(e) => setJobText(e.target.value)}
-                    rows={8}
-                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                    style={{
-                      backgroundColor: "#141414",
-                      color: "#F2F2F2",
-                      border: "1px solid rgba(242,242,242,0.14)",
-                      boxShadow: "none",
-                      fontSize: "1em",
-                    }}
-                    placeholder="Paste job description here…"
-                    disabled={jobBusy}
-                  />
-                </div>
-                <div className="mt-7 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={submitJobText}
-                    disabled={jobBusy || !jobText.trim()}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2",
-                      color: "#0B0B0B",
-                      cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer",
-                      minWidth: 140,
-                    }}
-                  >
-                    Continue
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {/* PROMPT */}
             {step === "PROMPT" ? (
               <div className="mt-10 w-full max-w-2xl">
@@ -498,8 +359,9 @@ export default function CalibrationPage() {
                   Prompt {promptIndex !== null ? promptIndex : "?"} of 5
                 </div>
                 <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">
-                  {promptIndex !== null ? CALIBRATION_PROMPTS[promptIndex] : "Loading prompt…"}
+                  {promptIndex !== null ? promptText : "Loading prompt…"}
                 </div>
+
                 <div className="mt-7">
                   <textarea
                     value={answerText}
@@ -515,6 +377,7 @@ export default function CalibrationPage() {
                     placeholder="Type your response here…"
                   />
                 </div>
+
                 <div className="mt-7">
                   <button
                     type="button"
