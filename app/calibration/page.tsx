@@ -461,9 +461,7 @@ export default function CalibrationPage() {
                         <div className="mt-3">
                           <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)", cursor: busy ? "not-allowed" : "pointer" }}>Choose different file</button>
                         </div>
-                        <div className="mt-4">
-                          <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
-                        </div>
+                        {/* Continue button removed from inside upload box */}
                       </>
                     )}
                   </div>
@@ -516,6 +514,9 @@ export default function CalibrationPage() {
           <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
             {step === "LANDING" && (
               <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
+            )}
+            {step === "RESUME" && (
+              <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
             )}
             {step === "RESULTS" && (
               <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
