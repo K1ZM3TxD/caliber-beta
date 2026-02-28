@@ -198,7 +198,7 @@ export default function CalibrationPage() {
       const n = getPromptIndexFromState(s?.state);
       if (n !== null) {
         setStep("PROMPT");
-      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
+      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
         setStep("RESULTS");
       } else {
         setStep("PROCESSING");
@@ -227,23 +227,21 @@ export default function CalibrationPage() {
       const n = getPromptIndexFromState(s?.state);
       if (n !== null) {
         setStep("PROMPT");
-      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.synthesis?.patternSummary) {
+      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
         setStep("RESULTS");
-      } else if (String(s?.state) === "JOB_INGEST") {
+      } else if (String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
         setError(null);
-        setStep("JOB_TEXT");
-      } else if (String(s?.state).startsWith("TITLE_")) {
-        setStep("TITLES");
+        setStep("TITLE_AND_JOB");
       } else {
         setStep("PROCESSING");
       }
     } catch (e: any) {
-      // JOB_REQUIRED: route to JOB_TEXT, clear error
+      // JOB_REQUIRED: route to TITLE_AND_JOB, clear error
       const errMsg = String(e?.message ?? "");
       const errCode = e?.error?.code ?? "";
       if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
         setError(null);
-        setStep("JOB_TEXT");
+        setStep("TITLE_AND_JOB");
         // Do not set error
       } else {
         setError(errMsg);
@@ -289,25 +287,20 @@ export default function CalibrationPage() {
         const n = getPromptIndexFromState(s?.state);
         if (n !== null) {
           setStep("PROMPT");
-        } else if (String(s?.state).startsWith("TITLE_")) {
-          setStep("TITLES");
-        } else if (String(s?.state) === "JOB_INGEST") {
-          setError(null);
-          setStep("JOB_TEXT");
-          clearInterval(interval);
-          return;
-        } else if (String(s?.state) === "PATTERN_SYNTHESIS" && session?.synthesis?.patternSummary) {
+        } else if (String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
+          setStep("TITLE_AND_JOB");
+        } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
           setStep("RESULTS");
         } else {
           setStep("PROCESSING");
         }
       } catch (err: any) {
-        // JOB_REQUIRED: route to JOB_TEXT, stop polling
+        // JOB_REQUIRED: route to TITLE_AND_JOB, stop polling
         const errMsg = String(err?.message ?? "");
         const errCode = err?.error?.code ?? "";
         if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
           setError(null);
-          setStep("JOB_TEXT");
+          setStep("TITLE_AND_JOB");
           clearInterval(interval);
           // Do not set error
           return;
@@ -440,109 +433,116 @@ export default function CalibrationPage() {
           )}
         </div>
         {/* Row C: Input + buttons */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
-          <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {step === "LANDING" && (
+        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {step === "LANDING" && (
               <></>
-            )}
-            {step === "RESUME" && (
+          )}
+          {step === "RESUME" && (
               <div className="w-full max-w-[560px]">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                  className="hidden"
-                  onChange={onFileChange}
-                />
-                <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", minHeight: 110 }}>
-                  <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
-                    {!selectedFile ? (
-                      <>
-                        <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
-                        <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>or</div>
-                        <div className="mt-3">
-                          <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.14)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.18)", cursor: busy ? "not-allowed" : "pointer" }}>Choose file</button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm sm:text-base font-medium">{selectedFile.name}</div>
-                        <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>File selected</div>
-                        <div className="mt-3">
-                          <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)", cursor: busy ? "not-allowed" : "pointer" }}>Choose different file</button>
-                        </div>
-                        {/* Continue button removed from inside upload box */}
-                      </>
-                    )}
+                  <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      className="hidden"
+                      onChange={onFileChange}
+                  />
+                  <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", minHeight: 110 }}>
+                      <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
+                          {!selectedFile ? (
+                              <>
+                                  <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
+                                  <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>or</div>
+                                  <div className="mt-3">
+                                      <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.14)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.18)", cursor: busy ? "not-allowed" : "pointer" }}>Choose file</button>
+                                  </div>
+                              </>
+                          ) : (
+                              <>
+                                  <div className="text-sm sm:text-base font-medium">{selectedFile.name}</div>
+                                  <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>File selected</div>
+                                  <div className="mt-3">
+                                      <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)", cursor: busy ? "not-allowed" : "pointer" }}>Choose different file</button>
+                                  </div>
+                                  {/* Continue button removed from inside upload box */}
+                              </>
+                          )}
+                      </div>
                   </div>
-                </div>
-                <div className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</div>
+                  <div className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</div>
               </div>
-            )}
-            {step === "PROMPT" && (
+          )}
+          {step === "PROMPT" && (
               <textarea
-                value={answerText}
-                onChange={(e) => setAnswerText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!busy && hasAnswer) submitAnswer();
-                  }
-                }}
-                rows={7}
-                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
-                placeholder="Type your response here…"
+                  value={answerText}
+                  onChange={(e) => setAnswerText(e.target.value)}
+                  onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (!busy && hasAnswer) submitAnswer();
+                      }
+                  }}
+                  rows={7}
+                  className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                  style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
+                  placeholder="Type your response here…"
               />
-            )}
-            {step === "TITLE_AND_JOB" && (
+          )}
+          {step === "TITLE_AND_JOB" && (
               <button
-                type="button"
-                onClick={handleScoreJob}
-                disabled={busy || !jobText.trim()}
-                className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
+                  type="button"
+                  onClick={handleScoreJob}
+                  disabled={busy || !jobText.trim()}
+                  className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
               >
-                Score this job
+                  Score this job
               </button>
-            )}
-            {step === "JOB_TEXT" && (
+          )}
+          {step === "JOB_TEXT" && (
               <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
-            )}
-          </div>
-          <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
-            {step === "LANDING" && (
+          )}
+        </div>
+        <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
+          {step === "LANDING" && (
               <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
-            )}
-            {step === "RESUME" && (
+          )}
+          {step === "RESUME" && (
               <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
-            )}
-            {step === "PROMPT" && (
+          )}
+          {step === "PROMPT" && (
               <button type="button" onClick={submitAnswer} disabled={busy || !hasAnswer} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy || !hasAnswer ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !hasAnswer ? "not-allowed" : "pointer", minWidth: 140 }}>Continue</button>
-            )}
-            {step === "TITLE_AND_JOB" && (
+          )}
+          {step === "TITLE_AND_JOB" && (
               <button
-                type="button"
-                onClick={handleScoreJob}
-                disabled={busy || !jobText.trim()}
-                className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
+                  type="button"
+                  onClick={handleScoreJob}
+                  disabled={busy || !jobText.trim()}
+                  className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
               >
-                Score this job
+                  Score this job
               </button>
-            )}
-            {step === "RESULTS" && (
+          )}
+          {step === "RESULTS" && (
               <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
-                <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
-                  Open dialogue (next step)
-                </button>
-                <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
+                  <div className="text-2xl font-bold mb-4">Fit score + summary</div>
+                  <div className="mb-4 text-center">
+                      <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
+                          Fit score: {typeof session?.result?.alignment?.score === "number" ? session.result.alignment.score : "-"} / 10
+                      </div>
+                      {session?.patternSummary && (
+                          <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.patternSummary}</div>
+                      )}
+                  </div>
+                  <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
+                      Open dialogue (next step)
+                  </button>
+                  <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
               </div>
-            )}
-            {step === "PROCESSING" && processingAttempts > 90 && (
-              <button type="button" onClick={advance} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Retry</button>
-            )}
-          </div>
+          )}
+          {step === "JOB_TEXT" && (
+              <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} rows={8} className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200" style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }} placeholder="Paste job description here…" disabled={jobBusy} />
+          )}
         </div>
       </div>
     </div>
