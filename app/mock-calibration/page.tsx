@@ -13,8 +13,8 @@ export default function MockCalibrationPage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const hasText = useMemo(() => responseText.trim().length > 0, [responseText]);
 
+  "use client";
 
   import React, { useRef, useState } from "react";
 
@@ -216,4 +216,5 @@ export default function MockCalibrationPage() {
         </div>
       </div>
     );
+  }
   }
