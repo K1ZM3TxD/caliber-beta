@@ -63,16 +63,6 @@ function generateTitleCandidates(personVector: any, resumeText: string, promptAn
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 }
-import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
-import { storeGet, storeSet } from "@/lib/calibration_store"
-import { ingestJob } from "@/lib/job_ingest"
-import { runIntegrationSeam } from "@/lib/integration_seam"
-import { toResultContract } from "@/lib/result_contract"
-import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
-import { extractLexicalAnchors } from "@/lib/anchor_extraction"
-import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
-import { detectAbstractionDrift } from "./abstraction_drift"
-export { validateAndRepairSynthesisOnce };
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
