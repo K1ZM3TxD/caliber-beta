@@ -42,31 +42,6 @@ function getStepFromState(state: unknown, session?: AnySession): UiStep {
 function getTitleFromSession(session: AnySession): string {
   return session?.marketTitle ?? "(title pending)";
 }
-  // TITLES step: feedback handler (must be inside component for state access)
-  async function submitTitleFeedback(feedback: string) {
-    const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created).");
-      return;
-    }
-    setTitleBusy(true);
-    setError(null);
-    try {
-      // Use the contract event type for title feedback
-      const s = await postEvent({
-        type: "TITLE_FEEDBACK",
-        sessionId,
-        payload: feedback,
-      });
-      setSession(s);
-      setTitleFeedback("");
-      setStep(getStepFromState(s?.state, s));
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setTitleBusy(false);
-    }
-  }
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -328,50 +303,40 @@ export default function CalibrationPage() {
     setError(null);
     try {
       const sessionId = String(session?.sessionId ?? "");
-      let s = session;
-      // If in TITLE_HYPOTHESIS, send TITLE_FEEDBACK with empty string
-      if (String(s?.state) === "TITLE_HYPOTHESIS") {
-        s = await postEvent({
-          type: "TITLE_FEEDBACK",
-          sessionId,
-          payload: "",
-        });
-        if (!s || s.error) {
-          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Title feedback failed"));
-          setBusy(false);
-          return;
-        }
-        setSession(s);
+      // Step 1: SUBMIT_JOB_TEXT
+      let s = await postEvent({
+        type: "SUBMIT_JOB_TEXT",
+        sessionId,
+        jobText: jobText.trim(),
+      });
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
+        setBusy(false);
+        return;
       }
-      // If now in TITLE_DIALOGUE_LOOP, send TITLE_FEEDBACK again with empty string
-      if (String(s?.state) === "TITLE_DIALOGUE_LOOP") {
-        s = await postEvent({
-          type: "TITLE_FEEDBACK",
-          sessionId,
-          payload: "",
-        });
-        if (!s || s.error) {
-          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Title feedback failed"));
-          setBusy(false);
-          return;
-        }
-        setSession(s);
+      setSession(s);
+      // Step 2: ADVANCE
+      s = await postEvent({
+        type: "ADVANCE",
+        sessionId,
+      });
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Advance failed"));
+        setBusy(false);
+        return;
       }
-      // Now must be in JOB_INGEST, send JOB_PARSED
-      if (String(s?.state) === "JOB_INGEST") {
-        s = await postEvent({
-          type: "JOB_PARSED",
-          sessionId,
-          payload: jobText.trim(),
-        });
-        if (!s || s.error) {
-          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
-          setBusy(false);
-          return;
-        }
-        setSession(s);
+      setSession(s);
+      // Step 3: COMPUTE_ALIGNMENT_OUTPUT
+      s = await postEvent({
+        type: "COMPUTE_ALIGNMENT_OUTPUT",
+        sessionId,
+      });
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Compute alignment failed"));
+        setBusy(false);
+        return;
       }
-      // Continue to results/polling as before
+      setSession(s);
       setJobText("");
       if (s?.result) {
         setStep("RESULTS");
@@ -417,19 +382,10 @@ export default function CalibrationPage() {
           {step === "TITLE_AND_JOB" && (
             <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 0, paddingTop: 0 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
+              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "Title pending"}</div>
               {session?.titleExplanation && (
                 <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
               )}
-              <input
-                type="text"
-                value={titleFeedback}
-                onChange={(e) => setTitleFeedback(e.target.value)}
-                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", marginBottom: 18 }}
-                placeholder="Optional: tweak the title…"
-                disabled={titleBusy}
-              />
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Job description</div>
               <textarea
                 value={jobText}
@@ -446,7 +402,6 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
-              {/* Removed in-content Score button; only sticky footer CTA remains */}
             </div>
           )}
           {step === "PROCESSING" && (
