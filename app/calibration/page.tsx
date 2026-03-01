@@ -180,13 +180,38 @@ export default function CalibrationPage() {
       setBusy(false);
     }
   }
-    // Titles UI state (no tweak input)
+    // Titles UI state (no user input — pure Caliber output)
     const [jobText, setJobText] = useState("");
     const [jobBusy, setJobBusy] = useState(false);
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("Let’s confirm your role title.");
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).", TYPE_MS);
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
-    // Removed submitTitleFeedback and title tweak state
+    // Handle TITLE_FEEDBACK event (empty feedback = confirm) and routing
+    async function submitTitleFeedback() {
+      const sessionId = String(session?.sessionId ?? "");
+      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+      setError(null); setBusy(true);
+      try {
+        const feedback = ""; // No user input on TITLES step; confirm as-is
+        const s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback });
+        setSession(s);
+        // Route based on backend state
+        if (String(s?.state).startsWith("JOB_INGEST") || String(s?.state) === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
+        } else if (String(s?.state).startsWith("TITLE_")) {
+          setStep("TITLES");
+        } else {
+          setStep(getStepFromState(s?.state, s));
+        }
+      } catch (e: any) {
+        // If error is JOB_REQUIRED, route to JOB_TEXT
+        if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
+        } else {
+          setError(displayError(e));
+        }
+      } finally { setBusy(false); }
+    }
 
     async function submitJobText() {
       const sessionId = String(session?.sessionId ?? "");
@@ -194,17 +219,14 @@ export default function CalibrationPage() {
       if (!jobText.trim()) return;
       setError(null); setJobBusy(true);
       try {
-        // Always submit job text first if in JOB_INGEST
         let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
         setSession(s); setJobText("");
-        // Advance if not stuck in JOB_INGEST, or if job.completed is true
         if (String(s?.state) !== "JOB_INGEST" || s?.job?.completed === true) {
           s = await postEvent({ type: "ADVANCE", sessionId });
           setSession(s);
         }
         setStep(getStepFromState(s?.state, s));
       } catch (e: any) {
-        // If error is JOB_REQUIRED, route to JOB_TEXT
         if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
           setStep("JOB_TEXT");
         } else {
@@ -591,40 +613,17 @@ export default function CalibrationPage() {
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{titleTypewriter}</span>
                 </div>
-                {/* Title suggestion/explanation only, no tweak box */}
-                {session?.synthesis?.marketTitle || session?.synthesis?.titleExplanation ? (
-                  <div className="mt-10 text-center">
-                    {session?.synthesis?.marketTitle ? (
-                      <div className="text-2xl font-semibold mb-2">{session.synthesis.marketTitle}</div>
-                    ) : null}
-                    {session?.synthesis?.titleExplanation ? (
-                      <div className="text-base text-gray-300">{session.synthesis.titleExplanation}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-                <button
-                  className="primary-action"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      const nextSession = await advance();
-                      setStep(getStepFromState(nextSession.state, nextSession));
-                    } catch (e: any) {
-                      if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-                        setError(null);
-                        setStep("JOB_TEXT");
-                        return;
-                      }
-                      setError(displayError(e));
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  style={{ marginTop: "2rem" }}
-                >
-                  Continue
-                </button>
+                <div className="mt-7 flex justify-center">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
+                    disabled={busy}
+                    onClick={submitTitleFeedback}
+                  >
+                    {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
+                  </button>
+                </div>
               </div>
             ) : null}
 
