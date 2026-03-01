@@ -14,11 +14,11 @@ export default function MockCalibrationPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
 
+
   "use client";
+  import React, { useRef, useState, useEffect } from "react";
 
-  import React, { useRef, useState } from "react";
-
-  // Automated runner for calibration pipeline
+  // Automated runner for calibration pipeline with auto-run via query param
   export default function MockCalibrationPage() {
     const [running, setRunning] = useState(false);
     const [log, setLog] = useState<string[]>([]);
@@ -27,20 +27,37 @@ export default function MockCalibrationPage() {
     const [sessionId, setSessionId] = useState<string>("");
     const [resumeFile, setResumeFile] = useState<File | null>(null);
     const logRef = useRef<HTMLDivElement>(null);
+    const [autoRun, setAutoRun] = useState(false);
+
+    // Detect ?run=1 in query params for auto-run
+    useEffect(() => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("run") === "1") {
+          setAutoRun(true);
+        }
+      }
+    }, []);
 
     // Scroll log to bottom on update
-    React.useEffect(() => {
+    useEffect(() => {
       if (logRef.current) {
         logRef.current.scrollTop = logRef.current.scrollHeight;
       }
     }, [log]);
 
-    // Helper to append to log
+    // Auto-run when resumeFile is set and autoRun is true
+    useEffect(() => {
+      if (autoRun && resumeFile && !running) {
+        runCalibration();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoRun, resumeFile]);
+
     function appendLog(msg: string) {
       setLog((prev) => [...prev, msg]);
     }
 
-    // Upload resume and get sessionId
     async function uploadResume(file: File): Promise<string> {
       appendLog("Uploading resume...");
       const formData = new FormData();
@@ -56,7 +73,6 @@ export default function MockCalibrationPage() {
       return data.sessionId;
     }
 
-    // Post calibration event
     async function postEvent(sessionId: string, event: any) {
       appendLog(`Posting event: ${event.type}`);
       const res = await fetch("/api/calibration", {
@@ -70,7 +86,6 @@ export default function MockCalibrationPage() {
       return data;
     }
 
-    // Fetch result using sessionId
     async function fetchResult(sessionId: string) {
       appendLog("Fetching result...");
       const res = await fetch(`/api/calibration/result?calibrationId=${sessionId}`);
@@ -80,7 +95,6 @@ export default function MockCalibrationPage() {
       return data;
     }
 
-    // Poll for result in terminal states
     async function pollForResult(sessionId: string, maxTries = 10, delayMs = 1500) {
       appendLog("Polling for result...");
       for (let i = 0; i < maxTries; i++) {
@@ -98,7 +112,6 @@ export default function MockCalibrationPage() {
       throw new Error("Result not found after polling");
     }
 
-    // Main runner logic
     async function runCalibration() {
       setRunning(true);
       setError(null);
@@ -106,22 +119,14 @@ export default function MockCalibrationPage() {
       setResult(null);
       try {
         if (!resumeFile) throw new Error("No resume file selected");
-        // Step 1: Upload resume
         const sid = await uploadResume(resumeFile);
         setSessionId(sid);
-
-        // Step 2: Post initial event (START)
         let session = await postEvent(sid, { type: "START" });
-
-        // Step 3: Post JOB_TEXT event
         session = await postEvent(sid, { type: "JOB_TEXT", jobText: "Senior Software Engineer" });
-
-        // Step 4: Advance until terminal state or max steps
         let steps = 0;
         const maxSteps = 12;
         while (steps < maxSteps) {
           steps++;
-          // If session.state is ALIGNMENT_OUTPUT, poll for result
           if (session.state === "ALIGNMENT_OUTPUT") {
             appendLog("Terminal state ALIGNMENT_OUTPUT reached. Polling for result...");
             const res = await pollForResult(sid);
@@ -129,13 +134,11 @@ export default function MockCalibrationPage() {
             appendLog("Calibration complete.");
             return;
           }
-          // If session.result exists, show result
           if (session.result) {
             setResult(session.result);
             appendLog("Calibration complete (result in session).");
             return;
           }
-          // Otherwise, advance
           session = await postEvent(sid, { type: "ADVANCE" });
         }
         throw new Error("Max steps exceeded without terminal result");
@@ -147,7 +150,6 @@ export default function MockCalibrationPage() {
       }
     }
 
-    // UI
     return (
       <div className="fixed inset-0 bg-[#0B0B0B] flex items-center justify-center overflow-hidden">
         <div className="w-full max-w-[720px] px-6">
