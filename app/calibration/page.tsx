@@ -42,6 +42,31 @@ function getStepFromState(state: unknown, session?: AnySession): UiStep {
 function getTitleFromSession(session: AnySession): string {
   return session?.marketTitle ?? "(title pending)";
 }
+  // TITLES step: feedback handler (must be inside component for state access)
+  async function submitTitleFeedback(feedback: string) {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) {
+      setError("Missing sessionId (session not created).");
+      return;
+    }
+    setTitleBusy(true);
+    setError(null);
+    try {
+      // Use the contract event type for title feedback
+      const s = await postEvent({
+        type: "TITLE_FEEDBACK",
+        sessionId,
+        payload: feedback,
+      });
+      setSession(s);
+      setTitleFeedback("");
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setTitleBusy(false);
+    }
+  }
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -290,8 +315,7 @@ export default function CalibrationPage() {
   }, [step, session?.sessionId]);
 
   const [jobText, setJobText] = useState("");
-  const [titleFeedback, setTitleFeedback] = useState("");
-  const [titleBusy, setTitleBusy] = useState(false);
+  // Removed title tweak input and related state
   const [jobBusy, setJobBusy] = useState(false);
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
