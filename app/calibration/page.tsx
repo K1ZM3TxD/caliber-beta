@@ -203,21 +203,9 @@ export default function CalibrationPage() {
         const feedback = titleFeedback.trim();
         const s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback });
         setSession(s);
-        // Route based on backend state
-        if (String(s?.state).startsWith("JOB_INGEST") || String(s?.state) === "JOB_REQUIRED") {
-          setStep("JOB_TEXT");
-        } else if (String(s?.state).startsWith("TITLE_")) {
-          setStep("TITLES");
-        } else {
-          setStep(getStepFromState(s?.state, s));
-        }
+        setStep("JOB_TEXT"); // Always route to JOB_TEXT after TITLE_FEEDBACK
       } catch (e: any) {
-        // If error is JOB_REQUIRED, route to JOB_TEXT
-        if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-          setStep("JOB_TEXT");
-        } else {
-          setError(displayError(e));
-        }
+        setError(displayError(e));
       } finally { setBusy(false); }
     }
 
