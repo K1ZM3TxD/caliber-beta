@@ -204,7 +204,7 @@ export function ingestJob(jobDescriptionText: string): JobIngestObject {
             /\b(serve as|act as) (an )?(internal )?(champion|owner)\b/i,
             /\b(represent|representing) (the )?(function|team|organization) (in|during) (planning|planning cycles?)\b/i,
             /\b(partner with (sales|product|engineering|customer success))\b/i,
-            /\b(plan and execute\b/i,
+            /\bplan and execute\b/i,
           ],
         },
         {
@@ -320,7 +320,7 @@ export function ingestJob(jobDescriptionText: string): JobIngestObject {
             /\b(across (multiple|many) (areas|functions|domains))\b/i,
             /\b(variety of|wide range of)\b/i,
             // Added (explicit breadth bundle: strategy + messaging + content + campaigns + enablement + research)
-            /\b(strategy\b/i,
+            /\bstrategy\b/i,
             /\b(messaging|positioning)\b/i,
             /\b(content)\b/i,
             /\b(campaigns?)\b/i,
@@ -358,8 +358,8 @@ export function ingestJob(jobDescriptionText: string): JobIngestObject {
             /\b(customers? and partners?)\b/i,
             /\b(multiple departments|organization[- ]wide|org[- ]wide)\b/i,
             // Added (explicit cross-functional density across many functions)
-            /\b(work across (product|marketing|sales|pr|web|events|education)\b/i,
-            /\b(product\/marketing\/sales\b/i,
+            /\bwork across (product|marketing|sales|pr|web|events|education)\b/i,
+            /\bproduct\/marketing\/sales\b/i,
             /\b(marketing\/sales\/product)\b/i,
             /\b(collaborat(e|ion) (with|across))\b/i,
           ],
