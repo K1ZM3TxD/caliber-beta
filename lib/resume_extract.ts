@@ -30,8 +30,16 @@ export async function extractResumeText(file: File): Promise<string> {
   }
 
   if (ext === 'pdf') {
-    const parsed = await pdfParse(buf);
-    return normalizeText(parsed?.text ?? '');
+    try {
+      const parsed = await pdfParse(buf);
+      return normalizeText(parsed?.text ?? '');
+    } catch (e: any) {
+      const msg = String(e?.message ?? "Failed to parse PDF");
+      if (msg.includes("bad XRef") || msg.toLowerCase().includes("xref") || msg.toLowerCase().includes("parse")) {
+        throw bad("RESUME_PARSE_FAILED: PDF could not be parsed. This may be due to a malformed PDF file. Please try re-saving or exporting your PDF (e.g., Print to PDF), or upload a DOCX/TXT resume instead.");
+      }
+      throw bad(msg);
+    }
   }
 
   if (ext === 'docx') {

@@ -1,5 +1,5 @@
-// app/calibration/page.tsx
 "use client";
+// app/calibration/page.tsx
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
@@ -12,8 +12,10 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
     let i = 0;
     setTyped("");
     if (!text) return;
+    let started = false;
     let interval: any;
     const timeout = setTimeout(() => {
+      started = true;
       interval = setInterval(() => {
         setTyped(text.slice(0, ++i));
         if (i >= text.length) clearInterval(interval);
@@ -29,44 +31,23 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "TITLE_AND_JOB" | "PROCESSING" | "RESULTS";
-// Step router for session.state
-function getStepFromState(state: unknown, session?: AnySession): UiStep {
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES" | "JOB_TEXT" | "RESULTS";
+// Helper: returns true if session has results available
+function hasResults(session: any): boolean {
+  return Boolean(session?.result) || (String(session?.state) === "PATTERN_SYNTHESIS" && Boolean(session?.patternSummary));
+}
+// Returns UI step based on backend state and session
+function getStepFromState(state: unknown, session?: any): UiStep {
   const s = String(state ?? "");
-  if (/^PROMPT_\d/.test(s)) return "PROMPT";
-  if (s.startsWith("TITLE_") || s === "JOB_INGEST") return "TITLE_AND_JOB";
-  if (s === "PATTERN_SYNTHESIS" && session?.patternSummary) return "RESULTS";
+  if (hasResults(session)) return "RESULTS";
+  if (/^PROMPT_\d(_CLARIFIER)?$/.test(s)) return "PROMPT";
+  if (s === "CONSOLIDATION_PENDING" || s === "CONSOLIDATION_RITUAL" || s === "PATTERN_SYNTHESIS") return "PROCESSING";
+  if (s.startsWith("TITLE_HYPOTHESIS") || s.startsWith("TITLE_DIALOGUE")) return "TITLES";
+  if (s.startsWith("JOB_INGEST")) return "JOB_TEXT";
+  if (s === "ALIGNMENT_OUTPUT") return "PROCESSING";
+  if (s === "TERMINAL_COMPLETE") return "RESULTS";
   return "PROCESSING";
 }
-// TITLES step: derive title and explanation
-function getTitleFromSession(session: AnySession): string {
-  return session?.marketTitle ?? "(title pending)";
-}
-  // TITLES step: feedback handler (must be inside component for state access)
-  async function submitTitleFeedback(feedback: string) {
-    const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created).");
-      return;
-    }
-    setTitleBusy(true);
-    setError(null);
-    try {
-      // Use the contract event type for title feedback
-      const s = await postEvent({
-        type: "TITLE_FEEDBACK",
-        sessionId,
-        payload: feedback,
-      });
-      setSession(s);
-      setTitleFeedback("");
-      setStep(getStepFromState(s?.state, s));
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setTitleBusy(false);
-    }
-  }
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -93,6 +74,17 @@ async function postEvent(event: any): Promise<AnySession> {
   return json.session;
 }
 
+async function fetchResult(calibrationId: string): Promise<AnySession> {
+  const res = await fetch(`/api/calibration/result?calibrationId=${encodeURIComponent(calibrationId)}`);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) {
+    const code = json?.error?.code ?? "REQUEST_FAILED";
+    const message = json?.error?.message ?? `Result fetch failed (${res.status})`;
+    throw new Error(`${code}: ${message}`);
+  }
+  return json.session;
+}
+
 async function uploadResume(sessionId: string, file: File): Promise<AnySession> {
   const form = new FormData();
   form.append("sessionId", sessionId);
@@ -110,200 +102,210 @@ async function uploadResume(sessionId: string, file: File): Promise<AnySession> 
   return json.session;
 }
 
+function displayError(e: any): string {
+  if (!e) return "Unknown error";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message || "Error";
+  if (typeof e?.message === "string") return e.message;
+  try { return JSON.stringify(e); } catch { return "Unknown error"; }
+}
+
 export default function CalibrationPage() {
   const [session, setSession] = useState<AnySession | null>(null);
   const [step, setStep] = useState<UiStep>("LANDING");
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [resumeUploading, setResumeUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
-  const title = getTitleFromSession(session);
-
-  function openFilePicker() {
-    fileInputRef.current?.click();
-  }
-
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
-  }
-
+  function openFilePicker() { fileInputRef.current?.click(); }
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) { setSelectedFile(e.target.files?.[0] ?? null); }
   async function begin() {
-    setError(null);
-    setBusy(true);
+    setError(null); setBusy(true);
     try {
       const s = await postEvent({ type: "CREATE_SESSION" });
-      setSession(s);
-      setSelectedFile(null);
-      setAnswerText("");
-      setStep("RESUME");
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
+      setSession(s); setSelectedFile(null); setAnswerText(""); setStep("RESUME");
+    } catch (e: any) { setError(displayError(e)); }
+    finally { setBusy(false); }
   }
-
   async function submitResume() {
     if (!selectedFile) return;
     const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created). Click Begin Calibration again.");
-      return;
-    }
-
-    setError(null);
-    setBusy(true);
+    if (!sessionId) { setError("Missing sessionId (session not created). Click Begin Calibration again."); return; }
+    setError(null); setBusy(true); setResumeUploading(true);
     try {
       const s = await uploadResume(sessionId, selectedFile);
-      setSession(s);
-      setAnswerText("");
-      // After resume-upload route, server deterministically advances away from RESUME_INGEST.
-      // We’ll route UI based on the returned state.
+      setSession(s); setAnswerText("");
       const n = getPromptIndexFromState(s?.state);
-      if (n !== null) setStep("PROMPT");
+      if (n) setStep("PROMPT");
       else setStep("PROCESSING");
     } catch (e: any) {
-      setError(String(e?.message ?? e));
+      setError(displayError(e));
+      // Do NOT clear selectedFile; user can retry or pick another file
     } finally {
-      setBusy(false);
+      setBusy(false); setResumeUploading(false);
     }
   }
-
   async function submitAnswer() {
     const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) {
-      setError("Missing sessionId (session not created).");
-      return;
-    }
+    if (!sessionId) { setError("Missing sessionId (session not created)."); return; }
     if (!hasAnswer) return;
-
-    setError(null);
-    setBusy(true);
+    setError(null); setBusy(true);
     try {
-      const s = await postEvent({
-        type: "SUBMIT_PROMPT_ANSWER",
-        sessionId,
-        answer: answerText.trim(),
-      });
-      setSession(s);
-      setAnswerText("");
-
-      const n = getPromptIndexFromState(s?.state);
-      if (n !== null) {
-        setStep("PROMPT");
-      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
-        setStep("RESULTS");
-      } else {
-        setStep("PROCESSING");
-      }
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
+      const s = await postEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerText.trim() });
+      setSession(s); setAnswerText("");
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) { setError(displayError(e)); }
+    finally { setBusy(false); }
   }
-
-  async function advance() {
+  async function advance(): Promise<AnySession> {
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) {
       setError("Missing sessionId (session not created).");
-      return;
+      throw new Error("Missing sessionId (session not created).");
     }
-
-    setError(null);
-    setBusy(true);
+    setError(null); setBusy(true);
     try {
       const s = await postEvent({ type: "ADVANCE", sessionId });
       setSession(s);
-
-      // Route based on returned state
-      const n = getPromptIndexFromState(s?.state);
-      if (n !== null) {
-        setStep("PROMPT");
-      } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
-        setStep("RESULTS");
-      } else if (String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
-        setError(null);
-        setStep("TITLE_AND_JOB");
-      } else {
-        setStep("PROCESSING");
-      }
+      setStep(getStepFromState(s?.state, s));
+      return s;
     } catch (e: any) {
-      // JOB_REQUIRED: route to TITLE_AND_JOB, clear error
-      const errMsg = String(e?.message ?? "");
-      const errCode = e?.error?.code ?? "";
-      if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
-        setError(null);
-        setStep("TITLE_AND_JOB");
-        // Do not set error
-      } else {
-        setError(errMsg);
-      }
+      setError(displayError(e));
+      throw e;
     } finally {
       setBusy(false);
     }
   }
+    // Titles UI state (no tweak input)
+    const [jobText, setJobText] = useState("");
+    const [jobBusy, setJobBusy] = useState(false);
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("Let’s confirm your role title.");
+    const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
+    // Removed submitTitleFeedback and title tweak state
+
+    async function submitJobText() {
+      const sessionId = String(session?.sessionId ?? "");
+      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+      if (!jobText.trim()) return;
+      setError(null); setJobBusy(true);
+      try {
+        // Always submit job text first if in JOB_INGEST
+        let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
+        setSession(s); setJobText("");
+        // Advance if not stuck in JOB_INGEST, or if job.completed is true
+        if (String(s?.state) !== "JOB_INGEST" || s?.job?.completed === true) {
+          s = await postEvent({ type: "ADVANCE", sessionId });
+          setSession(s);
+        }
+        setStep(getStepFromState(s?.state, s));
+      } catch (e: any) {
+        // If error is JOB_REQUIRED, route to JOB_TEXT
+        if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
+        } else {
+          setError(displayError(e));
+        }
+      } finally { setJobBusy(false); }
+    }
   const canContinueResume = !!selectedFile && !busy;
-
+  const [processingAttempts, setProcessingAttempts] = useState(0);
+  const inFlightRef = useRef(false);
   // Typewriter hooks
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
-  const [promptText] = useTypewriter(step === "PROMPT" && promptIndex !== null ? (CALIBRATION_PROMPTS[promptIndex] ?? "") : "");
+  const [promptText, promptDone] = useTypewriter(
+    step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
+      ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
+      : ""
+  );
 
-  // Auto-advance for PROCESSING
+  // Centering: use min-h-screen for main flex container
+  // ...existing code...
+
+  // Auto-advance for PROCESSING (use returned session, not stale state)
   useEffect(() => {
-    // Prevent polling if session.state is JOB_INGEST (job required)
-    if (step !== "PROCESSING" || String(session?.state) === "JOB_INGEST") {
+    if (step !== "PROCESSING") {
       setProcessingAttempts(0);
       return;
     }
     let attempts = 0;
+    let stopped = false;
     const interval = setInterval(async () => {
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       attempts++;
       setProcessingAttempts(attempts);
+      // Debug: log state during PROCESSING polling
+      const sState = String(session?.state);
+      console.debug("PROCESSING poll: state=", sState);
+      // Unified polling: always use getStepFromState for routing
+      if (hasResults(session)) {
+        stopped = true;
+        clearInterval(interval);
+        setStep("RESULTS");
+        inFlightRef.current = false;
+        return;
+      }
+      if (sState.startsWith("ALIGNMENT_OUTPUT")) {
+        // Poll for result, do NOT call ADVANCE
+        const calibrationId = String(session?.calibrationId ?? "");
+        if (!calibrationId) {
+          setError("Missing calibrationId in session.");
+          inFlightRef.current = false;
+          return;
+        }
+        try {
+          const updated = await fetchResult(calibrationId);
+          setSession(updated);
+          if (hasResults(updated)) {
+            stopped = true;
+            clearInterval(interval);
+            setStep("RESULTS");
+          }
+        } catch (err: any) {
+          setError(displayError(err));
+        } finally {
+          inFlightRef.current = false;
+        }
+        return;
+      }
+      if (sState.startsWith("TITLE_HYPOTHESIS") || sState.startsWith("TITLE_DIALOGUE")) {
+        stopped = true;
+        clearInterval(interval);
+        setStep("TITLES");
+        inFlightRef.current = false;
+        return;
+      }
+      if (sState.startsWith("JOB_INGEST")) {
+        stopped = true;
+        clearInterval(interval);
+        setStep("JOB_TEXT");
+        inFlightRef.current = false;
+        return;
+      }
       if (attempts > 90) {
+        stopped = true;
+        clearInterval(interval);
+        setError("Processing appears stuck. Please retry.");
+        setStep("PROCESSING");
         inFlightRef.current = false;
         return;
       }
       try {
         const sessionId = String(session?.sessionId ?? "");
-        if (!sessionId) {
-          inFlightRef.current = false;
-          return;
-        }
+        if (!sessionId) { inFlightRef.current = false; return; }
         const s = await postEvent({ type: "ADVANCE", sessionId });
         setSession(s);
-        // Route to next step if interactive
-        const n = getPromptIndexFromState(s?.state);
-        if (n !== null) {
-          setStep("PROMPT");
-        } else if (String(s?.state).startsWith("TITLE_") || String(s?.state) === "JOB_INGEST") {
-          setStep("TITLE_AND_JOB");
-        } else if (String(s?.state) === "PATTERN_SYNTHESIS" && s?.patternSummary) {
-          setStep("RESULTS");
-        } else {
-          setStep("PROCESSING");
-        }
+        setStep(getStepFromState(s?.state, s));
       } catch (err: any) {
-        // JOB_REQUIRED: route to TITLE_AND_JOB, stop polling
-        const errMsg = String(err?.message ?? "");
-        const errCode = err?.error?.code ?? "";
-        if (errMsg.includes("JOB_REQUIRED") || errCode === "JOB_REQUIRED") {
-          setError(null);
-          setStep("TITLE_AND_JOB");
-          clearInterval(interval);
-          // Do not set error
-          return;
+        // If error is JOB_REQUIRED, route to JOB_TEXT
+        if (err?.message?.includes("JOB_REQUIRED") || err?.code === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
         } else {
           setError("A terminal error occurred. Please retry.");
         }
@@ -312,247 +314,393 @@ export default function CalibrationPage() {
       }
     }, 700);
     return () => clearInterval(interval);
-  }, [step, session?.sessionId]);
+  }, [step, session]);
 
-  const [jobText, setJobText] = useState("");
-  const [titleFeedback, setTitleFeedback] = useState("");
-  const [titleBusy, setTitleBusy] = useState(false);
-  const [jobBusy, setJobBusy] = useState(false);
-  const [processingAttempts, setProcessingAttempts] = useState(0);
-  const inFlightRef = useRef(false);
-
-  // Handler for combined TITLE_AND_JOB screen CTA (canonical backend sequence)
-  async function handleScoreJob() {
-    if (busy || !jobText.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const sessionId = String(session?.sessionId ?? "");
-      // Step 1: SUBMIT_JOB_TEXT
-      let s = await postEvent({
-        type: "SUBMIT_JOB_TEXT",
-        sessionId,
-        jobText: jobText.trim(),
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
-        setBusy(false);
-        return;
-      }
-      setSession(s);
-      // Step 2: ADVANCE
-      s = await postEvent({
-        type: "ADVANCE",
-        sessionId,
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Advance failed"));
-        setBusy(false);
-        return;
-      }
-      setSession(s);
-      // Step 3: COMPUTE_ALIGNMENT_OUTPUT
-      s = await postEvent({
-        type: "COMPUTE_ALIGNMENT_OUTPUT",
-        sessionId,
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Compute alignment failed"));
-        setBusy(false);
-        return;
-      }
-      setSession(s);
-      setJobText("");
-      if (s?.result) {
-        setStep("RESULTS");
-      } else {
-        setStep(getStepFromState(s?.state, s));
-      }
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const ritualProgress = session?.consolidationRitual?.progressPct;
-  const ritualMessage = session?.consolidationRitual?.message ?? session?.encodingRitual?.message ?? "";
-  const encodingCompleted = Boolean(session?.encodingRitual?.completed);
+  // Spinner CSS
+  const Spinner = () => (
+    <span
+      style={{
+        display: "inline-block",
+        width: 24,
+        height: 24,
+        border: "3px solid #444",
+        borderTop: "3px solid #F2F2F2",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+        marginLeft: 8,
+      }}
+    />
+  );
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start overflow-auto">
-      <div
-        className="w-full max-w-[760px] px-6 flex flex-col"
-        style={{ minHeight: 520, height: "auto" }}
-      >
-        {/* Row A: Header */}
-        <div style={{ height: 88, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 10 }}>
-          <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
-        </div>
-        {/* Error banner row (separate, below header, above content) */}
-        {error && !(step === "JOB_TEXT" && (!error || error.includes("JOB_REQUIRED"))) ? (
-          <div className="w-full flex justify-center" style={{ marginTop: 0, marginBottom: 12, zIndex: 9, position: "relative" }}>
-            <div className="text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1", maxWidth: 520 }}>
-              {error}
-            </div>
-          </div>
-        ) : null}
-        {/* Top spacer to ensure content starts below header+error */}
-        <div style={{ height: 40 }} />
-        {/* Row B: Prompt/step text */}
-        <div style={{ minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {step === "LANDING" && <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>}
-          {step === "RESUME" && <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>}
-          {step === "PROMPT" && <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">{promptIndex !== null ? promptText : "Loading prompt…"}</div>}
-          {step === "TITLE_AND_JOB" && (
-            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 0, paddingTop: 0 }}>
-              <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
-              {session?.titleExplanation && (
-                <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
-              )}
-              <input
-                type="text"
-                value={titleFeedback}
-                onChange={(e) => setTitleFeedback(e.target.value)}
-                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", marginBottom: 18 }}
-                placeholder="Optional: tweak the title…"
-                disabled={titleBusy}
-              />
-              <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Job description</div>
-              <textarea
-                value={jobText}
-                onChange={(e) => setJobText(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    if (!busy && jobText.trim()) handleScoreJob();
-                  }
-                }}
-                rows={8}
-                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
-                placeholder="Paste job description here…"
-                disabled={busy}
-              />
-              {/* Removed in-content Score button; only sticky footer CTA remains */}
-            </div>
-          )}
-          {step === "PROCESSING" && (
-            <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
-              {typeof ritualProgress === "number" ? (
-                <>
-                  <div style={{ fontWeight: 500, fontSize: "1.1em" }}>
-                    Ritual progress: {Math.round(ritualProgress)}%
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-hidden">
+      <div className="w-full max-w-[760px] px-6">
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        <div className="relative" style={{ color: "#F2F2F2" }}>
+          <div className="w-full flex flex-col items-center text-center">
+            {/* Static header area */}
+            <div style={{ minHeight: "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+              {/* Fixed-height error area */}
+              <div style={{ minHeight: "2.2em" }}>
+                {error ? (
+                  <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
+                    {error}
                   </div>
-                  <div style={{ marginTop: 6 }}>{ritualMessage}</div>
-                </>
-              ) : encodingCompleted ? (
-                <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Encoding complete</div>
-              ) : (
-                <div style={{ fontWeight: 500, fontSize: "1.1em" }}>Processing…</div>
-              )}
-            </div>
-          )}
-        </div>
-        {/* Row C: Input + buttons */}
-        <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {step === "LANDING" && (
-              <></>
-          )}
-          {step === "RESUME" && (
-              <div className="w-full max-w-[560px]">
-                  <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                      className="hidden"
-                      onChange={onFileChange}
-                  />
-                  <div className="rounded-md" style={{ border: "1px dashed rgba(242,242,242,0.28)", backgroundColor: selectedFile ? "#121212" : "#0F0F0F", minHeight: 110 }}>
-                      <div className="h-full w-full flex flex-col items-center justify-center px-6 text-center">
-                          {!selectedFile ? (
-                              <>
-                                  <div className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop your resume here</div>
-                                  <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>or</div>
-                                  <div className="mt-3">
-                                      <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.14)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.18)", cursor: busy ? "not-allowed" : "pointer" }}>Choose file</button>
-                                  </div>
-                              </>
-                          ) : (
-                              <>
-                                  <div className="text-sm sm:text-base font-medium">{selectedFile.name}</div>
-                                  <div className="mt-2 text-sm" style={{ color: "#CFCFCF" }}>File selected</div>
-                                  <div className="mt-3">
-                                      <button type="button" onClick={openFilePicker} disabled={busy} className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)", cursor: busy ? "not-allowed" : "pointer" }}>Choose different file</button>
-                                  </div>
-                                  {/* Continue button removed from inside upload box */}
-                              </>
-                          )}
-                      </div>
-                  </div>
-                  <div className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</div>
+                ) : null}
               </div>
-          )}
-          {step === "PROMPT" && (
-              <textarea
-                  value={answerText}
-                  onChange={(e) => setAnswerText(e.target.value)}
-                  onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          if (!busy && hasAnswer) submitAnswer();
-                      }
-                  }}
-                  rows={7}
-                  className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                  style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none" }}
-                  placeholder="Type your response here…"
-              />
-          )}
-            {/* Removed duplicate Score button from Row C; only sticky footer CTA remains */}
-            {/* Removed JOB_TEXT UI branch (should not exist in merged flow) */}
-        </div>
-        <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
-          {step === "LANDING" && (
-              <button type="button" onClick={begin} disabled={busy} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}>Begin Calibration</button>
-          )}
-          {step === "RESUME" && (
-              <button type="button" onClick={submitResume} disabled={!canContinueResume} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ transitionDuration: "200ms", backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)", color: "#0B0B0B", cursor: canContinueResume ? "pointer" : "not-allowed", boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none", transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)", minWidth: 140 }}>Continue</button>
-          )}
-          {step === "PROMPT" && (
-              <button type="button" onClick={submitAnswer} disabled={busy || !hasAnswer} className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2" style={{ backgroundColor: busy || !hasAnswer ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !hasAnswer ? "not-allowed" : "pointer", minWidth: 140 }}>Continue</button>
-          )}
-          {step === "TITLE_AND_JOB" && (
-              <button
-                  type="button"
-                  onClick={handleScoreJob}
-                  disabled={busy || !jobText.trim()}
-                  className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                  style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
-              >
-                  Score this job
-              </button>
-          )}
-          {step === "RESULTS" && (
-              <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center">
-                  <div className="text-2xl font-bold mb-4">Fit score + summary</div>
-                  <div className="mb-4 text-center">
-                      <div className="text-3xl font-extrabold" style={{ color: "#F2F2F2" }}>
-                          Fit score: {typeof session?.result?.alignment?.score === "number" ? session.result.alignment.score : "-"} / 10
-                      </div>
-                      {session?.patternSummary && (
-                          <div className="mt-4 text-base text-center" style={{ color: "#CFCFCF" }}>{session.patternSummary}</div>
-                      )}
-                  </div>
-                  <button type="button" disabled className="inline-flex items-center justify-center rounded-md px-5 py-3 text-base font-medium bg-gray-400 text-gray-700 cursor-not-allowed" style={{ minWidth: 180, marginTop: 16 }}>
-                      Open dialogue (next step)
+            </div>
+            {/* LANDING */}
+            {step === "LANDING" ? (
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
+                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>
+                </div>
+                <div className="mt-10">
+                  <button
+                    type="button"
+                    onClick={begin}
+                    disabled={busy}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{
+                      backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
+                      color: "#0B0B0B",
+                      cursor: busy ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {busy ? "Processing…" : "Begin Calibration"}
+                    {busy ? <Spinner /> : null}
                   </button>
-                  <div className="mt-2 text-xs text-gray-400">Coming next: LLM dialogue</div>
+                </div>
               </div>
-          )}
-            {/* Removed JOB_TEXT UI branch (should not exist in merged flow) */}
+            ) : null}
+
+            {/* RESUME */}
+            {step === "RESUME" ? (
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+                <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Upload Resume</div>
+                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
+                  <div className="mt-3 text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>
+                </div>
+                <div className="mt-8 flex justify-center">
+                  <div className="w-full" style={{ maxWidth: 420 }}>
+                    <div
+                      className="rounded-md transition-opacity"
+                      style={{
+                        border: "1px dashed rgba(242,242,242,0.28)",
+                        backgroundColor: selectedFile ? "#121212" : "#0F0F0F",
+                        height: 110,
+                        opacity: resumeDone ? 1 : 0,
+                        pointerEvents: resumeDone ? "auto" : "none",
+                        transition: "opacity 0.4s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        position: "relative"
+                      }}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                        className="hidden"
+                        onChange={onFileChange}
+                      />
+                      {!selectedFile ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span className="text-sm sm:text-base" style={{ color: "#F2F2F2" }}>Drag & drop a resume</span>
+                          <span className="text-xs mx-2" style={{ color: "#CFCFCF" }}>or</span>
+                          <button
+                            type="button"
+                            onClick={openFilePicker}
+                            disabled={busy}
+                            className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                            style={{
+                              backgroundColor: "rgba(242,242,242,0.14)",
+                              color: "#F2F2F2",
+                              border: "1px solid rgba(242,242,242,0.18)",
+                              cursor: busy ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Choose file
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <span className="text-sm sm:text-base font-medium">{selectedFile.name}</span>
+                          <span className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>File selected</span>
+                          <button
+                            type="button"
+                            onClick={openFilePicker}
+                            disabled={busy}
+                            className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 mt-2"
+                            style={{
+                              backgroundColor: "rgba(242,242,242,0.10)",
+                              color: "#F2F2F2",
+                              border: "1px solid rgba(242,242,242,0.16)",
+                              cursor: busy ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Choose different file
+                          </button>
+                        </div>
+                      )}
+                      <span className="absolute bottom-2 left-2 text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={submitResume}
+                    disabled={!canContinueResume}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{
+                      transitionDuration: "200ms",
+                      backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)",
+                      color: "#0B0B0B",
+                      cursor: canContinueResume ? "pointer" : "not-allowed",
+                      boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none",
+                      transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)",
+                      minWidth: 140
+                    }}
+                  >
+                    {resumeUploading ? (<><Spinner /><span className="ml-2">Uploading…</span></>) : "Continue"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* PROMPT */}
+            {step === "PROMPT" ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                {/* Prompt question container, smaller font, more breathing room */}
+                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                  {promptIndex == null ? (
+                    <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
+                      <Spinner />
+                      <span className="ml-2">Loading…</span>
+                    </span>
+                  ) : (
+                    <span style={{ opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
+                  )}
+                </div>
+                {/* Remove "Prompt X of 5" line */}
+                <div className="mt-10">
+                  {promptIndex == null ? (
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 120 }}>
+                      <Spinner />
+                      <span className="ml-2">Loading…</span>
+                    </div>
+                  ) : (
+                    <textarea
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                      rows={6}
+                      className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                      style={{
+                        backgroundColor: "#141414",
+                        color: "#F2F2F2",
+                        border: "1px solid rgba(242,242,242,0.14)",
+                        boxShadow: "none",
+                        opacity: 1,
+                        fontSize: "1em",
+                        marginTop: "0.5em"
+                      }}
+                      placeholder="Type your response here…"
+                      disabled={busy}
+                    />
+                  )}
+                </div>
+                <div className="mt-7">
+                  <button
+                    type="button"
+                    onClick={submitAnswer}
+                    disabled={promptIndex == null || !hasAnswer || busy}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{
+                      transitionDuration: "200ms",
+                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(242,242,242,0.70)" : "#F2F2F2",
+                      color: "#0B0B0B",
+                      cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
+                      boxShadow: promptIndex == null || !hasAnswer || busy ? "0 0 0 rgba(0,0,0,0)" : "0 8px 20px rgba(0,0,0,0.35)",
+                      transform: promptIndex == null || !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)",
+                    }}
+                  >
+                    Submit
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* PROCESSING */}
+            {step === "PROCESSING" ? (
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+                <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
+                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
+                    <Spinner />
+                    <span className="ml-2">Processing…</span>
+                  </div>
+                  <div style={{ color: "#AFAFAF", fontSize: "0.95em", marginTop: 4 }}>This can take up to ~1 minute.</div>
+                  {processingAttempts > 90 ? (
+                    <div className="mt-7">
+                      <button
+                        type="button"
+                        onClick={advance}
+                        disabled={busy}
+                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer" }}
+                      >
+                        Retry
+                        {busy ? <Spinner /> : null}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {/* Fallback: never blank */}
+            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES","JOB_TEXT","RESULTS"].includes(step) ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
+                  <Spinner />
+                  <span className="ml-2">Loading…</span>
+                </div>
+                <div className="mt-8 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => { setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); }}
+                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                  >
+                    Restart
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* TITLES UI */}
+            {step === "TITLES" ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                  <span>{titleTypewriter}</span>
+                </div>
+                {/* Title suggestion/explanation only, no tweak box */}
+                {session?.synthesis?.marketTitle || session?.synthesis?.titleExplanation ? (
+                  <div className="mt-10 text-center">
+                    {session?.synthesis?.marketTitle ? (
+                      <div className="text-2xl font-semibold mb-2">{session.synthesis.marketTitle}</div>
+                    ) : null}
+                    {session?.synthesis?.titleExplanation ? (
+                      <div className="text-base text-gray-300">{session.synthesis.titleExplanation}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <button
+                  className="primary-action"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const nextSession = await advance();
+                      setStep(getStepFromState(nextSession.state, nextSession));
+                    } catch (e: any) {
+                      if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+                        setError(null);
+                        setStep("JOB_TEXT");
+                        return;
+                      }
+                      setError(displayError(e));
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  style={{ marginTop: "2rem" }}
+                >
+                  Continue
+                </button>
+              </div>
+            ) : null}
+
+            {/* JOB TEXT UI */}
+            {step === "JOB_TEXT" ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                  <span>{jobTypewriter}</span>
+                </div>
+                <div className="mt-10">
+                  <textarea
+                    value={jobText}
+                    onChange={e => setJobText(e.target.value)}
+                    rows={8}
+                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
+                    placeholder="Paste job description here…"
+                    disabled={jobBusy}
+                  />
+                </div>
+                <div className="mt-7 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={submitJobText}
+                    disabled={jobBusy || !jobText.trim()}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
+                  >
+                    {jobBusy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* RESULTS UI */}
+            {step === "RESULTS" ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                <div className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                  <span>Results</span>
+                </div>
+                {session?.result?.alignment?.score != null && (
+                  <div className="mt-8 text-2xl font-bold text-green-400">Fit Score: {session.result.alignment.score}/10</div>
+                )}
+                <div className="mt-8 text-base text-gray-200 whitespace-pre-line border rounded p-4 bg-[#181818]">
+                  {session?.result?.alignment?.summary
+                    ?? session?.result?.summary
+                    ?? session?.synthesis?.identitySummary
+                    ?? "Summary pending."}
+                </div>
+                {Array.isArray(session?.synthesis?.operateBest) && session.synthesis.operateBest.length > 0 && (
+                  <div className="mt-8">
+                    <div className="font-semibold mb-2">Operate best when…</div>
+                    <ul className="list-disc ml-6">
+                      {session.synthesis.operateBest.map((b: string, i: number) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {Array.isArray(session?.synthesis?.loseEnergy) && session.synthesis.loseEnergy.length > 0 && (
+                  <div className="mt-6">
+                    <div className="font-semibold mb-2">Lose energy when…</div>
+                    <ul className="list-disc ml-6">
+                      {session.synthesis.loseEnergy.map((b: string, i: number) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-10 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => { setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); }}
+                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                  >
+                    Restart
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

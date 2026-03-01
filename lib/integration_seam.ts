@@ -134,18 +134,18 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
   } catch (err: unknown) {
     // Normalize known ingest errors into typed seam errors (no raw throws escape)
     if (isJobIngestError(err)) {
-      const code = (err as any).code as IntegrationErrorCode
-      const detail = (err as any).detail as string
-      const meta = (err as any).meta
-
-      if (code === "INCOMPLETE_DIMENSION_COVERAGE") {
+      const code = (err as any).code as IntegrationErrorCode;
+      const detail = (err as any).detail as string;
+      const meta = (err as any).meta;
+      // Only treat UNABLE_TO_EXTRACT_ANY_SIGNAL as fatal
+      if (code === "UNABLE_TO_EXTRACT_ANY_SIGNAL") {
         return {
           ok: false,
           error: {
             code: "BAD_REQUEST",
-            message: formatIncompleteCoverageMessage(meta, detail),
+            message: detail,
           },
-        }
+        };
       }
 
       // Preserve strict behavior; map other ingest errors through unchanged
@@ -181,10 +181,10 @@ export type CalibrationDispatchOk = { ok: true; session: CalibrationSession }
 export type CalibrationDispatchErr = { ok: false; error: { code: string; message: string } }
 export type CalibrationDispatchResult = CalibrationDispatchOk | CalibrationDispatchErr
 
-export function dispatchCalibration(event: CalibrationEvent): CalibrationDispatchResult {
-  const res = dispatchCalibrationEvent(event)
+export async function dispatchCalibration(event: CalibrationEvent): Promise<CalibrationDispatchResult> {
+  const res = await dispatchCalibrationEvent(event)
   if (!res.ok) {
     return { ok: false, error: { code: res.error.code, message: res.error.message } }
   }
-  return { ok: true, session: res.value }
+  return { ok: true, session: res.session }
 }

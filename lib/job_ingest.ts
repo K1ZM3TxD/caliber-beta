@@ -348,14 +348,13 @@ export function ingestJob(jobDescriptionText: string): JobIngestObject {
   for (const dim of dimensions) {
     if (!encoded[dim.key]) missing.push(dim.key);
   }
-
+  // If some dimensions are missing, fill with default level 1 and evidence []
+  let meta: Record<string, any> | undefined = undefined;
   if (missing.length > 0) {
-    throw makeError({
-      name: "JobIngestError",
-      code: "INCOMPLETE_DIMENSION_COVERAGE",
-      detail: "Insufficient signal to encode all six role vector dimensions",
-      meta: { missingDimensions: missing },
-    });
+    for (const key of missing) {
+      encoded[key] = { level: 1, evidence: [] };
+    }
+    meta = { warnings: { missingDimensions: missing } };
   }
 
   const structuralMaturity = encoded.structuralMaturity as JobIngestDimensionEvidence;
@@ -386,6 +385,7 @@ export function ingestJob(jobDescriptionText: string): JobIngestObject {
       breadthVsDepth,
       stakeholderDensity,
     },
+    ...(meta ? { meta } : {}),
   };
 }
 

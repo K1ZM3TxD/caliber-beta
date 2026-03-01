@@ -10,11 +10,13 @@
     "lint": "eslint",
     "test": "tsx scripts/prompt_drift_guard.ts",
     "smoke:integration": "tsx scripts/smoke_integration.ts",
-    "smoke:synthesis": "tsx scripts/synthesis_guard_smoke.ts"
+    "smoke:synthesis": "tsx scripts/synthesis_guard_smoke.ts",
+    "smoke:calibration": "node scripts/calibration_smoke.mjs"
   },
   "dependencies": {
     "mammoth": "^1.9.0",
     "next": "16.1.6",
+    "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"

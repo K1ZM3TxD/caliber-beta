@@ -64,8 +64,21 @@ export async function POST(req: Request) {
       resumeText = await extractResumeText(file)
     } catch (e: any) {
       const msg = String(e?.message ?? "Failed to parse resume")
-      if (msg.toLowerCase().includes("unsupported")) {
+      const lower = msg.toLowerCase();
+      if (lower.includes("unsupported")) {
         return Response.json(apiBad("UNSUPPORTED_FILE_TYPE", msg), { status: 415 })
+      }
+      if (lower.includes("bad xref") || lower.includes("xref")) {
+        return Response.json(
+          apiBad(
+            "RESUME_PARSE_FAILED",
+            "We couldn’t read text from this PDF (PDF parse error). Try: (1) re-export/Print to PDF, or (2) upload DOCX/TXT instead."
+          ),
+          { status: 400 }
+        );
+      }
+      if (msg.includes("RESUME_PARSE_FAILED")) {
+        return Response.json(apiBad("RESUME_PARSE_FAILED", msg.replace("RESUME_PARSE_FAILED: ", "")), { status: 400 })
       }
       return Response.json(apiBad("PARSE_ERROR", msg), { status: 400 })
     }

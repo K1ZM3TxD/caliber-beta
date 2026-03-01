@@ -1,3 +1,9 @@
+// Job sub-object for session
+export interface CalibrationJob {
+  rawText: string;
+  roleVector: any | null;
+  completed: boolean;
+}
 // Canonical shared types for the calibration flow.
 // (Matches usage in lib/calibration_machine.ts and API routes.)
 
@@ -44,10 +50,13 @@ export type CalibrationEvent =
   | { type: "CREATE_SESSION" }
   | { type: "SUBMIT_RESUME"; sessionId: string; resumeText: string }
   | { type: "SUBMIT_PROMPT_ANSWER"; sessionId: string; answer: string }
+  | { type: "SUBMIT_PROMPT_CLARIFIER_ANSWER"; sessionId: string; answer: string }
+  | { type: "TITLE_FEEDBACK"; sessionId: string; feedback: string }
   | { type: "ADVANCE"; sessionId: string }
   | { type: "SUBMIT_JOB_TEXT"; sessionId: string; jobText: string }
   | { type: "COMPUTE_ALIGNMENT_OUTPUT"; sessionId: string }
-  | { type: "RESET_SESSION"; sessionId: string };
+  | { type: "RESET_SESSION"; sessionId: string }
+  | { type: "ENCODING_COMPLETE"; sessionId: string };
 
 // History entry for session
 // NOTE: calibration_machine.pushHistory stores { at: nowIso(), ..., event: string }
@@ -74,7 +83,9 @@ export interface CalibrationResume {
 export interface CalibrationPromptSlot {
   accepted: boolean;
   answer: string;
+  frozen?: boolean;
   clarifier?: {
+    asked?: boolean;
     answer: string;
   };
 }
@@ -98,6 +109,12 @@ export interface CalibrationEncodingRitual {
 // Consolidation ritual (scripts assert progressPct exists during CONSOLIDATION_RITUAL)
 export interface CalibrationConsolidationRitual {
   progressPct: number;
+  step?: number;
+  startedAtIso?: string | null;
+  lastTickAtIso?: string | null;
+  completedAtIso?: string | null;
+  message?: string | null;
+  completed?: boolean;
 }
 
 // Synthesis payload (scripts assert these exist)
@@ -133,6 +150,7 @@ export interface CalibrationSession {
   // Optional sub-objects used in some states
   consolidationRitual?: CalibrationConsolidationRitual;
   synthesis?: CalibrationSynthesis;
+  job?: CalibrationJob;
 
   // Result object (shape defined elsewhere)
   result?: any;
