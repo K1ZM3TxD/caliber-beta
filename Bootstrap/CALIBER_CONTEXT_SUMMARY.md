@@ -2,18 +2,15 @@
 
 ## Project Status / Current active work
 
-
-- Calibration UI now starts with a single landing page and stable header.
-- Resume upload -> 5 prompts -> Processing -> Title + Job Paste (combined) -> Processing -> Fit score + summary
-- After job description, the Fit score (0–10) + summary page appears.
-- LLM dialogue mode will open after score+summary (next phase toggle).
+Backend calibration flow is now validated end-to-end by smoke (terminal complete + result).
+Current real blocker is UI divergence around title/job/score routing; UI does not reliably reach results even when backend can.
 
 ## Current Blocker
 
-
-No current blockers on locked calibration flow. Awaiting LLM dialogue phase toggle implementation.
+UI still diverges from backend flow; must align UI event sequence with smoke flow and treat TERMINAL_COMPLETE/result as results-ready.
 
 ## Next Tasks (in order)
 
-1. Finalize Fit score + summary page after job description input.
-2. Implement LLM dialogue mode toggle after score+summary.
+1. Align calibration UI event sequence with smoke flow; ensure results render when TERMINAL_COMPLETE or result exists.
+2. Remove/mitigate routing/polling fragility that causes hang/misroute.
+3. Only after stable results: implement post-score LLM dialogue mode toggle.

@@ -11,7 +11,26 @@
 - Cloud agent policy:
   - Prefer Local mode for surgical edits; do not include uncommitted changes in cloud agent runs.
 - Evidence rule:
-  - Coder must not claim runtime verification unless terminal output is included.
+
+  ## Smoke-First Verification Rule
+
+  For any calibration-flow task (UI, routing, state machine integration), coder must run the calibration smoke script and paste final output showing:
+
+    COMPUTE_ALIGNMENT_OUTPUT -> TERMINAL_COMPLETE -> hasResult=true
+
+  Coder may not claim “fixed” unless smoke is green OR task is explicitly “docs-only”.
+
+  ## Wall / Progress Signaling
+
+  If a command is running and no output for >90 seconds, coder must print a status line:
+
+    [RUNNING] <what it’s doing>
+
+  If blocked, coder must print:
+
+    [BLOCKED] <error> + file/line + full terminal output tail
+
+  [DONE] only when acceptance evidence is pasted.
 
 ## Remote Visibility Rule
 - PM/assistant can only act on files that are committed and pushed to GitHub.
