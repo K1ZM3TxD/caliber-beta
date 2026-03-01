@@ -1,38 +1,63 @@
-// Deterministic title bank (10 titles)
+import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types";
+import { storeGet, storeSet } from "@/lib/calibration_store";
+import { ingestJob } from "@/lib/job_ingest";
+import { runIntegrationSeam } from "@/lib/integration_seam";
+import { toResultContract } from "@/lib/result_contract";
+import { generateSemanticSynthesis } from "@/lib/semantic_synthesis";
+import { extractLexicalAnchors } from "@/lib/anchor_extraction";
+import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
+import { detectAbstractionDrift } from "./abstraction_drift";
+export { validateAndRepairSynthesisOnce };
+
+// Ops/program-oriented deterministic title bank (10 titles)
 const TITLE_BANK: Array<string> = [
-  "Product Manager",
-  "Software Engineer",
-  "Data Scientist",
-  "Operations Lead",
-  "Business Analyst",
-  "UX Designer",
+  "Program Operations Lead",
   "Technical Program Manager",
-  "Solutions Architect",
-  "Quality Assurance Specialist",
-  "Customer Success Manager"
+  "Operations Manager",
+  "Program Manager",
+  "Delivery Lead",
+  "Business Operations Analyst",
+  "Implementation Manager",
+  "Process Improvement Lead",
+  "Project Delivery Manager",
+  "Strategic Operations Partner"
 ];
 
 // Deterministic title candidate generator
 function generateTitleCandidates(personVector: any, resumeText: string, promptAnswers?: string[]): Array<{ title: string; score: number }> {
-  // Use personVector and resumeText to deterministically score titles
-  // For simplicity, use charCode sum and vector dims
-  let base = 80;
-  let acc = 0;
-  if (typeof resumeText === "string") {
-    for (let i = 0; i < resumeText.length; i++) acc += resumeText.charCodeAt(i) * (i + 1);
-  }
-  if (Array.isArray(personVector?.values)) {
-    for (let i = 0; i < personVector.values.length; i++) acc += (personVector.values[i] + 1) * (i + 7);
-  }
-  if (Array.isArray(promptAnswers)) {
-    for (const ans of promptAnswers) {
-      for (let i = 0; i < ans.length; i++) acc += ans.charCodeAt(i) * (i + 3);
+  // Score by personVector dimension affinity and lexical bonuses
+  // Each title gets a base score from affinity, plus lexical bonus from resume/prompts
+  const dimAffinity: Record<string, number[]> = {
+    "Program Operations Lead": [2,2,1,2,1,1],
+    "Technical Program Manager": [2,1,2,2,1,1],
+    "Operations Manager": [2,2,1,1,2,1],
+    "Program Manager": [2,1,2,1,2,1],
+    "Delivery Lead": [1,2,2,1,2,1],
+    "Business Operations Analyst": [1,2,1,2,2,1],
+    "Implementation Manager": [2,1,2,1,1,2],
+    "Process Improvement Lead": [1,2,2,2,1,1],
+    "Project Delivery Manager": [2,1,2,2,1,1],
+    "Strategic Operations Partner": [2,2,1,1,1,2]
+  };
+  const vector = Array.isArray(personVector?.values) ? personVector.values : [1,1,1,1,1,1];
+  // Lexical bonus terms
+  const bonusTerms = ["program", "operations", "delivery", "process", "project", "implementation", "strategy", "improvement", "manager", "lead", "analyst", "partner"];
+  const text = [resumeText, ...(promptAnswers ?? [])].join(" ").toLowerCase();
+  return TITLE_BANK.map(title => {
+    // Affinity score: +15 for each exact match dim, +7 for off-by-1, 0 otherwise
+    let affinity = 0;
+    const dims = dimAffinity[title];
+    for (let i = 0; i < vector.length; i++) {
+      if (vector[i] === dims[i]) affinity += 15;
+      else if (Math.abs(vector[i] - dims[i]) === 1) affinity += 7;
     }
-  }
-  // Score each title deterministically
-  return TITLE_BANK.map((title, idx) => {
-    // Score: base + (acc % 7) + idx
-    const score = base + ((acc % 7) + idx);
+    // Lexical bonus: +5 for each bonus term present in text and title
+    let lexical = 0;
+    for (const term of bonusTerms) {
+      if (title.toLowerCase().includes(term) && text.includes(term)) lexical += 5;
+    }
+    let score = affinity + lexical;
+    score = Math.max(0, Math.min(100, Math.round(score)));
     return { title, score };
   })
     .sort((a, b) => b.score - a.score)
