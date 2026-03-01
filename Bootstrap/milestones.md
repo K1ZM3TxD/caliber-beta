@@ -2,6 +2,21 @@
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
+BREAK + UPDATE (2026-02-28)
+---
+DONE (this sprint):
+- Build/type fixes across backend and UI
+- /calibration UI: no blank screens, no false results
+- PDF bad-xref now returns RESUME_PARSE_FAILED
+
+BLOCKED:
+- Smoke integration stalls in CONSOLIDATION_RITUAL and does not reach PATTERN_SYNTHESIS within step cap
+
+NEXT:
+- Make CONSOLIDATION_RITUAL advance deterministically per ADVANCE call (remove wall-clock gating)
+- Re-run smoke to confirm it reaches PATTERN_SYNTHESIS
+---
+
 Next milestone:
 - Backend wiring via hook: add useCalibrationSession and refactor page.tsx to call hook only; then resume-upload -> prompt 1.
 ## ⚠️ PHASE SHIFT — Calibration Core First (Temporary Freeze on Summary Engine)
