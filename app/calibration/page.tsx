@@ -356,43 +356,14 @@ export default function CalibrationPage() {
     />
   );
 
-  // Refs for scroll/focus
-  const jobTextRef = useRef<HTMLDivElement | null>(null);
-  // Track if we should scroll to JOB_TEXT after TITLE_FEEDBACK
-  const [scrollToJobText, setScrollToJobText] = useState(false);
-
-  // After TITLE_FEEDBACK, scroll to JOB_TEXT
-  useEffect(() => {
-    if (scrollToJobText && jobTextRef.current) {
-      jobTextRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      setScrollToJobText(false);
-    }
-  }, [scrollToJobText]);
-
-  // Patch submitTitleFeedback to trigger scroll
-  async function submitTitleFeedbackCombined() {
-    const sessionId = String(session?.sessionId ?? "");
-    if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-    setError(null); setBusy(true);
-    try {
-      const feedback = titleFeedback.trim();
-      const s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback });
-      setSession(s);
-      setScrollToJobText(true); // trigger scroll
-      setStep("JOB_TEXT"); // still update step for logic
-    } catch (e: any) {
-      setError(displayError(e));
-    } finally { setBusy(false); }
-  }
-
   return (
-    <div className="min-h-screen bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-hidden">
       <div className="w-full max-w-[760px] px-6">
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
-            {/* Sticky header area */}
-            <div className="sticky top-0 z-10" style={{ background: "#0B0B0B", minHeight: "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            {/* Static header area */}
+            <div style={{ minHeight: "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
@@ -632,10 +603,9 @@ export default function CalibrationPage() {
               </div>
             ) : null}
 
-            {/* Combined TITLES + JOB_TEXT UI */}
-            {(step === "TITLES" || step === "JOB_TEXT") ? (
+            {/* TITLES UI */}
+            {step === "TITLES" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                {/* TITLES Section */}
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{titleTypewriter}</span>
                 </div>
@@ -694,53 +664,53 @@ export default function CalibrationPage() {
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
                     disabled={busy}
-                    onClick={submitTitleFeedbackCombined}
+                    onClick={submitTitleFeedback}
                   >
                     {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
                   </button>
                 </div>
-                {/* JOB TEXT Section */}
-                <div ref={jobTextRef} />
-                {(step === "JOB_TEXT") ? (
-                  <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                    {/* Back button above textarea, left-aligned */}
-                    <div className="mt-6 mb-2 flex justify-start">
-                      <button
-                        type="button"
-                        onClick={() => setStep("TITLES")}
-                        className="inline-flex items-center rounded px-3 py-1 text-xs font-medium bg-[#232323] text-[#AFAFAF] border border-[#333] hover:bg-[#333] focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ minWidth: 60 }}
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                    <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
-                      <span>{jobTypewriter}</span>
-                    </div>
-                    <div className="mt-10">
-                      <textarea
-                        value={jobText}
-                        onChange={e => setJobText(e.target.value)}
-                        rows={8}
-                        className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                        style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
-                        placeholder="Paste job description here…"
-                        disabled={jobBusy}
-                      />
-                    </div>
-                    <div className="mt-7 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={submitJobText}
-                        disabled={jobBusy || !jobText.trim()}
-                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
-                      >
-                        {jobBusy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
+              </div>
+            ) : null}
+
+            {/* JOB TEXT UI */}
+            {step === "JOB_TEXT" ? (
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                {/* Back button above textarea, left-aligned */}
+                <div className="mt-6 mb-2 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setStep("TITLES")}
+                    className="inline-flex items-center rounded px-3 py-1 text-xs font-medium bg-[#232323] text-[#AFAFAF] border border-[#333] hover:bg-[#333] focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ minWidth: 60 }}
+                  >
+                    ← Back
+                  </button>
+                </div>
+                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                  <span>{jobTypewriter}</span>
+                </div>
+                <div className="mt-10">
+                  <textarea
+                    value={jobText}
+                    onChange={e => setJobText(e.target.value)}
+                    rows={8}
+                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
+                    placeholder="Paste job description here…"
+                    disabled={jobBusy}
+                  />
+                </div>
+                <div className="mt-7 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={submitJobText}
+                    disabled={jobBusy || !jobText.trim()}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
+                  >
+                    {jobBusy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
+                  </button>
+                </div>
               </div>
             ) : null}
 
