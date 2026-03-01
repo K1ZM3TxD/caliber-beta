@@ -46,15 +46,21 @@ If execution diverges from doctrine, execution changes — not doctrine.
 
 Caliber is now locked to the following product flow:
 
-1. Resume upload
-2. Title suggestion/confirmation
-3. Job description paste
-4. Fit score (0–10) + summary
-5. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
+1. Resume upload (PDF/DOCX/TXT)
+2. Title suggestion + job description paste (same screen; no user title editing; no confirmation gate)
+3. Fit score (0–10) + summary
+4. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
 
 Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
+
+### JSON-safe Coder Payload
+
+All Coder tasks must be single-line plain text (no fenced blocks), because the execution surface may JSON-encode the payload.
+
+
+
 
 
 \# Core Execution Principle

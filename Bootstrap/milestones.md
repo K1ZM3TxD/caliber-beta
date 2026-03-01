@@ -13,10 +13,9 @@ The product flow is now locked as follows:
 Primary focus:
 
 1. Resume upload
-2. Title suggestion/confirmation
-3. Job description paste
-4. Fit score (0–10) + summary
-5. LLM dialogue opens after score+summary (wander vs constrained not yet locked)
+2. Title suggestion + job description paste (same screen; no user title editing; no confirmation gate)
+3. Fit score (0–10) + summary
+4. LLM dialogue opens after score+summary (next phase)
 
 Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
 
