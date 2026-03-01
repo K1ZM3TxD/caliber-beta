@@ -128,6 +128,7 @@ export interface CalibrationSynthesis {
   marketTitle?: string | null;
   titleExplanation?: string | null;
   lastTitleFeedback?: string | null;
+  titleCandidates?: Array<{ title: string; score: number }>;
 
   // Optional anchor metrics fields (kept for compatibility)
   anchor_overlap_score?: number;

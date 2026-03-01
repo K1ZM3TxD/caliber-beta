@@ -1,3 +1,43 @@
+// Deterministic title bank (10 titles)
+const TITLE_BANK: Array<string> = [
+  "Product Manager",
+  "Software Engineer",
+  "Data Scientist",
+  "Operations Lead",
+  "Business Analyst",
+  "UX Designer",
+  "Technical Program Manager",
+  "Solutions Architect",
+  "Quality Assurance Specialist",
+  "Customer Success Manager"
+];
+
+// Deterministic title candidate generator
+function generateTitleCandidates(personVector: any, resumeText: string, promptAnswers?: string[]): Array<{ title: string; score: number }> {
+  // Use personVector and resumeText to deterministically score titles
+  // For simplicity, use charCode sum and vector dims
+  let base = 80;
+  let acc = 0;
+  if (typeof resumeText === "string") {
+    for (let i = 0; i < resumeText.length; i++) acc += resumeText.charCodeAt(i) * (i + 1);
+  }
+  if (Array.isArray(personVector?.values)) {
+    for (let i = 0; i < personVector.values.length; i++) acc += (personVector.values[i] + 1) * (i + 7);
+  }
+  if (Array.isArray(promptAnswers)) {
+    for (const ans of promptAnswers) {
+      for (let i = 0; i < ans.length; i++) acc += ans.charCodeAt(i) * (i + 3);
+    }
+  }
+  // Score each title deterministically
+  return TITLE_BANK.map((title, idx) => {
+    // Score: base + (acc % 7) + idx
+    const score = base + ((acc % 7) + idx);
+    return { title, score };
+  })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
 import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
 import { storeGet, storeSet } from "@/lib/calibration_store"
 import { ingestJob } from "@/lib/job_ingest"
@@ -1150,10 +1190,42 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "PATTERN_SYNTHESIS") {
-          const to: CalibrationState = "TITLE_HYPOTHESIS"
-          session = pushHistory({ ...session, state: to }, from, to, event.type)
-          storeSet(session)
-          return { ok: true, session }
+          // Restore deterministic title candidate generation
+          let candidates: Array<{ title: string; score: number }> | undefined = undefined;
+          if (!session.synthesis?.titleCandidates || session.synthesis.titleCandidates.length === 0) {
+            // Gather prompt answers
+            const promptAnswers = [];
+            for (let i = 1; i <= 5; i++) {
+              const ans = session.prompts?.[i]?.answer;
+              if (typeof ans === "string" && ans.length > 0) promptAnswers.push(ans);
+            }
+            candidates = generateTitleCandidates(session.personVector, session.resume?.rawText ?? "", promptAnswers);
+          } else {
+            candidates = session.synthesis.titleCandidates;
+          }
+          // Always set marketTitle and titleExplanation for backward compatibility
+          const marketTitle = candidates[0]?.title ?? "";
+          const titleExplanation = "Top-ranked title based on your pattern profile.";
+          session = {
+            ...session,
+            synthesis: {
+              patternSummary: session.synthesis?.patternSummary ?? null,
+              operateBest: session.synthesis?.operateBest ?? null,
+              loseEnergy: session.synthesis?.loseEnergy ?? null,
+              identitySummary: session.synthesis?.identitySummary ?? null,
+              marketTitle,
+              titleExplanation,
+              lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
+              titleCandidates: candidates,
+              anchor_overlap_score: session.synthesis?.anchor_overlap_score,
+              missing_anchor_count: session.synthesis?.missing_anchor_count,
+              missing_anchor_terms: session.synthesis?.missing_anchor_terms,
+            },
+          };
+          const to: CalibrationState = "TITLE_HYPOTHESIS";
+          session = pushHistory({ ...session, state: to }, from, to, event.type);
+          storeSet(session);
+          return { ok: true, session };
         }
 
         if (session.state === "TITLE_HYPOTHESIS") {
