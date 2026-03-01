@@ -601,8 +601,7 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 const { classifyAnchors } = require("./signal_classification")
 const tryOnce = async (): Promise<string | null> => {
   const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
-  const anchorSourceText = `${resumeText}\n${promptAnswersText}`
-  const anchors = extractLexicalAnchors(anchorSourceText)
+  const anchors = extractLexicalAnchors({ resumeText, promptAnswersText })
 
   // Build AnchorOccurrence array for classification
   const anchorOccurrences = [];
@@ -903,8 +902,7 @@ function createSession(): CalibrationSession {
     sessionId,
     state: "RESUME_INGEST",
     resume: {
-      rawText: null,
-      completed: false,
+      rawText: "",
       signals: null,
     },
     prompts: {
@@ -924,8 +922,8 @@ function createSession(): CalibrationSession {
       message: null,
       completed: false,
     },
-    synthesis: null,
-    job: { rawText: null, roleVector: null, completed: false },
+    synthesis: undefined,
+    job: { rawText: "", roleVector: null, completed: false },
     result: null,
     history: [],
   }
@@ -956,6 +954,8 @@ const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]
   JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
   ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
   TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
+  PROCESSING: [],
+  ERROR: [],
 }
 
 function ensureAllowed(session: CalibrationSession, eventType: CalibrationEvent["type"]): Err | null {
@@ -991,10 +991,33 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
     if ((got as any).ok === false) return got as Err
     let session = got as CalibrationSession
 
-    const allowErr = ensureAllowed(session, event.type)
-    if (allowErr) return allowErr
+    // Special: allow SUBMIT_JOB_TEXT from TITLE_HYPOTHESIS by auto-advancing
+    if (event.type === "SUBMIT_JOB_TEXT" && session.state === "TITLE_HYPOTHESIS") {
+      let attempts = 0;
+      let autoSession = session;
+      while (autoSession.state === "TITLE_HYPOTHESIS" && attempts < 6) {
+        // Apply ADVANCE event
+        const advRes = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId: autoSession.sessionId } as any);
+        if (!advRes.ok) {
+          return bad("AUTO_ADVANCE_FAILED", `Failed to auto-advance from TITLE_HYPOTHESIS after ${attempts} attempts: ${advRes.error?.message ?? advRes.error}`);
+        }
+        autoSession = advRes.session;
+        attempts++;
+      }
+      if (autoSession.state === "TITLE_HYPOTHESIS") {
+        return bad(
+          "AUTO_ADVANCE_FAILED",
+          `Could not leave TITLE_HYPOTHESIS after ${attempts} attempts (state=${autoSession.state}, attempts=${attempts})`
+        );
+      }
+      // Now apply SUBMIT_JOB_TEXT to the advanced session
+      session = autoSession;
+    }
 
-    const from = session.state
+    const allowErr = ensureAllowed(session, event.type);
+    if (allowErr) return allowErr;
+
+    const from = session.state;
 
     switch (event.type) {
       case "SUBMIT_RESUME": {
@@ -1012,7 +1035,6 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           ...session,
           resume: {
             rawText: text,
-            completed: true,
             signals: {
               charLen: text.length,
               hasBullets,
@@ -1029,7 +1051,8 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
       case "ADVANCE": {
         if (session.state === "RESUME_INGEST") {
-          if (!session.resume.completed) return bad("MISSING_REQUIRED_FIELD", "Resume must be submitted before advancing")
+          if (!session.resume.rawText || session.resume.rawText.trim().length === 0)
+            return bad("MISSING_REQUIRED_FIELD", "Resume must be submitted before advancing")
           const to: CalibrationState = "PROMPT_1"
           session = pushHistory({ ...session, state: to }, from, to, event.type)
           storeSet(session)
@@ -1066,14 +1089,13 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "CONSOLIDATION_RITUAL") {
-          const r = session.consolidationRitual
-          const lastTick = r.lastTickAtIso ? new Date(r.lastTickAtIso).getTime() : 0
-          const now = Date.now()
-          const deltaMs = now - lastTick
+          const r = session.consolidationRitual;
+          if (!r) return bad("INTERNAL", "Missing consolidationRitual");
 
-          const stepAdvance = deltaMs >= 450 ? 1 : 0
-          const nextStep = r.step + stepAdvance
-          const nextPct = clampPct(r.progressPct + stepAdvance * 20)
+          // Deterministic: always advance step/progressPct by 1 per ADVANCE call
+          const stepAdvance = 1;
+          const nextStep = (r.step ?? 0) + stepAdvance;
+          const nextPct = clampPct(r.progressPct + stepAdvance * 20);
 
           const messages = [
             "Consolidating signal…",
@@ -1081,38 +1103,38 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
             "Normalizing constraints…",
             "Locking person-vector…",
             "Preparing synthesis…",
-          ]
+          ];
 
-          const nextMessage = messages[Math.min(nextStep, messages.length - 1)] ?? "Working…"
+          const nextMessage = messages[Math.min(nextStep, messages.length - 1)] ?? "Working…";
 
           const nextRitual = {
             ...r,
             startedAtIso: r.startedAtIso ?? nowIso(),
-            lastTickAtIso: nowIso(),
+            lastTickAtIso: nowIso(), // still updated for observability
             step: nextStep,
             progressPct: nextPct,
             message: nextMessage,
             completed: nextPct >= 100,
-          }
+          };
 
           // If not complete, remain in CONSOLIDATION_RITUAL (no state change).
           if (!nextRitual.completed) {
-            session = { ...session, consolidationRitual: nextRitual }
-            storeSet(session)
-            return { ok: true, session }
+            session = { ...session, consolidationRitual: nextRitual };
+            storeSet(session);
+            return { ok: true, session };
           }
 
           // Ritual completes -> move to ENCODING_RITUAL (externally visible).
-          const to: CalibrationState = "ENCODING_RITUAL"
-          let next = {
+          const to: CalibrationState = "ENCODING_RITUAL";
+          let next: CalibrationSession = {
             ...session,
             state: to,
             consolidationRitual: nextRitual,
             encodingRitual: { completed: false },
-          }
-          next = pushHistory(next, from, to, event.type)
-          storeSet(next)
-          return { ok: true, session: next }
+          };
+          next = pushHistory(next, from, to, event.type);
+          storeSet(next);
+          return { ok: true, session: next };
         }
 
         if (session.state === "ENCODING_RITUAL") {
@@ -1142,13 +1164,23 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "TITLE_DIALOGUE" || session.state === "JOB_INGEST") {
-          if (!session.job.completed || !session.job.roleVector || !session.personVector.values) {
+          const job = session.job;
+          if (!job || !job.completed || !job.roleVector || !session.personVector.values) {
             return bad("JOB_REQUIRED", "Submit a job description before advancing")
           }
-          const to: CalibrationState = "ALIGNMENT_OUTPUT"
-          session = pushHistory({ ...session, state: to }, from, to, event.type)
-          storeSet(session)
-          return { ok: true, session }
+          // Only transition to ALIGNMENT_OUTPUT if result is not present
+          if (!session.result || session.result?.alignment?.score == null) {
+            const to: CalibrationState = "ALIGNMENT_OUTPUT"
+            session = pushHistory({ ...session, state: to }, from, to, event.type)
+            storeSet(session)
+            return { ok: true, session }
+          } else {
+            // If result is present, go directly to TERMINAL_COMPLETE
+            const to: CalibrationState = "TERMINAL_COMPLETE"
+            session = pushHistory({ ...session, state: to }, from, to, event.type)
+            storeSet(session)
+            return { ok: true, session }
+          }
         }
 
         return bad("INVALID_EVENT_FOR_STATE", `ADVANCE not supported in state ${session.state}`)
@@ -1169,7 +1201,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         const trimmed = answer.trim()
 
         // Signal gate: if weak and clarifier not yet used, move to clarifier state (visible) WITHOUT accepting.
-        if (!meetsSignal(trimmed) && !slot.clarifier.asked) {
+        if (!meetsSignal(trimmed) && !slot.clarifier?.asked) {
           const to = clarifierStateForIndex(idx)
           const clarifierQ = "Please add concrete structural detail: scope, constraints, decisions, and measurable outcomes."
 
@@ -1253,8 +1285,8 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
       }
 
       case "TITLE_FEEDBACK": {
-        const feedback = (event as any).feedback
-        if (typeof feedback !== "string") return bad("MISSING_REQUIRED_FIELD", "feedback must be a string")
+        let feedback = (event as any).feedback;
+        if (typeof feedback !== "string") feedback = "";
         session = {
           ...session,
           synthesis: {
@@ -1269,9 +1301,9 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
             }),
             lastTitleFeedback: feedback,
           },
-        }
-        storeSet(session)
-        return { ok: true, session }
+        };
+        storeSet(session);
+        return { ok: true, session };
       }
 
       case "SUBMIT_JOB_TEXT": {
@@ -1306,11 +1338,13 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         if (session.state !== "ALIGNMENT_OUTPUT") {
           return bad("INVALID_EVENT_FOR_STATE", `Event ${event.type} not allowed in state ${session.state}`)
         }
-        if (!session.job.completed || !session.job.rawText) return bad("JOB_REQUIRED", "Submit a job description first")
+        const job = session.job;
+        if (!job || !job.completed || !job.rawText || job.rawText.trim().length === 0)
+          return bad("JOB_REQUIRED", "Submit a job description first")
         if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
 
         const seam = runIntegrationSeam({
-          jobText: session.job.rawText,
+          jobText: job.rawText,
           experienceVector: session.personVector.values as any,
         })
 
