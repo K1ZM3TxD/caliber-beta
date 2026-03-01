@@ -328,40 +328,50 @@ export default function CalibrationPage() {
     setError(null);
     try {
       const sessionId = String(session?.sessionId ?? "");
-      // Step 1: SUBMIT_JOB_TEXT
-      let s = await postEvent({
-        type: "SUBMIT_JOB_TEXT",
-        sessionId,
-        jobText: jobText.trim(),
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
-        setBusy(false);
-        return;
+      let s = session;
+      // If in TITLE_HYPOTHESIS, send TITLE_FEEDBACK with empty string
+      if (String(s?.state) === "TITLE_HYPOTHESIS") {
+        s = await postEvent({
+          type: "TITLE_FEEDBACK",
+          sessionId,
+          payload: "",
+        });
+        if (!s || s.error) {
+          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Title feedback failed"));
+          setBusy(false);
+          return;
+        }
+        setSession(s);
       }
-      setSession(s);
-      // Step 2: ADVANCE
-      s = await postEvent({
-        type: "ADVANCE",
-        sessionId,
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Advance failed"));
-        setBusy(false);
-        return;
+      // If now in TITLE_DIALOGUE_LOOP, send TITLE_FEEDBACK again with empty string
+      if (String(s?.state) === "TITLE_DIALOGUE_LOOP") {
+        s = await postEvent({
+          type: "TITLE_FEEDBACK",
+          sessionId,
+          payload: "",
+        });
+        if (!s || s.error) {
+          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Title feedback failed"));
+          setBusy(false);
+          return;
+        }
+        setSession(s);
       }
-      setSession(s);
-      // Step 3: COMPUTE_ALIGNMENT_OUTPUT
-      s = await postEvent({
-        type: "COMPUTE_ALIGNMENT_OUTPUT",
-        sessionId,
-      });
-      if (!s || s.error) {
-        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Compute alignment failed"));
-        setBusy(false);
-        return;
+      // Now must be in JOB_INGEST, send JOB_PARSED
+      if (String(s?.state) === "JOB_INGEST") {
+        s = await postEvent({
+          type: "JOB_PARSED",
+          sessionId,
+          payload: jobText.trim(),
+        });
+        if (!s || s.error) {
+          setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
+          setBusy(false);
+          return;
+        }
+        setSession(s);
       }
-      setSession(s);
+      // Continue to results/polling as before
       setJobText("");
       if (s?.result) {
         setStep("RESULTS");
