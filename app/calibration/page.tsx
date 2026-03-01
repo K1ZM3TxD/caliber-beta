@@ -215,6 +215,7 @@ export default function CalibrationPage() {
   const canContinueResume = !!selectedFile && !busy;
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
+  const computeFiredRef = useRef(false);
   // Typewriter hooks
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
@@ -231,6 +232,7 @@ export default function CalibrationPage() {
   useEffect(() => {
     if (step !== "PROCESSING") {
       setProcessingAttempts(0);
+      computeFiredRef.current = false; // reset for next session / re-entry
       return;
     }
     let attempts = 0;
@@ -252,27 +254,31 @@ export default function CalibrationPage() {
         return;
       }
       if (sState.startsWith("ALIGNMENT_OUTPUT")) {
-        // Poll for result, do NOT call ADVANCE
-        const calibrationId = String(session?.calibrationId ?? "");
-        if (!calibrationId) {
-          setError("Missing calibrationId in session.");
-          inFlightRef.current = false;
-          return;
-        }
-        try {
-          const updated = await fetchResult(calibrationId);
-          setSession(updated);
-          if (hasResults(updated)) {
-            stopped = true;
-            clearInterval(interval);
-            setStep("RESULTS");
+        // Fire compute event ONCE when entering ALIGNMENT_OUTPUT
+        if (!computeFiredRef.current) {
+          computeFiredRef.current = true;
+          const sessionId = String(session?.sessionId ?? "");
+          if (sessionId) {
+            try {
+              const updated = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
+              setSession(updated);
+              if (hasResults(updated)) {
+                stopped = true;
+                clearInterval(interval);
+                setStep("RESULTS");
+              } else {
+                // Compute returned but no results yet — let next tick re-evaluate via ADVANCE
+                setStep(getStepFromState(updated?.state, updated));
+              }
+            } catch (err: any) {
+              setError(displayError(err));
+            } finally {
+              inFlightRef.current = false;
+            }
+            return;
           }
-        } catch (err: any) {
-          setError(displayError(err));
-        } finally {
-          inFlightRef.current = false;
         }
-        return;
+        // Compute already fired — fall through to normal ADVANCE logic below
       }
       if (sState.startsWith("TITLE_HYPOTHESIS") || sState.startsWith("TITLE_DIALOGUE")) {
         stopped = true;
