@@ -675,7 +675,18 @@ export default function CalibrationPage() {
             {/* JOB TEXT UI */}
             {step === "JOB_TEXT" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                {/* Back button above textarea, left-aligned */}
+                <div className="mt-6 mb-2 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setStep("TITLES")}
+                    className="inline-flex items-center rounded px-3 py-1 text-xs font-medium bg-[#232323] text-[#AFAFAF] border border-[#333] hover:bg-[#333] focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ minWidth: 60 }}
+                  >
+                    ← Back
+                  </button>
+                </div>
+                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{jobTypewriter}</span>
                 </div>
                 <div className="mt-10">
