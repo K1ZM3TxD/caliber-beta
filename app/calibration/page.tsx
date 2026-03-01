@@ -315,7 +315,8 @@ export default function CalibrationPage() {
   }, [step, session?.sessionId]);
 
   const [jobText, setJobText] = useState("");
-  // Removed title tweak input and related state
+  const [titleFeedback, setTitleFeedback] = useState("");
+  const [titleBusy, setTitleBusy] = useState(false);
   const [jobBusy, setJobBusy] = useState(false);
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
@@ -406,10 +407,19 @@ export default function CalibrationPage() {
           {step === "TITLE_AND_JOB" && (
             <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 0, paddingTop: 0 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "Title pending"}</div>
+              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
               {session?.titleExplanation && (
                 <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
               )}
+              <input
+                type="text"
+                value={titleFeedback}
+                onChange={(e) => setTitleFeedback(e.target.value)}
+                className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", marginBottom: 18 }}
+                placeholder="Optional: tweak the title…"
+                disabled={titleBusy}
+              />
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Job description</div>
               <textarea
                 value={jobText}
@@ -426,6 +436,7 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
+              {/* Removed in-content Score button; only sticky footer CTA remains */}
             </div>
           )}
           {step === "PROCESSING" && (
