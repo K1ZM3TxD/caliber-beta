@@ -191,7 +191,7 @@ export default function CalibrationPage() {
     const [titleFeedback, setTitleFeedback] = useState("");
     const [jobText, setJobText] = useState("");
     const [jobBusy, setJobBusy] = useState(false);
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("Let’s confirm your role title.");
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
@@ -664,7 +664,18 @@ export default function CalibrationPage() {
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
                     disabled={busy}
-                    onClick={submitTitleFeedback}
+                    onClick={async () => {
+                      const sessionId = String(session?.sessionId ?? "");
+                      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+                      setError(null); setBusy(true);
+                      try {
+                        const updated = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                        setSession(updated);
+                        setStep("JOB_TEXT");
+                      } catch (e: any) {
+                        setError(displayError(e));
+                      } finally { setBusy(false); }
+                    }}
                   >
                     {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
                   </button>
