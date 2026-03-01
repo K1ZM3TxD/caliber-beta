@@ -613,6 +613,39 @@ export default function CalibrationPage() {
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{titleTypewriter}</span>
                 </div>
+                <div className="mt-10">
+                  {/* Ranked title candidates (top 3–5) */}
+                  {Array.isArray(session?.synthesis?.titleCandidates) && session.synthesis.titleCandidates.length > 0 ? (
+                    <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                      {session.synthesis.titleCandidates.slice(0, 5).map((c: { title: string; score: number }, i: number) => (
+                        <li
+                          key={i}
+                          className="flex items-center justify-between rounded-md px-5 py-3 mb-2"
+                          style={{
+                            backgroundColor: i === 0 ? "#1A1A1A" : "#121212",
+                            border: i === 0 ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)",
+                          }}
+                        >
+                          <span className="flex items-center gap-3">
+                            <span className="text-sm font-medium" style={{ color: "#999", minWidth: 20 }}>{i + 1}.</span>
+                            <span className={i === 0 ? "text-base sm:text-lg font-semibold" : "text-base"} style={{ color: "#F2F2F2" }}>{c.title}</span>
+                          </span>
+                          <span className="text-sm font-mono font-medium" style={{ color: i === 0 ? "#4ADE80" : "#AFAFAF" }}>{c.score}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    /* Fallback: single-title display for older sessions */
+                    <div className="text-center">
+                      {session?.synthesis?.marketTitle ? (
+                        <div className="text-2xl font-semibold mb-2">{session.synthesis.marketTitle}</div>
+                      ) : null}
+                      {session?.synthesis?.titleExplanation ? (
+                        <div className="text-base text-gray-300">{session.synthesis.titleExplanation}</div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <div className="mt-7 flex justify-center">
                   <button
                     type="button"
