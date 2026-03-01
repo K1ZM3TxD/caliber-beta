@@ -28,8 +28,13 @@ function mockFetchOnce(jsonObj: any) {
 
 async function runFlowToSynthesis() {
   const created = await dispatchCalibrationEvent({ type: "CREATE_SESSION" } as any)
-  assert(created.ok, "CREATE_SESSION failed")
-  const sessionId = created.session.sessionId
+    assert(created.ok, "CREATE_SESSION failed")
+    let sessionId: string | undefined;
+    if (created.ok && created.session) {
+      sessionId = created.session.sessionId;
+    } else {
+      throw new Error('Session creation failed: Unknown error');
+    }
 
   const resumeText =
     "Worked across scope and constraints; mapped ownership and routing; documented handoffs; fixed measurement drift; kept scope bounded across cycles."
@@ -47,32 +52,53 @@ async function runFlowToSynthesis() {
     "I’m best at mapping messy work into clear constraints, ownership, routing, and handoffs so the cycle becomes repeatable.",
   ]
 
-  let s = a1.session
+  let s: any;
+  if (a1.ok && a1.session) {
+    s = a1.session;
+  } else {
+    throw new Error("ADVANCE to PROMPT_1 did not return session");
+  }
   for (let i = 0; i < 5; i += 1) {
-    const res = await dispatchCalibrationEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answers[i] } as any)
-    assert(res.ok, `SUBMIT_PROMPT_ANSWER ${i + 1} failed`)
-    s = res.session
+    const res = await dispatchCalibrationEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answers[i] } as any);
+    assert(res.ok, `SUBMIT_PROMPT_ANSWER ${i + 1} failed`);
+    if (res.ok && res.session) {
+      s = res.session;
+    } else {
+      throw new Error(`SUBMIT_PROMPT_ANSWER ${i + 1} did not return session`);
+    }
   }
 
   // Consolidation pending -> ritual
-  const c1 = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-  assert(c1.ok, "ADVANCE to CONSOLIDATION_RITUAL failed")
-  s = c1.session
+  const c1 = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
+  assert(c1.ok, "ADVANCE to CONSOLIDATION_RITUAL failed");
+  if (c1.ok && c1.session) {
+    s = c1.session;
+  } else {
+    throw new Error("ADVANCE to CONSOLIDATION_RITUAL did not return session");
+  }
 
   // Tick ritual until complete (needs >=450ms between ticks)
   while (s.state === "CONSOLIDATION_RITUAL") {
-    await sleep(500)
-    const tick = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-    assert(tick.ok, "ADVANCE tick failed")
-    s = tick.session
-    if (s.state === "ENCODING_RITUAL") break
+    await sleep(500);
+    const tick = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
+    assert(tick.ok, "ADVANCE tick failed");
+    if (tick.ok && tick.session) {
+      s = tick.session;
+    } else {
+      throw new Error("ADVANCE tick did not return session");
+    }
+    if (s.state === "ENCODING_RITUAL") break;
   }
 
-  const enc = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any)
-  assert(enc.ok, "ADVANCE encoding->synthesis failed")
-  s = enc.session
-  assert(s.state === "PATTERN_SYNTHESIS", "Did not reach PATTERN_SYNTHESIS")
-  return s
+  const enc = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
+  assert(enc.ok, "ADVANCE encoding->synthesis failed");
+  if (enc.ok && enc.session) {
+    s = enc.session;
+  } else {
+    throw new Error("ADVANCE encoding->synthesis did not return session");
+  }
+  assert(s.state === "PATTERN_SYNTHESIS", "Did not reach PATTERN_SYNTHESIS");
+  return s;
 }
 
 async function testHappyPathUsesLLMBullets() {
