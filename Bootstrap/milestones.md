@@ -2,16 +2,21 @@
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
-BREAK + UPDATE (2026-03-01)
+BREAK + UPDATE — 2026-03-01
 ---
-DONE (this sprint):
-- ALIGNMENT_OUTPUT hang resolved; smoke run reaches TERMINAL_COMPLETE with hasResult=true
+DONE:
+- UI churn and reset recovery (multiple TITLES/JOB_TEXT refactors)
+- Discovered titleCandidates generator regressed to generic TITLE_BANK and idx-based scoring
+- Restored ops/program-oriented title bank and affinity+lexical scoring
+- Fixed SESSION_NOT_FOUND after server reset
 
 BLOCKED:
-- Title suggestion missing/null in TITLE_DIALOGUE; job description gate surfaced (JOB_REQUIRED/0-10 pending)
+- Import-order fragility in calibration_machine (TS modules must have imports at top)
+- TitleCandidates scoring regression risk if TITLE_BANK or idx logic returns
 
 NEXT:
-- Implement title confirmation UI that yields non-null marketTitle/titleExplanation and routes to Job Text before scoring
+- Monitor for further titleCandidates scoring drift
+- Add durable kernel invariants for import order and scoring logic
 ---
 
 Next milestone:

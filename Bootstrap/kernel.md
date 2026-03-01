@@ -51,7 +51,7 @@ Caliber is now locked to the following product flow:
 3. Fit score (0–10) + summary
 4. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
 
-Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
+Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow. (Clarification: mechanical title producer is NOT deprecated for ops/program titleCandidates; only the generic TITLE_BANK/idx-based scoring is disallowed.)
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
 

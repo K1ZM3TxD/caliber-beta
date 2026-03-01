@@ -12,6 +12,8 @@
 7. State-gate hazards discovered: SUBMIT_JOB_TEXT invalid in CONSOLIDATION_PENDING and CONSOLIDATION_RITUAL; requires ADVANCE ticks (sleep between ticks in RITUAL)
 8. Clarifier hazard: short prompt answers (<40 trimmed chars) can route to PROMPT_n_CLARIFIER and break naive scripts
 9. Resume upload MIME hazard: resume fixture must use supported MIME type (e.g., text/plain for .txt)
+10. Regression: titleCandidates generator reverted to generic TITLE_BANK and idx-based scoring (must use ops/program bank and affinity+lexical scoring)
+11. Fragility: calibration_machine import order (TS modules must have imports at top; risk of runtime errors if violated)
 
 ## Mitigations / Working Rules
 
