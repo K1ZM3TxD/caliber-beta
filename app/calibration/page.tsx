@@ -42,7 +42,31 @@ function getStepFromState(state: unknown, session?: AnySession): UiStep {
 function getTitleFromSession(session: AnySession): string {
   return session?.marketTitle ?? "(title pending)";
 }
-  // Remove submitTitleFeedback; not used in canonical flow
+  // TITLES step: feedback handler (must be inside component for state access)
+  async function submitTitleFeedback(feedback: string) {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) {
+      setError("Missing sessionId (session not created).");
+      return;
+    }
+    setTitleBusy(true);
+    setError(null);
+    try {
+      // Use the contract event type for title feedback
+      const s = await postEvent({
+        type: "TITLE_FEEDBACK",
+        sessionId,
+        payload: feedback,
+      });
+      setSession(s);
+      setTitleFeedback("");
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setTitleBusy(false);
+    }
+  }
 
 function getPromptIndexFromState(state: unknown): number | null {
   const s = String(state ?? "");
@@ -297,58 +321,53 @@ export default function CalibrationPage() {
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
 
-  // Handler for job scoring in TITLE_DIALOGUE
+  // Handler for combined TITLE_AND_JOB screen CTA (canonical backend sequence)
   async function handleScoreJob() {
     if (busy || !jobText.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      let s = session;
-      const sessionId = String(s?.sessionId ?? "");
+      const sessionId = String(session?.sessionId ?? "");
       // Step 1: SUBMIT_JOB_TEXT
-      let res = await fetch("/api/calibration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ event: { type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() } }),
+      let s = await postEvent({
+        type: "SUBMIT_JOB_TEXT",
+        sessionId,
+        jobText: jobText.trim(),
       });
-      let json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setError(`${json?.error?.code ?? "REQUEST_FAILED"}: ${json?.error?.message ?? `Request failed (${res.status})`}`);
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Job submission failed"));
         setBusy(false);
         return;
       }
-      s = json.session;
       setSession(s);
       // Step 2: ADVANCE
-      res = await fetch("/api/calibration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ event: { type: "ADVANCE", sessionId } }),
+      s = await postEvent({
+        type: "ADVANCE",
+        sessionId,
       });
-      json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setError(`${json?.error?.code ?? "REQUEST_FAILED"}: ${json?.error?.message ?? `Request failed (${res.status})`}`);
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Advance failed"));
         setBusy(false);
         return;
       }
-      s = json.session;
       setSession(s);
       // Step 3: COMPUTE_ALIGNMENT_OUTPUT
-      res = await fetch("/api/calibration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ event: { type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId } }),
+      s = await postEvent({
+        type: "COMPUTE_ALIGNMENT_OUTPUT",
+        sessionId,
       });
-      json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        setError(`${json?.error?.code ?? "REQUEST_FAILED"}: ${json?.error?.message ?? `Request failed (${res.status})`}`);
+      if (!s || s.error) {
+        setError(String(s?.error?.code ?? "REQUEST_FAILED") + ": " + String(s?.error?.message ?? "Compute alignment failed"));
         setBusy(false);
         return;
       }
-      s = json.session;
       setSession(s);
       setJobText("");
-      setStep(getStepFromState(s?.state, s));
+      if (s?.result) {
+        setStep("RESULTS");
+      } else {
+        setStep(getStepFromState(s?.state, s));
+      }
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -385,10 +404,10 @@ export default function CalibrationPage() {
           {step === "LANDING" && <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>}
           {step === "RESUME" && <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>}
           {step === "PROMPT" && <div className="mt-3 text-2xl sm:text-3xl font-semibold leading-snug tracking-tight">{promptIndex !== null ? promptText : "Loading prompt…"}</div>}
-          {step === "TITLE_HYPOTHESIS" && (
-            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 48, paddingTop: 24 }}>
+          {step === "TITLE_AND_JOB" && (
+            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 0, paddingTop: 0 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Title suggestion</div>
-              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{getTitleFromSession(session)}</div>
+              <div className="mb-4 text-xl font-bold" style={{ color: "#CFCFCF" }}>{session?.marketTitle ?? "(title pending)"}</div>
               {session?.titleExplanation && (
                 <div className="mb-2 text-sm" style={{ color: "#AFAFAF" }}>{session.titleExplanation}</div>
               )}
@@ -396,41 +415,11 @@ export default function CalibrationPage() {
                 type="text"
                 value={titleFeedback}
                 onChange={(e) => setTitleFeedback(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!busy) handleAdvance();
-                  }
-                }}
                 className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
                 style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", marginBottom: 18 }}
                 placeholder="Optional: tweak the title…"
-                disabled={busy}
+                disabled={titleBusy}
               />
-              <div className="mt-2 flex gap-4">
-                <button
-                  type="button"
-                  onClick={handleAdvance}
-                  disabled={busy}
-                  className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                  style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
-                >
-                  Continue
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAdvance}
-                  disabled={busy}
-                  className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                  style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
-                >
-                  Looks right
-                </button>
-              </div>
-            </div>
-          )}
-          {step === "TITLE_DIALOGUE" && (
-            <div className="w-full max-w-[560px] mx-auto flex flex-col items-center justify-center" style={{ marginTop: 48, paddingTop: 24 }}>
               <div className="mb-2 text-lg font-semibold" style={{ color: "#F2F2F2" }}>Job description</div>
               <textarea
                 value={jobText}
@@ -447,6 +436,7 @@ export default function CalibrationPage() {
                 placeholder="Paste job description here…"
                 disabled={busy}
               />
+              {/* Removed in-content Score button; only sticky footer CTA remains */}
             </div>
           )}
           {step === "PROCESSING" && (
@@ -521,43 +511,7 @@ export default function CalibrationPage() {
                   placeholder="Type your response here…"
               />
           )}
-          {step === "TITLE_DIALOGUE" && (
-            <button
-              type="button"
-              onClick={handleScoreJob}
-              disabled={busy || !jobText.trim()}
-              className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-              style={{ backgroundColor: busy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
-            >
-              Score this job
-            </button>
-          )}
-              // Handler for ADVANCE in title phase
-              async function handleAdvance() {
-                if (busy) return;
-                setBusy(true);
-                setError(null);
-                try {
-                  const sessionId = String(session?.sessionId ?? "");
-                  const res = await fetch("/api/calibration", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ event: { type: "ADVANCE", sessionId } }),
-                  });
-                  const json = await res.json().catch(() => null);
-                  if (!res.ok || !json?.ok) {
-                    setError(`${json?.error?.code ?? "REQUEST_FAILED"}: ${json?.error?.message ?? `Request failed (${res.status})`}`);
-                    setBusy(false);
-                    return;
-                  }
-                  setSession(json.session);
-                  setStep(getStepFromState(json.session?.state, json.session));
-                } catch (e: any) {
-                  setError(String(e?.message ?? e));
-                } finally {
-                  setBusy(false);
-                }
-              }
+            {/* Removed duplicate Score button from Row C; only sticky footer CTA remains */}
             {/* Removed JOB_TEXT UI branch (should not exist in merged flow) */}
         </div>
         <div className="sticky bottom-0 z-10" style={{ height: 64, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(11,11,11,0.97)", backdropFilter: "blur(2px)" }}>
