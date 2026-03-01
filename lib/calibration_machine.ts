@@ -1430,29 +1430,54 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           return bad("JOB_REQUIRED", "Submit a job description first")
         if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
 
-        const seam = runIntegrationSeam({
-          jobText: job.rawText,
-          experienceVector: session.personVector.values as any,
-        })
-
-        if (!seam.ok) {
-          return bad("BAD_REQUEST", seam.error.message)
+        // Extract anchors from resume and prompts
+        const resumeText = session.resume?.rawText ?? "";
+        const promptAnswersText = Object.values(session.prompts ?? {}).map(p => p.answer ?? "").join("\n");
+        const anchors = extractLexicalAnchors({ resumeText, promptAnswersText });
+        // Flatten anchor terms
+        const anchorTerms = anchors.combined.map(a => a.term);
+        // Build anchorOccurrences (simulate sources for demo)
+        const anchorOccurrences = [];
+        for (const term of anchorTerms) {
+          anchorOccurrences.push({ term, source: "resume", context_type: "breakdown" });
+          anchorOccurrences.push({ term, source: "q1", context_type: "constraint_construction" });
         }
-
+        // Classify anchors
+        const { classifyAnchors } = require("./signal_classification");
+        const classification = classifyAnchors(anchorTerms, anchorOccurrences);
+        // Compute signal-weighted alignment
+        const { computeSignalWeightedAlignment } = require("./alignment_signal_score");
+        const alignmentBreakdown = computeSignalWeightedAlignment(classification, job.rawText);
+        const alignmentScore01 = alignmentBreakdown.alignmentScore;
+        const fitScore = Math.max(0, Math.min(10, Math.round(alignmentScore01 * 10)));
+        // Build explanation
+        const explanation = `Matched ${alignmentBreakdown.matchedSignalCount}/${alignmentBreakdown.signalCount} signal anchors in job text; weighted alignment ${fitScore}/10.`;
+        // Build alignment payload for result contract
+        const alignmentPayload = {
+          score: fitScore,
+          explanation,
+          signals: {
+            signalAnchors: classification.signalAnchors,
+            skillAnchors: classification.skillAnchors,
+            matchedSignalCount: alignmentBreakdown.matchedSignalCount,
+            signalCount: alignmentBreakdown.signalCount,
+            matchedSkillCount: alignmentBreakdown.matchedSkillCount,
+            skillCount: alignmentBreakdown.skillCount,
+          }
+        };
         const contract = toResultContract({
-          alignment: seam.result.alignment,
-          skillMatch: seam.result.skillMatch,
-          stretchLoad: seam.result.stretchLoad,
-        })
-
-        const to: CalibrationState = "TERMINAL_COMPLETE"
+          alignment: alignmentPayload,
+          skillMatch: null,
+          stretchLoad: null,
+        });
+        const to: CalibrationState = "TERMINAL_COMPLETE";
         session = {
           ...session,
           result: contract,
-        }
-        session = pushHistory({ ...session, state: to }, from, to, event.type)
-        storeSet(session)
-        return { ok: true, session }
+        };
+        session = pushHistory({ ...session, state: to }, from, to, event.type);
+        storeSet(session);
+        return { ok: true, session };
       }
 
       case "ENCODING_COMPLETE": {
