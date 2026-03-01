@@ -111,6 +111,13 @@ function displayError(e: any): string {
 }
 
 export default function CalibrationPage() {
+    // For TITLES step: track which title row was copied
+    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+    function handleCopyTitle(idx: number, title: string) {
+      navigator.clipboard.writeText(title);
+      setCopiedIndex(idx);
+      setTimeout(() => setCopiedIndex(null), 1500);
+    }
   const [session, setSession] = useState<AnySession | null>(null);
   const [step, setStep] = useState<UiStep>("LANDING");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -180,23 +187,30 @@ export default function CalibrationPage() {
       setBusy(false);
     }
   }
-    // Titles UI state (no user input — pure Caliber output)
+    // Titles UI state
+    const [titleFeedback, setTitleFeedback] = useState("");
     const [jobText, setJobText] = useState("");
     const [jobBusy, setJobBusy] = useState(false);
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).", TYPE_MS);
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("Let’s confirm your role title.");
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
-    // Handle TITLE_FEEDBACK event (empty feedback = confirm) and routing
+    // Handle TITLE_FEEDBACK event and routing
     async function submitTitleFeedback() {
       const sessionId = String(session?.sessionId ?? "");
       if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
       setError(null); setBusy(true);
       try {
-        const feedback = ""; // No user input on TITLES step; confirm as-is
+        const feedback = titleFeedback.trim();
         const s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback });
         setSession(s);
-        // Always route to JOB_TEXT after TITLE_FEEDBACK
-        setStep("JOB_TEXT");
+        // Route based on backend state
+        if (String(s?.state).startsWith("JOB_INGEST") || String(s?.state) === "JOB_REQUIRED") {
+          setStep("JOB_TEXT");
+        } else if (String(s?.state).startsWith("TITLE_")) {
+          setStep("TITLES");
+        } else {
+          setStep(getStepFromState(s?.state, s));
+        }
       } catch (e: any) {
         // If error is JOB_REQUIRED, route to JOB_TEXT
         if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
@@ -608,7 +622,6 @@ export default function CalibrationPage() {
                   <span>{titleTypewriter}</span>
                 </div>
                 <div className="mt-10">
-                  {/* Ranked title candidates (top 3–5) */}
                   {Array.isArray(session?.synthesis?.titleCandidates) && session.synthesis.titleCandidates.length > 0 ? (
                     <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
                       {session.synthesis.titleCandidates.slice(0, 5).map((c: { title: string; score: number }, i: number) => (
@@ -624,18 +637,35 @@ export default function CalibrationPage() {
                             <span className="text-sm font-medium" style={{ color: "#999", minWidth: 20 }}>{i + 1}.</span>
                             <span className={i === 0 ? "text-base sm:text-lg font-semibold" : "text-base"} style={{ color: "#F2F2F2" }}>{c.title}</span>
                           </span>
-                          <span className="text-sm font-mono font-medium" style={{ color: i === 0 ? "#4ADE80" : "#AFAFAF" }}>{c.score}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-mono font-medium" style={{ color: i === 0 ? "#4ADE80" : "#AFAFAF" }}>{c.score}</span>
+                            <button
+                              type="button"
+                              aria-label={copiedIndex === i ? "Copied" : "Copy title"}
+                              onClick={() => handleCopyTitle(i, c.title)}
+                              className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
+                              style={{
+                                background: copiedIndex === i ? "#4ADE80" : "#232323",
+                                color: copiedIndex === i ? "#232323" : "#AFAFAF",
+                                border: "none",
+                                minWidth: 60,
+                                cursor: "pointer"
+                              }}
+                            >
+                              {copiedIndex === i ? "Copied" : "Copy"}
+                              {copiedIndex === i ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
+                            </button>
+                          </span>
                         </li>
                       ))}
                     </ol>
                   ) : (
-                    /* Fallback: single-title display for older sessions */
                     <div className="text-center">
                       {session?.synthesis?.marketTitle ? (
                         <div className="text-2xl font-semibold mb-2">{session.synthesis.marketTitle}</div>
                       ) : null}
                       {session?.synthesis?.titleExplanation ? (
-                        <div className="text-base text-gray-300">{session.synthesis.titleExplanation}</div>
+                        <div className="text-base text-gray-300 mb-4">{session.synthesis.titleExplanation}</div>
                       ) : null}
                     </div>
                   )}
