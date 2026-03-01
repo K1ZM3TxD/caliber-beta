@@ -2,23 +2,20 @@
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
-BREAK + UPDATE (2026-02-28)
+BREAK + UPDATE (2026-03-01)
 ---
 DONE (this sprint):
-- Build/type fixes across backend and UI
-- /calibration UI: no blank screens, no false results
-- PDF bad-xref now returns RESUME_PARSE_FAILED
+- ALIGNMENT_OUTPUT hang resolved; smoke run reaches TERMINAL_COMPLETE with hasResult=true
 
 BLOCKED:
-- Smoke integration stalls in CONSOLIDATION_RITUAL and does not reach PATTERN_SYNTHESIS within step cap
+- Title suggestion missing/null in TITLE_DIALOGUE; job description gate surfaced (JOB_REQUIRED/0-10 pending)
 
 NEXT:
-- Make CONSOLIDATION_RITUAL advance deterministically per ADVANCE call (remove wall-clock gating)
-- Re-run smoke to confirm it reaches PATTERN_SYNTHESIS
+- Implement title confirmation UI that yields non-null marketTitle/titleExplanation and routes to Job Text before scoring
 ---
 
 Next milestone:
-- Backend wiring via hook: add useCalibrationSession and refactor page.tsx to call hook only; then resume-upload -> prompt 1.
+- Commit, push, and verify TITLES step fix; ensure smoke run reaches RESULTS after job text entry.
 ## ⚠️ PHASE SHIFT — Calibration Core First (Temporary Freeze on Summary Engine)
 
 As of this milestone update, development priority has shifted.
