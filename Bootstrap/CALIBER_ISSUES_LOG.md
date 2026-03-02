@@ -34,6 +34,11 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Cleanup commit: 166baa4
   - Evidence: Jen fixture now outputs 5 titles >=7; Chris ClientGrowth scores ~1.0 (no bleed)
 
+12. Low-confidence titles need in-flow recovery without editing prompts — RESOLVED (2026-03-02)
+  - Fix commit: 057bc39
+  - Added RERUN_TITLES event: collects user dialogue messages (max 600 chars), appends as additive anchor source, re-runs title scoring in-place
+  - Guardrails: no prompt/resume mutation, no state transition, no job-fit impact; titles-only update
+
 ## Mitigations / Working Rules
 
 - Reject any multi-file patch when task expects one file.

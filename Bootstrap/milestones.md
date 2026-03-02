@@ -3,6 +3,10 @@
 BREAK + UPDATE (2026-03-02)
 ---
 DONE:
+- 057bc39: Title dialogue: "Use these clarifications" reruns title suggestion (RERUN_TITLES event)
+  - Additive-only: appends user dialogue messages as extra anchor source; does not mutate stored prompts or resume
+  - Re-runs generateTitleCandidates + generateTitleRecommendation; updates session.synthesis in-place (no state transition)
+  - UI button appears after ≥1 user message in dialogue panel; helper text clarifies no prior-answer mutation
 - f36dff0: ClientGrowth title cluster added (Jen now gets 5 strong titles; no bleed into Chris)
 - 166baa4: removed TITLE_SCORE debug logs (cleanup)
 
