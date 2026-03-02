@@ -1456,8 +1456,8 @@ const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]
   CONSOLIDATION_RITUAL: ["ADVANCE"],
   ENCODING_RITUAL: ["ADVANCE"],
   PATTERN_SYNTHESIS: ["ADVANCE"],
-  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
-  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
+  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK", "RERUN_TITLES"],
+  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT", "RERUN_TITLES"],
   JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
   ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
   TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
@@ -1846,6 +1846,54 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
             lastTitleFeedback: feedback,
           },
         };
+        storeSet(session);
+        return { ok: true, session };
+      }
+
+      case "RERUN_TITLES": {
+        // Additive-only: re-run title generation with user clarifications
+        // appended as an extra prompt answer. Does NOT modify stored prompts/resume.
+        let clarText = String((event as any).clarificationsText ?? "").trim();
+        if (clarText.length > 600) clarText = clarText.slice(0, 600);
+
+        // Gather existing prompt answers
+        const storedAnswers: string[] = [];
+        for (let i = 1; i <= 5; i++) {
+          const ans = session.prompts?.[i]?.answer;
+          if (typeof ans === "string" && ans.length > 0) storedAnswers.push(ans);
+        }
+        // Append clarifications as an additional text source (not stored)
+        const combinedAnswers = clarText.length > 0
+          ? [...storedAnswers, clarText]
+          : storedAnswers;
+
+        const resumeRaw = session.resume?.rawText ?? "";
+        const candidates = generateTitleCandidates(
+          session.personVector, resumeRaw, combinedAnswers,
+        ).map(({ title, score }) => ({ title, score }));
+        const recommendation = generateTitleRecommendation(
+          session.personVector, resumeRaw, combinedAnswers,
+        );
+
+        const marketTitle = candidates[0]?.title ?? "";
+        session = {
+          ...session,
+          synthesis: {
+            patternSummary: session.synthesis?.patternSummary ?? null,
+            operateBest: session.synthesis?.operateBest ?? null,
+            loseEnergy: session.synthesis?.loseEnergy ?? null,
+            identitySummary: session.synthesis?.identitySummary ?? null,
+            marketTitle,
+            titleExplanation: "Top-ranked title (re-scored with your clarifications).",
+            lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
+            titleCandidates: candidates,
+            titleRecommendation: recommendation,
+            anchor_overlap_score: session.synthesis?.anchor_overlap_score,
+            missing_anchor_count: session.synthesis?.missing_anchor_count,
+            missing_anchor_terms: session.synthesis?.missing_anchor_terms,
+          },
+        };
+        // Stay in current state — no state transition
         storeSet(session);
         return { ok: true, session };
       }

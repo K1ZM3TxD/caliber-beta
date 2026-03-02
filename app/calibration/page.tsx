@@ -854,6 +854,50 @@ export default function CalibrationPage() {
                       Send
                     </button>
                   </div>
+                  {/* "Use these clarifications" — re-runs title scoring with user dialogue text */}
+                  {dialogueMessages.filter(m => m.role === "user").length > 0 && (
+                    <div className="mt-3 flex flex-col items-start gap-1">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          const sessionId = String(session?.sessionId ?? "");
+                          if (!sessionId) { setError("Missing sessionId."); return; }
+                          // Collect only user messages, join, cap at 600 chars
+                          const userMsgs = dialogueMessages
+                            .filter(m => m.role === "user")
+                            .map(m => m.text.trim())
+                            .filter(Boolean)
+                            .join("\n");
+                          const clarificationsText = userMsgs.slice(0, 600);
+                          if (!clarificationsText) return;
+                          setError(null); setBusy(true);
+                          try {
+                            const updated = await postEvent({
+                              type: "RERUN_TITLES",
+                              sessionId,
+                              clarificationsText,
+                            });
+                            setSession(updated);
+                          } catch (e: any) {
+                            setError(displayError(e));
+                          } finally { setBusy(false); }
+                        }}
+                        className="rounded px-3 py-2 text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: busy ? "rgba(242,242,242,0.08)" : "#232323",
+                          color: busy ? "#666" : "#F2F2F2",
+                          border: "1px solid rgba(242,242,242,0.12)",
+                          cursor: busy ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {busy ? (<><Spinner /><span className="ml-1">Re-scoring…</span></>) : "Use these clarifications"}
+                      </button>
+                      <span className="text-xs" style={{ color: "#666" }}>
+                        Adds your notes to improve title confidence (doesn&apos;t change your earlier answers).
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {/* Inline job paste */}
                 <div className="mt-8">

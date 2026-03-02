@@ -55,6 +55,7 @@ export type CalibrationEvent =
   | { type: "ADVANCE"; sessionId: string }
   | { type: "SUBMIT_JOB_TEXT"; sessionId: string; jobText: string }
   | { type: "COMPUTE_ALIGNMENT_OUTPUT"; sessionId: string }
+  | { type: "RERUN_TITLES"; sessionId: string; clarificationsText: string }
   | { type: "RESET_SESSION"; sessionId: string }
   | { type: "ENCODING_COMPLETE"; sessionId: string };
 
