@@ -193,6 +193,17 @@ const TITLE_CLUSTERS: TitleCluster[] = [
       { title: "Process Improvement Lead", unique: ["execution", "tracking"], optional: ["improvement", "efficiency", "documentation", "standards"] },
     ],
   },
+  {
+    name: "ClientGrowth",
+    core: ["relationship", "client", "team", "outcome"],
+    titles: [
+      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["collaboration", "stakeholder", "strategy", "tool"] },
+      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["collaboration", "stakeholder", "strategy", "project"] },
+      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["strategy", "stakeholder", "project", "ownership"] },
+      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["collaboration", "tool", "project", "ownership"] },
+      { title: "Account Manager", unique: ["account", "renewal"], optional: ["stakeholder", "strategy", "project", "collaboration"] },
+    ],
+  },
 ];
 
 const STANDALONE_SIGS: Array<{ title: string; required: string[]; optional: string[] }> = [
@@ -228,12 +239,17 @@ const ACTION_ARTIFACT_PAIRS: [string, string][] = [
   ["pitch", "decks"],
   ["feasibility", "studies"],
   ["customer", "need"],
+  ["client", "outcome"],
+  ["build", "relationship"],
 ];
 
 const HIGH_SPECIFICITY_ANCHORS = new Set<string>([
   "sop", "feasibility", "incentives", "automate", "workflow",
   "pitch", "decks", "proposal", "methodology", "compliance",
   "architecture", "stakeholders", "onboarding", "documentation",
+  // ClientGrowth domain
+  "retention", "onboard", "partnership", "pipeline", "renewal",
+  "alliance", "negotiation", "community",
 ]);
 
 function scoreTitles(resumeText: string, promptAnswers: string[]): Array<{ title: string; score: number }> {
@@ -381,6 +397,23 @@ const CHRIS_PROMPTS = [
   "People come to me when they need proposals, pitch decks, or feasibility studies — anything that requires translating complex product development needs into clear, structured deliverables. I'm also the person teams call when they need systems or SOPs for new workflows. Customer needs analysis is another area where people seek me out.",
   "I get excited by product development challenges that require designing new systems — especially when there's a real market gap and customer need driving it. Building proposals and feasibility studies for products that could genuinely solve customer problems is exactly my kind of challenge. I love creating workflows that make the product development process repeatable.",
   "I build systems for everything — meal planning workflows, home renovation SOPs, travel planning templates. I'm always designing processes and creating structured approaches. I maintain several systems for tracking personal development goals and customer research for my side project.",
+];
+
+const JEN_RESUME = `
+Client Relationships & Team Lead | 6 years in B2B SaaS
+Built and maintained long-term client relationships across enterprise accounts. Led client
+onboarding programs and retention initiatives that reduced churn by 30%. Grew a team of 5
+focused on client outcomes and renewal strategy. Developed partnership programs with channel
+partners and alliances. Led community growth initiatives and stakeholder engagement programs.
+Created collaboration tools for tracking client health and team alignment.
+`;
+
+const JEN_PROMPTS = [
+  "Building relationships with clients is the part that felt most like me — understanding their outcomes, helping them succeed, and making genuine partnerships. I loved the team aspect too, coaching people to build deeper client relationships and drive better outcomes.",
+  "Purely administrative work with no client or relationship connection drained me. When I was stuck in logistics instead of building relationships or growing the team, I lost energy. I need the work to be relationship-driven with clear client outcomes.",
+  "People come to me for relationship strategy — how to build trust with clients, how to structure onboarding for retention, how to grow accounts through renewal. I'm also the person teams call for collaboration challenges and community building.",
+  "I get excited by client challenges that require creative relationship building — especially when there's a real outcome at stake. Building partnership programs, growing community engagement, and strengthening team collaboration are exactly my kind of work.",
+  "I naturally build tools for relationships — tracking how I stay connected with people, creating ways to follow up, and building systems for my team to track client outcomes. I organize community events and programs that build genuine connection and growth.",
 ];
 
 // ─── Run tests ───
@@ -564,6 +597,40 @@ console.log("\n=== Test 8: Anchor Normalization ===");
   // D) End-to-end: "team building" yields "team" anchor
   const teamAnchors = extractBroadTokens("I love team building. Team building is core to my work. Relationship-building matters too.");
   assert("\"team building\" → team anchor present", teamAnchors.has("team"), `Anchors: ${[...teamAnchors.keys()].join(", ")}`);
+}
+
+// Test 9: Jen — Client/relationship profile → ClientGrowth cluster
+console.log("\n=== Test 9: Client/Relationship Profile (Jen) ===");
+{
+  const jenResults = scoreTitles(JEN_RESUME, JEN_PROMPTS);
+  printResults("Top 5 titles (Jen)", jenResults);
+  const clientGrowthTitles = ["Client Success Manager", "Partnerships Manager", "Business Development Manager", "Community & Growth Lead", "Account Manager"];
+  const jenTopTitle = jenResults[0];
+  assert("Top title is from ClientGrowth cluster", clientGrowthTitles.includes(jenTopTitle?.title ?? ""), `Got: ${jenTopTitle?.title}`);
+  assert("Top title scores >= 7.0", (jenTopTitle?.score ?? 0) >= 7.0, `Got: ${jenTopTitle?.score}`);
+  // At least 2 ClientGrowth titles at >= 7.0
+  const jenAllScores = scoreAllTitles(JEN_RESUME, JEN_PROMPTS);
+  const jenClientAbove7 = jenAllScores.filter(r => clientGrowthTitles.includes(r.title) && r.score >= 7.0);
+  assert(">=2 ClientGrowth titles at >=7.0 for Jen", jenClientAbove7.length >= 2, `Got ${jenClientAbove7.length}: ${jenClientAbove7.map(r => `${r.title}=${r.score}`).join(", ")}`);
+  // DesignSystems titles should stay < 7.0 for Jen
+  const designClusterNamesJen = TITLE_CLUSTERS.find(c => c.name === "DesignSystems")!.titles.map(t => t.title);
+  const jenDesignMax = jenAllScores.filter(r => designClusterNamesJen.includes(r.title)).reduce((max, r) => Math.max(max, r.score), 0);
+  assert("DesignSystems titles stay < 7.0 for Jen", jenDesignMax < 7.0, `DesignSystems max: ${jenDesignMax}`);
+  // ProductDev titles should stay < 7.0 for Jen
+  const prodDevNamesJen = TITLE_CLUSTERS.find(c => c.name === "ProductDev")!.titles.map(t => t.title);
+  const jenProdMax = jenAllScores.filter(r => prodDevNamesJen.includes(r.title)).reduce((max, r) => Math.max(max, r.score), 0);
+  assert("ProductDev titles stay < 7.0 for Jen", jenProdMax < 7.0, `ProductDev max: ${jenProdMax}`);
+}
+
+// Test 10: Chris × ClientGrowth regression — ClientGrowth titles should stay low for Chris
+console.log("\n=== Test 10: Chris × ClientGrowth Regression ===");
+{
+  const chrisAll = scoreAllTitles(CHRIS_RESUME, CHRIS_PROMPTS);
+  const clientGrowthTitles = ["Client Success Manager", "Partnerships Manager", "Business Development Manager", "Community & Growth Lead", "Account Manager"];
+  const chrisClientScores = chrisAll.filter(r => clientGrowthTitles.includes(r.title));
+  printResults("Chris ClientGrowth scores", chrisClientScores);
+  const chrisClientMax = chrisClientScores.reduce((max, r) => Math.max(max, r.score), 0);
+  assert("ClientGrowth titles < 7.0 for Chris", chrisClientMax < 7.0, `ClientGrowth max: ${chrisClientMax}`);
 }
 
 // Summary

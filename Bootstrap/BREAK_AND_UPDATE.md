@@ -1,5 +1,3 @@
-
-
 # BREAK_AND_UPDATE.md
 
 ## Purpose
@@ -35,11 +33,18 @@ Write a compact snapshot that includes:
 - The smallest observable proof that the new behavior works
 
 ### Step 2 — Coder Task (required)
-Produce a structured Coder Task block that is:
-- Specific file paths (scope.code_files / scope.doc_files)
-- Default single-file unless unavoidable
-- Includes acceptance criteria / DoD
-- Minimal prose; fields only (title, scope, changes, DoD, notes)
+Produce a structured Coder Task block that MUST include:
+  - Explicit scope lists:
+    - scope.code_files (explicit)
+    - scope.doc_files (explicit)
+    - scope.season_files_touched (explicit list of every file changed in this BREAK+UPDATE episode)
+  - An explicit "Doc Patch Plan" section inside the task block:
+    - For EACH doc in scope.doc_files, list exact edits (replace/insert bullets; no vague "update docs")
+  - **No Archaeology Rule:**
+    - If the fix depends on user-specific artifacts (resume text, prompt answers, anchors, screenshots, etc.), the task MUST include:
+      - either (i) exact repo path(s) to the artifact(s), OR
+      - (ii) a pasted fixture input blob in the task
+    - Coder must NOT hunt through the repo to find user content.
 
 The task block MAY be a fenced code block or a structured multi-line object — this is the standard "black box" handoff format from PM to Coder.
 Single-line plain text is also acceptable for trivial or docs-only tasks.
@@ -50,15 +55,17 @@ Update these files every time:
 	- Add a dated block: `BREAK + UPDATE — YYYY-MM-DD`
 	- Include DONE / BLOCKED / NEXT (tight bullets)
 2) `Bootstrap/kernel.md`
-	- Update ONLY if a new durable enforcement invariant is established
+	- Update ONLY if a new durable enforcement invariant is established (this change qualifies)
 3) `Bootstrap/CALIBER_ISSUES_LOG.md`
 	- Add/update/resolve issues tied to this break/update
+PLUS: Update any other docs touched/relied on in this BREAK+UPDATE season_files_touched list, and include them in scope.doc_files.
 
 ### Step 4 — Definition of Done (report-out)
 When the change lands, report:
-- `git status -sb`
-- `git diff --name-only`
-- the pushed commit SHA
+  - Commit + push required
+  - `git status -sb`
+  - `git diff --name-only`
+  - the pushed commit SHA
 
 ---
 

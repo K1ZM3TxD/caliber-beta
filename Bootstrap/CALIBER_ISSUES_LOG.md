@@ -29,6 +29,8 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 10. BREAK_AND_UPDATE.md drift: Step 2 "no fenced code blocks / single line" contradicted actual PM→Coder handoff format — **RESOLVED** (2026-03-02)
     - Contract now explicitly allows structured task blocks (fenced or multi-line); kernel.md payload section updated to match.
 
+11. Token burn caused by tasks lacking explicit file pointers/fixtures; fix: no-archaeology enforcement in BREAK_AND_UPDATE + kernel. (2026-03-02)
+
 ## Mitigations / Working Rules
 
 - Reject any multi-file patch when task expects one file.

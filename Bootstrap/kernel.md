@@ -379,7 +379,8 @@ If fallback frequency rises, extraction logic is failing.
 
 If a change cannot be measured, it is not done.
 
-
+**No Archaeology Rule:**
+PM→Coder tasks must include explicit file paths + fixture inputs when user-specific artifacts are required; searching repo for resume/anchors is disallowed.
 
 Acceptable verification methods:
 

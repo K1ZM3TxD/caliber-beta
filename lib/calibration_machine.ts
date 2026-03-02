@@ -75,6 +75,17 @@ const TITLE_CLUSTERS: TitleCluster[] = [
       { title: "Process Improvement Lead", unique: ["execution", "tracking"], optional: ["improvement", "efficiency", "documentation", "standards"] },
     ],
   },
+  {
+    name: "ClientGrowth",
+    core: ["relationship", "client", "team", "outcome"],
+    titles: [
+      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["collaboration", "stakeholder", "strategy", "tool"] },
+      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["collaboration", "stakeholder", "strategy", "project"] },
+      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["strategy", "stakeholder", "project", "ownership"] },
+      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["collaboration", "tool", "project", "ownership"] },
+      { title: "Account Manager", unique: ["account", "renewal"], optional: ["stakeholder", "strategy", "project", "collaboration"] },
+    ],
+  },
 ];
 
 // Standalone titles (scored regardless of cluster affinity)
@@ -292,6 +303,8 @@ const ACTION_ARTIFACT_PAIRS: [string, string][] = [
   ["pitch", "decks"],
   ["feasibility", "studies"],
   ["customer", "need"],
+  ["client", "outcome"],
+  ["build", "relationship"],
 ];
 
 // High-specificity anchors: domain-specific terms that indicate genuine expertise.
@@ -300,6 +313,9 @@ const HIGH_SPECIFICITY_ANCHORS = new Set<string>([
   "sop", "feasibility", "incentives", "automate", "workflow",
   "pitch", "decks", "proposal", "methodology", "compliance",
   "architecture", "stakeholders", "onboarding", "documentation",
+  // ClientGrowth domain
+  "retention", "onboard", "partnership", "pipeline", "renewal",
+  "alliance", "negotiation", "community",
 ]);
 
 // Internal enriched candidate type (includes debug/explainability fields)

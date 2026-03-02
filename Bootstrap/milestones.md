@@ -5,6 +5,11 @@ Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_
 BREAK + UPDATE (2026-03-02)
 ---
 DONE:
+- BREAK_AND_UPDATE updated to require season_files_touched + explicit doc patch plan + no-archaeology fixture rule
+NEXT:
+- Apply this new trigger behavior to the current scoring/title-recognition workstream (next BREAK+UPDATE if drift happens)
+
+DONE:
 - Docs: fix BREAK_AND_UPDATE drift — Step 2 now allows structured task blocks (fenced/multi-line); kernel.md payload section updated; contract matches real PM→Coder handoff
 
 ---
