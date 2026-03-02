@@ -132,8 +132,73 @@ const _CANON_MAP: Record<string, string> = {
   customers: "customer",
   teams: "team",
 };
+
+// Compound normalization: multi-word phrases that should map to a single anchor.
+// Applied to raw text BEFORE tokenization so both parts merge into one token.
+const _COMPOUND_MAP: [RegExp, string][] = [
+  [/\bteam[\s-]building\b/gi, "team"],
+  [/\brelationship[\s-]building\b/gi, "relationship"],
+  [/\bproblem[\s-]solving\b/gi, "problem"],
+  [/\bcross[\s-]functional\b/gi, "cross_functional"],
+  [/\bgo[\s-]to[\s-]market\b/gi, "market"],
+];
+function _normalizeCompounds(text: string): string {
+  let out = text;
+  for (const [pattern, replacement] of _COMPOUND_MAP) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
+}
+
+// Suffix-stripping: conservative fallback for tokens not in the explicit map.
+// Only applied to tokens ≥5 chars. Does NOT apply to stopwords.
+function _stripSuffix(token: string): string {
+  if (token.length < 5) return token;
+  // -ing (e.g., designing→design, building→build, tracking→track)
+  if (token.endsWith("ing") && token.length >= 6) {
+    const base = token.slice(0, -3);
+    // Handle doubling: e.g., "planning" → "plann" → skip (keep map entry)
+    // If base ends in doubled consonant that was added for -ing, strip one
+    if (base.length >= 2 && base[base.length - 1] === base[base.length - 2] && /[bcdfghlmnprst]/.test(base[base.length - 1])) {
+      return base.slice(0, -1);
+    }
+    return base;
+  }
+  // -ed (e.g., designed→design, managed→manag→manage)
+  if (token.endsWith("ed") && token.length >= 5) {
+    const base = token.slice(0, -2);
+    // Handle doubled consonant before -ed: e.g., "mapped" → "mapp" → "map"
+    if (base.length >= 2 && base[base.length - 1] === base[base.length - 2] && /[bcdfghlmnprst]/.test(base[base.length - 1])) {
+      return base.slice(0, -1);
+    }
+    return base;
+  }
+  // -s plural (but not -ss, -us, -is)
+  if (token.endsWith("s") && !token.endsWith("ss") && !token.endsWith("us") && !token.endsWith("is") && token.length >= 5) {
+    // -ies → -y (e.g., studies→study, strategies→strategy)
+    if (token.endsWith("ies") && token.length >= 5) {
+      return token.slice(0, -3) + "y";
+    }
+    // -es after ch/sh/x/z (e.g., processes→process already in map, but fallback)
+    if (token.endsWith("es") && /(?:ch|sh|x|z)es$/.test(token)) {
+      return token.slice(0, -2);
+    }
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
 function _canonicalize(token: string): string {
-  return _CANON_MAP[token] ?? token;
+  // 1. Explicit map (highest priority — handles irregulars like built→build)
+  const mapped = _CANON_MAP[token];
+  if (mapped) return mapped;
+  // 2. Suffix-stripping fallback (conservative, ≥5 chars only)
+  const stripped = _stripSuffix(token);
+  // If stripping produced a different token, check if THAT is in the map
+  if (stripped !== token) {
+    return _CANON_MAP[stripped] ?? stripped;
+  }
+  return token;
 }
 
 // Broadened token extraction: all ≥3-char non-stopword tokens with count≥2.
@@ -141,7 +206,8 @@ function _canonicalize(token: string): string {
 // Used only for title scoring so real words like "design", "system", "product" count.
 // Tokens are canonicalized before counting so variants merge.
 function _extractBroadTokens(text: string): Map<string, number> {
-  const cleaned = String(text ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  const compounded = _normalizeCompounds(String(text ?? ""));
+  const cleaned = compounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return new Map();
   const tokens = cleaned.split(" ");
   const counts = new Map<string, number>();
@@ -179,8 +245,9 @@ function _extractWeightedAnchors(
   // This avoids the bug where a term appearing once per prompt across 4 prompts
   // would get sourceCount=0 because no single prompt had count≥2.
   const toWordSet = (text: string): Set<string> => {
+    const compounded = _normalizeCompounds(String(text ?? ""));
     return new Set(
-      String(text ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
+      compounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
         .map(_canonicalize)
         .filter(t => t.length >= 3 && !_TITLE_STOPWORDS.has(t))
     );
