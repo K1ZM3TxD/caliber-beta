@@ -157,7 +157,7 @@ export default function CalibrationPage() {
     (async () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const urlId = params.get("calibrationId");
+        const urlId = params.get("calibrationId")?.trim() || null;
         const cookieId = getCookie(COOKIE_NAME);
         const targetId = urlId || cookieId;
         if (!targetId) return; // no session to resume — stay on LANDING
@@ -736,7 +736,15 @@ export default function CalibrationPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-7 flex justify-center">
+                <div className="mt-7 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setStep("JOB_TEXT"); }}
+                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                  >
+                    ← Back to job paste
+                  </button>
                   <button
                     type="button"
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
@@ -838,7 +846,15 @@ export default function CalibrationPage() {
                     </ul>
                   </div>
                 )}
-                <div className="mt-10 flex justify-center">
+                <div className="mt-10 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setJobText(""); setError(null); setStep("JOB_TEXT"); }}
+                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                  >
+                    ← Try another job
+                  </button>
                   <button
                     type="button"
                     onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
