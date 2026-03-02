@@ -142,6 +142,13 @@ const _CANON_MAP: Record<string, string> = {
   processes: "process",
   customers: "customer",
   teams: "team",
+  // UX / design domain synonyms
+  prototype: "design", prototyping: "design", prototypes: "design",
+  wireframe: "design", wireframes: "design", wireframing: "design",
+  ux: "design",
+  usability: "research",
+  iterate: "process", iterating: "process", iteration: "process",
+  flows: "workflow",
 };
 
 // Compound normalization: multi-word phrases that should map to a single anchor.
@@ -247,10 +254,27 @@ function _extractBroadTokens(text: string): Map<string, number> {
 function _extractWeightedAnchors(
   resumeText: string,
   promptAnswers: string[],
+  clarificationsText?: string,
 ): Map<string, number> {
   // Combined text filtered by count≥2 (the signal gate)
   const combinedText = [resumeText, ...promptAnswers].filter(Boolean).join("\n");
   const allTokens = _extractBroadTokens(combinedText);
+
+  // Clarifications get relaxed extraction: minCount=1 (single-mention terms count).
+  // This lets short user dialogue like "I prototype UX flows" inject anchors
+  // without requiring the term to already appear twice elsewhere.
+  if (clarificationsText && clarificationsText.trim()) {
+    const clarCompounded = _normalizeCompounds(String(clarificationsText));
+    const clarCleaned = clarCompounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+    if (clarCleaned) {
+      for (const raw of clarCleaned.split(" ")) {
+        const t = _canonicalize(raw);
+        if (t.length < 3 || _TITLE_STOPWORDS.has(t)) continue;
+        // Add with count=1 if not already present; if present, increment
+        allTokens.set(t, (allTokens.get(t) ?? 0) + 1);
+      }
+    }
+  }
 
   // For source counting, use raw word presence (any mention) per source.
   // This avoids the bug where a term appearing once per prompt across 4 prompts
@@ -265,8 +289,9 @@ function _extractWeightedAnchors(
   };
   const resumeWords = toWordSet(resumeText);
   const promptWordSets = promptAnswers.map(toWordSet);
+  const clarWords = clarificationsText ? toWordSet(clarificationsText) : new Set<string>();
 
-  // Count distinct sources each term appears in (resume=1, each prompt=1)
+  // Count distinct sources each term appears in (resume=1, each prompt=1, clarifications=1)
   const sourceCount = new Map<string, number>();
   for (const [term] of allTokens) {
     let sources = 0;
@@ -274,6 +299,7 @@ function _extractWeightedAnchors(
     for (const pSet of promptWordSets) {
       if (pSet.has(term)) sources++;
     }
+    if (clarWords.has(term)) sources++;
     sourceCount.set(term, sources);
   }
 
@@ -336,11 +362,11 @@ type EnrichedTitleCandidate = {
 // Specificity gate: score capped at 9.8 unless >=1 high-specificity anchor
 //   is present in the anchor map OR >=1 matched action+artifact pair exists.
 // Hard gates: >=9 requires reqCov >= 0.88; >=8 requires reqCov >= 0.78.
-function generateTitleCandidates(_personVector: any, resumeText: string, promptAnswers?: string[]): EnrichedTitleCandidate[] {
+function generateTitleCandidates(_personVector: any, resumeText: string, promptAnswers?: string[], clarificationsText?: string): EnrichedTitleCandidate[] {
   const answers = promptAnswers ?? [];
 
   // 1. Build cross-source weighted anchor map
-  const anchorMap = _extractWeightedAnchors(resumeText, answers);
+  const anchorMap = _extractWeightedAnchors(resumeText, answers, clarificationsText);
 
   // 2. Score each title
   const scored = TITLE_BANK.map(title => {
@@ -436,10 +462,11 @@ function generateTitleRecommendation(
   _personVector: any,
   resumeText: string,
   promptAnswers?: string[],
+  clarificationsText?: string,
 ): TitleRecommendationPack {
-  const enriched = generateTitleCandidates(_personVector, resumeText, promptAnswers);
+  const enriched = generateTitleCandidates(_personVector, resumeText, promptAnswers, clarificationsText);
   const answers = promptAnswers ?? [];
-  const anchorMap = _extractWeightedAnchors(resumeText, answers);
+  const anchorMap = _extractWeightedAnchors(resumeText, answers, clarificationsText);
 
   // Primary is always #1
   const primary: EnrichedTitleCandidate = enriched[0] ?? { title: "(no match)", score: 0, _reqCov: 0, _pairBonus: 0, _specific: false, _matchedPairs: [] as string[], _missing: [] as string[] };
@@ -1852,7 +1879,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
       case "RERUN_TITLES": {
         // Additive-only: re-run title generation with user clarifications
-        // appended as an extra prompt answer. Does NOT modify stored prompts/resume.
+        // as a separate source with relaxed thresholds. Does NOT modify stored prompts/resume.
         let clarText = String((event as any).clarificationsText ?? "").trim();
         if (clarText.length > 600) clarText = clarText.slice(0, 600);
 
@@ -1862,17 +1889,14 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           const ans = session.prompts?.[i]?.answer;
           if (typeof ans === "string" && ans.length > 0) storedAnswers.push(ans);
         }
-        // Append clarifications as an additional text source (not stored)
-        const combinedAnswers = clarText.length > 0
-          ? [...storedAnswers, clarText]
-          : storedAnswers;
 
         const resumeRaw = session.resume?.rawText ?? "";
+        // Pass clarifications as separate param (minCount=1 extraction)
         const candidates = generateTitleCandidates(
-          session.personVector, resumeRaw, combinedAnswers,
+          session.personVector, resumeRaw, storedAnswers, clarText || undefined,
         ).map(({ title, score }) => ({ title, score }));
         const recommendation = generateTitleRecommendation(
-          session.personVector, resumeRaw, combinedAnswers,
+          session.personVector, resumeRaw, storedAnswers, clarText || undefined,
         );
 
         const marketTitle = candidates[0]?.title ?? "";
