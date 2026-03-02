@@ -272,8 +272,11 @@ export default function CalibrationPage() {
     // Titles UI state
     const [titleFeedback, setTitleFeedback] = useState("");
     const [jobText, setJobText] = useState("");
-    const [jobBusy, setJobBusy] = useState(false);
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
+    const [jobBusy, setJobBusy] = useState(false);    // Dialogue panel state (UI-only stub, no backend)
+    const [dialogueMessages, setDialogueMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>(
+      [{ role: "assistant", text: "If anything feels off, tell me what you actually do week-to-week." }]
+    );
+    const [dialogueInput, setDialogueInput] = useState("");    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
@@ -802,6 +805,58 @@ export default function CalibrationPage() {
                       ) : null}
                     </div>
                   )}
+                </div>
+
+                {/* "Does this feel accurate?" dialogue panel */}
+                <div className="mt-6 rounded-md px-4 py-3" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.08)" }}>
+                  <p className="text-sm font-medium mb-3" style={{ color: "#CFCFCF" }}>Does this feel accurate?</p>
+                  <div className="space-y-2 mb-3" style={{ maxHeight: 160, overflowY: "auto" }}>
+                    {dialogueMessages.map((msg, i) => (
+                      <div key={i} className={`text-xs px-3 py-2 rounded ${msg.role === "assistant" ? "" : "ml-6"}`}
+                        style={{
+                          backgroundColor: msg.role === "assistant" ? "#1A1A1A" : "#232323",
+                          color: msg.role === "assistant" ? "#999" : "#F2F2F2",
+                          border: msg.role === "assistant" ? "none" : "1px solid rgba(242,242,242,0.10)",
+                        }}>
+                        {msg.text}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={dialogueInput}
+                      onChange={e => setDialogueInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && dialogueInput.trim()) {
+                          setDialogueMessages(prev => [...prev, { role: "user", text: dialogueInput.trim() }]);
+                          setDialogueInput("");
+                        }
+                      }}
+                      className="flex-1 rounded px-3 py-2 text-xs focus:outline-none"
+                      style={{ backgroundColor: "#0B0B0B", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.12)" }}
+                      placeholder="Tell me more about your week-to-week…"
+                    />
+                    <button
+                      type="button"
+                      disabled={!dialogueInput.trim()}
+                      onClick={() => {
+                        if (dialogueInput.trim()) {
+                          setDialogueMessages(prev => [...prev, { role: "user", text: dialogueInput.trim() }]);
+                          setDialogueInput("");
+                        }
+                      }}
+                      className="rounded px-3 py-2 text-xs font-medium"
+                      style={{
+                        backgroundColor: dialogueInput.trim() ? "#F2F2F2" : "rgba(242,242,242,0.08)",
+                        color: dialogueInput.trim() ? "#0B0B0B" : "#666",
+                        cursor: dialogueInput.trim() ? "pointer" : "not-allowed",
+                        border: "none",
+                      }}
+                    >
+                      Send
+                    </button>
+                  </div>
                 </div>
                 {/* Inline job paste */}
                 <div className="mt-8">
