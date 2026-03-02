@@ -342,26 +342,6 @@ function generateTitleCandidates(_personVector: any, resumeText: string, promptA
   // 1. Build cross-source weighted anchor map
   const anchorMap = _extractWeightedAnchors(resumeText, answers);
 
-  // Also get formal anchors for logging comparison
-  const promptAnswersText = answers.join(" ");
-  const anchors = extractLexicalAnchors({ resumeText, promptAnswersText });
-
-  // ── Observability: log inputs + top 12 anchors ──
-  const combinedChars = [resumeText, ...answers].filter(Boolean).join("").length;
-  const sortedEntries = [...anchorMap.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const top12 = sortedEntries.slice(0, 12);
-  console.log(`[TITLE_SCORE] input chars: ${combinedChars} | weighted anchors: ${anchorMap.size} | formal anchors (verb/noun): ${anchors.combined.length}`);
-  console.log(`[TITLE_SCORE] top 12 anchors:`, top12.map(([t, w]) => `${t}(${w})`).join(", "));
-
-  // ── Cluster affinity (observability) ──
-  for (const cluster of TITLE_CLUSTERS) {
-    let affinity = 0;
-    for (const term of cluster.core) {
-      affinity += anchorMap.get(term) ?? 0;
-    }
-    console.log(`[TITLE_SCORE] cluster ${cluster.name}: affinity=${affinity}/${cluster.core.length * 5} (core: ${cluster.core.join(",")})`);
-  }
-
   // 2. Score each title
   const scored = TITLE_BANK.map(title => {
     const sig = TITLE_SIGNATURES[title];
@@ -442,12 +422,7 @@ function generateTitleCandidates(_personVector: any, resumeText: string, promptA
   // 3. Sort by score desc, then title asc for determinism
   scored.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 
-  // Log top 5 with full explainability
-  for (const s of scored.slice(0, 5)) {
-    console.log(`[TITLE_SCORE]   ${s.title}: ${s.score} (reqCov=${(s._reqCov * 100).toFixed(1)}%, optCov=${(s._optCov * 100).toFixed(1)}%, pairBonus=${s._pairBonus.toFixed(2)}, specific=${s._specific}, pairs=[${s._matchedPairs.join(",")}], missing=[${s._missing.join(",")}])`);
-  }
-
-  // 4. Return top 5 (strip internal debug fields)
+  // 4. Return top 5
   return scored.slice(0, 5).map(({ title, score, _reqCov, _pairBonus, _specific, _matchedPairs, _missing }) => ({
     title, score, _reqCov, _pairBonus, _specific, _matchedPairs, _missing,
   }));
