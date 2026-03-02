@@ -742,8 +742,8 @@ export default function CalibrationPage() {
                       ))}
                     </ol>
                     {hiddenCount > 0 ? (
-                      <p className="text-xs text-center mt-3" style={{ color: "#666" }}>
-                        Other labels were lower-confidence for your pattern.
+                      <p className="text-xs text-center mt-1" style={{ color: "#555" }}>
+                        Other labels were lower-confidence.
                       </p>
                     ) : null}
                     </>
@@ -771,12 +771,15 @@ export default function CalibrationPage() {
                     disabled={busy || jobBusy}
                   />
                 </div>
-                <div className="mt-7 flex justify-center">
+                <div className="mt-7 flex flex-col items-center gap-2">
+                  {jobText.trim().length < 20 && !(busy || jobBusy) ? (
+                    <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
+                  ) : null}
                   <button
                     type="button"
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: (busy || jobBusy || !jobText.trim()) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || !jobText.trim()) ? "not-allowed" : "pointer", minWidth: 180 }}
-                    disabled={busy || jobBusy || !jobText.trim()}
+                    style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
+                    disabled={busy || jobBusy || jobText.trim().length < 20}
                     onClick={async () => {
                       const sessionId = String(session?.sessionId ?? "");
                       if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
