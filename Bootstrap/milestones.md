@@ -2,21 +2,23 @@
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
-BREAK + UPDATE — 2026-03-01
+BREAK + UPDATE (2026-03-02)
 ---
 DONE:
-- UI churn and reset recovery (multiple TITLES/JOB_TEXT refactors)
-- Discovered titleCandidates generator regressed to generic TITLE_BANK and idx-based scoring
-- Restored ops/program-oriented title bank and affinity+lexical scoring
-- Fixed SESSION_NOT_FOUND after server reset
+- Docs: fix BREAK_AND_UPDATE drift — Step 2 now allows structured task blocks (fenced/multi-line); kernel.md payload section updated; contract matches real PM→Coder handoff
+
+---
+
+BREAK + UPDATE (2026-03-01)
+---
+DONE (this sprint):
+- ALIGNMENT_OUTPUT hang resolved; smoke run reaches TERMINAL_COMPLETE with hasResult=true
 
 BLOCKED:
-- Import-order fragility in calibration_machine (TS modules must have imports at top)
-- TitleCandidates scoring regression risk if TITLE_BANK or idx logic returns
+- Title suggestion missing/null in TITLE_DIALOGUE; job description gate surfaced (JOB_REQUIRED/0-10 pending)
 
 NEXT:
-- Monitor for further titleCandidates scoring drift
-- Add durable kernel invariants for import order and scoring logic
+- Implement title confirmation UI that yields non-null marketTitle/titleExplanation and routes to Job Text before scoring
 ---
 
 Next milestone:
@@ -370,21 +372,20 @@ Allowed outcomes:
 
 
 
-\- PASS
 
 \- REPAIR\_APPLIED
 
-\- RETRY\_REQUIRED
 
-\- FALLBACK\_ANCHOR\_FAILURE
 
 \- FALLBACK\_STRUCTURE\_INVALID
-
 \- FALLBACK\_BLACKLIST\_PHRASE
 
+---
 
+BREAK + UPDATE (2026-03-01)
+---
+Fit score placeholder fixed: deterministic (non-LLM) scoring now required before TERMINAL_COMPLETE. New invariant: ALIGNMENT_OUTPUT requires COMPUTE_ALIGNMENT_OUTPUT; ADVANCE is not accepted. Result must be fetched from /api/calibration/result, not ADVANCE responses. Manual curl test: create session, submit prompts, submit job text (>=40 chars), reach ALIGNMENT_OUTPUT, POST COMPUTE_ALIGNMENT_OUTPUT, GET /api/calibration/result returns score_0_to_10 (not always 0 if anchors match), summary no longer says 'Alignment score not computed in v1'.
 
-No empty returns permitted.
 
 
 

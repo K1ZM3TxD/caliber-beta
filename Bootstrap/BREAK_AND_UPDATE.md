@@ -1,3 +1,5 @@
+
+
 # BREAK_AND_UPDATE.md
 
 ## Purpose
@@ -33,14 +35,14 @@ Write a compact snapshot that includes:
 - The smallest observable proof that the new behavior works
 
 ### Step 2 — Coder Task (required)
-Produce a SINGLE LINE coder task that is:
-- JSON-safe (no fenced code blocks)
-- Specific file paths
+Produce a structured Coder Task block that is:
+- Specific file paths (scope.code_files / scope.doc_files)
 - Default single-file unless unavoidable
 - Includes acceptance criteria / DoD
-- No extra prose outside the one line
+- Minimal prose; fields only (title, scope, changes, DoD, notes)
 
-(If this event is documentation-only, the coder task can be “Update docs only”, but it still must be one line.)
+The task block MAY be a fenced code block or a structured multi-line object — this is the standard "black box" handoff format from PM to Coder.
+Single-line plain text is also acceptable for trivial or docs-only tasks.
 
 ### Step 3 — Required Doc Updates (always)
 Update these files every time:

@@ -51,13 +51,13 @@ Caliber is now locked to the following product flow:
 3. Fit score (0–10) + summary
 4. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
 
-Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow. (Clarification: mechanical title producer is NOT deprecated for ops/program titleCandidates; only the generic TITLE_BANK/idx-based scoring is disallowed.)
+Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
 
-### JSON-safe Coder Payload
+### Coder Task Payload Format
 
-All Coder tasks must be single-line plain text (no fenced blocks), because the execution surface may JSON-encode the payload.
+Coder tasks use the standard structured handoff block (title, scope, changes, DoD, notes). Fenced code blocks and multi-line structured objects are allowed. Single-line plain text is acceptable for trivial or docs-only tasks.
 
 
 
@@ -285,6 +285,13 @@ These must never break:
 \- No cadence distortion under anchor pressure.
 
 
+
+
+## Calibration Fit Score Enforcement (2026-03-01)
+
+1. Fit score must be computed deterministically (no LLM) before TERMINAL_COMPLETE is considered 'results-ready'.
+2. ALIGNMENT_OUTPUT does not accept ADVANCE; UI must fire COMPUTE_ALIGNMENT_OUTPUT exactly once per session.
+3. Result page must read from /api/calibration/result, not ADVANCE responses.
 
 If anchor pressure degrades grammar, anchor usage must be reduced — not structure.
 
