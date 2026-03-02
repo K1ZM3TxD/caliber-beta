@@ -129,6 +129,12 @@ export interface CalibrationSynthesis {
   titleExplanation?: string | null;
   lastTitleFeedback?: string | null;
   titleCandidates?: Array<{ title: string; score: number }>;
+  titleRecommendation?: {
+    primary_title: { title: string; score: number };
+    adjacent_titles: Array<{ title: string; score: number }>;
+    why_primary: string[];
+    why_not_adjacent: string[];
+  };
 
   // Optional anchor metrics fields (kept for compatibility)
   anchor_overlap_score?: number;

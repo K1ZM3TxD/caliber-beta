@@ -687,64 +687,109 @@ export default function CalibrationPage() {
 
             {/* TITLES UI */}
             {step === "TITLES" ? (() => {
-              // ── Banded threshold: show 1–3 high-confidence titles ──
+              // ── Recommendation pack (primary + adjacent + why) ──
+              const rec = session?.synthesis?.titleRecommendation;
+              // Fallback to legacy titleCandidates if recommendation pack not present
               const allCandidates: { title: string; score: number }[] =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
-              const topScore = allCandidates[0]?.score ?? 0;
-              const bandedTitles = allCandidates.filter((c, i) => {
-                if (i === 0) return true;          // always show #1
-                if (i >= 3) return false;           // never more than 3
-                return c.score >= 7.0 && (topScore - c.score) <= 0.8;
-              });
-              const hiddenCount = allCandidates.length - bandedTitles.length;
+
+              const primary = rec?.primary_title ?? allCandidates[0] ?? null;
+              const adjacentTitles: { title: string; score: number }[] = rec?.adjacent_titles ?? [];
+              const whyPrimary: string[] = rec?.why_primary ?? [];
+              const whyNotAdjacent: string[] = rec?.why_not_adjacent ?? [];
+
               return (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{titleTypewriter}</span>
                 </div>
                 <div className="mt-10">
-                  {bandedTitles.length > 0 ? (
+                  {primary ? (
                     <>
-                    <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                      {bandedTitles.map((c, i) => (
-                        <li
-                          key={i}
-                          className="flex items-center justify-between rounded-md px-5 py-3 mb-2"
+                    {/* Primary title */}
+                    <div
+                      className="flex items-center justify-between rounded-md px-5 py-3 mb-2"
+                      style={{
+                        backgroundColor: "#1A1A1A",
+                        border: "1px solid rgba(242,242,242,0.18)",
+                      }}
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="text-base sm:text-lg font-semibold" style={{ color: "#F2F2F2" }}>{primary.title}</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm font-mono font-medium" style={{ color: "#4ADE80" }}>{primary.score}</span>
+                        <button
+                          type="button"
+                          aria-label={copiedIndex === 0 ? "Copied" : "Copy title"}
+                          onClick={() => handleCopyTitle(0, primary.title)}
+                          className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: i === 0 ? "#1A1A1A" : "#121212",
-                            border: i === 0 ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)",
+                            background: copiedIndex === 0 ? "#4ADE80" : "#232323",
+                            color: copiedIndex === 0 ? "#232323" : "#AFAFAF",
+                            border: "none",
+                            minWidth: 60,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {copiedIndex === 0 ? "Copied" : "Copy"}
+                          {copiedIndex === 0 ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
+                        </button>
+                      </span>
+                    </div>
+
+                    {/* Why this title — anchor-grounded bullets */}
+                    {whyPrimary.length > 0 ? (
+                      <ul className="mt-2 mb-4 ml-6 text-xs leading-relaxed" style={{ color: "#888", listStyleType: "disc" }}>
+                        {whyPrimary.map((b, i) => <li key={i}>{b}</li>)}
+                      </ul>
+                    ) : null}
+
+                    {/* Adjacent titles (lower-confidence) */}
+                    {adjacentTitles.length > 0 ? (
+                      <>
+                      <p className="text-xs font-medium mt-4 mb-2 ml-1" style={{ color: "#777" }}>Adjacent labels (lower-confidence)</p>
+                      {adjacentTitles.map((c, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-md px-5 py-2 mb-1"
+                          style={{
+                            backgroundColor: "#121212",
+                            border: "1px solid rgba(242,242,242,0.08)",
                           }}
                         >
                           <span className="flex items-center gap-3">
-                            <span className="text-sm font-medium" style={{ color: "#999", minWidth: 20 }}>{i + 1}.</span>
-                            <span className={i === 0 ? "text-base sm:text-lg font-semibold" : "text-base"} style={{ color: "#F2F2F2" }}>{c.title}</span>
+                            <span className="text-sm" style={{ color: "#CFCFCF" }}>{c.title}</span>
                           </span>
                           <span className="flex items-center gap-2">
-                            <span className="text-sm font-mono font-medium" style={{ color: i === 0 ? "#4ADE80" : "#AFAFAF" }}>{c.score}</span>
+                            <span className="text-sm font-mono font-medium" style={{ color: "#AFAFAF" }}>{c.score}</span>
                             <button
                               type="button"
-                              aria-label={copiedIndex === i ? "Copied" : "Copy title"}
-                              onClick={() => handleCopyTitle(i, c.title)}
+                              aria-label={copiedIndex === (i + 1) ? "Copied" : "Copy title"}
+                              onClick={() => handleCopyTitle(i + 1, c.title)}
                               className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
                               style={{
-                                background: copiedIndex === i ? "#4ADE80" : "#232323",
-                                color: copiedIndex === i ? "#232323" : "#AFAFAF",
+                                background: copiedIndex === (i + 1) ? "#4ADE80" : "#232323",
+                                color: copiedIndex === (i + 1) ? "#232323" : "#AFAFAF",
                                 border: "none",
                                 minWidth: 60,
                                 cursor: "pointer"
                               }}
                             >
-                              {copiedIndex === i ? "Copied" : "Copy"}
-                              {copiedIndex === i ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
+                              {copiedIndex === (i + 1) ? "Copied" : "Copy"}
+                              {copiedIndex === (i + 1) ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
                             </button>
                           </span>
-                        </li>
+                        </div>
                       ))}
-                    </ol>
-                    {hiddenCount > 0 ? (
-                      <p className="text-xs text-center mt-1" style={{ color: "#555" }}>
-                        Other labels were lower-confidence.
-                      </p>
+                      </>
+                    ) : null}
+
+                    {/* Why not others */}
+                    {whyNotAdjacent.length > 0 ? (
+                      <ul className="mt-3 ml-6 text-xs leading-relaxed" style={{ color: "#555", listStyleType: "disc" }}>
+                        {whyNotAdjacent.map((b, i) => <li key={i}>{b}</li>)}
+                      </ul>
                     ) : null}
                     </>
                   ) : (
