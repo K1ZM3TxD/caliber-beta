@@ -442,7 +442,7 @@ export default function CalibrationPage() {
   );
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[18vh] sm:pt-[22vh] overflow-hidden">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto">
       <div className="w-full max-w-[760px] px-6">
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -702,11 +702,8 @@ export default function CalibrationPage() {
               const whyNotAdjacent: string[] = rec?.why_not_adjacent ?? [];
 
               return (
-              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
-                  <span>{titleTypewriter}</span>
-                </div>
-                <div className="mt-10">
+              <div className="w-full max-w-2xl pb-12">
+                <div className="mt-6">
                   {primary ? (
                     <>
                     {/* Primary title */}
