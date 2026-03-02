@@ -785,8 +785,11 @@ export default function CalibrationPage() {
                       if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
                       setError(null); setBusy(true); setJobBusy(true);
                       try {
-                        // 1) Send title feedback
-                        await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                        // 1) Send title feedback (skip if session already advanced past titles)
+                        const curState = String(session?.state ?? "");
+                        if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
+                          await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                        }
                         // 2) Submit job text + advance (same as submitJobText)
                         let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
                         setSession(s); setJobText("");
