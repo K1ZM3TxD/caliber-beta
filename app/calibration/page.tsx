@@ -758,26 +758,51 @@ export default function CalibrationPage() {
                     </div>
                   )}
                 </div>
+                {/* Inline job paste */}
+                <div className="mt-8">
+                  <label className="block text-sm font-medium mb-2" style={{ color: "#999" }}>Paste a job description to calibrate against</label>
+                  <textarea
+                    value={jobText}
+                    onChange={e => setJobText(e.target.value)}
+                    rows={6}
+                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
+                    placeholder="Paste job description here…"
+                    disabled={busy || jobBusy}
+                  />
+                </div>
                 <div className="mt-7 flex justify-center">
                   <button
                     type="button"
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 180 }}
-                    disabled={busy}
+                    style={{ backgroundColor: (busy || jobBusy || !jobText.trim()) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || !jobText.trim()) ? "not-allowed" : "pointer", minWidth: 180 }}
+                    disabled={busy || jobBusy || !jobText.trim()}
                     onClick={async () => {
                       const sessionId = String(session?.sessionId ?? "");
                       if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-                      setError(null); setBusy(true);
+                      setError(null); setBusy(true); setJobBusy(true);
                       try {
-                        const updated = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
-                        setSession(updated);
-                        setStep("JOB_TEXT");
+                        // 1) Send title feedback
+                        await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                        // 2) Submit job text + advance (same as submitJobText)
+                        let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
+                        setSession(s); setJobText("");
+                        if (String(s?.state) !== "JOB_INGEST" || s?.job?.completed === true) {
+                          s = await postEvent({ type: "ADVANCE", sessionId });
+                          setSession(s);
+                        }
+                        setStep(getStepFromState(s?.state, s));
                       } catch (e: any) {
-                        setError(displayError(e));
-                      } finally { setBusy(false); }
+                        if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+                          // Stay on TITLES — job textarea is right here
+                          setError("A job description is required.");
+                        } else {
+                          setError(displayError(e));
+                        }
+                      } finally { setBusy(false); setJobBusy(false); }
                     }}
                   >
-                    {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue to job paste"}
+                    {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
                   </button>
                 </div>
               </div>
@@ -881,7 +906,7 @@ export default function CalibrationPage() {
                 <div className="mt-8 flex justify-center gap-3">
                   <button
                     type="button"
-                    onClick={() => { setJobText(""); setError(null); setStep("JOB_TEXT"); }}
+                    onClick={() => { setJobText(""); setError(null); setStep("TITLES"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                   >
