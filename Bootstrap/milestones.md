@@ -1,5 +1,12 @@
 ---
 
+BREAK + UPDATE (2026-03-02)
+---
+DONE:
+- f36dff0: ClientGrowth title cluster added (Jen now gets 5 strong titles; no bleed into Chris)
+- 166baa4: removed TITLE_SCORE debug logs (cleanup)
+
+
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
 BREAK + UPDATE (2026-03-02)

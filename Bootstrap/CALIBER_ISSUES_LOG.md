@@ -29,7 +29,10 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 10. BREAK_AND_UPDATE.md drift: Step 2 "no fenced code blocks / single line" contradicted actual PM→Coder handoff format — **RESOLVED** (2026-03-02)
     - Contract now explicitly allows structured task blocks (fenced or multi-line); kernel.md payload section updated to match.
 
-11. Token burn caused by tasks lacking explicit file pointers/fixtures; fix: no-archaeology enforcement in BREAK_AND_UPDATE + kernel. (2026-03-02)
+11. Relationship/team profiles were mis-labeled as Program/PM with low confidence — RESOLVED (2026-03-02)
+  - Fix commit: f36dff0
+  - Cleanup commit: 166baa4
+  - Evidence: Jen fixture now outputs 5 titles >=7; Chris ClientGrowth scores ~1.0 (no bleed)
 
 ## Mitigations / Working Rules
 
