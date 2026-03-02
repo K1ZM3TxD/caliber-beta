@@ -75,6 +75,10 @@ async function postEvent(event: any): Promise<AnySession> {
 }
 
 async function fetchResult(calibrationId: string): Promise<any> {
+  if (!calibrationId || calibrationId.trim().length === 0) {
+    // Guard: do nothing if calibrationId is empty
+    return null;
+  }
   const res = await fetch(`/api/calibration/result?calibrationId=${encodeURIComponent(calibrationId)}`);
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.ok) {
@@ -682,15 +686,27 @@ export default function CalibrationPage() {
             ) : null}
 
             {/* TITLES UI */}
-            {step === "TITLES" ? (
+            {step === "TITLES" ? (() => {
+              // ── Banded threshold: show 1–3 high-confidence titles ──
+              const allCandidates: { title: string; score: number }[] =
+                Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+              const topScore = allCandidates[0]?.score ?? 0;
+              const bandedTitles = allCandidates.filter((c, i) => {
+                if (i === 0) return true;          // always show #1
+                if (i >= 3) return false;           // never more than 3
+                return c.score >= 7.0 && (topScore - c.score) <= 0.8;
+              });
+              const hiddenCount = allCandidates.length - bandedTitles.length;
+              return (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{titleTypewriter}</span>
                 </div>
                 <div className="mt-10">
-                  {Array.isArray(session?.synthesis?.titleCandidates) && session.synthesis.titleCandidates.length > 0 ? (
+                  {bandedTitles.length > 0 ? (
+                    <>
                     <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                      {session.synthesis.titleCandidates.slice(0, 5).map((c: { title: string; score: number }, i: number) => (
+                      {bandedTitles.map((c, i) => (
                         <li
                           key={i}
                           className="flex items-center justify-between rounded-md px-5 py-3 mb-2"
@@ -725,6 +741,12 @@ export default function CalibrationPage() {
                         </li>
                       ))}
                     </ol>
+                    {hiddenCount > 0 ? (
+                      <p className="text-xs text-center mt-3" style={{ color: "#666" }}>
+                        Other labels were lower-confidence for your pattern.
+                      </p>
+                    ) : null}
+                    </>
                   ) : (
                     <div className="text-center">
                       {session?.synthesis?.marketTitle ? (
@@ -736,19 +758,11 @@ export default function CalibrationPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-7 flex justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setError(null); setStep("JOB_TEXT"); }}
-                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                  >
-                    ← Back to job paste
-                  </button>
+                <div className="mt-7 flex justify-center">
                   <button
                     type="button"
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 140 }}
+                    style={{ backgroundColor: busy ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: busy ? "not-allowed" : "pointer", minWidth: 180 }}
                     disabled={busy}
                     onClick={async () => {
                       const sessionId = String(session?.sessionId ?? "");
@@ -763,30 +777,20 @@ export default function CalibrationPage() {
                       } finally { setBusy(false); }
                     }}
                   >
-                    {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
+                    {busy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue to job paste"}
                   </button>
                 </div>
               </div>
-            ) : null}
+              );
+            })() : null}
 
             {/* JOB TEXT UI */}
             {step === "JOB_TEXT" ? (
-              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                {/* Back button above textarea, left-aligned */}
-                <div className="mt-6 mb-2 flex justify-start">
-                  <button
-                    type="button"
-                    onClick={() => setStep("TITLES")}
-                    className="inline-flex items-center rounded px-3 py-1 text-xs font-medium bg-[#232323] text-[#AFAFAF] border border-[#333] hover:bg-[#333] focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ minWidth: 60 }}
-                  >
-                    ← Back
-                  </button>
-                </div>
-                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-2 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+              <div className="w-full max-w-2xl flex flex-col" style={{ minHeight: "420px" }}>
+                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{jobTypewriter}</span>
                 </div>
-                <div className="mt-10">
+                <div className="mt-10 flex-1">
                   <textarea
                     value={jobText}
                     onChange={e => setJobText(e.target.value)}
@@ -797,13 +801,13 @@ export default function CalibrationPage() {
                     disabled={jobBusy}
                   />
                 </div>
-                <div className="mt-7 flex justify-center">
+                <div className="mt-auto pt-7 flex justify-center">
                   <button
                     type="button"
                     onClick={submitJobText}
                     disabled={jobBusy || !jobText.trim()}
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 140 }}
+                    style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 180 }}
                   >
                     {jobBusy ? (<><Spinner /><span className="ml-2">Continue</span></>) : "Continue"}
                   </button>
@@ -814,22 +818,23 @@ export default function CalibrationPage() {
             {/* RESULTS UI */}
             {step === "RESULTS" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                <div className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                <div className="mt-6 text-base font-medium leading-snug tracking-tight flex items-center justify-center" style={{ color: "#CFCFCF" }}>
                   <span>Results</span>
                 </div>
                 {session?.result?.alignment?.score != null && (
-                  <div className="mt-8 text-2xl font-bold text-green-400">Fit Score: {session.result.alignment.score}/10</div>
+                  <div className="mt-5 text-2xl font-bold text-green-400">Fit Score: {session.result.alignment.score}/10</div>
                 )}
-                <div className="mt-8 text-base text-gray-200 whitespace-pre-line border rounded p-4 bg-[#181818]">
-                  {session?.result?.alignment?.summary
-                    ?? session?.result?.summary
-                    ?? session?.synthesis?.identitySummary
-                    ?? "Summary pending."}
-                </div>
+                {(session?.result?.alignment?.summary || session?.result?.summary || session?.synthesis?.identitySummary) && (
+                  <div className="mt-4 text-sm text-gray-300 whitespace-pre-line rounded px-3 py-2" style={{ background: "#141414", border: "1px solid rgba(242,242,242,0.08)", maxHeight: 120, overflowY: "auto" }}>
+                    {session?.result?.alignment?.summary
+                      ?? session?.result?.summary
+                      ?? session?.synthesis?.identitySummary}
+                  </div>
+                )}
                 {Array.isArray(session?.synthesis?.operateBest) && session.synthesis.operateBest.length > 0 && (
-                  <div className="mt-8">
-                    <div className="font-semibold mb-2">Operate best when…</div>
-                    <ul className="list-disc ml-6">
+                  <div className="mt-5">
+                    <div className="text-sm font-semibold mb-1" style={{ color: "#CFCFCF" }}>Operate best when…</div>
+                    <ul className="list-disc ml-6 text-sm" style={{ color: "#AFAFAF" }}>
                       {session.synthesis.operateBest.map((b: string, i: number) => (
                         <li key={i}>{b}</li>
                       ))}
@@ -837,16 +842,43 @@ export default function CalibrationPage() {
                   </div>
                 )}
                 {Array.isArray(session?.synthesis?.loseEnergy) && session.synthesis.loseEnergy.length > 0 && (
-                  <div className="mt-6">
-                    <div className="font-semibold mb-2">Lose energy when…</div>
-                    <ul className="list-disc ml-6">
+                  <div className="mt-4">
+                    <div className="text-sm font-semibold mb-1" style={{ color: "#CFCFCF" }}>Lose energy when…</div>
+                    <ul className="list-disc ml-6 text-sm" style={{ color: "#AFAFAF" }}>
                       {session.synthesis.loseEnergy.map((b: string, i: number) => (
                         <li key={i}>{b}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                <div className="mt-10 flex justify-center gap-3">
+
+                {/* LLM Dialogue Panel */}
+                <div className="mt-6 rounded-md" style={{ background: "#161616", border: "1px solid rgba(242,242,242,0.10)", padding: "16px 18px" }}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold" style={{ width: 28, height: 28, background: "#232323", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.25)" }}>C</span>
+                    <div className="text-sm" style={{ color: "#E0E0E0", lineHeight: 1.5 }}>Does this feel accurate?</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Type your thoughts…"
+                      className="flex-1 rounded-md px-3 py-2 text-sm focus:outline-none"
+                      style={{ backgroundColor: "#0F0F0F", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.12)" }}
+                      disabled
+                    />
+                    <button
+                      type="button"
+                      disabled
+                      className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium"
+                      style={{ backgroundColor: "rgba(242,242,242,0.08)", color: "#888", cursor: "not-allowed", border: "1px solid rgba(242,242,242,0.10)" }}
+                    >
+                      Send
+                    </button>
+                  </div>
+                  <div className="mt-2 text-xs" style={{ color: "#666" }}>Coming next — dialogue feedback loop</div>
+                </div>
+
+                <div className="mt-8 flex justify-center gap-3">
                   <button
                     type="button"
                     onClick={() => { setJobText(""); setError(null); setStep("JOB_TEXT"); }}
