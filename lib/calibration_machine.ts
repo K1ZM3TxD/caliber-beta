@@ -7,6 +7,8 @@ import { generateSemanticSynthesis } from "@/lib/semantic_synthesis";
 import { extractLexicalAnchors } from "@/lib/anchor_extraction";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { detectAbstractionDrift } from "./abstraction_drift";
+import { computeSkillMatch } from "@/lib/skill_match";
+import { computeStretchLoad } from "@/lib/stretch_load";
 export { validateAndRepairSynthesisOnce };
 
 // Ops/program-oriented deterministic title bank (10 titles)
@@ -1422,74 +1424,77 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
       }
 
       case "COMPUTE_ALIGNMENT_OUTPUT": {
+        // Only allowed in ALIGNMENT_OUTPUT state
         if (session.state !== "ALIGNMENT_OUTPUT") {
           return bad("INVALID_EVENT_FOR_STATE", `Event ${event.type} not allowed in state ${session.state}`)
         }
         const job = session.job;
-        if (!job || !job.completed || !job.rawText || job.rawText.trim().length === 0)
-          return bad("JOB_REQUIRED", "Submit a job description first")
-        if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
+        if (!job || !job.completed || !job.rawText || job.rawText.trim().length < 40)
+          return bad("JOB_REQUIRED", "Submit a job description first (>=40 chars)")
+        if (!session.personVector?.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
 
-        // --- Deterministic signal-weighted alignment scoring ---
-        const caResumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : "";
-        const caPromptAnswersText: string[] = [];
-        for (let pi = 1; pi <= 5; pi++) {
-          const ans = session.prompts?.[pi]?.answer;
-          if (typeof ans === "string" && ans.trim().length > 0) caPromptAnswersText.push(ans.trim());
-        }
-        const caAnchors = extractLexicalAnchors({ resumeText: caResumeText, promptAnswersText: caPromptAnswersText.join("\n") });
-        const caAnchorTerms = caAnchors.combined.map((a: any) => a.term);
+        // Deterministic lexical anchor extraction and classification
+        const resumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : "";
+        const promptAnswers = Array.from({length: 5}, (_, i) => session.prompts?.[i+1]?.answer).filter(a => typeof a === "string" && a.trim().length > 0) as string[];
+        const anchors = extractLexicalAnchors({ resumeText, promptAnswersText: promptAnswers.join("\n") });
+        const anchorTerms = anchors.combined.map((a: any) => a.term);
 
-        // Build AnchorOccurrence array for classification
-        const caOccurrences: Array<{ term: string; source: string; context_type: string }> = [];
-        for (const a of caAnchors.combined) {
-          caOccurrences.push({ term: a.term, source: "resume", context_type: "neutral" });
+        // AnchorOccurrence array for classification
+        const occurrences: Array<{ term: string; source: string; context_type: string }> = [];
+        for (const a of anchors.combined) {
+          occurrences.push({ term: a.term, source: "resume", context_type: "neutral" });
         }
-        for (let pi = 1; pi <= 5; pi++) {
-          const ans = session.prompts?.[pi]?.answer;
-          if (typeof ans === "string" && ans.trim().length > 0) {
-            for (const t of ans.trim().split(/\s+/)) {
-              caOccurrences.push({ term: t.toLowerCase(), source: `q${pi}`, context_type: "neutral" });
-            }
+        promptAnswers.forEach((ans, idx) => {
+          for (const t of ans.trim().split(/\s+/)) {
+            occurrences.push({ term: t.toLowerCase(), source: `q${idx+1}`, context_type: "neutral" });
           }
-        }
+        });
 
-        const { classifyAnchors: caClassify } = require("./signal_classification");
-        const caClassification = caClassify(caAnchorTerms, caOccurrences);
+        const { classifyAnchors } = require("./signal_classification");
+        const classification = classifyAnchors(anchorTerms, occurrences);
 
         const { computeSignalWeightedAlignment } = require("./alignment_signal_score");
-        const caBreakdown = computeSignalWeightedAlignment(caClassification, job.rawText);
+        const breakdown = computeSignalWeightedAlignment(classification, job.rawText);
 
-        const fitScore = Math.max(0, Math.min(10, Math.round(caBreakdown.alignmentScore * 10)));
-        const fitExplanation = `Matched ${caBreakdown.matchedSignalCount}/${caBreakdown.signalCount} signal anchors and ${caBreakdown.matchedSkillCount}/${caBreakdown.skillCount} skill anchors in job text; weighted alignment ${fitScore}/10.`;
+        // Deterministic fit score (0–10)
+        const fitScore = Math.max(0, Math.min(10, Math.round(breakdown.alignmentScore * 10)));
+        const fitExplanation = `Matched ${breakdown.matchedSignalCount}/${breakdown.signalCount} signal anchors and ${breakdown.matchedSkillCount}/${breakdown.skillCount} skill anchors in job text; weighted alignment ${fitScore}/10.`;
 
+        // Populate result/alignment payload for result_contract pass-through
         const alignmentPayload = {
           score: fitScore,
           explanation: fitExplanation,
           signals: {
-            signalAnchors: caClassification.signalAnchors,
-            skillAnchors: caClassification.skillAnchors,
-            matchedSignalCount: caBreakdown.matchedSignalCount,
-            signalCount: caBreakdown.signalCount,
-            matchedSkillCount: caBreakdown.matchedSkillCount,
-            skillCount: caBreakdown.skillCount,
+            signalAnchors: classification.signalAnchors,
+            skillAnchors: classification.skillAnchors,
+            matchedSignalCount: breakdown.matchedSignalCount,
+            signalCount: breakdown.signalCount,
+            matchedSkillCount: breakdown.matchedSkillCount,
+            skillCount: breakdown.skillCount,
           },
         };
 
+        // Compute skillMatch and stretchLoad from session vectors
+        const roleVector = job.roleVector as number[];
+        const experienceVector = session.personVector.values as number[];
+        const smResult = computeSkillMatch(roleVector, experienceVector);
+        const slResult = computeStretchLoad(smResult.finalScore);
+
         const contract = toResultContract({
           alignment: alignmentPayload,
-          skillMatch: null,
-          stretchLoad: null,
-        })
+          skillMatch: smResult,
+          stretchLoad: slResult,
+        });
 
-        const to: CalibrationState = "TERMINAL_COMPLETE"
+        // Only transition to TERMINAL_COMPLETE with result present
+        const to: CalibrationState = "TERMINAL_COMPLETE";
         session = {
           ...session,
           result: contract,
-        }
-        session = pushHistory({ ...session, state: to }, from, to, event.type)
-        storeSet(session)
-        return { ok: true, session }
+        };
+        session = pushHistory({ ...session, state: to }, from, to, event.type);
+        storeSet(session);
+        return { ok: true, session };
       }
 
       case "ENCODING_COMPLETE": {

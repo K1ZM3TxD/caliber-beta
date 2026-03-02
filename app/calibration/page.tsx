@@ -74,7 +74,7 @@ async function postEvent(event: any): Promise<AnySession> {
   return json.session;
 }
 
-async function fetchResult(calibrationId: string): Promise<AnySession> {
+async function fetchResult(calibrationId: string): Promise<any> {
   const res = await fetch(`/api/calibration/result?calibrationId=${encodeURIComponent(calibrationId)}`);
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.ok) {
@@ -82,7 +82,28 @@ async function fetchResult(calibrationId: string): Promise<AnySession> {
     const message = json?.error?.message ?? `Result fetch failed (${res.status})`;
     throw new Error(`${code}: ${message}`);
   }
+  return json; // returns { ok, calibrationId, score_0_to_10, summary, ... }
+}
+
+async function fetchSession(sessionId: string): Promise<AnySession | null> {
+  const res = await fetch(`/api/calibration?sessionId=${encodeURIComponent(sessionId)}`);
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) return null;
   return json.session;
+}
+
+const COOKIE_NAME = "caliber_sessionId";
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function setCookie(name: string, value: string, days = 7) {
+  const d = new Date(); d.setTime(d.getTime() + days * 86400000);
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+}
+function clearCookie(name: string) {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
 }
 
 async function uploadResume(sessionId: string, file: File): Promise<AnySession> {
@@ -126,6 +147,62 @@ export default function CalibrationPage() {
   const [error, setError] = useState<string | null>(null);
   const [resumeUploading, setResumeUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const resumeAttemptedRef = useRef(false);
+
+  // On mount: resume from URL param or cookie
+  useEffect(() => {
+    if (resumeAttemptedRef.current) return;
+    resumeAttemptedRef.current = true;
+
+    (async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlId = params.get("calibrationId");
+        const cookieId = getCookie(COOKIE_NAME);
+        const targetId = urlId || cookieId;
+        if (!targetId) return; // no session to resume — stay on LANDING
+
+        // If URL has calibrationId, try result endpoint first (durable results link)
+        if (urlId) {
+          try {
+            const result = await fetchResult(urlId);
+            if (result?.ok) {
+              // Build a minimal session object the RESULTS UI can render
+              const resultSession = await fetchSession(urlId);
+              if (resultSession) {
+                setSession(resultSession);
+                setCookie(COOKIE_NAME, urlId);
+                setStep("RESULTS");
+                return;
+              }
+            }
+          } catch { /* result not ready — fall through to session fetch */ }
+        }
+
+        // Try fetching the full session to resume mid-flow
+        const s = await fetchSession(targetId);
+        if (!s) {
+          // Session expired or not found — clear stale cookie, stay on LANDING
+          clearCookie(COOKIE_NAME);
+          return;
+        }
+
+        setSession(s);
+        setCookie(COOKIE_NAME, targetId);
+        const resumeStep = getStepFromState(s.state, s);
+        // Map PROCESSING back to the right UI step based on what's missing
+        if (s.state === "RESUME_INGEST" && (!s.resume?.rawText || s.resume.rawText.trim().length === 0)) {
+          setStep("RESUME");
+        } else if (s.state === "RESUME_INGEST") {
+          setStep("RESUME"); // resume uploaded but not advanced yet
+        } else {
+          setStep(resumeStep);
+        }
+      } catch {
+        // Silent fail — land on LANDING
+      }
+    })();
+  }, []);
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
   function openFilePicker() { fileInputRef.current?.click(); }
@@ -134,6 +211,7 @@ export default function CalibrationPage() {
     setError(null); setBusy(true);
     try {
       const s = await postEvent({ type: "CREATE_SESSION" });
+      if (s?.sessionId) setCookie(COOKIE_NAME, s.sessionId);
       setSession(s); setSelectedFile(null); setAnswerText(""); setStep("RESUME");
     } catch (e: any) { setError(displayError(e)); }
     finally { setBusy(false); }
@@ -593,7 +671,7 @@ export default function CalibrationPage() {
                 <div className="mt-8 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                   >
@@ -763,7 +841,7 @@ export default function CalibrationPage() {
                 <div className="mt-10 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                   >

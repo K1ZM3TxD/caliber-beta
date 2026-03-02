@@ -11,10 +11,20 @@ function round2(n: number): number {
 }
 
 function matchAnchor(term: string, text: string): boolean {
-  // Unicode-safe, whole-word, case-insensitive matching using tokenizeWords
-  const tokenSet = tokenizeWords(text);
-  const normalizedAnchor = term.normalize('NFKC').toLowerCase();
-  return tokenSet.has(normalizedAnchor);
+  const normalizedAnchor = term.normalize('NFKC').toLowerCase().trim();
+  if (!normalizedAnchor) return false;
+
+  // Single-word: use fast token-set lookup
+  if (!/\s/.test(normalizedAnchor)) {
+    const tokenSet = tokenizeWords(text);
+    return tokenSet.has(normalizedAnchor);
+  }
+
+  // Multi-word: normalized phrase match (case-insensitive, collapse whitespace)
+  const normalizedText = text.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
+  const escapedAnchor = normalizedAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?:^|\\b|\\s)${escapedAnchor}(?:\\b|\\s|$)`, 'i');
+  return re.test(normalizedText);
 }
 
 export type AlignmentSignalScoreBreakdown = {
@@ -44,7 +54,16 @@ export function computeSignalWeightedAlignment(
 
   const signalScore = signalAnchors.length > 0 ? matchedSignalCount / signalAnchors.length : 0;
   const skillScore = skillAnchors.length > 0 ? matchedSkillCount / skillAnchors.length : 0;
-  const alignmentScore = clamp(signalScore * 0.75 + skillScore * 0.25, 0, 1);
+
+  // Renormalize: when one anchor set is empty, use the other set's score entirely
+  let alignmentScore: number;
+  if (signalAnchors.length === 0 && skillAnchors.length > 0) {
+    alignmentScore = skillScore;
+  } else if (skillAnchors.length === 0 && signalAnchors.length > 0) {
+    alignmentScore = signalScore;
+  } else {
+    alignmentScore = clamp(signalScore * 0.75 + skillScore * 0.25, 0, 1);
+  }
 
   // Log (single-line, machine-parseable)
   // alignment_signal_score=0.00 alignment_skill_score=0.00 alignment_score=0.00 signal_matched=# signal_total=# skill_matched=# skill_total=#

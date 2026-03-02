@@ -1,10 +1,25 @@
 // app/api/calibration/route.ts
 
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
+import { storeGet } from "@/lib/calibration_store"
 import type { CalibrationEvent } from "@/lib/calibration_types"
 
 function apiBad(code: string, message: string) {
   return { ok: false as const, error: { code, message } }
+}
+
+/** GET /api/calibration?sessionId=xxx — fetch full session snapshot for resume */
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const sessionId = searchParams.get("sessionId")
+  if (!sessionId) {
+    return Response.json(apiBad("MISSING_ID", "Missing sessionId"), { status: 400 })
+  }
+  const session = storeGet(sessionId)
+  if (!session) {
+    return Response.json(apiBad("NOT_FOUND", "Session not found"), { status: 404 })
+  }
+  return Response.json({ ok: true, session }, { status: 200 })
 }
 
 export async function POST(req: Request) {
