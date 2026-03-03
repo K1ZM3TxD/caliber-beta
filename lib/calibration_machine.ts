@@ -7,541 +7,62 @@ import { generateSemanticSynthesis } from "@/lib/semantic_synthesis";
 import { extractLexicalAnchors } from "@/lib/anchor_extraction";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { detectAbstractionDrift } from "./abstraction_drift";
-import { computeSkillMatch } from "@/lib/skill_match";
-import { computeStretchLoad } from "@/lib/stretch_load";
 export { validateAndRepairSynthesisOnce };
 
-// ─── Title recognition engine (anchor-grounded, 0–10 self-match confidence) ───
-
-// ── Title recommendation pack ──
-// The recommendation pack structures title output as primary + adjacent
-// with anchor-grounded "why" bullets instead of a flat ranked list.
-export type TitleRecommendationPack = {
-  primary_title: { title: string; score: number };
-  adjacent_titles: Array<{ title: string; score: number }>;
-  why_primary: string[];       // 2–4 bullets citing matched anchors
-  why_not_adjacent: string[];  // 1–2 bullets citing missing anchors
-};
-
-// ── Cluster-based title definitions ──
-// Each cluster defines 5 market shorthand titles that share a 4-term "core"
-// in their required signature. When a user's anchors match a cluster's core
-// strongly, all 5 titles from that cluster score ≥7.0 — producing multiple
-// market shorthands for the same dominant career pattern.
-// Each title adds 2 unique required terms for differentiation.
-// Standalone titles are scored regardless of cluster affinity.
-
-type TitleCluster = {
-  name: string;
-  core: string[];
-  titles: Array<{
-    title: string;
-    unique: string[];
-    optional: string[];
-  }>;
-};
-
-const TITLE_CLUSTERS: TitleCluster[] = [
-  {
-    name: "ProductDev",
-    core: ["product", "development", "system", "process"],
-    titles: [
-      { title: "Product Development Lead", unique: ["customer", "market"], optional: ["proposal", "feasibility", "launch", "sop", "design"] },
-      { title: "Technical Product Manager", unique: ["team", "technical"], optional: ["delivery", "architecture", "integration", "launch"] },
-      { title: "Product Operations Lead", unique: ["operations", "workflow"], optional: ["tracking", "reporting", "sop", "documentation"] },
-      { title: "Product Strategy Lead", unique: ["market", "planning"], optional: ["customer", "research", "team", "launch"] },
-      { title: "Implementation Manager", unique: ["client", "workflow"], optional: ["onboarding", "documentation", "sop", "team"] },
-    ],
-  },
-  {
-    name: "DesignSystems",
-    core: ["design", "system", "workflow", "process"],
-    titles: [
-      { title: "Product Designer", unique: ["product", "research"], optional: ["users", "testing", "feedback", "documentation"] },
-      { title: "UX Design Strategist", unique: ["research", "users"], optional: ["strategy", "testing", "documentation", "need"] },
-      { title: "Design Operations Lead", unique: ["team", "operations"], optional: ["documentation", "standards", "tracking", "coordination"] },
-      { title: "Design Program Manager", unique: ["team", "management"], optional: ["coordination", "planning", "delivery", "standards"] },
-      { title: "Brand Systems Designer", unique: ["brand", "team"], optional: ["standards", "identity", "visual", "documentation", "guidelines"] },
-    ],
-  },
-  {
-    name: "OpsProgram",
-    core: ["operations", "management", "team", "process"],
-    titles: [
-      { title: "Program Operations Lead", unique: ["program", "tracking"], optional: ["planning", "execution", "reporting", "stakeholders"] },
-      { title: "Operations Manager", unique: ["reporting", "compliance"], optional: ["performance", "scheduling", "budget", "tracking"] },
-      { title: "Program Manager", unique: ["program", "delivery"], optional: ["execution", "coordination", "budget", "stakeholders"] },
-      { title: "Project Delivery Manager", unique: ["project", "planning"], optional: ["budget", "execution", "reporting", "delivery"] },
-      { title: "Process Improvement Lead", unique: ["execution", "tracking"], optional: ["improvement", "efficiency", "documentation", "standards"] },
-    ],
-  },
-  {
-    name: "ClientGrowth",
-    core: ["relationship", "client", "team", "outcome"],
-    titles: [
-      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["collaboration", "stakeholder", "strategy", "tool"] },
-      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["collaboration", "stakeholder", "strategy", "project"] },
-      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["strategy", "stakeholder", "project", "ownership"] },
-      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["collaboration", "tool", "project", "ownership"] },
-      { title: "Account Manager", unique: ["account", "renewal"], optional: ["stakeholder", "strategy", "project", "collaboration"] },
-    ],
-  },
+// Ops/program-oriented deterministic title bank (10 titles)
+const TITLE_BANK: Array<string> = [
+  "Program Operations Lead",
+  "Technical Program Manager",
+  "Operations Manager",
+  "Program Manager",
+  "Delivery Lead",
+  "Business Operations Analyst",
+  "Implementation Manager",
+  "Process Improvement Lead",
+  "Project Delivery Manager",
+  "Strategic Operations Partner"
 ];
 
-// Standalone titles (scored regardless of cluster affinity)
-const STANDALONE_SIGS: Array<{ title: string; required: string[]; optional: string[] }> = [
-  {
-    title: "Solutions Consultant",
-    required: ["client", "solutions", "proposal", "process", "customer", "feasibility"],
-    optional: ["consulting", "delivery", "engagement", "management", "team"],
-  },
-];
-
-// ── Derived flat structures (used by scoring engine) ──
-// TITLE_BANK and TITLE_SIGNATURES are computed from clusters so the scoring
-// loop doesn't need cluster awareness — cluster overlap in required[] alone
-// ensures 5+ titles score ≥7 for a dominant pattern.
-type TitleSignature = { required: string[]; optional: string[] };
-const TITLE_BANK: string[] = [];
-const TITLE_SIGNATURES: Record<string, TitleSignature> = {};
-for (const cluster of TITLE_CLUSTERS) {
-  for (const t of cluster.titles) {
-    TITLE_BANK.push(t.title);
-    TITLE_SIGNATURES[t.title] = {
-      required: [...cluster.core, ...t.unique],
-      optional: t.optional,
-    };
-  }
-}
-for (const t of STANDALONE_SIGS) {
-  TITLE_BANK.push(t.title);
-  TITLE_SIGNATURES[t.title] = { required: t.required, optional: t.optional };
-}
-
-// Stopwords for broadened token extraction (matches anchor_extraction.ts + extras)
-const _TITLE_STOPWORDS = new Set<string>([
-  "the","and","for","with","from","this","that","have","has","had","will","into",
-  "over","under","your","you","our","are","was","were","been","being","they","them",
-  "their","there","here","what","when","where","which","who","whom","why","how",
-  "can","could","should","would","may","might","not","but","also","than","then",
-  "about","just","like","really","very","much","more","most","some","any","all",
-  "each","every","both","few","many","other","such","only","own","same","too",
-]);
-
-// Token canonicalization: maps common morphological variants to a single root.
-// Applied during anchor extraction so title signatures (which use canonical forms)
-// match naturally occurring text like "designing" → "design", "built" → "build".
-const _CANON_MAP: Record<string, string> = {
-  designing: "design", designed: "design", designer: "design", designers: "design", designs: "design",
-  building: "build", built: "build", builds: "build",
-  needs: "need",
-  workflows: "workflow",
-  proposals: "proposal",
-  automated: "automate", automation: "automate",
-  systems: "system",
-  processes: "process",
-  customers: "customer",
-  teams: "team",
-  // UX / design domain synonyms
-  prototype: "design", prototyping: "design", prototypes: "design",
-  wireframe: "design", wireframes: "design", wireframing: "design",
-  ux: "design",
-  usability: "research",
-  iterate: "process", iterating: "process", iteration: "process",
-  flows: "workflow",
-};
-
-// Compound normalization: multi-word phrases that should map to a single anchor.
-// Applied to raw text BEFORE tokenization so both parts merge into one token.
-const _COMPOUND_MAP: [RegExp, string][] = [
-  [/\bteam[\s-]building\b/gi, "team"],
-  [/\brelationship[\s-]building\b/gi, "relationship"],
-  [/\bproblem[\s-]solving\b/gi, "problem"],
-  [/\bcross[\s-]functional\b/gi, "cross_functional"],
-  [/\bgo[\s-]to[\s-]market\b/gi, "market"],
-];
-function _normalizeCompounds(text: string): string {
-  let out = text;
-  for (const [pattern, replacement] of _COMPOUND_MAP) {
-    out = out.replace(pattern, replacement);
-  }
-  return out;
-}
-
-// Suffix-stripping: conservative fallback for tokens not in the explicit map.
-// Only applied to tokens ≥5 chars. Does NOT apply to stopwords.
-function _stripSuffix(token: string): string {
-  if (token.length < 5) return token;
-  // -ing (e.g., designing→design, building→build, tracking→track)
-  if (token.endsWith("ing") && token.length >= 6) {
-    const base = token.slice(0, -3);
-    // Handle doubling: e.g., "planning" → "plann" → skip (keep map entry)
-    // If base ends in doubled consonant that was added for -ing, strip one
-    if (base.length >= 2 && base[base.length - 1] === base[base.length - 2] && /[bcdfghlmnprst]/.test(base[base.length - 1])) {
-      return base.slice(0, -1);
-    }
-    return base;
-  }
-  // -ed (e.g., designed→design, managed→manag→manage)
-  if (token.endsWith("ed") && token.length >= 5) {
-    const base = token.slice(0, -2);
-    // Handle doubled consonant before -ed: e.g., "mapped" → "mapp" → "map"
-    if (base.length >= 2 && base[base.length - 1] === base[base.length - 2] && /[bcdfghlmnprst]/.test(base[base.length - 1])) {
-      return base.slice(0, -1);
-    }
-    return base;
-  }
-  // -s plural (but not -ss, -us, -is)
-  if (token.endsWith("s") && !token.endsWith("ss") && !token.endsWith("us") && !token.endsWith("is") && token.length >= 5) {
-    // -ies → -y (e.g., studies→study, strategies→strategy)
-    if (token.endsWith("ies") && token.length >= 5) {
-      return token.slice(0, -3) + "y";
-    }
-    // -es after ch/sh/x/z (e.g., processes→process already in map, but fallback)
-    if (token.endsWith("es") && /(?:ch|sh|x|z)es$/.test(token)) {
-      return token.slice(0, -2);
-    }
-    return token.slice(0, -1);
-  }
-  return token;
-}
-
-function _canonicalize(token: string): string {
-  // 1. Explicit map (highest priority — handles irregulars like built→build)
-  const mapped = _CANON_MAP[token];
-  if (mapped) return mapped;
-  // 2. Suffix-stripping fallback (conservative, ≥5 chars only)
-  const stripped = _stripSuffix(token);
-  // If stripping produced a different token, check if THAT is in the map
-  if (stripped !== token) {
-    return _CANON_MAP[stripped] ?? stripped;
-  }
-  return token;
-}
-
-// Broadened token extraction: all ≥3-char non-stopword tokens with count≥2.
-// This is wider than anchor_extraction.ts (which requires verb/noun suffixes).
-// Used only for title scoring so real words like "design", "system", "product" count.
-// Tokens are canonicalized before counting so variants merge.
-function _extractBroadTokens(text: string): Map<string, number> {
-  const compounded = _normalizeCompounds(String(text ?? ""));
-  const cleaned = compounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return new Map();
-  const tokens = cleaned.split(" ");
-  const counts = new Map<string, number>();
-  for (const raw of tokens) {
-    const t = _canonicalize(raw);
-    if (t.length < 3) continue;
-    if (_TITLE_STOPWORDS.has(t)) continue;
-    counts.set(t, (counts.get(t) ?? 0) + 1);
-  }
-  // Filter to count≥2 (repetition = signal)
-  const result = new Map<string, number>();
-  for (const [term, count] of counts) {
-    if (count >= 2) result.set(term, count);
-  }
-  return result;
-}
-
-// Cross-source weighted anchor extraction.
-// Tokens that appear in BOTH resume and prompts, or across ≥2 distinct prompts,
-// get a stability bonus (up to weight cap 5). Single-source tokens cap at 3.
-// This rewards durable pattern signal without inflating single-mention terms.
-//
-// IMPORTANT: Source presence uses raw word occurrence (any mention), NOT the
-// count≥2 filtered broadMap. This ensures a term mentioned once in a resume
-// and once in each of 3 prompts still gets cross-source credit.
-function _extractWeightedAnchors(
-  resumeText: string,
-  promptAnswers: string[],
-  clarificationsText?: string,
-): Map<string, number> {
-  // Combined text filtered by count≥2 (the signal gate)
-  const combinedText = [resumeText, ...promptAnswers].filter(Boolean).join("\n");
-  const allTokens = _extractBroadTokens(combinedText);
-
-  // Clarifications get relaxed extraction: minCount=1 (single-mention terms count).
-  // This lets short user dialogue like "I prototype UX flows" inject anchors
-  // without requiring the term to already appear twice elsewhere.
-  if (clarificationsText && clarificationsText.trim()) {
-    const clarCompounded = _normalizeCompounds(String(clarificationsText));
-    const clarCleaned = clarCompounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-    if (clarCleaned) {
-      for (const raw of clarCleaned.split(" ")) {
-        const t = _canonicalize(raw);
-        if (t.length < 3 || _TITLE_STOPWORDS.has(t)) continue;
-        // Add with count=1 if not already present; if present, increment
-        allTokens.set(t, (allTokens.get(t) ?? 0) + 1);
-      }
-    }
-  }
-
-  // For source counting, use raw word presence (any mention) per source.
-  // This avoids the bug where a term appearing once per prompt across 4 prompts
-  // would get sourceCount=0 because no single prompt had count≥2.
-  const toWordSet = (text: string): Set<string> => {
-    const compounded = _normalizeCompounds(String(text ?? ""));
-    return new Set(
-      compounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
-        .map(_canonicalize)
-        .filter(t => t.length >= 3 && !_TITLE_STOPWORDS.has(t))
-    );
+// Deterministic title candidate generator
+function generateTitleCandidates(personVector: any, resumeText: string, promptAnswers?: string[]): Array<{ title: string; score: number }> {
+  // Score by personVector dimension affinity and lexical bonuses
+  // Each title gets a base score from affinity, plus lexical bonus from resume/prompts
+  const dimAffinity: Record<string, number[]> = {
+    "Program Operations Lead": [2,2,1,2,1,1],
+    "Technical Program Manager": [2,1,2,2,1,1],
+    "Operations Manager": [2,2,1,1,2,1],
+    "Program Manager": [2,1,2,1,2,1],
+    "Delivery Lead": [1,2,2,1,2,1],
+    "Business Operations Analyst": [1,2,1,2,2,1],
+    "Implementation Manager": [2,1,2,1,1,2],
+    "Process Improvement Lead": [1,2,2,2,1,1],
+    "Project Delivery Manager": [2,1,2,2,1,1],
+    "Strategic Operations Partner": [2,2,1,1,1,2]
   };
-  const resumeWords = toWordSet(resumeText);
-  const promptWordSets = promptAnswers.map(toWordSet);
-  const clarWords = clarificationsText ? toWordSet(clarificationsText) : new Set<string>();
-
-  // Count distinct sources each term appears in (resume=1, each prompt=1, clarifications=1)
-  const sourceCount = new Map<string, number>();
-  for (const [term] of allTokens) {
-    let sources = 0;
-    if (resumeWords.has(term)) sources++;
-    for (const pSet of promptWordSets) {
-      if (pSet.has(term)) sources++;
+  const vector = Array.isArray(personVector?.values) ? personVector.values : [1,1,1,1,1,1];
+  // Lexical bonus terms
+  const bonusTerms = ["program", "operations", "delivery", "process", "project", "implementation", "strategy", "improvement", "manager", "lead", "analyst", "partner"];
+  const text = [resumeText, ...(promptAnswers ?? [])].join(" ").toLowerCase();
+  return TITLE_BANK.map(title => {
+    // Affinity score: +15 for each exact match dim, +7 for off-by-1, 0 otherwise
+    let affinity = 0;
+    const dims = dimAffinity[title];
+    for (let i = 0; i < vector.length; i++) {
+      if (vector[i] === dims[i]) affinity += 15;
+      else if (Math.abs(vector[i] - dims[i]) === 1) affinity += 7;
     }
-    if (clarWords.has(term)) sources++;
-    sourceCount.set(term, sources);
-  }
-
-  // Build weighted map:
-  //   base weight = min(3, rawCount)
-  //   cross-source bonus: +1 per additional source beyond the first (capped total at 5)
-  const weighted = new Map<string, number>();
-  for (const [term, rawCount] of allTokens) {
-    const base = Math.min(3, rawCount);
-    const sources = sourceCount.get(term) ?? 1;
-    const bonus = Math.min(2, Math.max(0, sources - 1)); // 0, 1, or 2 bonus
-    const weight = Math.min(5, base + bonus);
-    weighted.set(term, weight);
-  }
-
-  return weighted;
+    // Lexical bonus: +5 for each bonus term present in text and title
+    let lexical = 0;
+    for (const term of bonusTerms) {
+      if (title.toLowerCase().includes(term) && text.includes(term)) lexical += 5;
+    }
+    let score = affinity + lexical;
+    score = Math.max(0, Math.min(100, Math.round(score)));
+    return { title, score };
+  })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
 }
-
-// Recognized action+artifact pairs. When both terms of a pair are present in the
-// anchor map AND at least one term appears in a title's signature, the pair adds
-// a scoring bonus. This rewards sophisticated domain vocabulary without inflating
-// generic profiles.
-const ACTION_ARTIFACT_PAIRS: [string, string][] = [
-  ["design", "system"],
-  ["create", "sop"],
-  ["automate", "workflow"],
-  ["pitch", "decks"],
-  ["feasibility", "studies"],
-  ["customer", "need"],
-  ["client", "outcome"],
-  ["build", "relationship"],
-];
-
-// High-specificity anchors: domain-specific terms that indicate genuine expertise.
-// Presence of at least one of these (in the anchor map) opens the >=9.5 gate.
-const HIGH_SPECIFICITY_ANCHORS = new Set<string>([
-  "sop", "feasibility", "incentives", "automate", "workflow",
-  "pitch", "decks", "proposal", "methodology", "compliance",
-  "architecture", "stakeholders", "onboarding", "documentation",
-  // ClientGrowth domain
-  "retention", "onboard", "partnership", "pipeline", "renewal",
-  "alliance", "negotiation", "community",
-]);
-
-// Internal enriched candidate type (includes debug/explainability fields)
-type EnrichedTitleCandidate = {
-  title: string;
-  score: number;
-  _reqCov: number;
-  _pairBonus: number;
-  _specific: boolean;
-  _matchedPairs: string[];
-  _missing: string[];
-};
-
-// Deterministic anchor-grounded title candidate generator.
-// Score is 0–10 self-match confidence (NOT a percentile).
-// BaseScore = 10 * requiredCoverage
-// PairBonus = min(0.8, matchedPairs * 0.2)
-// Specificity gate: score capped at 9.8 unless >=1 high-specificity anchor
-//   is present in the anchor map OR >=1 matched action+artifact pair exists.
-// Hard gates: >=9 requires reqCov >= 0.88; >=8 requires reqCov >= 0.78.
-function generateTitleCandidates(_personVector: any, resumeText: string, promptAnswers?: string[], clarificationsText?: string): EnrichedTitleCandidate[] {
-  const answers = promptAnswers ?? [];
-
-  // 1. Build cross-source weighted anchor map
-  const anchorMap = _extractWeightedAnchors(resumeText, answers, clarificationsText);
-
-  // 2. Score each title
-  const scored = TITLE_BANK.map(title => {
-    const sig = TITLE_SIGNATURES[title];
-    if (!sig) return { title, score: 0, _reqCov: 0, _optCov: 0, _pairBonus: 0, _specific: false, _matchedPairs: [] as string[], _missingReq: 0, _missing: [] as string[] };
-
-    // Required coverage: weighted overlap (denominator uses max weight = 5 per term;
-    // reqCov 1.0 requires all terms at max cross-source weight, preventing
-    // "all present = 10" shortcut. Cross-source bonus genuinely differentiates.)
-    let reqHit = 0;
-    let reqTotal = 0;
-    const missingRequired: string[] = [];
-    for (const term of sig.required) {
-      reqTotal += 5; // max possible weight per term
-      const w = anchorMap.get(term);
-      if (w !== undefined) {
-        reqHit += w;
-      } else {
-        missingRequired.push(term);
-      }
-    }
-    const requiredCoverage = reqTotal > 0 ? Math.min(1.0, reqHit / reqTotal) : 0;
-
-    // Optional coverage (used only for observability, not in score formula)
-    let optHit = 0;
-    let optTotal = 0;
-    for (const term of sig.optional) {
-      optTotal += 3;
-      const w = anchorMap.get(term);
-      if (w !== undefined) optHit += w;
-    }
-    const optionalCoverage = optTotal > 0 ? Math.min(1.0, optHit / optTotal) : 0;
-
-    // Pairing bonus: recognized action+artifact pairs where both terms are in the
-    // anchor map AND at least one term is in this title's signature.
-    // +0.2 per relevant pair, capped at +0.8.
-    const allSigTerms = new Set([...sig.required, ...sig.optional]);
-    let pairsHit = 0;
-    const matchedPairs: string[] = [];
-    for (const [a, b] of ACTION_ARTIFACT_PAIRS) {
-      if (anchorMap.has(a) && anchorMap.has(b)) {
-        if (allSigTerms.has(a) || allSigTerms.has(b)) {
-          pairsHit++;
-          matchedPairs.push(`${a}+${b}`);
-        }
-      }
-    }
-    const pairBonus = Math.min(0.8, pairsHit * 0.2);
-
-    // Specificity gate: does this title have evidence of domain-specific vocabulary?
-    // Met when: (a) >=1 high-specificity anchor is present in anchor map AND in this
-    //   title's signature, OR (b) >=1 matched action+artifact pair exists.
-    let hasSpecificity = matchedPairs.length > 0;
-    if (!hasSpecificity) {
-      for (const term of allSigTerms) {
-        if (HIGH_SPECIFICITY_ANCHORS.has(term) && anchorMap.has(term)) {
-          hasSpecificity = true;
-          break;
-        }
-      }
-    }
-
-    // BaseScore = 10 * requiredCoverage + pairBonus
-    let raw = 10 * requiredCoverage + pairBonus;
-
-    // Hard gates: prevent inflation when required coverage is insufficient
-    if (raw >= 9.0 && requiredCoverage < 0.88) raw = Math.min(raw, 8.9);
-    if (raw >= 8.0 && requiredCoverage < 0.78) raw = Math.min(raw, 7.9);
-
-    // Specificity gate: cap at 9.8 unless specificity is demonstrated
-    if (raw >= 9.5 && !hasSpecificity) raw = Math.min(raw, 9.4);
-
-    // Round to 1 decimal, clamp 0–9.9 (10.0 reserved for theoretical perfection)
-    const score = Math.max(0, Math.min(9.9, Math.round(raw * 10) / 10));
-
-    return { title, score, _reqCov: requiredCoverage, _optCov: optionalCoverage, _pairBonus: pairBonus, _specific: hasSpecificity, _matchedPairs: matchedPairs, _missingReq: missingRequired.length, _missing: missingRequired };
-  });
-
-  // 3. Sort by score desc, then title asc for determinism
-  scored.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
-
-  // 4. Return top 5
-  return scored.slice(0, 5).map(({ title, score, _reqCov, _pairBonus, _specific, _matchedPairs, _missing }) => ({
-    title, score, _reqCov, _pairBonus, _specific, _matchedPairs, _missing,
-  }));
-}
-
-// ── Anchor-grounded recommendation pack builder ──
-// Takes enriched scored candidates and the anchor map, applies banded filtering,
-// and generates "why" bullets that cite actual extracted anchors.
-// Scoring algorithm is NOT modified — this is a presentation layer.
-function generateTitleRecommendation(
-  _personVector: any,
-  resumeText: string,
-  promptAnswers?: string[],
-  clarificationsText?: string,
-): TitleRecommendationPack {
-  const enriched = generateTitleCandidates(_personVector, resumeText, promptAnswers, clarificationsText);
-  const answers = promptAnswers ?? [];
-  const anchorMap = _extractWeightedAnchors(resumeText, answers, clarificationsText);
-
-  // Primary is always #1
-  const primary: EnrichedTitleCandidate = enriched[0] ?? { title: "(no match)", score: 0, _reqCov: 0, _pairBonus: 0, _specific: false, _matchedPairs: [] as string[], _missing: [] as string[] };
-  const topScore = primary.score;
-
-  // Banded filter for adjacent (same rules as prior UI-side filter)
-  const adjacent = enriched.slice(1).filter((c, i) => {
-    if (i >= 2) return false;           // max 2 adjacent (3 total)
-    return c.score >= 7.0 && (topScore - c.score) <= 0.8;
-  });
-
-  // ── why_primary: 2–4 bullets citing matched anchors for the primary title ──
-  const primarySig = TITLE_SIGNATURES[primary.title];
-  const whyPrimary: string[] = [];
-  if (primarySig) {
-    // Bullet 1: list the strongest matched required terms
-    const matchedReq = primarySig.required.filter(t => anchorMap.has(t));
-    const topMatched = matchedReq
-      .sort((a, b) => (anchorMap.get(b) ?? 0) - (anchorMap.get(a) ?? 0))
-      .slice(0, 4);
-    if (topMatched.length > 0) {
-      whyPrimary.push(`Strong anchor coverage: ${topMatched.join(", ")}`);
-    }
-
-    // Bullet 2: matched action+artifact pairs
-    if (primary._matchedPairs.length > 0) {
-      whyPrimary.push(`Recognized domain pairs: ${primary._matchedPairs.join(", ")}`);
-    }
-
-    // Bullet 3: cross-source anchors (weight >= 4 means multiple sources)
-    const crossSource = matchedReq.filter(t => (anchorMap.get(t) ?? 0) >= 4);
-    if (crossSource.length > 0) {
-      whyPrimary.push(`Cross-source signal (resume + prompts): ${crossSource.join(", ")}`);
-    }
-
-    // Bullet 4: optional terms present
-    const matchedOpt = primarySig.optional.filter(t => anchorMap.has(t));
-    if (matchedOpt.length > 0) {
-      whyPrimary.push(`Supporting terms: ${matchedOpt.slice(0, 4).join(", ")}`);
-    }
-  }
-  // Ensure 2–4 bullets
-  if (whyPrimary.length < 2 && primary.score >= 7.0) {
-    whyPrimary.push(`Required coverage: ${(primary._reqCov * 100).toFixed(0)}%`);
-  }
-
-  // ── why_not_adjacent: 1–2 bullets explaining gap from primary to lower titles ──
-  const whyNotAdjacent: string[] = [];
-  // Find the highest-scored title NOT in primary or adjacent
-  const excluded = enriched.filter(c =>
-    c.title !== primary.title && !adjacent.some(a => a.title === c.title)
-  );
-  if (excluded.length > 0) {
-    const best = excluded[0];
-    if (best._missing.length > 0) {
-      whyNotAdjacent.push(`"${best.title}" missing anchors: ${best._missing.slice(0, 3).join(", ")}`);
-    }
-    if (best.score < 7.0 && topScore >= 7.0) {
-      whyNotAdjacent.push(`Lower-ranked titles scored below 7.0 confidence threshold`);
-    }
-  }
-
-  return {
-    primary_title: { title: primary.title, score: primary.score },
-    adjacent_titles: adjacent.map(({ title, score }) => ({ title, score })),
-    why_primary: whyPrimary.slice(0, 4),
-    why_not_adjacent: whyNotAdjacent.slice(0, 2),
-  };
-}
-
-// Exported for smoke/verification testing only
-export { generateTitleCandidates as _testGenerateTitleCandidates };
-export { generateTitleRecommendation as _testGenerateTitleRecommendation };
-export { _extractBroadTokens as _testExtractBroadTokens };
-export { _extractWeightedAnchors as _testExtractWeightedAnchors };
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
@@ -1483,8 +1004,8 @@ const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]
   CONSOLIDATION_RITUAL: ["ADVANCE"],
   ENCODING_RITUAL: ["ADVANCE"],
   PATTERN_SYNTHESIS: ["ADVANCE"],
-  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK", "RERUN_TITLES"],
-  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT", "RERUN_TITLES"],
+  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
+  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
   JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
   ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
   TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
@@ -1686,7 +1207,6 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         if (session.state === "PATTERN_SYNTHESIS") {
           // Restore deterministic title candidate generation
           let candidates: Array<{ title: string; score: number }> | undefined = undefined;
-          let recommendation: TitleRecommendationPack | undefined = undefined;
           if (!session.synthesis?.titleCandidates || session.synthesis.titleCandidates.length === 0) {
             // Gather prompt answers
             const promptAnswers = [];
@@ -1694,12 +1214,9 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               const ans = session.prompts?.[i]?.answer;
               if (typeof ans === "string" && ans.length > 0) promptAnswers.push(ans);
             }
-            candidates = generateTitleCandidates(session.personVector, session.resume?.rawText ?? "", promptAnswers)
-              .map(({ title, score }) => ({ title, score }));
-            recommendation = generateTitleRecommendation(session.personVector, session.resume?.rawText ?? "", promptAnswers);
+            candidates = generateTitleCandidates(session.personVector, session.resume?.rawText ?? "", promptAnswers);
           } else {
             candidates = session.synthesis.titleCandidates;
-            recommendation = session.synthesis.titleRecommendation as TitleRecommendationPack | undefined;
           }
           // Always set marketTitle and titleExplanation for backward compatibility
           const marketTitle = candidates[0]?.title ?? "";
@@ -1715,7 +1232,6 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               titleExplanation,
               lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
               titleCandidates: candidates,
-              titleRecommendation: recommendation,
               anchor_overlap_score: session.synthesis?.anchor_overlap_score,
               missing_anchor_count: session.synthesis?.missing_anchor_count,
               missing_anchor_terms: session.synthesis?.missing_anchor_terms,
@@ -1877,51 +1393,6 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         return { ok: true, session };
       }
 
-      case "RERUN_TITLES": {
-        // Additive-only: re-run title generation with user clarifications
-        // as a separate source with relaxed thresholds. Does NOT modify stored prompts/resume.
-        let clarText = String((event as any).clarificationsText ?? "").trim();
-        if (clarText.length > 600) clarText = clarText.slice(0, 600);
-
-        // Gather existing prompt answers
-        const storedAnswers: string[] = [];
-        for (let i = 1; i <= 5; i++) {
-          const ans = session.prompts?.[i]?.answer;
-          if (typeof ans === "string" && ans.length > 0) storedAnswers.push(ans);
-        }
-
-        const resumeRaw = session.resume?.rawText ?? "";
-        // Pass clarifications as separate param (minCount=1 extraction)
-        const candidates = generateTitleCandidates(
-          session.personVector, resumeRaw, storedAnswers, clarText || undefined,
-        ).map(({ title, score }) => ({ title, score }));
-        const recommendation = generateTitleRecommendation(
-          session.personVector, resumeRaw, storedAnswers, clarText || undefined,
-        );
-
-        const marketTitle = candidates[0]?.title ?? "";
-        session = {
-          ...session,
-          synthesis: {
-            patternSummary: session.synthesis?.patternSummary ?? null,
-            operateBest: session.synthesis?.operateBest ?? null,
-            loseEnergy: session.synthesis?.loseEnergy ?? null,
-            identitySummary: session.synthesis?.identitySummary ?? null,
-            marketTitle,
-            titleExplanation: "Top-ranked title (re-scored with your clarifications).",
-            lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
-            titleCandidates: candidates,
-            titleRecommendation: recommendation,
-            anchor_overlap_score: session.synthesis?.anchor_overlap_score,
-            missing_anchor_count: session.synthesis?.missing_anchor_count,
-            missing_anchor_terms: session.synthesis?.missing_anchor_terms,
-          },
-        };
-        // Stay in current state — no state transition
-        storeSet(session);
-        return { ok: true, session };
-      }
-
       case "SUBMIT_JOB_TEXT": {
         const jobText = (event as any).jobText
         if (typeof jobText !== "string" || jobText.trim().length === 0) {
@@ -2001,16 +1472,10 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           },
         };
 
-        // Compute skillMatch and stretchLoad from session vectors
-        const roleVector = job.roleVector as number[];
-        const experienceVector = session.personVector.values as number[];
-        const smResult = computeSkillMatch(roleVector, experienceVector);
-        const slResult = computeStretchLoad(smResult.finalScore);
-
         const contract = toResultContract({
           alignment: alignmentPayload,
-          skillMatch: smResult,
-          stretchLoad: slResult,
+          skillMatch: null,
+          stretchLoad: null,
         });
 
         // Only transition to TERMINAL_COMPLETE with result present

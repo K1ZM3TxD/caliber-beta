@@ -699,7 +699,10 @@ export default function CalibrationPage() {
               const primary = rec?.primary_title ?? allCandidates[0] ?? null;
               const adjacentTitles: { title: string; score: number }[] = rec?.adjacent_titles ?? [];
               const whyPrimary: string[] = rec?.why_primary ?? [];
+              const whyAdjacent: string[] = rec?.why_adjacent ?? [];
               const whyNotAdjacent: string[] = rec?.why_not_adjacent ?? [];
+              const watchOut: string = rec?.watch_out ?? "";
+              const llmEnhanced: boolean = rec?.llm_enhanced ?? false;
 
               return (
               <div className="w-full max-w-2xl pb-12">
@@ -748,41 +751,52 @@ export default function CalibrationPage() {
                     {/* Adjacent titles (lower-confidence) */}
                     {adjacentTitles.length > 0 ? (
                       <>
-                      <p className="text-xs font-medium mt-4 mb-2 ml-1" style={{ color: "#777" }}>Adjacent labels (lower-confidence)</p>
+                      <p className="text-xs font-medium mt-4 mb-2 ml-1" style={{ color: "#777" }}>{llmEnhanced ? "Also search for" : "Adjacent labels (lower-confidence)"}</p>
                       {adjacentTitles.map((c, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between rounded-md px-5 py-2 mb-1"
-                          style={{
-                            backgroundColor: "#121212",
-                            border: "1px solid rgba(242,242,242,0.08)",
-                          }}
-                        >
-                          <span className="flex items-center gap-3">
-                            <span className="text-sm" style={{ color: "#CFCFCF" }}>{c.title}</span>
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span className="text-sm font-mono font-medium" style={{ color: "#AFAFAF" }}>{c.score}</span>
-                            <button
-                              type="button"
-                              aria-label={copiedIndex === (i + 1) ? "Copied" : "Copy title"}
-                              onClick={() => handleCopyTitle(i + 1, c.title)}
-                              className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
-                              style={{
-                                background: copiedIndex === (i + 1) ? "#4ADE80" : "#232323",
-                                color: copiedIndex === (i + 1) ? "#232323" : "#AFAFAF",
-                                border: "none",
-                                minWidth: 60,
-                                cursor: "pointer"
-                              }}
-                            >
-                              {copiedIndex === (i + 1) ? "Copied" : "Copy"}
-                              {copiedIndex === (i + 1) ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
-                            </button>
-                          </span>
+                        <div key={i} className="mb-1">
+                          <div
+                            className="flex items-center justify-between rounded-md px-5 py-2"
+                            style={{
+                              backgroundColor: "#121212",
+                              border: "1px solid rgba(242,242,242,0.08)",
+                            }}
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="text-sm" style={{ color: "#CFCFCF" }}>{c.title}</span>
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-sm font-mono font-medium" style={{ color: "#AFAFAF" }}>{c.score}</span>
+                              <button
+                                type="button"
+                                aria-label={copiedIndex === (i + 1) ? "Copied" : "Copy title"}
+                                onClick={() => handleCopyTitle(i + 1, c.title)}
+                                className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                style={{
+                                  background: copiedIndex === (i + 1) ? "#4ADE80" : "#232323",
+                                  color: copiedIndex === (i + 1) ? "#232323" : "#AFAFAF",
+                                  border: "none",
+                                  minWidth: 60,
+                                  cursor: "pointer"
+                                }}
+                              >
+                                {copiedIndex === (i + 1) ? "Copied" : "Copy"}
+                                {copiedIndex === (i + 1) ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
+                              </button>
+                            </span>
+                          </div>
+                          {whyAdjacent[i] ? (
+                            <p className="text-xs ml-6 mt-1 mb-1" style={{ color: "#666" }}>{whyAdjacent[i]}</p>
+                          ) : null}
                         </div>
                       ))}
                       </>
+                    ) : null}
+
+                    {/* Watch-out */}
+                    {watchOut ? (
+                      <div className="mt-3 ml-1 text-xs" style={{ color: "#8B7000" }}>
+                        ⚠ {watchOut}
+                      </div>
                     ) : null}
 
                     {/* Why not others */}
@@ -790,6 +804,13 @@ export default function CalibrationPage() {
                       <ul className="mt-3 ml-6 text-xs leading-relaxed" style={{ color: "#555", listStyleType: "disc" }}>
                         {whyNotAdjacent.map((b, i) => <li key={i}>{b}</li>)}
                       </ul>
+                    ) : null}
+
+                    {/* LLM-enhanced badge */}
+                    {llmEnhanced ? (
+                      <p className="mt-3 text-xs text-center" style={{ color: "#555" }}>
+                        Titles generated with AI assistance, validated against your anchors
+                      </p>
                     ) : null}
                     </>
                   ) : (
