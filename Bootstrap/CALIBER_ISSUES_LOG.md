@@ -7,8 +7,14 @@
 2. Title suggestion missing/null blocks job description entry; must surface job description gate reliably
 3. Post-score LLM dialogue mode: toggle and UI implementation pending after Fit score + summary page
 4. Routing/polling fragility: session state checks can be stale, causing UI to hang or misroute (partially mitigated, but still relevant)
-5. Score+summary page: ensure correct UI and backend contract for Fit score (0–10) + summary output — **ACTIVE** (2026-03-01)
-	- Note: placeholder 0 removed; deterministic scoring now required before TERMINAL_COMPLETE/result.
+5. Score+summary page contract → **inline results panel on JOB_TEXT step** — **RESOLVED** (2026-03-03)
+	- Fix commit: 57f1c68
+	- Results now render inline on the JOB_TEXT step in /calibration (no separate score page or /results navigation).
+	- Contract:
+		- Show **Job Title** (best available title from synthesis / title recommendation)
+		- Show **Fit Score** (0–10, deterministic)
+		- Show exactly **3 sentences** of "why good/bad fit" summary (truncated if longer)
+		- Error surfaces **real error string** from backend (no generic "A terminal error occurred" banner)
 6. ALIGNMENT_OUTPUT gate: ADVANCE invalid; must COMPUTE_ALIGNMENT_OUTPUT (2026-03-01)
 	- UI/Backend divergence: UI does not consistently execute COMPUTE_ALIGNMENT_OUTPUT or handle TERMINAL_COMPLETE/result
 

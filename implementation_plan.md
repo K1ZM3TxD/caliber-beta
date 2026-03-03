@@ -400,31 +400,31 @@ Action:
 
 
 
-\### Results Page
+\### Inline Results Panel (same page as intake, /calibration)
 
-Outputs:
+Results render inline on the JOB_TEXT step — no navigation to /results.
 
-\- Alignment score
+**Currently surfaced (commit 57f1c68):**
+
+\- Job Title (best available from synthesis / title recommendation)
+
+\- Fit Score (0–10, deterministic alignment score)
+
+\- 3-sentence "why good/bad fit" summary (truncated if longer)
+
+\- Real error string on failure (no generic banner)
+
+**Planned / not yet surfaced:**
 
 \- Pattern Synthesis block
 
-\- Skill Match score
+\- Skill Match score + terrain class
 
-\- Requirement breakdown in plain language (not labels/table):
-
-&nbsp; - “X requirements match prior scope-level execution.”
-
-&nbsp; - “Y require adjacent capability expansion.”
-
-&nbsp; - “Z represent new execution territory.”
+\- Requirement breakdown in plain language ("X match", "Y adjacent", "Z new territory")
 
 \- Stretch Load percentage
 
-
-
-Optional debug toggle (default off):
-
-\- show extracted vectors + evidence (for internal testing)
+\- Optional debug toggle: extracted vectors + evidence (for internal testing)
 
 
 
@@ -458,7 +458,7 @@ No Supabase keys in v1.
 
 \- Tailwind
 
-\- Basic routes: / (intake), /results
+\- Basic routes: / (intake), /calibration (intake + inline results)
 
 \- Env var handling
 
