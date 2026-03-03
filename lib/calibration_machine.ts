@@ -7,6 +7,8 @@ import { generateSemanticSynthesis } from "@/lib/semantic_synthesis";
 import { extractLexicalAnchors } from "@/lib/anchor_extraction";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { detectAbstractionDrift } from "./abstraction_drift";
+import { computeSkillMatch } from "@/lib/skill_match";
+import { computeStretchLoad } from "@/lib/stretch_load";
 export { validateAndRepairSynthesisOnce };
 
 // Ops/program-oriented deterministic title bank (10 titles)
@@ -1472,10 +1474,12 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           },
         };
 
+        const sm = computeSkillMatch(job.roleVector ?? [0,0,0,0,0,0], session.personVector?.values ?? [0,0,0,0,0,0]);
+        const sl = computeStretchLoad(sm.finalScore);
         const contract = toResultContract({
           alignment: alignmentPayload,
-          skillMatch: null,
-          stretchLoad: null,
+          skillMatch: sm,
+          stretchLoad: sl,
         });
 
         // Only transition to TERMINAL_COMPLETE with result present
