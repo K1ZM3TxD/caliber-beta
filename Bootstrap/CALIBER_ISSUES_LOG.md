@@ -3,10 +3,12 @@
 
 ## Current Open Issues
 
+0. PM drift: afterthought additions and premature long tasks violate distilled UX. Enforce No-Afterthoughts + Input-First rules in PM mode. (2026-03-04)
 1. TITLES step: session.synthesis.marketTitle/titleExplanation can be null in TITLE_DIALOGUE; Continue may misroute (JOB_REQUIRED/0-10 pending)
 2. Title suggestion missing/null blocks job description entry; must surface job description gate reliably
 3. Post-score LLM dialogue mode: toggle and UI implementation pending after Fit score + summary page
 4. Routing/polling fragility: session state checks can be stale, causing UI to hang or misroute (partially mitigated, but still relevant)
+5-season. Title scoring calibration: ensure multiple high-fit titles can be returned; avoid brittle single-winner behavior (design/solutions titles often score low). (2026-03-04)
 5. Score+summary page contract → **inline results panel on JOB_TEXT step** — **RESOLVED** (2026-03-03)
 	- Fix commit: 57f1c68
 	- Results now render inline on the JOB_TEXT step in /calibration (no separate score page or /results navigation).

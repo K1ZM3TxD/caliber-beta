@@ -51,6 +51,8 @@ Caliber is now locked to the following product flow:
 3. Fit score (0–10) + summary
 4. LLM dialogue opens after score+summary (next phase toggle; wander vs constrained not yet locked)
 
+Default UX is distilled; expanded details are user-initiated (collapsed by default).
+
 Older calibration-core steps (anchors, overlap/gap, mechanical title producer) are deprecated in the current flow.
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
@@ -397,7 +399,7 @@ Acceptable verification methods:
 
 
 “Feels better” is not a metric.
-
+Season wrap-ups must be written into Bootstrap docs before switching chats.
 
 
 
@@ -417,6 +419,7 @@ For coders / agents:
 - Full-file rewrite allowed ONLY with explicit justification per above.
 - No speculative refactors.
 - Minimal surface change per task.
+- PM must gather minimum required inputs before drafting tasks; no afterthought additions after user directives.
 
 Definition of surgical edit (mechanical):
 

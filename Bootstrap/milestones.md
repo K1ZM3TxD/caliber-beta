@@ -1,5 +1,23 @@
 ---
 
+BREAK + UPDATE (2026-03-04) — Season wrap-up
+---
+DONE:
+- Inline job pipeline + results behavior stabilized (57f1c68; inline JOB_TEXT results contract — results render on /calibration without navigation)
+- Title recommendations UI: dropdown expand/collapse with per-title score, summary preview (collapsed), mechanism bullets + full summary (expanded)
+- Fit card: "Supports the fit" / "Stretch factors" / "Bottom line" rendering in pinned header; growth framing on stretch factors (no negative language)
+- Title bullet rewrite: jargon themes replaced with verb-driven mechanism bullets (<=8 words, doctrine-compliant)
+- Summary-first rendering: collapsed row shows 1-line summary preview; expanded panel shows summary above bullets
+- Production deploy confirmed auto-updates on main via Vercel; development should use branch/preview (operating practice)
+- New PM operating constraints adopted: no-afterthoughts; gather-minimum-inputs-before-task; single-pass task rule
+- Season docs synced into Bootstrap for new-chat loadability
+NEXT:
+- Title scoring calibration: ensure multiple high-fit titles can be returned; avoid brittle single-winner behavior
+- Post-score LLM dialogue mode toggle (wander vs constrained; not yet locked)
+- Fit card wording/format polish pass
+
+---
+
 BREAK + UPDATE (2026-03-02)
 ---
 DONE:
