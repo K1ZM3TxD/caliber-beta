@@ -902,17 +902,17 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : (
                   <>
                     <div className="mt-8">
-                      <div className="flex items-baseline justify-between mb-2">
-                        <label className="text-sm font-medium" style={{ color: "#999" }}>Paste job below</label>
+                      <div className="flex items-baseline gap-1.5 mb-2">
                         <a
                           href="/extension"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs font-medium transition-colors"
+                          className="text-sm font-medium transition-colors"
                           style={{ color: "#4ADE80" }}
                         >
-                          Try our browser extension (LinkedIn + Indeed)
+                          Try our browser extension
                         </a>
+                        <span className="text-sm" style={{ color: "#666" }}>, or paste job below</span>
                       </div>
                       <textarea
                         value={jobText}
