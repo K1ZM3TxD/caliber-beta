@@ -136,6 +136,18 @@ Governance, compliance, audit readiness (SOC 2 / ISO 27001), risk management, an
     assert(hasToken, `bottom_line_2s must reference supports/stretch content. tokens=${allTokens.slice(0, 10).join(",")}, bl2s="${bl2s}"`)
   }
 
+  // De-dup: bottom_line_2s must NOT repeat any stretch_factors bullet verbatim
+  for (const sf of stretchFactors) {
+    // Extract the core phrase (after colon if present)
+    const core = sf.includes(":") ? sf.split(":").slice(1).join(":").trim() : sf.trim()
+    if (core.length > 10) {
+      assert(
+        !bl2s.toLowerCase().includes(core.toLowerCase()),
+        `bottom_line_2s repeats stretch bullet verbatim: "${core}" found in "${bl2s}"`,
+      )
+    }
+  }
+
   console.log(`PASS: bottom_line_2s doctrine check ("${bl2s.slice(0, 80)}...")`)
   console.log("PASS: calibration smoke transcript complete (includes consolidation ritual + synthesis)")
 }

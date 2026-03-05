@@ -1652,9 +1652,9 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         const stretchFactorsCapped = stretchFactors.slice(0, 6);
 
         // Bottom line (doctrine-tight: 2 sentences, constraint-based, no vague framing)
+        // De-dup: paragraph must NOT repeat stretch bullet text verbatim
         const topSupport = supportsFit[0] ?? "general pattern alignment";
         const topSupport2 = supportsFit[1] ?? "";
-        const topStretch = stretchFactorsCapped[0] ?? "";
 
         // Deterministic proof artifact from stretch factor content
         function concreteProof(stretch: string): string {
@@ -1667,22 +1667,41 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           return "a small shipped project with before/after evidence";
         }
 
+        // Short label for paragraph reference (avoids echoing full bullet)
+        function stretchLabel(stretch: string): string {
+          const s = stretch.toLowerCase();
+          if (s.includes("tenure at scale")) return "demonstrated impact at scale";
+          if (s.includes("pipeline delivery") || s.includes("ml")) return "hands-on delivery experience";
+          if (s.includes("ownership breadth") || s.includes("from scratch")) return "end-to-end ownership";
+          if (s.includes("revenue") || s.includes("commercial")) return "commercial fluency";
+          if (s.includes("on-call") || s.includes("sla") || s.includes("ops muscle")) return "operational readiness";
+          if (s.includes("clearance")) return "access eligibility";
+          if (s.includes("narrow overlap")) return "broader skill overlap";
+          if (s.includes("anchor gap")) return "demonstrated core strengths";
+          return "the primary gap area";
+        }
+
         const supportsLabel = topSupport2
           ? `${topSupport.toLowerCase()} and ${topSupport2.toLowerCase()}`
           : topSupport.toLowerCase();
+
+        // Pick a stretch to reference — use [0] but via the label (never the raw bullet)
+        const stretchForParagraph = stretchFactorsCapped[0] ?? "";
 
         let bottomLine2s: string;
         if (fitScore >= 7) {
           bottomLine2s = `Strong fit — the role rewards ${supportsLabel}. Prove it fast: show 2 concrete artifacts that demonstrate ${topSupport.toLowerCase()} in the job's language.`;
         } else if (fitScore >= 4) {
-          const proof = concreteProof(topStretch);
-          bottomLine2s = topStretch
-            ? `Partial fit — the overlap is real, but the role will test ${topStretch.toLowerCase()}. If pursuing this title, run one proof loop: ship ${proof} that closes ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)}.`
+          const proof = concreteProof(stretchForParagraph);
+          const label = stretchLabel(stretchForParagraph);
+          bottomLine2s = stretchForParagraph
+            ? `Partial fit — the overlap is real, but the role will test ${label}. Close the gap: ship ${proof}.`
             : `Partial fit — the overlap is real through ${supportsLabel}. Strengthen the case with concrete artifacts that map your work to the job's language.`;
         } else {
-          const proof = concreteProof(topStretch);
-          bottomLine2s = topStretch
-            ? `Low fit — the title is anchored in ${topStretch.toLowerCase()} that isn't evidenced yet. Don't stretch on rhetoric; pick a nearer title or build proof of ${topStretch.toLowerCase()} with ${proof}.`
+          const proof = concreteProof(stretchForParagraph);
+          const label = stretchLabel(stretchForParagraph);
+          bottomLine2s = stretchForParagraph
+            ? `Low fit — the role requires ${label} that isn't evidenced yet. Pick a nearer title or build proof with ${proof}.`
             : `Low fit — few of this role's core requirements are evidenced in your pattern. Pick a nearer title where your existing proof is stronger.`;
         }
 
