@@ -31,7 +31,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES" | "JOB_TEXT" | "RESULTS";
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES" | "JOB_TEXT";
 // Helper: returns true if session has results available
 function hasResults(session: any): boolean {
   return Boolean(session?.result) || (String(session?.state) === "PATTERN_SYNTHESIS" && Boolean(session?.patternSummary));
@@ -39,13 +39,13 @@ function hasResults(session: any): boolean {
 // Returns UI step based on backend state and session
 function getStepFromState(state: unknown, session?: any): UiStep {
   const s = String(state ?? "");
-  if (hasResults(session)) return "RESULTS";
+  if (hasResults(session)) return "JOB_TEXT";
   if (/^PROMPT_\d(_CLARIFIER)?$/.test(s)) return "PROMPT";
   if (s === "CONSOLIDATION_PENDING" || s === "CONSOLIDATION_RITUAL" || s === "PATTERN_SYNTHESIS") return "PROCESSING";
   if (s.startsWith("TITLE_HYPOTHESIS") || s.startsWith("TITLE_DIALOGUE")) return "TITLES";
   if (s.startsWith("JOB_INGEST")) return "JOB_TEXT";
   if (s === "ALIGNMENT_OUTPUT") return "PROCESSING";
-  if (s === "TERMINAL_COMPLETE") return "RESULTS";
+  if (s === "TERMINAL_COMPLETE") return "JOB_TEXT";
   return "PROCESSING";
 }
 
@@ -147,6 +147,7 @@ function truncateToSentences(text: string, n: number): string {
 export default function CalibrationPage() {
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+    const [expandedTitleIdx, setExpandedTitleIdx] = useState<number | null>(null);
     function handleCopyTitle(idx: number, title: string) {
       navigator.clipboard.writeText(title);
       setCopiedIndex(idx);
@@ -180,12 +181,13 @@ export default function CalibrationPage() {
           try {
             const result = await fetchResult(urlId);
             if (result?.ok) {
-              // Build a minimal session object the RESULTS UI can render
+              // Populate session + inline result panel, stay on JOB_TEXT
               const resultSession = await fetchSession(urlId);
               if (resultSession) {
                 setSession(resultSession);
                 setCookie(COOKIE_NAME, urlId);
-                setStep("RESULTS");
+                setJobResult(buildJobResult(resultSession, result));
+                setStep("JOB_TEXT");
                 return;
               }
             }
@@ -282,11 +284,20 @@ export default function CalibrationPage() {
     const [titleFeedback, setTitleFeedback] = useState("");
     const [jobText, setJobText] = useState("");
     const [jobBusy, setJobBusy] = useState(false);
-    const [jobResult, setJobResult] = useState<{ score: number; summary: string; title: string } | null>(null);    // Dialogue panel state (UI-only stub, no backend)
-    const [dialogueMessages, setDialogueMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>(
-      [{ role: "assistant", text: "If anything feels off, tell me what you actually do week-to-week." }]
-    );
-    const [dialogueInput, setDialogueInput] = useState("");    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
+    const [jobResult, setJobResult] = useState<{ score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } | null>(null);
+    /** Build jobResult from session + optional fetchResult response */
+    function buildJobResult(s: any, result?: any): { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } {
+      const score = result?.score_0_to_10 ?? s?.result?.alignment?.score ?? 0;
+      const rawSummary = result?.summary ?? s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
+      const title = s?.synthesis?.titleRecommendation?.primary_title?.title
+        ?? s?.synthesis?.marketTitle
+        ?? s?.synthesis?.titleCandidates?.[0]?.title ?? "";
+      const supports_fit: string[] = Array.isArray(s?.result?.alignment?.supports_fit) ? s.result.alignment.supports_fit : [];
+      const stretch_factors: string[] = Array.isArray(s?.result?.alignment?.stretch_factors) ? s.result.alignment.stretch_factors : [];
+      const bottom_line_2s: string = typeof s?.result?.alignment?.bottom_line_2s === "string" ? s.result.alignment.bottom_line_2s : "";
+      return { score: Number(score), summary: truncateToSentences(rawSummary, 3), title, supports_fit, stretch_factors, bottom_line_2s };
+    }
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
@@ -341,28 +352,10 @@ export default function CalibrationPage() {
         if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
           try {
             const result = await fetchResult(sessionId);
-            const score = result?.score_0_to_10 ?? s?.result?.alignment?.score ?? null;
-            const rawSummary = result?.summary ?? s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
-            const title = s?.synthesis?.titleRecommendation?.primary_title?.title
-              ?? s?.synthesis?.marketTitle
-              ?? s?.synthesis?.titleCandidates?.[0]?.title
-              ?? "";
-            setJobResult({
-              score: score != null ? Number(score) : 0,
-              summary: truncateToSentences(rawSummary, 3),
-              title,
-            });
+            setJobResult(buildJobResult(s, result));
           } catch {
             // Result fetch failed but session has results — extract from session
-            const score = s?.result?.alignment?.score ?? 0;
-            const rawSummary = s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
-            const title = s?.synthesis?.titleRecommendation?.primary_title?.title
-              ?? s?.synthesis?.marketTitle ?? "";
-            setJobResult({
-              score: Number(score),
-              summary: truncateToSentences(rawSummary, 3),
-              title,
-            });
+            setJobResult(buildJobResult(s));
           }
         } else {
           setError(`Pipeline did not reach results (state: ${String(s?.state)}).`);
@@ -386,6 +379,49 @@ export default function CalibrationPage() {
 
   // Centering: use min-h-screen for main flex container
   // ...existing code...
+// FitAccordion for inline fit score analysis
+function FitAccordion({ jobResult }: { jobResult: { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } }) {
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => { setExpanded(true); }, [jobResult]); // expand by default on new result
+  return (
+    <div className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors" style={{ backgroundColor: expanded ? "#1A1A1A" : "#141414", border: expanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)" }}>
+      <span className="flex items-center justify-between" onClick={() => setExpanded(!expanded)}>
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{expanded ? "▼" : "▶"}</span>
+          <span className="text-sm font-semibold truncate" style={{ color: "#4ADE80" }}>Fit Score</span>
+        </span>
+        <span className="flex items-center gap-2 flex-shrink-0 ml-2">
+          <span className="text-sm font-mono font-bold" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
+        </span>
+      </span>
+      {expanded ? (
+        <div className="px-2 py-3 text-left">
+          {jobResult.supports_fit.length > 0 ? (
+            <div className="mb-2">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
+              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
+                {jobResult.supports_fit.map((d, i) => <li key={i}><strong>{d}</strong></li>)}
+              </ul>
+            </div>
+          ) : null}
+          {jobResult.stretch_factors.length > 0 ? (
+            <div className="mb-2">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#F59E0B" }}>Stretch factors</div>
+              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
+                {jobResult.stretch_factors.map((c, i) => <li key={i}><strong>{c}</strong></li>)}
+              </ul>
+            </div>
+          ) : null}
+          {jobResult.bottom_line_2s ? (
+            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.bottom_line_2s}</div>
+          ) : jobResult.summary ? (
+            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.summary}</div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
   // Auto-advance for PROCESSING (use returned session, not stale state)
   useEffect(() => {
@@ -408,7 +444,7 @@ export default function CalibrationPage() {
       if (hasResults(session)) {
         stopped = true;
         clearInterval(interval);
-        setStep("RESULTS");
+        setStep("JOB_TEXT");
         inFlightRef.current = false;
         return;
       }
@@ -424,7 +460,7 @@ export default function CalibrationPage() {
               if (hasResults(updated)) {
                 stopped = true;
                 clearInterval(interval);
-                setStep("RESULTS");
+                setStep("JOB_TEXT");
               } else {
                 // Compute returned but no results yet — let next tick re-evaluate via ADVANCE
                 setStep(getStepFromState(updated?.state, updated));
@@ -515,6 +551,58 @@ export default function CalibrationPage() {
                 ) : null}
               </div>
             </div>
+
+            {/* Pinned results header — visible whenever jobResult exists */}
+            {jobResult ? (
+              <div className="w-full max-w-2xl rounded-lg px-5 py-4 mb-4" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.12)" }}>
+                {jobResult.title ? (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium truncate" style={{ color: "#999" }}>Title:</span>
+                    <span className="text-sm font-semibold truncate" style={{ color: "#F2F2F2" }}>{jobResult.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(jobResult.title); }}
+                      className="flex-shrink-0 rounded px-1.5 py-0.5 text-xs transition-colors"
+                      style={{ color: "#888", border: "1px solid rgba(242,242,242,0.12)" }}
+                      title="Copy title"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                ) : null}
+                <div className="text-2xl font-bold" style={{ color: "#4ADE80" }}>Fit Score: {jobResult.score}/10</div>
+
+                {/* Structured: supports the fit + stretch factors */}
+                {jobResult.supports_fit.length > 0 || jobResult.stretch_factors.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {jobResult.supports_fit.length > 0 ? (
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
+                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                          {jobResult.supports_fit.map((d, i) => <li key={i}>{d}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {jobResult.stretch_factors.length > 0 ? (
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#F59E0B" }}>Stretch factors</div>
+                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                          {jobResult.stretch_factors.map((c, i) => <li key={i}>{c}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Bottom line (2 sentences) */}
+                {jobResult.bottom_line_2s ? (
+                  <div className="mt-3 text-sm leading-relaxed" style={{ color: "#CFCFCF" }}>{jobResult.bottom_line_2s}</div>
+                ) : jobResult.summary ? (
+                  <div className="mt-3 text-sm leading-relaxed" style={{ color: "#CFCFCF" }}>{jobResult.summary}</div>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
@@ -725,7 +813,7 @@ export default function CalibrationPage() {
               </div>
             ) : null}
             {/* Fallback: never blank */}
-            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES","JOB_TEXT","RESULTS"].includes(step) ? (
+            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES","JOB_TEXT"].includes(step) ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
                   <Spinner />
@@ -746,236 +834,103 @@ export default function CalibrationPage() {
 
             {/* TITLES UI */}
             {step === "TITLES" ? (() => {
-              // ── Recommendation pack (primary + adjacent + why) ──
               const rec = session?.synthesis?.titleRecommendation;
-              // Fallback to legacy titleCandidates if recommendation pack not present
-              const allCandidates: { title: string; score: number }[] =
-                Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+              // New enriched titles array
+              const enrichedTitles: Array<{ title: string; fit_0_to_10: number; bullets_3?: [string, string, string]; summary_2s?: string }> =
+                Array.isArray(rec?.titles) ? rec.titles : [];
+              const archetypeLabel: string = rec?.archetype_label ?? "";
 
-              const primary = rec?.primary_title ?? allCandidates[0] ?? null;
-              const adjacentTitles: { title: string; score: number }[] = rec?.adjacent_titles ?? [];
-              const whyPrimary: string[] = rec?.why_primary ?? [];
-              const whyAdjacent: string[] = rec?.why_adjacent ?? [];
-              const whyNotAdjacent: string[] = rec?.why_not_adjacent ?? [];
-              const watchOut: string = rec?.watch_out ?? "";
-              const llmEnhanced: boolean = rec?.llm_enhanced ?? false;
+              // Fallback: if no enriched titles, build from legacy candidates
+              const fallbackCandidates: Array<{ title: string; score: number }> =
+                Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+              let titlesToRender = enrichedTitles.length > 0
+                ? enrichedTitles
+                : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
+
+              // Sort by score descending and take top 3
+              titlesToRender = [...titlesToRender]
+                .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
+                .slice(0, 3);
 
               return (
               <div className="w-full max-w-2xl pb-12">
-                <div className="mt-6">
-                  {primary ? (
-                    <>
-                    {/* Primary title */}
-                    <div
-                      className="flex items-center justify-between rounded-md px-5 py-3 mb-2"
-                      style={{
-                        backgroundColor: "#1A1A1A",
-                        border: "1px solid rgba(242,242,242,0.18)",
-                      }}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="text-base sm:text-lg font-semibold" style={{ color: "#F2F2F2" }}>{primary.title}</span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className="text-sm font-mono font-medium" style={{ color: "#4ADE80" }}>{primary.score}</span>
-                        <button
-                          type="button"
-                          aria-label={copiedIndex === 0 ? "Copied" : "Copy title"}
-                          onClick={() => handleCopyTitle(0, primary.title)}
-                          className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
+                {/* Archetype label */}
+                {archetypeLabel ? (
+                  <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+                ) : null}
+
+                {/* Title rows with expand/collapse */}
+                <div className="mt-2 space-y-1">
+                  {titlesToRender.map((t, idx) => {
+                    const isExpanded = expandedTitleIdx === idx;
+                    const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
+                    const validBullets = rawBullets.filter((b: string) => b && b.trim());
+                    const hasBullets = validBullets.length > 0;
+                    const summaryText: string = typeof (t as any).summary_2s === "string" ? (t as any).summary_2s.trim() : "";
+                    const hasSummary = summaryText.length > 0;
+                    const canExpand = hasBullets || hasSummary;
+
+                    return (
+                      <div key={idx}>
+                        <div
+                          className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors"
                           style={{
-                            background: copiedIndex === 0 ? "#4ADE80" : "#232323",
-                            color: copiedIndex === 0 ? "#232323" : "#AFAFAF",
-                            border: "none",
-                            minWidth: 60,
-                            cursor: "pointer"
+                            backgroundColor: isExpanded ? "#1A1A1A" : "#141414",
+                            border: isExpanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)",
+                          }}
+                          onClick={() => {
+                            if (!canExpand) return;
+                            setExpandedTitleIdx(isExpanded ? null : idx);
                           }}
                         >
-                          {copiedIndex === 0 ? "Copied" : "Copy"}
-                          {copiedIndex === 0 ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
-                        </button>
-                      </span>
-                    </div>
-
-                    {/* Why this title — anchor-grounded bullets */}
-                    {whyPrimary.length > 0 ? (
-                      <ul className="mt-2 mb-4 ml-6 text-xs leading-relaxed" style={{ color: "#888", listStyleType: "disc" }}>
-                        {whyPrimary.map((b, i) => <li key={i}>{b}</li>)}
-                      </ul>
-                    ) : null}
-
-                    {/* Adjacent titles (lower-confidence) */}
-                    {adjacentTitles.length > 0 ? (
-                      <>
-                      <p className="text-xs font-medium mt-4 mb-2 ml-1" style={{ color: "#777" }}>{llmEnhanced ? "Also search for" : "Adjacent labels (lower-confidence)"}</p>
-                      {adjacentTitles.map((c, i) => (
-                        <div key={i} className="mb-1">
-                          <div
-                            className="flex items-center justify-between rounded-md px-5 py-2"
-                            style={{
-                              backgroundColor: "#121212",
-                              border: "1px solid rgba(242,242,242,0.08)",
-                            }}
-                          >
-                            <span className="flex items-center gap-3">
-                              <span className="text-sm" style={{ color: "#CFCFCF" }}>{c.title}</span>
+                          {/* Title + score + copy row */}
+                          <span className="flex items-center justify-between">
+                            <span className="flex items-center gap-2 min-w-0">
+                              {canExpand ? (
+                                <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
+                              ) : (
+                                <span className="text-xs flex-shrink-0" style={{ color: "#333", width: 14 }}>·</span>
+                              )}
+                              <span className={`text-sm ${idx === 0 ? "font-semibold" : ""} truncate`} style={{ color: "#F2F2F2" }}>{t.title}</span>
                             </span>
-                            <span className="flex items-center gap-2">
-                              <span className="text-sm font-mono font-medium" style={{ color: "#AFAFAF" }}>{c.score}</span>
+                            <span className="flex items-center gap-2 flex-shrink-0 ml-2">
+                              <span className="text-sm font-mono font-medium" style={{ color: idx === 0 ? "#4ADE80" : "#AFAFAF" }}>{t.fit_0_to_10}/10</span>
                               <button
                                 type="button"
-                                aria-label={copiedIndex === (i + 1) ? "Copied" : "Copy title"}
-                                onClick={() => handleCopyTitle(i + 1, c.title)}
-                                className="ml-2 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                aria-label={copiedIndex === idx ? "Copied" : "Copy title"}
+                                onClick={(e) => { e.stopPropagation(); handleCopyTitle(idx, t.title); }}
+                                className="px-2 py-0.5 rounded text-xs font-medium transition-colors"
                                 style={{
-                                  background: copiedIndex === (i + 1) ? "#4ADE80" : "#232323",
-                                  color: copiedIndex === (i + 1) ? "#232323" : "#AFAFAF",
+                                  background: copiedIndex === idx ? "#4ADE80" : "#232323",
+                                  color: copiedIndex === idx ? "#232323" : "#AFAFAF",
                                   border: "none",
-                                  minWidth: 60,
-                                  cursor: "pointer"
+                                  minWidth: 52,
+                                  cursor: "pointer",
                                 }}
                               >
-                                {copiedIndex === (i + 1) ? "Copied" : "Copy"}
-                                {copiedIndex === (i + 1) ? <span style={{ color: '#4ADE80', fontSize: 18, marginLeft: 8 }} title="Copied">✓</span> : null}
+                                {copiedIndex === idx ? "Copied ✓" : "Copy"}
                               </button>
                             </span>
-                          </div>
-                          {whyAdjacent[i] ? (
-                            <p className="text-xs ml-6 mt-1 mb-1" style={{ color: "#666" }}>{whyAdjacent[i]}</p>
-                          ) : null}
+                          </span>
                         </div>
-                      ))}
-                      </>
-                    ) : null}
-
-                    {/* Watch-out */}
-                    {watchOut ? (
-                      <div className="mt-3 ml-1 text-xs" style={{ color: "#8B7000" }}>
-                        ⚠ {watchOut}
+                        {/* Expanded details — summary first, then bullets */}
+                        {isExpanded && canExpand ? (
+                          <div className="px-6 py-4 sm:px-7 sm:py-5 rounded-b-md mb-1 text-left" style={{ backgroundColor: "#1A1A1A", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
+                            {hasSummary ? (
+                              <p className="text-sm sm:text-base leading-relaxed sm:leading-7 mb-3" style={{ color: "#E0E0E0", textAlign: "left" }}>{summaryText}</p>
+                            ) : null}
+                            {hasBullets ? (
+                              <ul className="text-sm sm:text-base leading-relaxed sm:leading-7 pl-5 space-y-1 text-left" style={{ color: "#B0B0B0", listStyleType: "disc" }}>
+                                {validBullets.map((b: string, bi: number) => <li key={bi} className="font-bold text-left">{b}</li>)}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-
-                    {/* Why not others */}
-                    {whyNotAdjacent.length > 0 ? (
-                      <ul className="mt-3 ml-6 text-xs leading-relaxed" style={{ color: "#555", listStyleType: "disc" }}>
-                        {whyNotAdjacent.map((b, i) => <li key={i}>{b}</li>)}
-                      </ul>
-                    ) : null}
-
-                    {/* LLM-enhanced badge */}
-                    {llmEnhanced ? (
-                      <p className="mt-3 text-xs text-center" style={{ color: "#555" }}>
-                        Titles generated with AI assistance, validated against your anchors
-                      </p>
-                    ) : null}
-                    </>
-                  ) : (
-                    <div className="text-center">
-                      {session?.synthesis?.marketTitle ? (
-                        <div className="text-2xl font-semibold mb-2">{session.synthesis.marketTitle}</div>
-                      ) : null}
-                      {session?.synthesis?.titleExplanation ? (
-                        <div className="text-base text-gray-300 mb-4">{session.synthesis.titleExplanation}</div>
-                      ) : null}
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
 
-                {/* "Does this feel accurate?" dialogue panel */}
-                <div className="mt-6 rounded-md px-4 py-3" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.08)" }}>
-                  <p className="text-sm font-medium mb-3" style={{ color: "#CFCFCF" }}>Does this feel accurate?</p>
-                  <div className="space-y-2 mb-3" style={{ maxHeight: 160, overflowY: "auto" }}>
-                    {dialogueMessages.map((msg, i) => (
-                      <div key={i} className={`text-xs px-3 py-2 rounded ${msg.role === "assistant" ? "" : "ml-6"}`}
-                        style={{
-                          backgroundColor: msg.role === "assistant" ? "#1A1A1A" : "#232323",
-                          color: msg.role === "assistant" ? "#999" : "#F2F2F2",
-                          border: msg.role === "assistant" ? "none" : "1px solid rgba(242,242,242,0.10)",
-                        }}>
-                        {msg.text}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={dialogueInput}
-                      onChange={e => setDialogueInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter" && dialogueInput.trim()) {
-                          setDialogueMessages(prev => [...prev, { role: "user", text: dialogueInput.trim() }]);
-                          setDialogueInput("");
-                        }
-                      }}
-                      className="flex-1 rounded px-3 py-2 text-xs focus:outline-none"
-                      style={{ backgroundColor: "#0B0B0B", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.12)" }}
-                      placeholder="Tell me more about your week-to-week…"
-                    />
-                    <button
-                      type="button"
-                      disabled={!dialogueInput.trim()}
-                      onClick={() => {
-                        if (dialogueInput.trim()) {
-                          setDialogueMessages(prev => [...prev, { role: "user", text: dialogueInput.trim() }]);
-                          setDialogueInput("");
-                        }
-                      }}
-                      className="rounded px-3 py-2 text-xs font-medium"
-                      style={{
-                        backgroundColor: dialogueInput.trim() ? "#F2F2F2" : "rgba(242,242,242,0.08)",
-                        color: dialogueInput.trim() ? "#0B0B0B" : "#666",
-                        cursor: dialogueInput.trim() ? "pointer" : "not-allowed",
-                        border: "none",
-                      }}
-                    >
-                      Send
-                    </button>
-                  </div>
-                  {/* "Use these clarifications" — re-runs title scoring with user dialogue text */}
-                  {dialogueMessages.filter(m => m.role === "user").length > 0 && (
-                    <div className="mt-3 flex flex-col items-start gap-1">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={async () => {
-                          const sessionId = String(session?.sessionId ?? "");
-                          if (!sessionId) { setError("Missing sessionId."); return; }
-                          // Collect only user messages, join, cap at 600 chars
-                          const userMsgs = dialogueMessages
-                            .filter(m => m.role === "user")
-                            .map(m => m.text.trim())
-                            .filter(Boolean)
-                            .join("\n");
-                          const clarificationsText = userMsgs.slice(0, 600);
-                          if (!clarificationsText) return;
-                          setError(null); setBusy(true);
-                          try {
-                            const updated = await postEvent({
-                              type: "RERUN_TITLES",
-                              sessionId,
-                              clarificationsText,
-                            });
-                            setSession(updated);
-                          } catch (e: any) {
-                            setError(displayError(e));
-                          } finally { setBusy(false); }
-                        }}
-                        className="rounded px-3 py-2 text-xs font-medium transition-colors"
-                        style={{
-                          backgroundColor: busy ? "rgba(242,242,242,0.08)" : "#232323",
-                          color: busy ? "#666" : "#F2F2F2",
-                          border: "1px solid rgba(242,242,242,0.12)",
-                          cursor: busy ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {busy ? (<><Spinner /><span className="ml-1">Re-scoring…</span></>) : "Use these clarifications"}
-                      </button>
-                      <span className="text-xs" style={{ color: "#666" }}>
-                        Adds your notes to improve title confidence (doesn&apos;t change your earlier answers).
-                      </span>
-                    </div>
-                  )}
-                </div>
                 {/* Inline job paste */}
                 <div className="mt-8">
                   <label className="block text-sm font-medium mb-2" style={{ color: "#999" }}>Paste a job description to calibrate against</label>
@@ -983,8 +938,8 @@ export default function CalibrationPage() {
                     value={jobText}
                     onChange={e => setJobText(e.target.value)}
                     rows={6}
-                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
+                    className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
+                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
                     placeholder="Paste job description here…"
                     disabled={busy || jobBusy}
                   />
@@ -1003,18 +958,13 @@ export default function CalibrationPage() {
                       if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
                       setError(null); setBusy(true); setJobBusy(true);
                       try {
-                        // 1) Send title feedback (skip if session already advanced past titles)
                         const curState = String(session?.state ?? "");
                         if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
                           await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
                         }
-                        // 2) Switch to JOB_TEXT step with text preserved, then run inline pipeline
                         setStep("JOB_TEXT");
-                        // Use a timeout to let state settle before calling submitJobText
-                        // The submitJobText function will handle the full pipeline inline
                         let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
                         setSession(s);
-                        // Advance through states until ALIGNMENT_OUTPUT
                         let ticks = 0;
                         while (ticks < 12) {
                           const st = String(s?.state ?? "");
@@ -1031,28 +981,16 @@ export default function CalibrationPage() {
                           s = await postEvent({ type: "ADVANCE", sessionId });
                           setSession(s);
                         }
-                        // Fetch result inline
                         if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
                           try {
                             const result = await fetchResult(sessionId);
-                            const score = result?.score_0_to_10 ?? s?.result?.alignment?.score ?? 0;
-                            const rawSummary = result?.summary ?? s?.result?.alignment?.summary ?? "";
-                            const title = s?.synthesis?.titleRecommendation?.primary_title?.title ?? s?.synthesis?.marketTitle ?? "";
-                            setJobResult({
-                              score: Number(score),
-                              summary: truncateToSentences(rawSummary, 3),
-                              title,
-                            });
+                            setJobResult(buildJobResult(s, result));
                           } catch {
-                            const score = s?.result?.alignment?.score ?? 0;
-                            const rawSummary = s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
-                            const title = s?.synthesis?.titleRecommendation?.primary_title?.title ?? s?.synthesis?.marketTitle ?? "";
-                            setJobResult({ score: Number(score), summary: truncateToSentences(rawSummary, 3), title });
+                            setJobResult(buildJobResult(s));
                           }
                         }
                       } catch (e: any) {
                         if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-                          // Stay on TITLES — job textarea is right here
                           setError("A job description is required.");
                         } else {
                           setError(displayError(e));
@@ -1073,40 +1011,14 @@ export default function CalibrationPage() {
                 <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   <span>{jobTypewriter}</span>
                 </div>
-                <div className="mt-10 flex-1">
-                  <textarea
-                    value={jobText}
-                    onChange={e => { setJobText(e.target.value); if (jobResult) setJobResult(null); }}
-                    rows={jobResult ? 4 : 8}
-                    className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
-                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.14)", boxShadow: "none", fontSize: "1em" }}
-                    placeholder="Paste job description here…"
-                    disabled={jobBusy}
-                  />
-                </div>
-
-                {/* Inline processing spinner */}
-                {jobBusy && !jobResult ? (
-                  <div className="mt-4 flex items-center justify-center gap-2">
-                    <Spinner />
-                    <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
-                  </div>
-                ) : null}
-
-                {/* Inline results */}
+                {/* Inline Fit Score Accordion */}
                 {jobResult ? (
-                  <div className="mt-6 rounded-md px-5 py-4" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.12)" }}>
-                    {jobResult.title ? (
-                      <div className="text-sm font-medium mb-2" style={{ color: "#999" }}>Title: <span style={{ color: "#F2F2F2" }}>{jobResult.title}</span></div>
-                    ) : null}
-                    <div className="text-2xl font-bold" style={{ color: "#4ADE80" }}>Fit Score: {jobResult.score}/10</div>
-                    {jobResult.summary ? (
-                      <div className="mt-3 text-sm leading-relaxed" style={{ color: "#CFCFCF" }}>{jobResult.summary}</div>
-                    ) : null}
+                  <div className="mt-6">
+                    <FitAccordion jobResult={jobResult} />
                     <div className="mt-5 flex justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() => { setJobText(""); setJobResult(null); setError(null); }}
+                        onClick={() => { setJobResult(null); setError(null); }}
                         className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                         style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                       >
@@ -1123,7 +1035,24 @@ export default function CalibrationPage() {
                     </div>
                   </div>
                 ) : null}
-
+                <div className="mt-10 flex-1">
+                  <textarea
+                    value={jobText}
+                    onChange={e => setJobText(e.target.value)}
+                    rows={6}
+                    className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
+                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
+                    placeholder="Paste job description here…"
+                    disabled={jobBusy}
+                  />
+                </div>
+                {/* Inline processing spinner */}
+                {jobBusy && !jobResult ? (
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    <Spinner />
+                    <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
+                  </div>
+                ) : null}
                 {/* Submit button — hidden once results are showing */}
                 {!jobResult ? (
                   <div className="mt-auto pt-7 flex justify-center">
@@ -1138,90 +1067,6 @@ export default function CalibrationPage() {
                     </button>
                   </div>
                 ) : null}
-              </div>
-            ) : null}
-
-            {/* RESULTS UI */}
-            {step === "RESULTS" ? (
-              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                <div className="mt-6 text-base font-medium leading-snug tracking-tight flex items-center justify-center" style={{ color: "#CFCFCF" }}>
-                  <span>Results</span>
-                </div>
-                {session?.result?.alignment?.score != null && (
-                  <div className="mt-5 text-2xl font-bold text-green-400">Fit Score: {session.result.alignment.score}/10</div>
-                )}
-                {(session?.result?.alignment?.summary || session?.result?.summary || session?.synthesis?.identitySummary) && (
-                  <div className="mt-4 text-sm text-gray-300 whitespace-pre-line rounded px-3 py-2" style={{ background: "#141414", border: "1px solid rgba(242,242,242,0.08)", maxHeight: 120, overflowY: "auto" }}>
-                    {session?.result?.alignment?.summary
-                      ?? session?.result?.summary
-                      ?? session?.synthesis?.identitySummary}
-                  </div>
-                )}
-                {Array.isArray(session?.synthesis?.operateBest) && session.synthesis.operateBest.length > 0 && (
-                  <div className="mt-5">
-                    <div className="text-sm font-semibold mb-1" style={{ color: "#CFCFCF" }}>Operate best when…</div>
-                    <ul className="list-disc ml-6 text-sm" style={{ color: "#AFAFAF" }}>
-                      {session.synthesis.operateBest.map((b: string, i: number) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {Array.isArray(session?.synthesis?.loseEnergy) && session.synthesis.loseEnergy.length > 0 && (
-                  <div className="mt-4">
-                    <div className="text-sm font-semibold mb-1" style={{ color: "#CFCFCF" }}>Lose energy when…</div>
-                    <ul className="list-disc ml-6 text-sm" style={{ color: "#AFAFAF" }}>
-                      {session.synthesis.loseEnergy.map((b: string, i: number) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* LLM Dialogue Panel */}
-                <div className="mt-6 rounded-md" style={{ background: "#161616", border: "1px solid rgba(242,242,242,0.10)", padding: "16px 18px" }}>
-                  <div className="flex items-start gap-3 mb-3">
-                    <span className="flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold" style={{ width: 28, height: 28, background: "#232323", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.25)" }}>C</span>
-                    <div className="text-sm" style={{ color: "#E0E0E0", lineHeight: 1.5 }}>Does this feel accurate?</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Type your thoughts…"
-                      className="flex-1 rounded-md px-3 py-2 text-sm focus:outline-none"
-                      style={{ backgroundColor: "#0F0F0F", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.12)" }}
-                      disabled
-                    />
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium"
-                      style={{ backgroundColor: "rgba(242,242,242,0.08)", color: "#888", cursor: "not-allowed", border: "1px solid rgba(242,242,242,0.10)" }}
-                    >
-                      Send
-                    </button>
-                  </div>
-                  <div className="mt-2 text-xs" style={{ color: "#666" }}>Coming next — dialogue feedback loop</div>
-                </div>
-
-                <div className="mt-8 flex justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setJobText(""); setError(null); setStep("TITLES"); }}
-                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                  >
-                    ← Try another job
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
-                    className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                  >
-                    Restart
-                  </button>
-                </div>
               </div>
             ) : null}
           </div>
