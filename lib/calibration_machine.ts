@@ -1646,19 +1646,45 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         if (breakdown.matchedSignalCount + breakdown.matchedSkillCount === 0) {
           stretchFactors.push("Anchor gap: few demonstrated strengths surfaced — targeted skill-building may help");
         } else if (fitScore <= 3) {
-          stretchFactors.push("Narrow overlap: growing into more of this role's anchor areas would strengthen fit");
+          stretchFactors.push("Narrow overlap: few of this role's core requirements are evidenced in your pattern");
         }
         // Cap at 6
         const stretchFactorsCapped = stretchFactors.slice(0, 6);
 
-        // Bottom line (exactly 2 sentences, growth-oriented framing)
+        // Bottom line (doctrine-tight: 2 sentences, constraint-based, no vague framing)
         const topSupport = supportsFit[0] ?? "general pattern alignment";
-        const topStretch = stretchFactorsCapped[0] ?? "no notable stretch areas identified";
-        const bottomLine2s = fitScore >= 7
-          ? `Your pattern aligns with this role primarily through ${topSupport.toLowerCase()}. ${stretchFactorsCapped.length > 0 ? `Growth edge: ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)}.` : "No significant stretch areas identified."}`
-          : fitScore >= 4
-          ? `Partial alignment — ${topSupport.toLowerCase()} supports fit, while ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)} represents the primary growth direction. Leaning into that stretch could make this role a strong next step.`
-          : `This role is a stretch — ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)} is the biggest growth area. ${supportsFit.length > 0 ? `The role does connect through ${topSupport.toLowerCase()}, which gives you a foothold to build from.` : "Building more overlap with the role's anchor areas would strengthen your position."}`;
+        const topSupport2 = supportsFit[1] ?? "";
+        const topStretch = stretchFactorsCapped[0] ?? "";
+
+        // Deterministic proof artifact from stretch factor content
+        function concreteProof(stretch: string): string {
+          const s = stretch.toLowerCase();
+          if (s.includes("tenure at scale")) return "a shipped, measurable rollout across multiple teams";
+          if (s.includes("pipeline delivery") || s.includes("ml")) return "a scoped project plan + shipped milestone with metrics";
+          if (s.includes("ownership breadth") || s.includes("from scratch")) return "a PRD-to-launch case study with tradeoffs + outcomes";
+          if (s.includes("revenue") || s.includes("commercial")) return "a revenue-impact case study with before/after numbers";
+          if (s.includes("on-call") || s.includes("sla") || s.includes("ops muscle")) return "an incident response runbook or SLA-improvement project";
+          return "a small shipped project with before/after evidence";
+        }
+
+        const supportsLabel = topSupport2
+          ? `${topSupport.toLowerCase()} and ${topSupport2.toLowerCase()}`
+          : topSupport.toLowerCase();
+
+        let bottomLine2s: string;
+        if (fitScore >= 7) {
+          bottomLine2s = `Strong fit — the role rewards ${supportsLabel}. Prove it fast: show 2 concrete artifacts that demonstrate ${topSupport.toLowerCase()} in the job's language.`;
+        } else if (fitScore >= 4) {
+          const proof = concreteProof(topStretch);
+          bottomLine2s = topStretch
+            ? `Partial fit — the overlap is real, but the role will test ${topStretch.toLowerCase()}. If pursuing this title, run one proof loop: ship ${proof} that closes ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)}.`
+            : `Partial fit — the overlap is real through ${supportsLabel}. Strengthen the case with concrete artifacts that map your work to the job's language.`;
+        } else {
+          const proof = concreteProof(topStretch);
+          bottomLine2s = topStretch
+            ? `Low fit — the title is anchored in ${topStretch.toLowerCase()} that isn't evidenced yet. Don't stretch on rhetoric; pick a nearer title or build proof of ${topStretch.toLowerCase()} with ${proof}.`
+            : `Low fit — few of this role's core requirements are evidenced in your pattern. Pick a nearer title where your existing proof is stronger.`;
+        }
 
         // Merge structured fields into contract.alignment (backward-compatible extension)
         (contract.alignment as any).supports_fit = supportsFit;

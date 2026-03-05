@@ -107,6 +107,36 @@ Governance, compliance, audit readiness (SOC 2 / ISO 27001), risk management, an
     `Step 4: expected v1 top-level keys only, got ${resultKeys1.join(",")}`,
   )
 
+  // --- bottom_line_2s doctrine assertions ---
+  const alignment = step4.session.result?.alignment as any
+  const bl2s: string = alignment?.bottom_line_2s ?? ""
+  const supportsFit: string[] = Array.isArray(alignment?.supports_fit) ? alignment.supports_fit : []
+  const stretchFactors: string[] = Array.isArray(alignment?.stretch_factors) ? alignment.stretch_factors : []
+
+  // Must be non-empty
+  assert(bl2s.length > 0, "bottom_line_2s must be non-empty when alignment exists")
+
+  // Must be <= 2 sentences (count by sentence-ending punctuation)
+  const sentenceCount = (bl2s.match(/[.!?]+/g) ?? []).length
+  assert(sentenceCount <= 2, `bottom_line_2s must be <= 2 sentences, got ${sentenceCount}: "${bl2s}"`)
+
+  // Must NOT contain banned phrases
+  const banned = ["anchor areas", "grow into"]
+  for (const phrase of banned) {
+    assert(!bl2s.toLowerCase().includes(phrase), `bottom_line_2s contains banned phrase "${phrase}": "${bl2s}"`)
+  }
+
+  // Must include at least one token from supports_fit or stretch_factors
+  const allTokens = [...supportsFit, ...stretchFactors]
+    .flatMap(s => s.toLowerCase().split(/\s+/))
+    .filter(t => t.length > 4) // skip short common words
+  if (allTokens.length > 0) {
+    const bl2sLower = bl2s.toLowerCase()
+    const hasToken = allTokens.some(t => bl2sLower.includes(t))
+    assert(hasToken, `bottom_line_2s must reference supports/stretch content. tokens=${allTokens.slice(0, 10).join(",")}, bl2s="${bl2s}"`)
+  }
+
+  console.log(`PASS: bottom_line_2s doctrine check ("${bl2s.slice(0, 80)}...")`)
   console.log("PASS: calibration smoke transcript complete (includes consolidation ritual + synthesis)")
 }
 
