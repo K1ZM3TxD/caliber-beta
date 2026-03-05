@@ -552,56 +552,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             </div>
 
-            {/* Pinned results header — visible whenever jobResult exists */}
-            {jobResult ? (
-              <div className="w-full max-w-2xl rounded-lg px-5 py-4 mb-4" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.12)" }}>
-                {jobResult.title ? (
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium truncate" style={{ color: "#999" }}>Title:</span>
-                    <span className="text-sm font-semibold truncate" style={{ color: "#F2F2F2" }}>{jobResult.title}</span>
-                    <button
-                      type="button"
-                      onClick={() => { navigator.clipboard.writeText(jobResult.title); }}
-                      className="flex-shrink-0 rounded px-1.5 py-0.5 text-xs transition-colors"
-                      style={{ color: "#888", border: "1px solid rgba(242,242,242,0.12)" }}
-                      title="Copy title"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                ) : null}
-                <div className="text-2xl font-bold" style={{ color: "#4ADE80" }}>Fit Score: {jobResult.score}/10</div>
-
-                {/* Structured: supports the fit + stretch factors */}
-                {jobResult.supports_fit.length > 0 || jobResult.stretch_factors.length > 0 ? (
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {jobResult.supports_fit.length > 0 ? (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
-                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                          {jobResult.supports_fit.map((d, i) => <li key={i}>{d}</li>)}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {jobResult.stretch_factors.length > 0 ? (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#F59E0B" }}>Stretch factors</div>
-                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                          {jobResult.stretch_factors.map((c, i) => <li key={i}>{c}</li>)}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {/* Bottom line (2 sentences) */}
-                {jobResult.bottom_line_2s ? (
-                  <div className="mt-3 text-sm leading-relaxed" style={{ color: "#CFCFCF" }}>{jobResult.bottom_line_2s}</div>
-                ) : jobResult.summary ? (
-                  <div className="mt-3 text-sm leading-relaxed" style={{ color: "#CFCFCF" }}>{jobResult.summary}</div>
-                ) : null}
-              </div>
-            ) : null}
 
             {/* LANDING */}
             {step === "LANDING" ? (
