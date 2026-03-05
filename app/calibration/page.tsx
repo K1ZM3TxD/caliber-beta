@@ -395,7 +395,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         </span>
       </span>
       {expanded ? (
-        <div className="px-2 py-3 text-left">
+        <div className="px-2 py-3">
+          <div className="text-center mb-4">
+            <span className="text-3xl font-bold font-mono" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
+          </div>
           {jobResult.supports_fit.length > 0 ? (
             <div className="mb-2">
               <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
@@ -885,7 +888,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {jobResult ? (
                   <div className="mt-8">
                     <FitAccordion jobResult={jobResult} />
-                    <div className="mt-5 flex justify-center gap-3">
+                    <div className="mt-5 flex justify-center">
                       <button
                         type="button"
                         onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
@@ -893,14 +896,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                       >
                         ← Try another job
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setJobText(""); setJobResult(null); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
-                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                      >
-                        Restart
                       </button>
                     </div>
                   </div>
