@@ -31,7 +31,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES" | "JOB_TEXT";
+type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES";
 // Helper: returns true if session has results available
 function hasResults(session: any): boolean {
   return Boolean(session?.result) || (String(session?.state) === "PATTERN_SYNTHESIS" && Boolean(session?.patternSummary));
@@ -39,13 +39,13 @@ function hasResults(session: any): boolean {
 // Returns UI step based on backend state and session
 function getStepFromState(state: unknown, session?: any): UiStep {
   const s = String(state ?? "");
-  if (hasResults(session)) return "JOB_TEXT";
+  if (hasResults(session)) return "TITLES";
   if (/^PROMPT_\d(_CLARIFIER)?$/.test(s)) return "PROMPT";
   if (s === "CONSOLIDATION_PENDING" || s === "CONSOLIDATION_RITUAL" || s === "PATTERN_SYNTHESIS") return "PROCESSING";
   if (s.startsWith("TITLE_HYPOTHESIS") || s.startsWith("TITLE_DIALOGUE")) return "TITLES";
-  if (s.startsWith("JOB_INGEST")) return "JOB_TEXT";
+  if (s.startsWith("JOB_INGEST")) return "TITLES";
   if (s === "ALIGNMENT_OUTPUT") return "PROCESSING";
-  if (s === "TERMINAL_COMPLETE") return "JOB_TEXT";
+  if (s === "TERMINAL_COMPLETE") return "TITLES";
   return "PROCESSING";
 }
 
@@ -187,7 +187,7 @@ export default function CalibrationPage() {
                 setSession(resultSession);
                 setCookie(COOKIE_NAME, urlId);
                 setJobResult(buildJobResult(resultSession, result));
-                setStep("JOB_TEXT");
+                setStep("TITLES");
                 return;
               }
             }
@@ -309,7 +309,7 @@ export default function CalibrationPage() {
         const feedback = titleFeedback.trim();
         const s = await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback });
         setSession(s);
-        setStep("JOB_TEXT"); // Always route to JOB_TEXT after TITLE_FEEDBACK
+        setStep("TITLES"); // Stay on TITLES after TITLE_FEEDBACK
       } catch (e: any) {
         setError(displayError(e));
       } finally { setBusy(false); }
@@ -444,7 +444,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       if (hasResults(session)) {
         stopped = true;
         clearInterval(interval);
-        setStep("JOB_TEXT");
+        setStep("TITLES");
         inFlightRef.current = false;
         return;
       }
@@ -460,7 +460,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               if (hasResults(updated)) {
                 stopped = true;
                 clearInterval(interval);
-                setStep("JOB_TEXT");
+                setStep("TITLES");
               } else {
                 // Compute returned but no results yet — let next tick re-evaluate via ADVANCE
                 setStep(getStepFromState(updated?.state, updated));
@@ -485,7 +485,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       if (sState.startsWith("JOB_INGEST")) {
         stopped = true;
         clearInterval(interval);
-        setStep("JOB_TEXT");
+        setStep("TITLES");
         inFlightRef.current = false;
         return;
       }
@@ -506,7 +506,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       } catch (err: any) {
         // If error is JOB_REQUIRED, route to JOB_TEXT
         if (err?.message?.includes("JOB_REQUIRED") || err?.code === "JOB_REQUIRED") {
-          setStep("JOB_TEXT");
+          setStep("TITLES");
         } else {
           setError(displayError(err));
         }
@@ -763,7 +763,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             ) : null}
             {/* Fallback: never blank */}
-            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES","JOB_TEXT"].includes(step) ? (
+            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES"].includes(step) ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
                   <Spinner />
@@ -881,94 +881,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   })}
                 </div>
 
-                {/* Inline job paste */}
-                <div className="mt-8">
-                  <label className="block text-sm font-medium mb-2" style={{ color: "#999" }}>Paste a job description to calibrate against</label>
-                  <textarea
-                    value={jobText}
-                    onChange={e => setJobText(e.target.value)}
-                    rows={6}
-                    className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
-                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
-                    placeholder="Paste job description here…"
-                    disabled={busy || jobBusy}
-                  />
-                </div>
-                <div className="mt-7 flex flex-col items-center gap-2">
-                  {jobText.trim().length < 20 && !(busy || jobBusy) ? (
-                    <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
-                    disabled={busy || jobBusy || jobText.trim().length < 20}
-                    onClick={async () => {
-                      const sessionId = String(session?.sessionId ?? "");
-                      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-                      setError(null); setBusy(true); setJobBusy(true);
-                      try {
-                        const curState = String(session?.state ?? "");
-                        if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
-                          await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
-                        }
-                        setStep("JOB_TEXT");
-                        let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
-                        setSession(s);
-                        let ticks = 0;
-                        while (ticks < 12) {
-                          const st = String(s?.state ?? "");
-                          if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
-                          s = await postEvent({ type: "ADVANCE", sessionId });
-                          setSession(s);
-                          ticks++;
-                        }
-                        if (String(s?.state) === "ALIGNMENT_OUTPUT") {
-                          s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
-                          setSession(s);
-                        }
-                        if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
-                          s = await postEvent({ type: "ADVANCE", sessionId });
-                          setSession(s);
-                        }
-                        if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
-                          try {
-                            const result = await fetchResult(sessionId);
-                            setJobResult(buildJobResult(s, result));
-                          } catch {
-                            setJobResult(buildJobResult(s));
-                          }
-                        }
-                      } catch (e: any) {
-                        if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-                          setError("A job description is required.");
-                        } else {
-                          setError(displayError(e));
-                        }
-                      } finally { setBusy(false); setJobBusy(false); }
-                    }}
-                  >
-                    {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
-                  </button>
-                </div>
-              </div>
-              );
-            })() : null}
-
-            {/* JOB TEXT UI */}
-            {step === "JOB_TEXT" ? (
-              <div className="w-full max-w-2xl flex flex-col" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "2.2em", lineHeight: 1.3 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
-                  <span>{jobTypewriter}</span>
-                </div>
-                {/* Inline Fit Score Accordion */}
+                {/* Job area — Fit accordion replaces textarea when results exist */}
                 {jobResult ? (
-                  <div className="mt-6">
+                  <div className="mt-8">
                     <FitAccordion jobResult={jobResult} />
                     <div className="mt-5 flex justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() => { setJobResult(null); setError(null); }}
+                        onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
                         className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                         style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                       >
@@ -984,41 +904,89 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       </button>
                     </div>
                   </div>
-                ) : null}
-                <div className="mt-10 flex-1">
-                  <textarea
-                    value={jobText}
-                    onChange={e => setJobText(e.target.value)}
-                    rows={6}
-                    className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
-                    style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
-                    placeholder="Paste job description here…"
-                    disabled={jobBusy}
-                  />
-                </div>
-                {/* Inline processing spinner */}
-                {jobBusy && !jobResult ? (
-                  <div className="mt-4 flex items-center justify-center gap-2">
-                    <Spinner />
-                    <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
-                  </div>
-                ) : null}
-                {/* Submit button — hidden once results are showing */}
-                {!jobResult ? (
-                  <div className="mt-auto pt-7 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={submitJobText}
-                      disabled={jobBusy || !jobText.trim()}
-                      className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{ backgroundColor: jobBusy || !jobText.trim() ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: jobBusy || !jobText.trim() ? "not-allowed" : "pointer", minWidth: 180 }}
-                    >
-                      {jobBusy ? (<><Spinner /><span className="ml-2">Scoring…</span></>) : "Run calibration"}
-                    </button>
-                  </div>
-                ) : null}
+                ) : (
+                  <>
+                    <div className="mt-8">
+                      <label className="block text-sm font-medium mb-2" style={{ color: "#999" }}>Paste a job description to calibrate against</label>
+                      <textarea
+                        value={jobText}
+                        onChange={e => setJobText(e.target.value)}
+                        rows={6}
+                        className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
+                        style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
+                        placeholder="Paste job description here…"
+                        disabled={busy || jobBusy}
+                      />
+                    </div>
+                    {jobBusy ? (
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <Spinner />
+                        <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
+                      </div>
+                    ) : null}
+                    <div className="mt-7 flex flex-col items-center gap-2">
+                      {jobText.trim().length < 20 && !(busy || jobBusy) ? (
+                        <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
+                        disabled={busy || jobBusy || jobText.trim().length < 20}
+                        onClick={async () => {
+                          const sessionId = String(session?.sessionId ?? "");
+                          if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+                          setError(null); setBusy(true); setJobBusy(true);
+                          try {
+                            const curState = String(session?.state ?? "");
+                            if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
+                              await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                            }
+                            let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
+                            setSession(s);
+                            let ticks = 0;
+                            while (ticks < 12) {
+                              const st = String(s?.state ?? "");
+                              if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
+                              s = await postEvent({ type: "ADVANCE", sessionId });
+                              setSession(s);
+                              ticks++;
+                            }
+                            if (String(s?.state) === "ALIGNMENT_OUTPUT") {
+                              s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
+                              setSession(s);
+                            }
+                            if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
+                              s = await postEvent({ type: "ADVANCE", sessionId });
+                              setSession(s);
+                            }
+                            if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
+                              try {
+                                const result = await fetchResult(sessionId);
+                                setJobResult(buildJobResult(s, result));
+                              } catch {
+                                setJobResult(buildJobResult(s));
+                              }
+                            }
+                          } catch (e: any) {
+                            if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+                              setError("A job description is required.");
+                            } else {
+                              setError(displayError(e));
+                            }
+                          } finally { setBusy(false); setJobBusy(false); }
+                        }}
+                      >
+                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-            ) : null}
+              );
+            })() : null}
+
+
           </div>
         </div>
       </div>
