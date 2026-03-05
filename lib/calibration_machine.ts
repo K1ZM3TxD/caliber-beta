@@ -1,4 +1,4 @@
-import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types";
+import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError, CalibrationSynthesis } from "@/lib/calibration_types";
 import { storeGet, storeSet } from "@/lib/calibration_store";
 import { ingestJob } from "@/lib/job_ingest";
 import { runIntegrationSeam } from "@/lib/integration_seam";
@@ -9,62 +9,8 @@ import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { detectAbstractionDrift } from "./abstraction_drift";
 import { computeSkillMatch } from "@/lib/skill_match";
 import { computeStretchLoad } from "@/lib/stretch_load";
+import { generateTitleRecommendation, extractWeightedAnchors } from "@/lib/title_scoring";
 export { validateAndRepairSynthesisOnce };
-
-// Ops/program-oriented deterministic title bank (10 titles)
-const TITLE_BANK: Array<string> = [
-  "Program Operations Lead",
-  "Technical Program Manager",
-  "Operations Manager",
-  "Program Manager",
-  "Delivery Lead",
-  "Business Operations Analyst",
-  "Implementation Manager",
-  "Process Improvement Lead",
-  "Project Delivery Manager",
-  "Strategic Operations Partner"
-];
-
-// Deterministic title candidate generator
-function generateTitleCandidates(personVector: any, resumeText: string, promptAnswers?: string[]): Array<{ title: string; score: number }> {
-  // Score by personVector dimension affinity and lexical bonuses
-  // Each title gets a base score from affinity, plus lexical bonus from resume/prompts
-  const dimAffinity: Record<string, number[]> = {
-    "Program Operations Lead": [2,2,1,2,1,1],
-    "Technical Program Manager": [2,1,2,2,1,1],
-    "Operations Manager": [2,2,1,1,2,1],
-    "Program Manager": [2,1,2,1,2,1],
-    "Delivery Lead": [1,2,2,1,2,1],
-    "Business Operations Analyst": [1,2,1,2,2,1],
-    "Implementation Manager": [2,1,2,1,1,2],
-    "Process Improvement Lead": [1,2,2,2,1,1],
-    "Project Delivery Manager": [2,1,2,2,1,1],
-    "Strategic Operations Partner": [2,2,1,1,1,2]
-  };
-  const vector = Array.isArray(personVector?.values) ? personVector.values : [1,1,1,1,1,1];
-  // Lexical bonus terms
-  const bonusTerms = ["program", "operations", "delivery", "process", "project", "implementation", "strategy", "improvement", "manager", "lead", "analyst", "partner"];
-  const text = [resumeText, ...(promptAnswers ?? [])].join(" ").toLowerCase();
-  return TITLE_BANK.map(title => {
-    // Affinity score: +15 for each exact match dim, +7 for off-by-1, 0 otherwise
-    let affinity = 0;
-    const dims = dimAffinity[title];
-    for (let i = 0; i < vector.length; i++) {
-      if (vector[i] === dims[i]) affinity += 15;
-      else if (Math.abs(vector[i] - dims[i]) === 1) affinity += 7;
-    }
-    // Lexical bonus: +5 for each bonus term present in text and title
-    let lexical = 0;
-    for (const term of bonusTerms) {
-      if (title.toLowerCase().includes(term) && text.includes(term)) lexical += 5;
-    }
-    let score = affinity + lexical;
-    score = Math.max(0, Math.min(100, Math.round(score)));
-    return { title, score };
-  })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-}
 
 type Ok = { ok: true; session: CalibrationSession }
 type Err = { ok: false; error: CalibrationError }
@@ -1207,22 +1153,151 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "PATTERN_SYNTHESIS") {
-          // Restore deterministic title candidate generation
-          let candidates: Array<{ title: string; score: number }> | undefined = undefined;
+          // Cluster-based deterministic title scoring
+          const promptAnswers: string[] = [];
+          for (let i = 1; i <= 5; i++) {
+            const ans = session.prompts?.[i]?.answer;
+            if (typeof ans === "string" && ans.length > 0) promptAnswers.push(ans);
+          }
+          const resumeText = session.resume?.rawText ?? "";
+
+          let candidates: Array<{ title: string; score: number }>;
+          let legacyRec: CalibrationSynthesis["titleRecommendation"];
+
           if (!session.synthesis?.titleCandidates || session.synthesis.titleCandidates.length === 0) {
-            // Gather prompt answers
-            const promptAnswers = [];
-            for (let i = 1; i <= 5; i++) {
-              const ans = session.prompts?.[i]?.answer;
-              if (typeof ans === "string" && ans.length > 0) promptAnswers.push(ans);
-            }
-            candidates = generateTitleCandidates(session.personVector, session.resume?.rawText ?? "", promptAnswers);
+            const result = generateTitleRecommendation(resumeText, promptAnswers);
+            candidates = result.candidates;
+            legacyRec = result.recommendation;
           } else {
             candidates = session.synthesis.titleCandidates;
+            legacyRec = session.synthesis.titleRecommendation;
           }
-          // Always set marketTitle and titleExplanation for backward compatibility
+
+          // ── Build enriched title recommendation ────────────────────────
+
+          // Title → cluster mapping for archetype label
+          const TITLE_TO_CLUSTER: Record<string, string> = {
+            "Product Development Lead": "Product & Development",
+            "Technical Product Manager": "Product & Development",
+            "Product Operations Lead": "Product & Development",
+            "Product Strategy Lead": "Product & Development",
+            "Implementation Manager": "Product & Development",
+            "Product Designer": "Design & Systems",
+            "UX Design Strategist": "Design & Systems",
+            "Design Operations Lead": "Design & Systems",
+            "Design Program Manager": "Design & Systems",
+            "Brand Systems Designer": "Design & Systems",
+            "Program Operations Lead": "Operations & Programs",
+            "Operations Manager": "Operations & Programs",
+            "Program Manager": "Operations & Programs",
+            "Project Delivery Manager": "Operations & Programs",
+            "Process Improvement Lead": "Operations & Programs",
+            "Client Success Manager": "Client & Growth",
+            "Partnerships Manager": "Client & Growth",
+            "Business Development Manager": "Client & Growth",
+            "Community & Growth Lead": "Client & Growth",
+            "Account Manager": "Client & Growth",
+            "Solutions Consultant": "Solutions & Consulting",
+          };
+
+          // Per-title mechanism bullets (verb-driven, concrete, <=8 words)
+          const TITLE_THEMES: Record<string, string[]> = {
+            "Product Development Lead": ["Own a product from idea to launch", "Turn user needs into shipped features", "Coordinate across teams to hit deadlines"],
+            "Technical Product Manager": ["Make technical calls at the product level", "Bridge engineering and product priorities", "Shape how features get built"],
+            "Product Operations Lead": ["Design workflows that reduce manual work", "Write the playbook teams actually follow", "Track progress and surface blockers early"],
+            "Product Strategy Lead": ["Research markets and pick where to compete", "Set priorities that move the roadmap", "Align teams around a shared direction"],
+            "Implementation Manager": ["Guide new clients from signup to live", "Document repeatable rollout steps", "Keep multiple teams moving in sync"],
+            "Product Designer": ["Talk to users and turn insights into designs", "Build and maintain reusable components", "Test ideas fast and iterate on feedback"],
+            "UX Design Strategist": ["Run research that changes the design", "Connect strategy to what users see", "Test assumptions before committing scope"],
+            "Design Operations Lead": ["Keep the design team running smoothly", "Set standards others can follow", "Track work and remove bottlenecks"],
+            "Design Program Manager": ["Coordinate design work across projects", "Manage timelines and team capacity", "Plan sprints and maintain quality bars"],
+            "Brand Systems Designer": ["Build identity systems that scale", "Define visual rules and enforce them", "Collaborate with teams on brand output"],
+            "Program Operations Lead": ["Track programs and flag risks early", "Report progress to decision-makers", "Plan resources across multiple efforts"],
+            "Operations Manager": ["Build reports that drive decisions", "Track performance against targets", "Manage schedules and stay on budget"],
+            "Program Manager": ["Drive programs from kickoff to close", "Manage budgets and keep sponsors aligned", "Coordinate work across several teams"],
+            "Project Delivery Manager": ["Plan projects and hit milestones", "Own the budget and status updates", "Clear blockers so delivery stays on track"],
+            "Process Improvement Lead": ["Find inefficiencies and fix them", "Document better ways to work", "Measure results and hold the standard"],
+            "Client Success Manager": ["Keep clients engaged after they sign", "Spot churn risk and act on it", "Build plans that grow the account"],
+            "Partnerships Manager": ["Find and close the right partnerships", "Negotiate terms that work for both sides", "Run joint projects with partners"],
+            "Business Development Manager": ["Build pipeline and close new deals", "Own key accounts end to end", "Grow revenue through relationships"],
+            "Community & Growth Lead": ["Grow a community people return to", "Pick tools that scale engagement", "Own outcomes from idea to metric"],
+            "Account Manager": ["Renew accounts and expand contracts", "Build trust with key contacts", "Run projects that prove value"],
+            "Solutions Consultant": ["Scope solutions before the sale closes", "Test feasibility and design the approach", "Deliver engagements clients recommend"],
+          };
+
+          // Extract anchor map for evidence-grounded bullets
+          const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
+          const anchorTerms = Array.from(anchorMap.keys());
+
+          // Build enriched titles array (top 3 high-fit, fallback to top 3)
+          // Clamp all title lists to top 3
+          const top3 = (() => {
+            const sorted = [...candidates].sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+            return sorted.slice(0, 3);
+          })();
+          const enrichedTitles = top3.map(c => {
+            const themes = TITLE_THEMES[c.title] ?? ["Turn ambiguity into a clear plan", "Define scope then drive execution", "Translate needs into concrete changes"];
+            // Build 3 mechanism bullets (verb-driven, concrete, <=8 words)
+            const bullets: [string, string, string] = [
+              themes[0] ?? "Turn ambiguity into a clear plan",
+              themes[1] ?? "Define scope then drive execution",
+              themes[2] ?? "Translate needs into concrete changes",
+            ];
+            // Build 2-sentence summary from score + cluster context
+            const clusterName = TITLE_TO_CLUSTER[c.title] ?? "General";
+            let summary2s: string;
+            if (c.score >= 7.0) {
+              summary2s = `Your experience maps closely to what a ${c.title} does day-to-day. Multiple signals in your background connect to this role's core responsibilities.`;
+            } else if (c.score >= 4.0) {
+              summary2s = `Several parts of your background connect to ${c.title}, but coverage is uneven. You could strengthen fit by building depth in the gaps.`;
+            } else {
+              summary2s = `This is a stretch from your current profile. Moving toward ${c.title} would mean building new capabilities you haven't demonstrated yet.`;
+            }
+            return {
+              title: c.title,
+              fit_0_to_10: c.score,
+              bullets_3: bullets,
+              summary_2s: summary2s,
+            };
+          });
+
+          // Archetype label from top title's cluster
+          const topCluster = TITLE_TO_CLUSTER[candidates[0]?.title ?? ""] ?? "Generalist";
+          const archetypeLabel = `${topCluster} archetype`;
+
+          // Search strategy: 3–4 titles spread across clusters for parallel search
+          const seenClusters = new Set<string>();
+          const searchStrategy: string[] = [];
+          for (const c of candidates) {
+            const cl = TITLE_TO_CLUSTER[c.title] ?? "";
+            if (!seenClusters.has(cl) && c.score >= 3.0) {
+              searchStrategy.push(c.title);
+              seenClusters.add(cl);
+              if (searchStrategy.length >= 4) break;
+            }
+          }
+          // Pad to at least 3 from top candidates if needed
+          for (const c of candidates) {
+            if (searchStrategy.length >= 3) break;
+            if (!searchStrategy.includes(c.title)) searchStrategy.push(c.title);
+          }
+
+          // Build titleRecommendation with both legacy and new fields
+          const titleRecommendation: any = {
+            // Legacy fields (backward compat)
+            primary_title: legacyRec?.primary_title ?? { title: top3[0]?.title ?? "", score: top3[0]?.score ?? 0 },
+            adjacent_titles: [], // always clamp to 0 for top-3 world
+            why_primary: legacyRec?.why_primary ?? [],
+            why_not_adjacent: legacyRec?.why_not_adjacent ?? [],
+            // New enriched fields
+            archetype_label: archetypeLabel,
+            titles: enrichedTitles,
+            search_strategy_titles: searchStrategy.slice(0, 3),
+          };
+
           const marketTitle = candidates[0]?.title ?? "";
-          const titleExplanation = "Top-ranked title based on your pattern profile.";
+          const titleExplanation = legacyRec?.why_primary?.join("; ") ?? "Top-ranked title based on your pattern profile.";
+
           session = {
             ...session,
             synthesis: {
@@ -1234,6 +1309,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               titleExplanation,
               lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
               titleCandidates: candidates,
+              titleRecommendation,
               anchor_overlap_score: session.synthesis?.anchor_overlap_score,
               missing_anchor_count: session.synthesis?.missing_anchor_count,
               missing_anchor_terms: session.synthesis?.missing_anchor_terms,
@@ -1481,6 +1557,113 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           skillMatch: sm,
           stretchLoad: sl,
         });
+
+        // ── Fit drivers / constraints / takeaway (deterministic) ──
+        const jobLower = job.rawText.toLowerCase();
+        const jobTokens = new Set(jobLower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean));
+
+        // Helper: quick term match against job text (mirrors alignment_signal_score matchAnchor)
+        function termInJob(term: string): boolean {
+          const t = term.normalize("NFKC").toLowerCase().trim();
+          if (!t) return false;
+          if (!/\s/.test(t)) return jobTokens.has(t);
+          return jobLower.includes(t);
+        }
+
+        // Theme buckets for matched anchors
+        const THEME_MAP: Record<string, string> = {
+          systems: "Systems thinking pattern present in role scope",
+          architecture: "Systems thinking pattern present in role scope",
+          infrastructure: "Systems thinking pattern present in role scope",
+          platform: "Systems thinking pattern present in role scope",
+          scalab: "Systems thinking pattern present in role scope",
+          collaborat: "Collaboration and cross-functional coordination expected",
+          "cross-functional": "Collaboration and cross-functional coordination expected",
+          stakeholder: "Collaboration and cross-functional coordination expected",
+          partner: "Collaboration and cross-functional coordination expected",
+          ambigu: "Role involves navigating ambiguity with structure",
+          undefined: "Role involves navigating ambiguity with structure",
+          unclear: "Role involves navigating ambiguity with structure",
+          "fast-paced": "Role involves navigating ambiguity with structure",
+          autonomy: "Role involves navigating ambiguity with structure",
+          communicat: "Narrative and communication skills valued",
+          writing: "Narrative and communication skills valued",
+          storytell: "Narrative and communication skills valued",
+          present: "Narrative and communication skills valued",
+          document: "Narrative and communication skills valued",
+          strateg: "Strategic orientation aligns with role expectations",
+          roadmap: "Strategic orientation aligns with role expectations",
+          vision: "Strategic orientation aligns with role expectations",
+          priorit: "Strategic orientation aligns with role expectations",
+          leadership: "Leadership capacity matches role scope",
+          mentor: "Leadership capacity matches role scope",
+          coach: "Leadership capacity matches role scope",
+          manage: "Leadership capacity matches role scope",
+        };
+
+        // Collect driver themes from matched signal + skill anchors
+        const driverThemes = new Set<string>();
+        for (const a of classification.signalAnchors) {
+          if (!termInJob(a.term)) continue;
+          for (const [prefix, theme] of Object.entries(THEME_MAP)) {
+            if (a.term.toLowerCase().includes(prefix)) { driverThemes.add(theme); break; }
+          }
+        }
+        for (const a of classification.skillAnchors) {
+          if (!termInJob(a.term)) continue;
+          for (const [prefix, theme] of Object.entries(THEME_MAP)) {
+            if (a.term.toLowerCase().includes(prefix)) { driverThemes.add(theme); break; }
+          }
+        }
+        // Generic matched-count driver if we have matches but no themed ones
+        if (driverThemes.size === 0 && breakdown.matchedSignalCount + breakdown.matchedSkillCount > 0) {
+          driverThemes.add(`${breakdown.matchedSignalCount + breakdown.matchedSkillCount} anchor terms from your pattern appear in this job description`);
+        }
+        // Cap at 6
+        const supportsFit = Array.from(driverThemes).slice(0, 6);
+
+        // Stretch factors: growth/level-up areas (not negative — these are ramp directions)
+        const stretchFactors: string[] = [];
+        if (/\b(senior|staff|principal|director|vp|head of)\b/i.test(job.rawText)) {
+          stretchFactors.push("Level expectations may require demonstrating tenure at scale");
+        }
+        if (/\b(ml|machine learning|llm|data science|deep learning|nlp|computer vision)\b/i.test(job.rawText)) {
+          stretchFactors.push("Domain ramp: hands-on ML/pipeline delivery experience to build");
+        }
+        if (/\b(0.{0,3}1|zero.{0,5}one|from scratch|greenfield|net.?new)\b/i.test(job.rawText)) {
+          stretchFactors.push("Ownership breadth: building from scratch demands broader tradeoff judgment");
+        }
+        if (/\b(quota|revenue target|book of business|pipeline generation)\b/i.test(job.rawText)) {
+          stretchFactors.push("Revenue orientation: measurable targets require commercial fluency to develop");
+        }
+        if (/\b(on.?call|incident|pager|sla|uptime|reliability)\b/i.test(job.rawText)) {
+          stretchFactors.push("Ops muscle: on-call/SLA commitments may need operational ramp");
+        }
+        if (/\b(clearance|security clearance|ts\/sci|secret)\b/i.test(job.rawText)) {
+          stretchFactors.push("Clearance process: access requirements add timeline/eligibility overhead");
+        }
+        // Low-match stretch
+        if (breakdown.matchedSignalCount + breakdown.matchedSkillCount === 0) {
+          stretchFactors.push("Anchor gap: few demonstrated strengths surfaced — targeted skill-building may help");
+        } else if (fitScore <= 3) {
+          stretchFactors.push("Narrow overlap: growing into more of this role's anchor areas would strengthen fit");
+        }
+        // Cap at 6
+        const stretchFactorsCapped = stretchFactors.slice(0, 6);
+
+        // Bottom line (exactly 2 sentences, growth-oriented framing)
+        const topSupport = supportsFit[0] ?? "general pattern alignment";
+        const topStretch = stretchFactorsCapped[0] ?? "no notable stretch areas identified";
+        const bottomLine2s = fitScore >= 7
+          ? `Your pattern aligns with this role primarily through ${topSupport.toLowerCase()}. ${stretchFactorsCapped.length > 0 ? `Growth edge: ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)}.` : "No significant stretch areas identified."}`
+          : fitScore >= 4
+          ? `Partial alignment — ${topSupport.toLowerCase()} supports fit, while ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)} represents the primary growth direction. Leaning into that stretch could make this role a strong next step.`
+          : `This role is a stretch — ${topStretch.toLowerCase().replace(/^(.)/,(_:string,c:string)=>c)} is the biggest growth area. ${supportsFit.length > 0 ? `The role does connect through ${topSupport.toLowerCase()}, which gives you a foothold to build from.` : "Building more overlap with the role's anchor areas would strengthen your position."}`;
+
+        // Merge structured fields into contract.alignment (backward-compatible extension)
+        (contract.alignment as any).supports_fit = supportsFit;
+        (contract.alignment as any).stretch_factors = stretchFactorsCapped;
+        (contract.alignment as any).bottom_line_2s = bottomLine2s;
 
         // Only transition to TERMINAL_COMPLETE with result present
         const to: CalibrationState = "TERMINAL_COMPLETE";
