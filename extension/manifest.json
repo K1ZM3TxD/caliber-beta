@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Caliber — Job Fit Score",
+  "version": "0.1.0",
+  "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://www.linkedin.com/jobs/view/*"
+      ],
+      "js": ["content_linkedin.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.indeed.com/*"
+      ],
+      "js": ["content_indeed.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

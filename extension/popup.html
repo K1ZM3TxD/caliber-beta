@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Caliber Fit Score</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <div class="logo">Caliber</div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading" class="state">
+      <div class="spinner"></div>
+      <p class="status-text">Extracting job description…</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="error" class="state hidden">
+      <div class="error-icon">!</div>
+      <p id="error-msg" class="status-text"></p>
+      <button id="btn-retry" class="btn btn-primary">Recalculate</button>
+    </div>
+
+    <!-- Results state -->
+    <div id="results" class="state hidden">
+      <div class="score-ring">
+        <span id="score-value" class="score-number">—</span>
+        <span class="score-label">/10</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Supports the fit</div>
+        <ul id="supports-list" class="bullet-list"></ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Stretch factors</div>
+        <ul id="stretch-list" class="bullet-list"></ul>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Bottom line</div>
+        <p id="bottom-line" class="bottom-text"></p>
+      </div>
+
+      <div class="actions">
+        <button id="btn-recalc" class="btn btn-secondary">Recalculate</button>
+        <a id="link-caliber" href="http://localhost:3000/calibration" target="_blank" class="btn btn-primary">Open in Caliber</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
