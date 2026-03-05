@@ -1,5 +1,22 @@
 ---
 
+BREAK + UPDATE (2026-03-05) — Unified Titles+Job screen + Title scoring + Thin cap + Extension-first direction
+---
+DONE:
+- Titles UI: 3 max, no collapsed summary preview, bullets left+bold, clutter removed
+- Removed title clarifications dialogue
+- Title scoring: top3 high alignment for strong profiles; thin/generic answers cap ≤5.0; smoke tests updated
+- Unified flow: titles + job area on one screen; running job replaces only job region with fit accordion; titles remain visible
+- Fit UI polish: score more prominent (centered, larger in accordion); Try another job resets job region; Restart removed
+- Bottom line doctrine: score-band templates (Strong/Partial/Low), concreteProof() mapping, stretchLabel() de-dup (no verbatim repetition)
+- Extension-first CTA: green button "Try our browser extension for LinkedIn or Indeed" above job textarea; /extension landing page created
+- Season docs synced (CALIBER_CONTEXT_SUMMARY, CALIBER_ISSUES_LOG, milestones)
+NEXT:
+- Bottom line doctrine polish: reduce remaining repetition across stretch bullets + bottom paragraph (anti-repetition/paraphrase)
+- Browser extension MVP: LinkedIn + Indeed extraction + authenticated API call + extension UI with ads slot
+
+---
+
 BREAK + UPDATE (2026-03-04) — Season wrap-up
 ---
 DONE:

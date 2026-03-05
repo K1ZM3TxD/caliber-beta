@@ -1,24 +1,26 @@
 # CALIBER_CONTEXT_SUMMARY
 
-## Project Status (2026-03-04)
+## Project Status (2026-03-05)
 
 Calibration flow runs end-to-end: resume upload → prompt answers → title recommendations → job paste → fit score + results. All steps render on a single /calibration page with no navigation away. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys from main.
 
-## Current UI Behavior (2026-03-04)
+## Current UI Behavior (2026-03-05)
 
-- **Titles screen:** Archetype header label; list of 4–6 titles with scores (X/10); collapsed rows show 1-line summary preview; expand for full summary + mechanism bullets; copy buttons per title; "Search in parallel" chips for cross-cluster titles.
-- **Job calibration:** Paste job description on the same page → spinner → results appear inline on /calibration (no page navigation). Stabilized in 57f1c68.
-- **Results card (pinned header):** Shows job title + fit score (0–10) + "Supports the fit" bullets + "Stretch factors" (growth framing) + "Bottom line" (1–2 sentences).
-- **Dialogue panel:** "Does this feel accurate?" chat below titles; "Use these clarifications" reruns title scoring additively.
+- **Titles screen:** Archetype header label; max 3 titles shown (high-alignment only); clean dropdown — no collapsed summary preview; expand for summary + mechanism bullets (left-aligned, bold); copy button per title. No "Search in parallel" chips.
+- **Title scoring:** Strong profiles → top 3 titles with scores ≥7 (at least one ≥8). Weak/generic/thin input → hard cap at ≤5.0; smoke tests enforce both bands.
+- **Unified screen:** Titles + job paste area on the same screen. Running a job replaces only the job textarea area with an inline Fit accordion; titles remain visible above.
+- **Fit accordion:** "Supports the fit" bullets + "Stretch factors" (growth framing) + "Bottom line" (1–2 sentences, doctrine-tight, score-band templates). Fit score rendered prominently (centered, larger).
+- **Controls:** "Try another job" resets only the job area (titles stay). No Restart button.
+- **Extension-first CTA:** Above the job textarea — 3-line centered layout: green button "Try our browser extension for LinkedIn or Indeed" → "or" → "Paste job description below". Links to /extension landing page.
+- **Dialogue panel:** Removed. No clarifications chat below titles.
 
 ## Known Pain Points
 
-- Title scoring calibration: design/solutions titles often score low; need to ensure multiple high-fit titles can be returned (avoid brittle single-winner behavior).
-- Post-score LLM dialogue mode not yet implemented (wander vs constrained toggle pending).
-- Routing/polling fragility partially mitigated but still relevant for edge cases.
+- Bottom line paragraph can repeat phrases from stretch bullets verbatim — stretchLabel() de-dup partially mitigates but not fully doctrine-tight yet.
+- Browser extension MVP not yet built (landing page only).
 
 ## Next Tasks (in order)
 
-1. Title scoring quality: calibrate so profiles with clear design/solutions signals get appropriately high scores.
-2. Post-score LLM dialogue mode toggle.
-3. Fit card wording/format polish pass.
+1. Bottom line doctrine polish: reduce repetition across stretch bullets + bottom paragraph (anti-repetition / paraphrase rule).
+2. Browser extension MVP: LinkedIn + Indeed extraction, extension-first funnel, ads in extension UI.
+3. Post-score LLM dialogue mode toggle (deferred).
