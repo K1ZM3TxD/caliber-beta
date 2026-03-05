@@ -902,7 +902,18 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : (
                   <>
                     <div className="mt-8">
-                      <label className="block text-sm font-medium mb-2" style={{ color: "#999" }}>Paste job below</label>
+                      <div className="flex items-baseline justify-between mb-2">
+                        <label className="text-sm font-medium" style={{ color: "#999" }}>Paste job below</label>
+                        <a
+                          href="/extension"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium transition-colors"
+                          style={{ color: "#4ADE80" }}
+                        >
+                          Try our browser extension (LinkedIn + Indeed)
+                        </a>
+                      </div>
                       <textarea
                         value={jobText}
                         onChange={e => setJobText(e.target.value)}
@@ -974,16 +985,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       >
                         {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
                       </button>
-                      <a
-                        href="/extension"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                      >
-                        Try our browser extension (LinkedIn + Indeed)
-                      </a>
-                      <p className="text-xs mt-1" style={{ color: "#666" }}>Get a fit score on LinkedIn or Indeed without copy/paste.</p>
                     </div>
                   </>
                 )}
