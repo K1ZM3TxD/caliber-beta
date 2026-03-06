@@ -131,21 +131,24 @@ export function extractWeightedAnchors(resumeText: string, promptAnswers: string
     }
   }
 
-  const sourceCount = new Map<string, number>();
-  for (const [term] of allTokens) {
-    let sources = 0;
-    if (resumeWords.has(term)) sources++;
-    for (const pSet of promptWordSets) {
-      if (pSet.has(term)) sources++;
-    }
-    sourceCount.set(term, sources);
-  }
+  // Source-weighted scoring: prompt answers (explicit preference signals)
+  // carry more influence than resume text (historical role vocabulary).
+  const RESUME_SOURCE_WEIGHT = 1.0;
+  const PROMPT_SOURCE_WEIGHT = 2.5;
 
   const weighted = new Map<string, number>();
   for (const [term, rawCount] of allTokens) {
-    const base = Math.min(3, rawCount);
-    const sources = sourceCount.get(term) ?? 1;
-    const bonus = Math.min(2, Math.max(0, sources - 1));
+    let base = Math.min(3, rawCount);
+    let sourceWeight = 0;
+    if (resumeWords.has(term)) sourceWeight += RESUME_SOURCE_WEIGHT;
+    let inPrompt = false;
+    for (const pSet of promptWordSets) {
+      if (pSet.has(term)) { sourceWeight += PROMPT_SOURCE_WEIGHT; inPrompt = true; }
+    }
+    // Prompt-only terms get a half-step base lift (2→3) to reflect
+    // explicit user signal; terms also in resume are unaffected.
+    if (inPrompt && base < 3 && !resumeWords.has(term)) base = Math.min(3, base + 1);
+    const bonus = Math.min(2, Math.max(0, Math.floor(sourceWeight / PROMPT_SOURCE_WEIGHT)));
     const weight = Math.min(5, base + bonus);
     weighted.set(term, weight);
   }
