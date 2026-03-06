@@ -148,9 +148,39 @@ async function callFitAPI(jobText, sessionId) {
   return data;
 }
 
-/** Main flow: extract → call API → render. */
+/** Try to activate the persistent in-page panel (LinkedIn content script). */
+async function tryActivatePanel() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab || !tab.id) { resolve(false); return; }
+      chrome.tabs.sendMessage(tab.id, { type: "ACTIVATE_PANEL" }, (response) => {
+        if (chrome.runtime.lastError || !response || !response.activated) {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    });
+  });
+}
+
+/** Main flow: activate panel if possible, otherwise extract → call API → render. */
 async function run() {
   show($loading);
+  $loading.querySelector(".status-text").textContent = "Activating…";
+
+  // Try persistent in-page panel first (LinkedIn/Indeed content script pages)
+  const panelOk = await tryActivatePanel();
+  if (panelOk) {
+    const spinner = $loading.querySelector(".spinner");
+    if (spinner) spinner.style.display = "none";
+    $loading.querySelector(".status-text").textContent =
+      "\u2713 Panel active \u2014 results on page";
+    return;
+  }
+
+  // Fallback: original popup scoring for non-content-script pages
   $loading.querySelector(".status-text").textContent = "Extracting job description…";
 
   try {
