@@ -9,6 +9,7 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 ## Current UI Behavior (2026-03-05)
 
 - **Titles screen:** Archetype header label; max 3 titles shown (high-alignment only); clean dropdown — no collapsed summary preview; expand for summary + mechanism bullets (left-aligned, bold); copy button per title. No "Search in parallel" chips.
+- **Title detail (enriched):** Each title row is expandable when enriched data exists (`summary_2s` + `bullets_3`). Expanded state shows a ~2-sentence summary and three mechanism-level bullet points. Titles without enrichment render as flat rows with score and copy only (dot indicator, not clickable). This is canonical product behavior — see `PROJECT_OVERVIEW.md`.
 - **Title scoring:** Strong profiles → top 3 titles with scores ≥7 (at least one ≥8). Weak/generic/thin input → hard cap at ≤5.0; smoke tests enforce both bands.
 - **Unified screen:** Titles + job paste area on the same screen. Running a job replaces only the job textarea area with an inline Fit accordion; titles remain visible above.
 - **Fit accordion:** "Supports the fit" bullets + "Stretch factors" (growth framing) + "Bottom line" (1–2 sentences, doctrine-tight, score-band templates). Fit score rendered prominently (centered, larger).

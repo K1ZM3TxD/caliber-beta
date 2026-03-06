@@ -59,6 +59,13 @@
   - Target: render fit scores next to job posts on LinkedIn/Indeed listings pages.
   - Blocked until Phase 1 is stable and popup rendering is polished.
 
+20. Title rows may render without expandable detail — **OPEN** (2026-03-06, regression risk)
+  - Intended behavior: each recommended title row is expandable with a ~2-sentence summary and 3 explanatory bullet points (see `PROJECT_OVERVIEW.md`).
+  - Failure mode: if `summary_2s` or `bullets_3` are missing/null from the enrichment pipeline, title rows degrade to flat score-only rows with no expandable detail.
+  - This can happen silently — the UI renders without error, but the user sees no explanation for the title recommendation.
+  - Root cause when it occurs: enrichment data not populated by title scoring or pattern synthesis; or data shape changed without updating the rendering path.
+  - This is distinct from issue #18 (sister-profile producing only one title); this issue is about per-title detail completeness regardless of how many titles appear.
+
 ## Acceptance Test Snippet (2026-03-01)
 
 ```sh
