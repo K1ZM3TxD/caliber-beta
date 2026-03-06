@@ -55,10 +55,14 @@ function renderResults(data) {
 
 /** Extract job text from the active tab via content script. */
 async function extractJobText() {
+  const TIMEOUT_MS = 8000;
   return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), TIMEOUT_MS);
+
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (!tab || !tab.id) {
+        clearTimeout(timer);
         resolve(null);
         return;
       }
@@ -67,36 +71,43 @@ async function extractJobText() {
       chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_JOB_TEXT" }, (response) => {
         if (chrome.runtime.lastError || !response || !response.text) {
           // Content script not injected (not a matching page) — try executeScript fallback
-          chrome.scripting.executeScript(
-            {
-              target: { tabId: tab.id },
-              func: () => {
-                // Try generic extraction: user selection, then largest text block
-                const sel = window.getSelection();
-                if (sel && sel.toString().trim().length > 100) {
-                  return sel.toString().trim();
-                }
-                // Try common job description containers
-                const candidates = document.querySelectorAll(
-                  'article, [role="main"], .job-description, .description, #job-details'
-                );
-                let best = "";
-                candidates.forEach((el) => {
-                  const t = el.innerText || "";
-                  if (t.length > best.length) best = t;
-                });
-                return best.trim().length > 100 ? best.trim() : null;
+          try {
+            chrome.scripting.executeScript(
+              {
+                target: { tabId: tab.id },
+                func: () => {
+                  // Try generic extraction: user selection, then largest text block
+                  const sel = window.getSelection();
+                  if (sel && sel.toString().trim().length > 100) {
+                    return sel.toString().trim();
+                  }
+                  // Try common job description containers
+                  const candidates = document.querySelectorAll(
+                    'article, [role="main"], .job-description, .description, #job-details'
+                  );
+                  let best = "";
+                  candidates.forEach((el) => {
+                    const t = el.innerText || "";
+                    if (t.length > best.length) best = t;
+                  });
+                  return best.trim().length > 100 ? best.trim() : null;
+                },
               },
-            },
-            (results) => {
-              if (chrome.runtime.lastError || !results || !results[0]) {
-                resolve(null);
-              } else {
-                resolve(results[0].result);
+              (results) => {
+                clearTimeout(timer);
+                if (chrome.runtime.lastError || !results || !results[0]) {
+                  resolve(null);
+                } else {
+                  resolve(results[0].result);
+                }
               }
-            }
-          );
+            );
+          } catch {
+            clearTimeout(timer);
+            resolve(null);
+          }
         } else {
+          clearTimeout(timer);
           resolve(response.text);
         }
       });

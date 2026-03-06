@@ -26,12 +26,23 @@
     return null;
   }
 
+  /** Retry extraction for SPA-loaded content (LinkedIn lazy-loads job details). */
+  function extractWithRetry(retries, delayMs) {
+    return new Promise((resolve) => {
+      function attempt(remaining) {
+        const text = extractJobText();
+        if (text || remaining <= 0) { resolve(text); return; }
+        setTimeout(() => attempt(remaining - 1), delayMs);
+      }
+      attempt(retries);
+    });
+  }
+
   // Listen for messages from the popup
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === "EXTRACT_JOB_TEXT") {
-      const text = extractJobText();
-      sendResponse({ text });
+      extractWithRetry(5, 600).then((text) => sendResponse({ text }));
+      return true; // keep channel open for async response
     }
-    return true; // keep channel open for async
   });
 })();
