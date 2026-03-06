@@ -118,6 +118,19 @@ export function extractWeightedAnchors(resumeText: string, promptAnswers: string
   const resumeWords = toWordSet(resumeText);
   const promptWordSets = promptAnswers.map(toWordSet);
 
+  // Retain single-mention terms that are in the scoring vocabulary.
+  // These are domain-significant tokens (e.g. "development", "system") that
+  // appeared only once in the combined text and were dropped by the count>=2
+  // gate in extractBroadTokens. They enter at count=2 because a single mention
+  // of a domain-relevant term is as credible as two mentions of a generic word.
+  for (const wordSet of [resumeWords, ...promptWordSets]) {
+    for (const term of wordSet) {
+      if (!allTokens.has(term) && SCORING_VOCAB.has(term)) {
+        allTokens.set(term, 2);
+      }
+    }
+  }
+
   const sourceCount = new Map<string, number>();
   for (const [term] of allTokens) {
     let sources = 0;
@@ -222,6 +235,14 @@ for (const cluster of TITLE_CLUSTERS) {
 for (const t of STANDALONE_SIGS) {
   TITLE_BANK.push(t.title);
   SIGS[t.title] = { required: t.required, optional: t.optional };
+}
+
+// Scoring vocabulary: all terms used in any title signature.
+// Used to retain single-mention domain terms during anchor extraction.
+const SCORING_VOCAB = new Set<string>();
+for (const sig of Object.values(SIGS)) {
+  for (const t of sig.required) SCORING_VOCAB.add(t);
+  for (const t of sig.optional) SCORING_VOCAB.add(t);
 }
 
 const ACTION_ARTIFACT_PAIRS: [string, string][] = [
@@ -345,6 +366,12 @@ export interface TitleRecommendation {
   adjacent_titles: Array<{ title: string; score: number }>;
   why_primary: string[];
   why_not_adjacent: string[];
+  titles?: Array<{
+    title: string;
+    fit_0_to_10: number;
+    summary_2s?: string;
+    bullets_3?: [string, string, string];
+  }>;
 }
 
 /**
@@ -395,6 +422,46 @@ export function generateTitleRecommendation(
     }
   }
 
+  // Build per-title enrichment for UI expand/collapse
+  const enrichedTitles = top3.map((c) => {
+    const summaryParts: string[] = [];
+    if (c._matchedReq.length > 0) {
+      summaryParts.push(`Pattern match on ${c._matchedReq.length} core signal${c._matchedReq.length > 1 ? "s" : ""}: ${c._matchedReq.slice(0, 4).join(", ")}.`);
+    }
+    if (c._matchedPairs.length > 0) {
+      summaryParts.push(`Action-artifact evidence: ${c._matchedPairs.join(", ")}.`);
+    } else if (c._reqCov >= 0.7) {
+      summaryParts.push(`${Math.round(c._reqCov * 100)}% anchor coverage across required signals.`);
+    }
+    if (summaryParts.length === 0) {
+      summaryParts.push(`Score ${c.score}/9.9 based on anchor analysis.`);
+    }
+    const summary_2s = summaryParts.join(" ");
+
+    const rawBullets: string[] = [];
+    if (c._matchedReq.length > 0) {
+      rawBullets.push(`Matched signals: ${c._matchedReq.join(", ")}`);
+    }
+    if (c._matchedPairs.length > 0) {
+      rawBullets.push(`Evidence pairs: ${c._matchedPairs.map(p => p.replace("+", " → ")).join(", ")}`);
+    }
+    if (c._missing.length > 0) {
+      rawBullets.push(`Gap areas: ${c._missing.join(", ")}`);
+    } else if (rawBullets.length < 3 && c._reqCov > 0) {
+      rawBullets.push(`Anchor coverage: ${Math.round(c._reqCov * 100)}%`);
+    }
+    // Pad to exactly 3 or truncate
+    while (rawBullets.length < 3) rawBullets.push("");
+    const bullets_3 = rawBullets.slice(0, 3) as [string, string, string];
+
+    return {
+      title: c.title,
+      fit_0_to_10: c.score,
+      summary_2s,
+      bullets_3: bullets_3.some(b => b.length > 0) ? bullets_3 : undefined,
+    };
+  });
+
   return {
     candidates: top3.map(({ title, score }) => ({ title, score })),
     recommendation: {
@@ -402,6 +469,7 @@ export function generateTitleRecommendation(
       adjacent_titles: adjacent.map(({ title, score }) => ({ title, score })),
       why_primary: whyPrimary,
       why_not_adjacent: whyNotAdjacent,
+      titles: enrichedTitles,
     },
   };
 }
