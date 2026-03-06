@@ -1,6 +1,7 @@
 // lib/integration_seam.ts
 
 import { ingestJob, isJobIngestError, type JobIngestObject, type JobIngestDimensionKey } from "@/lib/job_ingest"
+import { computeAlignmentScore } from "@/lib/alignment_score"
 import { computeSkillMatch, type SkillMatchResult } from "@/lib/skill_match"
 import { computeStretchLoad, type StretchLoadResult } from "@/lib/stretch_load"
 
@@ -26,13 +27,19 @@ export type IntegrationInput = {
   experienceVector: number[]
 }
 
+export type AlignmentOutput = {
+  score: number
+  explanation: string
+  signals?: any
+  supports_fit: string[]
+  stretch_factors: string[]
+  bottom_line_2s: string
+}
+
 export type IntegrationSeamOk = {
   ok: true
   result: {
-    // NOTE: until a separate Alignment engine module exists in /lib,
-    // we treat the job ingestion/encoding output as the “alignment-side” raw output
-    // for integration smoke purposes. No blending occurs.
-    alignment: JobIngestObject
+    alignment: AlignmentOutput
     skillMatch: SkillMatchResult
     stretchLoad: StretchLoadResult
   }
@@ -117,16 +124,82 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     // ---- Ingest / encode (delegated) ----
     const ingestResult = ingestJob(jobText)
 
+    // ---- Alignment Score (person vs role vector) ----
+    const alignmentResult = computeAlignmentScore({
+      personVector: experienceVector as [0|1|2, 0|1|2, 0|1|2, 0|1|2, 0|1|2, 0|1|2],
+      roleVector: ingestResult.roleVector as [0|1|2, 0|1|2, 0|1|2, 0|1|2, 0|1|2, 0|1|2],
+    })
+
     // ---- Skill Match (delegated) ----
     const skillMatch = computeSkillMatch(ingestResult.roleVector, experienceVector)
 
     // ---- Stretch Load (delegated; inverse of Skill Match) ----
     const stretchLoad = computeStretchLoad(skillMatch.finalScore)
 
+    // ---- Build supports_fit / stretch_factors from dimension distances ----
+    // Score-aware framing: distance=1 reads as proximity (support) when
+    // the overall score is ≥ 5, and as gap (stretch) when < 5.
+    const distances = alignmentResult.signals.distances
+    const score = alignmentResult.score
+    const dimKeys: JobIngestDimensionKey[] = [
+      "structuralMaturity", "authorityScope", "revenueOrientation",
+      "roleAmbiguity", "breadthVsDepth", "stakeholderDensity",
+    ]
+    const supports_fit: string[] = []
+    const stretch_factors: string[] = []
+    for (let i = 0; i < 6; i++) {
+      const label = DIMENSION_LABELS[dimKeys[i]]
+      if (distances[i] === 0) {
+        supports_fit.push(`${label}: strong alignment between your pattern and role demands.`)
+      } else if (distances[i] === 1) {
+        if (score >= 5) {
+          supports_fit.push(`${label}: near-aligned — close to role demands with minor stretch.`)
+        } else {
+          stretch_factors.push(`${label}: mild gap — role asks for slightly more than demonstrated.`)
+        }
+      } else {
+        stretch_factors.push(`${label}: significant gap — role demands exceed demonstrated level.`)
+      }
+    }
+
+    // Empty-supports guard: for scores ≥ 3, ensure at least one support when
+    // mild-gap dimensions exist but none qualified as supports above.
+    if (supports_fit.length === 0 && score >= 3 && stretch_factors.length > 0) {
+      const mildIdx = stretch_factors.findIndex(s => s.includes("mild gap"))
+      if (mildIdx !== -1) {
+        const label = stretch_factors[mildIdx].split(":")[0]
+        stretch_factors.splice(mildIdx, 1)
+        supports_fit.push(`${label}: closest area of alignment — near role demands.`)
+      }
+    }
+
+    // ---- Bottom line (coherent with supports/stretch balance) ----
+    const severeCount = alignmentResult.signals.severeContradictions
+    const mildCount = alignmentResult.signals.mildTensions
+    let bottom_line_2s: string
+    if (severeCount > 0 && supports_fit.length === 0) {
+      bottom_line_2s = `Structural mismatch in ${severeCount} dimension(s). This role demands capabilities beyond your demonstrated pattern.`
+    } else if (severeCount > 0) {
+      bottom_line_2s = `${supports_fit.length} area(s) of alignment, but ${severeCount} significant gap(s) require growth beyond your current pattern.`
+    } else if (stretch_factors.length > 0) {
+      bottom_line_2s = `Solid foundation with ${stretch_factors.length} area(s) of stretch. Manageable growth required.`
+    } else if (mildCount > 0 && score < 8) {
+      bottom_line_2s = `Near-aligned across all dimensions. Your pattern is close to this role with minor growth areas.`
+    } else {
+      bottom_line_2s = `Strong structural alignment across all dimensions. Your pattern fits this role well.`
+    }
+
     return {
       ok: true,
       result: {
-        alignment: ingestResult,
+        alignment: {
+          score: alignmentResult.score,
+          explanation: alignmentResult.explanation,
+          signals: alignmentResult.signals,
+          supports_fit,
+          stretch_factors,
+          bottom_line_2s,
+        },
         skillMatch,
         stretchLoad,
       },
