@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeGet, storeLatest } from "@/lib/calibration_store";
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine";
 
+const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
+
+function corsHeaders(req: NextRequest): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  if (CHROME_EXT_ORIGIN_RE.test(origin)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+  }
+  return {};
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -96,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     const alignment = r.alignment as any;
-    return NextResponse.json({
+    const res = NextResponse.json({
       score_0_to_10: alignment.score ?? 0,
       supports_fit: alignment.supports_fit ?? [],
       stretch_factors: alignment.stretch_factors ?? [],
@@ -104,22 +118,22 @@ export async function POST(req: NextRequest) {
       calibrationId: sessionId,
       sourceUrl: body.sourceUrl ?? null,
     });
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+    return res;
   } catch (e: any) {
-    return NextResponse.json(
+    const res = NextResponse.json(
       { error: e?.message ?? "Internal error" },
       { status: 500 }
     );
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+    return res;
   }
 }
 
-// CORS preflight for extension requests
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "chrome-extension://*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
+export async function OPTIONS(req: NextRequest) {
+  const headers = corsHeaders(req);
+  if (!headers["Access-Control-Allow-Origin"]) {
+    return new NextResponse(null, { status: 403 });
+  }
+  return new NextResponse(null, { status: 204, headers });
 }
