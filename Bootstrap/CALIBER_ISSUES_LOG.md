@@ -34,11 +34,30 @@
   - stretchLabel() de-dup partially mitigates but not fully doctrine-tight.
   - Need anti-repetition / paraphrase rule (no phrase bans; just de-dup).
 
-16. Browser extension MVP — **OPEN** (2026-03-05, product initiative)
-  - LinkedIn + Indeed job extraction via browser extension.
-  - Extension-first funnel: CTA button above job paste area links to /extension landing page (built).
-  - Ads inside extension UI (not injected into host pages).
-  - Extension not yet built — landing page only.
+16. Browser extension Phase 1 MVP — **RESOLVED** (2026-03-06)
+  - LinkedIn job detail extraction via Chrome extension: verified working end-to-end.
+  - Live confirmed behavior: user clicks LinkedIn job detail → clicks Caliber extension → popup extracts job description → calls production API → renders fit score (4.3/10 confirmed live screenshot).
+  - Popup shows: score, supports-fit bullets, stretch factors, bottom line, Recalculate, Open in Caliber.
+  - Resolved blockers during development:
+    - Stale/old extension package repeatedly loaded instead of current `extension/` folder build.
+    - Missing `scripting` permission broke `executeScript` fallback.
+    - `localhost` API base caused fetch failure from user machine.
+    - Bare-domain (`caliber-app.com`) vs www-domain mismatch caused 307 redirect → CORS preflight failure.
+    - `/api/extension/fit` CORS needed exact `chrome-extension://...` origin echo, not wildcard.
+  - Canonical production host confirmed: `https://www.caliber-app.com`.
+  - Key commits: a9565d9, 66d1bf4, dd5da13 (domain alignment, CORS fix, host_permission cleanup).
+
+17. Extension popup explanation rendering sparse — **OPEN** (2026-03-06)
+  - In some runs the popup explanation content (supports-fit, stretch, bottom line) is sparse or incomplete.
+  - Likely related to bottom-line doctrine polish (#15).
+
+18. Sister-profile title scoring — **OPEN** (2026-03-06, saved issue)
+  - A sister-profile run produced only one low-scoring title with no three options/dropdown.
+  - Needs investigation to determine if title scoring bands are too restrictive for certain profile types.
+
+19. Extension Phase 2: listings-page overlay — **OPEN** (2026-03-06, product initiative)
+  - Target: render fit scores next to job posts on LinkedIn/Indeed listings pages.
+  - Blocked until Phase 1 is stable and popup rendering is polished.
 
 ## Acceptance Test Snippet (2026-03-01)
 

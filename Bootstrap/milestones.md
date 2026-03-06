@@ -1,79 +1,42 @@
 ---
 
-BREAK + UPDATE (2026-03-05) — Unified Titles+Job screen + Title scoring + Thin cap + Extension-first direction
+BREAK + UPDATE (2026-03-06)
 ---
-DONE:
-- Titles UI: 3 max, no collapsed summary preview, bullets left+bold, clutter removed
-- Removed title clarifications dialogue
-- Title scoring: top3 high alignment for strong profiles; thin/generic answers cap ≤5.0; smoke tests updated
-- Unified flow: titles + job area on one screen; running job replaces only job region with fit accordion; titles remain visible
-- Fit UI polish: score more prominent (centered, larger in accordion); Try another job resets job region; Restart removed
-- Bottom line doctrine: score-band templates (Strong/Partial/Low), concreteProof() mapping, stretchLabel() de-dup (no verbatim repetition)
-- Extension-first CTA: green button "Try our browser extension for LinkedIn or Indeed" above job textarea; /extension landing page created
-- Season docs synced (CALIBER_CONTEXT_SUMMARY, CALIBER_ISSUES_LOG, milestones)
+DONE (this sprint):
+- Extension Phase 1 MVP verified working end-to-end on LinkedIn job detail pages
+- Live confirmed: extract job description → call production API → render fit score in popup (4.3/10)
+- Resolved: stale extension package, missing scripting permission, localhost API base, bare-domain redirect/CORS, exact chrome-extension origin echo
+- Canonical production host locked: https://www.caliber-app.com
+- Key commits: a9565d9, 66d1bf4, dd5da13
+
+BLOCKED:
+- (none)
+
 NEXT:
-- Bottom line doctrine polish: reduce remaining repetition across stretch bullets + bottom paragraph (anti-repetition/paraphrase)
-- Browser extension MVP: LinkedIn + Indeed extraction + authenticated API call + extension UI with ads slot
-
+- Bottom line doctrine polish (anti-repetition / paraphrase rule)
+- Extension popup explanation rendering completeness
+- Extension Phase 2: listings-page overlay scores next to job posts
 ---
-
-BREAK + UPDATE (2026-03-04) — Season wrap-up
----
-DONE:
-- Inline job pipeline + results behavior stabilized (57f1c68; inline JOB_TEXT results contract — results render on /calibration without navigation)
-- Title recommendations UI: dropdown expand/collapse with per-title score, summary preview (collapsed), mechanism bullets + full summary (expanded)
-- Fit card: "Supports the fit" / "Stretch factors" / "Bottom line" rendering in pinned header; growth framing on stretch factors (no negative language)
-- Title bullet rewrite: jargon themes replaced with verb-driven mechanism bullets (<=8 words, doctrine-compliant)
-- Summary-first rendering: collapsed row shows 1-line summary preview; expanded panel shows summary above bullets
-- Production deploy confirmed auto-updates on main via Vercel; development should use branch/preview (operating practice)
-- New PM operating constraints adopted: no-afterthoughts; gather-minimum-inputs-before-task; single-pass task rule
-- Season docs synced into Bootstrap for new-chat loadability
-NEXT:
-- Title scoring calibration: ensure multiple high-fit titles can be returned; avoid brittle single-winner behavior
-- Post-score LLM dialogue mode toggle (wander vs constrained; not yet locked)
-- Fit card wording/format polish pass
-
----
-
-BREAK + UPDATE (2026-03-02)
----
-DONE:
-- 057bc39: Title dialogue: "Use these clarifications" reruns title suggestion (RERUN_TITLES event)
-  - Additive-only: appends user dialogue messages as extra anchor source; does not mutate stored prompts or resume
-  - Re-runs generateTitleCandidates + generateTitleRecommendation; updates session.synthesis in-place (no state transition)
-  - UI button appears after ≥1 user message in dialogue panel; helper text clarifies no prior-answer mutation
-- f36dff0: ClientGrowth title cluster added (Jen now gets 5 strong titles; no bleed into Chris)
-- 166baa4: removed TITLE_SCORE debug logs (cleanup)
-
 
 Milestone: Stabilize /calibration UI shell + typewriter tagline; restore RESUME_INGEST UI; add / -> /calibration redirect; establish single-file guardrails.
 
-BREAK + UPDATE (2026-03-02)
----
-DONE:
-- BREAK_AND_UPDATE updated to require season_files_touched + explicit doc patch plan + no-archaeology fixture rule
-NEXT:
-- Apply this new trigger behavior to the current scoring/title-recognition workstream (next BREAK+UPDATE if drift happens)
-
-DONE:
-- Docs: fix BREAK_AND_UPDATE drift — Step 2 now allows structured task blocks (fenced/multi-line); kernel.md payload section updated; contract matches real PM→Coder handoff
-
----
-
-BREAK + UPDATE (2026-03-01)
+BREAK + UPDATE (2026-02-28)
 ---
 DONE (this sprint):
-- ALIGNMENT_OUTPUT hang resolved; smoke run reaches TERMINAL_COMPLETE with hasResult=true
+- Build/type fixes across backend and UI
+- /calibration UI: no blank screens, no false results
+- PDF bad-xref now returns RESUME_PARSE_FAILED
 
 BLOCKED:
-- Title suggestion missing/null in TITLE_DIALOGUE; job description gate surfaced (JOB_REQUIRED/0-10 pending)
+- Smoke integration stalls in CONSOLIDATION_RITUAL and does not reach PATTERN_SYNTHESIS within step cap
 
 NEXT:
-- Implement title confirmation UI that yields non-null marketTitle/titleExplanation and routes to Job Text before scoring
+- Make CONSOLIDATION_RITUAL advance deterministically per ADVANCE call (remove wall-clock gating)
+- Re-run smoke to confirm it reaches PATTERN_SYNTHESIS
 ---
 
 Next milestone:
-- Commit, push, and verify TITLES step fix; ensure smoke run reaches RESULTS after job text entry.
+- Backend wiring via hook: add useCalibrationSession and refactor page.tsx to call hook only; then resume-upload -> prompt 1.
 ## ⚠️ PHASE SHIFT — Calibration Core First (Temporary Freeze on Summary Engine)
 
 As of this milestone update, development priority has shifted.
@@ -423,20 +386,21 @@ Allowed outcomes:
 
 
 
+\- PASS
 
 \- REPAIR\_APPLIED
 
+\- RETRY\_REQUIRED
 
+\- FALLBACK\_ANCHOR\_FAILURE
 
 \- FALLBACK\_STRUCTURE\_INVALID
+
 \- FALLBACK\_BLACKLIST\_PHRASE
 
----
 
-BREAK + UPDATE (2026-03-01)
----
-Fit score placeholder fixed: deterministic (non-LLM) scoring now required before TERMINAL_COMPLETE. New invariant: ALIGNMENT_OUTPUT requires COMPUTE_ALIGNMENT_OUTPUT; ADVANCE is not accepted. Result must be fetched from /api/calibration/result, not ADVANCE responses. Manual curl test: create session, submit prompts, submit job text (>=40 chars), reach ALIGNMENT_OUTPUT, POST COMPUTE_ALIGNMENT_OUTPUT, GET /api/calibration/result returns score_0_to_10 (not always 0 if anchors match), summary no longer says 'Alignment score not computed in v1'.
 
+No empty returns permitted.
 
 
 
