@@ -537,8 +537,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
     />
   );
 
+  const isPreResults = ["LANDING", "RESUME", "PROMPT", "PROCESSING"].includes(step);
+
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto">
+    <div className={`fixed inset-0 bg-[#0B0B0B] flex justify-center overflow-y-auto ${isPreResults ? "items-center" : "items-start pt-[8vh] sm:pt-[10vh]"}`}>
       <div className="w-full max-w-[760px] px-6">
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
