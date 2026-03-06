@@ -3,6 +3,7 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
+import { CHROME_STORE_URL, EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
 const TYPE_MS = 55;
 const START_DELAY_MS = 200;
@@ -923,9 +924,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : (
                   <>
                     <div className="mt-8">
-                      <div className="flex flex-col items-center mb-4 gap-1.5 py-3">
+                      <div className="flex flex-col items-center mb-2 gap-3 py-2">
                         <a
-                          href="/extension"
+                          href={CHROME_STORE_URL ?? EXTENSION_LANDING_PATH}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
