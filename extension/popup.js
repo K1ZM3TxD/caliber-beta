@@ -1,6 +1,6 @@
 // popup.js — Caliber extension popup logic
 
-const API_BASE = "http://localhost:3000";
+const API_BASE = "https://caliber-app.com";
 
 const $loading = document.getElementById("loading");
 const $error = document.getElementById("error");

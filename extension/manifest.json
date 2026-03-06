@@ -5,7 +5,7 @@
   "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
-    "http://localhost:3000/*",
+    "https://caliber-app.com/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],
