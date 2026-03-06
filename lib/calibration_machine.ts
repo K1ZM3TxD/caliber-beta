@@ -1,15 +1,13 @@
-import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError, CalibrationSynthesis } from "@/lib/calibration_types";
-import { storeGet, storeSet } from "@/lib/calibration_store";
-import { ingestJob } from "@/lib/job_ingest";
-import { runIntegrationSeam } from "@/lib/integration_seam";
-import { toResultContract } from "@/lib/result_contract";
-import { generateSemanticSynthesis } from "@/lib/semantic_synthesis";
-import { extractLexicalAnchors } from "@/lib/anchor_extraction";
-import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
-import { detectAbstractionDrift } from "./abstraction_drift";
-import { computeSkillMatch } from "@/lib/skill_match";
-import { computeStretchLoad } from "@/lib/stretch_load";
-import { generateTitleRecommendation, extractWeightedAnchors } from "@/lib/title_scoring";
+import type { CalibrationEvent, CalibrationSession, CalibrationState, CalibrationError } from "@/lib/calibration_types"
+import { storeGet, storeSet } from "@/lib/calibration_store"
+import { ingestJob } from "@/lib/job_ingest"
+import { runIntegrationSeam } from "@/lib/integration_seam"
+import { toResultContract } from "@/lib/result_contract"
+import { generateSemanticSynthesis } from "@/lib/semantic_synthesis"
+import { extractLexicalAnchors } from "@/lib/anchor_extraction"
+import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts"
+import { generateTitleRecommendation } from "@/lib/title_scoring"
+import { detectAbstractionDrift } from "./abstraction_drift"
 export { validateAndRepairSynthesisOnce };
 
 type Ok = { ok: true; session: CalibrationSession }
@@ -867,6 +865,28 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
   operateBest.splice(3)
   loseEnergy.splice(3)
 
+  // Generate title recommendations from resume + prompt answers
+  const resumeText = typeof session.resume.rawText === "string" ? session.resume.rawText : ""
+  const answers: string[] = []
+  for (let i = 1; i <= 5; i++) {
+    const a = session.prompts[i]?.answer
+    if (typeof a === "string" && a.trim().length > 0) answers.push(a.trim())
+    const ca = session.prompts[i]?.clarifier?.answer
+    if (typeof ca === "string" && ca.trim().length > 0) answers.push(ca.trim())
+  }
+
+  let titleCandidates = session.synthesis?.titleCandidates ?? undefined
+  let titleRecommendation = session.synthesis?.titleRecommendation ?? undefined
+  let marketTitle = session.synthesis?.marketTitle ?? null
+  try {
+    const titleResult = generateTitleRecommendation(resumeText, answers)
+    titleCandidates = titleResult.candidates
+    titleRecommendation = titleResult.recommendation
+    marketTitle = titleResult.recommendation.primary_title.title
+  } catch (e) {
+    console.warn("[caliber] title recommendation generation failed", e)
+  }
+
   return {
     ...session,
     synthesis: {
@@ -874,9 +894,11 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
       operateBest,
       loseEnergy,
       identitySummary: session.synthesis?.identitySummary ?? null,
-      marketTitle: session.synthesis?.marketTitle ?? null,
+      marketTitle,
       titleExplanation: session.synthesis?.titleExplanation ?? null,
       lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
+      titleCandidates,
+      titleRecommendation,
     },
   }
 }
@@ -1153,172 +1175,10 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         }
 
         if (session.state === "PATTERN_SYNTHESIS") {
-          // Cluster-based deterministic title scoring
-          const promptAnswers: string[] = [];
-          for (let i = 1; i <= 5; i++) {
-            const ans = session.prompts?.[i]?.answer;
-            if (typeof ans === "string" && ans.length > 0) promptAnswers.push(ans);
-          }
-          const resumeText = session.resume?.rawText ?? "";
-
-          let candidates: Array<{ title: string; score: number }>;
-          let legacyRec: CalibrationSynthesis["titleRecommendation"];
-
-          if (!session.synthesis?.titleCandidates || session.synthesis.titleCandidates.length === 0) {
-            const result = generateTitleRecommendation(resumeText, promptAnswers);
-            candidates = result.candidates;
-            legacyRec = result.recommendation;
-          } else {
-            candidates = session.synthesis.titleCandidates;
-            legacyRec = session.synthesis.titleRecommendation;
-          }
-
-          // ── Build enriched title recommendation ────────────────────────
-
-          // Title → cluster mapping for archetype label
-          const TITLE_TO_CLUSTER: Record<string, string> = {
-            "Product Development Lead": "Product & Development",
-            "Technical Product Manager": "Product & Development",
-            "Product Operations Lead": "Product & Development",
-            "Product Strategy Lead": "Product & Development",
-            "Implementation Manager": "Product & Development",
-            "Product Designer": "Design & Systems",
-            "UX Design Strategist": "Design & Systems",
-            "Design Operations Lead": "Design & Systems",
-            "Design Program Manager": "Design & Systems",
-            "Brand Systems Designer": "Design & Systems",
-            "Program Operations Lead": "Operations & Programs",
-            "Operations Manager": "Operations & Programs",
-            "Program Manager": "Operations & Programs",
-            "Project Delivery Manager": "Operations & Programs",
-            "Process Improvement Lead": "Operations & Programs",
-            "Client Success Manager": "Client & Growth",
-            "Partnerships Manager": "Client & Growth",
-            "Business Development Manager": "Client & Growth",
-            "Community & Growth Lead": "Client & Growth",
-            "Account Manager": "Client & Growth",
-            "Solutions Consultant": "Solutions & Consulting",
-          };
-
-          // Per-title mechanism bullets (verb-driven, concrete, <=8 words)
-          const TITLE_THEMES: Record<string, string[]> = {
-            "Product Development Lead": ["Own a product from idea to launch", "Turn user needs into shipped features", "Coordinate across teams to hit deadlines"],
-            "Technical Product Manager": ["Make technical calls at the product level", "Bridge engineering and product priorities", "Shape how features get built"],
-            "Product Operations Lead": ["Design workflows that reduce manual work", "Write the playbook teams actually follow", "Track progress and surface blockers early"],
-            "Product Strategy Lead": ["Research markets and pick where to compete", "Set priorities that move the roadmap", "Align teams around a shared direction"],
-            "Implementation Manager": ["Guide new clients from signup to live", "Document repeatable rollout steps", "Keep multiple teams moving in sync"],
-            "Product Designer": ["Talk to users and turn insights into designs", "Build and maintain reusable components", "Test ideas fast and iterate on feedback"],
-            "UX Design Strategist": ["Run research that changes the design", "Connect strategy to what users see", "Test assumptions before committing scope"],
-            "Design Operations Lead": ["Keep the design team running smoothly", "Set standards others can follow", "Track work and remove bottlenecks"],
-            "Design Program Manager": ["Coordinate design work across projects", "Manage timelines and team capacity", "Plan sprints and maintain quality bars"],
-            "Brand Systems Designer": ["Build identity systems that scale", "Define visual rules and enforce them", "Collaborate with teams on brand output"],
-            "Program Operations Lead": ["Track programs and flag risks early", "Report progress to decision-makers", "Plan resources across multiple efforts"],
-            "Operations Manager": ["Build reports that drive decisions", "Track performance against targets", "Manage schedules and stay on budget"],
-            "Program Manager": ["Drive programs from kickoff to close", "Manage budgets and keep sponsors aligned", "Coordinate work across several teams"],
-            "Project Delivery Manager": ["Plan projects and hit milestones", "Own the budget and status updates", "Clear blockers so delivery stays on track"],
-            "Process Improvement Lead": ["Find inefficiencies and fix them", "Document better ways to work", "Measure results and hold the standard"],
-            "Client Success Manager": ["Keep clients engaged after they sign", "Spot churn risk and act on it", "Build plans that grow the account"],
-            "Partnerships Manager": ["Find and close the right partnerships", "Negotiate terms that work for both sides", "Run joint projects with partners"],
-            "Business Development Manager": ["Build pipeline and close new deals", "Own key accounts end to end", "Grow revenue through relationships"],
-            "Community & Growth Lead": ["Grow a community people return to", "Pick tools that scale engagement", "Own outcomes from idea to metric"],
-            "Account Manager": ["Renew accounts and expand contracts", "Build trust with key contacts", "Run projects that prove value"],
-            "Solutions Consultant": ["Scope solutions before the sale closes", "Test feasibility and design the approach", "Deliver engagements clients recommend"],
-          };
-
-          // Extract anchor map for evidence-grounded bullets
-          const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
-          const anchorTerms = Array.from(anchorMap.keys());
-
-          // Build enriched titles array (top 3 high-fit, fallback to top 3)
-          // Clamp all title lists to top 3
-          const top3 = (() => {
-            const sorted = [...candidates].sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
-            return sorted.slice(0, 3);
-          })();
-          const enrichedTitles = top3.map(c => {
-            const themes = TITLE_THEMES[c.title] ?? ["Turn ambiguity into a clear plan", "Define scope then drive execution", "Translate needs into concrete changes"];
-            // Build 3 mechanism bullets (verb-driven, concrete, <=8 words)
-            const bullets: [string, string, string] = [
-              themes[0] ?? "Turn ambiguity into a clear plan",
-              themes[1] ?? "Define scope then drive execution",
-              themes[2] ?? "Translate needs into concrete changes",
-            ];
-            // Build 2-sentence summary from score + cluster context
-            const clusterName = TITLE_TO_CLUSTER[c.title] ?? "General";
-            let summary2s: string;
-            if (c.score >= 7.0) {
-              summary2s = `Your experience maps closely to what a ${c.title} does day-to-day. Multiple signals in your background connect to this role's core responsibilities.`;
-            } else if (c.score >= 4.0) {
-              summary2s = `Several parts of your background connect to ${c.title}, but coverage is uneven. You could strengthen fit by building depth in the gaps.`;
-            } else {
-              summary2s = `This is a stretch from your current profile. Moving toward ${c.title} would mean building new capabilities you haven't demonstrated yet.`;
-            }
-            return {
-              title: c.title,
-              fit_0_to_10: c.score,
-              bullets_3: bullets,
-              summary_2s: summary2s,
-            };
-          });
-
-          // Archetype label from top title's cluster
-          const topCluster = TITLE_TO_CLUSTER[candidates[0]?.title ?? ""] ?? "Generalist";
-          const archetypeLabel = `${topCluster} archetype`;
-
-          // Search strategy: 3–4 titles spread across clusters for parallel search
-          const seenClusters = new Set<string>();
-          const searchStrategy: string[] = [];
-          for (const c of candidates) {
-            const cl = TITLE_TO_CLUSTER[c.title] ?? "";
-            if (!seenClusters.has(cl) && c.score >= 3.0) {
-              searchStrategy.push(c.title);
-              seenClusters.add(cl);
-              if (searchStrategy.length >= 4) break;
-            }
-          }
-          // Pad to at least 3 from top candidates if needed
-          for (const c of candidates) {
-            if (searchStrategy.length >= 3) break;
-            if (!searchStrategy.includes(c.title)) searchStrategy.push(c.title);
-          }
-
-          // Build titleRecommendation with both legacy and new fields
-          const titleRecommendation: any = {
-            // Legacy fields (backward compat)
-            primary_title: legacyRec?.primary_title ?? { title: top3[0]?.title ?? "", score: top3[0]?.score ?? 0 },
-            adjacent_titles: [], // always clamp to 0 for top-3 world
-            why_primary: legacyRec?.why_primary ?? [],
-            why_not_adjacent: legacyRec?.why_not_adjacent ?? [],
-            // New enriched fields
-            archetype_label: archetypeLabel,
-            titles: enrichedTitles,
-            search_strategy_titles: searchStrategy.slice(0, 3),
-          };
-
-          const marketTitle = candidates[0]?.title ?? "";
-          const titleExplanation = legacyRec?.why_primary?.join("; ") ?? "Top-ranked title based on your pattern profile.";
-
-          session = {
-            ...session,
-            synthesis: {
-              patternSummary: session.synthesis?.patternSummary ?? null,
-              operateBest: session.synthesis?.operateBest ?? null,
-              loseEnergy: session.synthesis?.loseEnergy ?? null,
-              identitySummary: session.synthesis?.identitySummary ?? null,
-              marketTitle,
-              titleExplanation,
-              lastTitleFeedback: session.synthesis?.lastTitleFeedback ?? null,
-              titleCandidates: candidates,
-              titleRecommendation,
-              anchor_overlap_score: session.synthesis?.anchor_overlap_score,
-              missing_anchor_count: session.synthesis?.missing_anchor_count,
-              missing_anchor_terms: session.synthesis?.missing_anchor_terms,
-            },
-          };
-          const to: CalibrationState = "TITLE_HYPOTHESIS";
-          session = pushHistory({ ...session, state: to }, from, to, event.type);
-          storeSet(session);
-          return { ok: true, session };
+          const to: CalibrationState = "TITLE_HYPOTHESIS"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
         }
 
         if (session.state === "TITLE_HYPOTHESIS") {
@@ -1500,225 +1360,37 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
       }
 
       case "COMPUTE_ALIGNMENT_OUTPUT": {
-        // Only allowed in ALIGNMENT_OUTPUT state
         if (session.state !== "ALIGNMENT_OUTPUT") {
           return bad("INVALID_EVENT_FOR_STATE", `Event ${event.type} not allowed in state ${session.state}`)
         }
         const job = session.job;
-        if (!job || !job.completed || !job.rawText || job.rawText.trim().length < 40)
-          return bad("JOB_REQUIRED", "Submit a job description first (>=40 chars)")
-        if (!session.personVector?.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
+        if (!job || !job.completed || !job.rawText || job.rawText.trim().length === 0)
+          return bad("JOB_REQUIRED", "Submit a job description first")
+        if (!session.personVector.values) return bad("JOB_ENCODING_INCOMPLETE", "Missing person vector")
 
-        // Deterministic lexical anchor extraction and classification
-        const resumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : "";
-        const promptAnswers = Array.from({length: 5}, (_, i) => session.prompts?.[i+1]?.answer).filter(a => typeof a === "string" && a.trim().length > 0) as string[];
-        const anchors = extractLexicalAnchors({ resumeText, promptAnswersText: promptAnswers.join("\n") });
-        const anchorTerms = anchors.combined.map((a: any) => a.term);
+        const seam = runIntegrationSeam({
+          jobText: job.rawText,
+          experienceVector: session.personVector.values as any,
+        })
 
-        // AnchorOccurrence array for classification
-        const occurrences: Array<{ term: string; source: string; context_type: string }> = [];
-        for (const a of anchors.combined) {
-          occurrences.push({ term: a.term, source: "resume", context_type: "neutral" });
+        if (!seam.ok) {
+          return bad("BAD_REQUEST", seam.error.message)
         }
-        promptAnswers.forEach((ans, idx) => {
-          for (const t of ans.trim().split(/\s+/)) {
-            occurrences.push({ term: t.toLowerCase(), source: `q${idx+1}`, context_type: "neutral" });
-          }
-        });
 
-        const { classifyAnchors } = require("./signal_classification");
-        const classification = classifyAnchors(anchorTerms, occurrences);
-
-        const { computeSignalWeightedAlignment } = require("./alignment_signal_score");
-        const breakdown = computeSignalWeightedAlignment(classification, job.rawText);
-
-        // Deterministic fit score (0–10)
-        const fitScore = Math.max(0, Math.min(10, Math.round(breakdown.alignmentScore * 10)));
-        const fitExplanation = `Matched ${breakdown.matchedSignalCount}/${breakdown.signalCount} signal anchors and ${breakdown.matchedSkillCount}/${breakdown.skillCount} skill anchors in job text; weighted alignment ${fitScore}/10.`;
-
-        // Populate result/alignment payload for result_contract pass-through
-        const alignmentPayload = {
-          score: fitScore,
-          explanation: fitExplanation,
-          signals: {
-            signalAnchors: classification.signalAnchors,
-            skillAnchors: classification.skillAnchors,
-            matchedSignalCount: breakdown.matchedSignalCount,
-            signalCount: breakdown.signalCount,
-            matchedSkillCount: breakdown.matchedSkillCount,
-            skillCount: breakdown.skillCount,
-          },
-        };
-
-        const sm = computeSkillMatch(job.roleVector ?? [0,0,0,0,0,0], session.personVector?.values ?? [0,0,0,0,0,0]);
-        const sl = computeStretchLoad(sm.finalScore);
         const contract = toResultContract({
-          alignment: alignmentPayload,
-          skillMatch: sm,
-          stretchLoad: sl,
-        });
+          alignment: seam.result.alignment,
+          skillMatch: seam.result.skillMatch,
+          stretchLoad: seam.result.stretchLoad,
+        })
 
-        // ── Fit drivers / constraints / takeaway (deterministic) ──
-        const jobLower = job.rawText.toLowerCase();
-        const jobTokens = new Set(jobLower.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean));
-
-        // Helper: quick term match against job text (mirrors alignment_signal_score matchAnchor)
-        function termInJob(term: string): boolean {
-          const t = term.normalize("NFKC").toLowerCase().trim();
-          if (!t) return false;
-          if (!/\s/.test(t)) return jobTokens.has(t);
-          return jobLower.includes(t);
-        }
-
-        // Theme buckets for matched anchors
-        const THEME_MAP: Record<string, string> = {
-          systems: "Systems thinking pattern present in role scope",
-          architecture: "Systems thinking pattern present in role scope",
-          infrastructure: "Systems thinking pattern present in role scope",
-          platform: "Systems thinking pattern present in role scope",
-          scalab: "Systems thinking pattern present in role scope",
-          collaborat: "Collaboration and cross-functional coordination expected",
-          "cross-functional": "Collaboration and cross-functional coordination expected",
-          stakeholder: "Collaboration and cross-functional coordination expected",
-          partner: "Collaboration and cross-functional coordination expected",
-          ambigu: "Role involves navigating ambiguity with structure",
-          undefined: "Role involves navigating ambiguity with structure",
-          unclear: "Role involves navigating ambiguity with structure",
-          "fast-paced": "Role involves navigating ambiguity with structure",
-          autonomy: "Role involves navigating ambiguity with structure",
-          communicat: "Narrative and communication skills valued",
-          writing: "Narrative and communication skills valued",
-          storytell: "Narrative and communication skills valued",
-          present: "Narrative and communication skills valued",
-          document: "Narrative and communication skills valued",
-          strateg: "Strategic orientation aligns with role expectations",
-          roadmap: "Strategic orientation aligns with role expectations",
-          vision: "Strategic orientation aligns with role expectations",
-          priorit: "Strategic orientation aligns with role expectations",
-          leadership: "Leadership capacity matches role scope",
-          mentor: "Leadership capacity matches role scope",
-          coach: "Leadership capacity matches role scope",
-          manage: "Leadership capacity matches role scope",
-        };
-
-        // Collect driver themes from matched signal + skill anchors
-        const driverThemes = new Set<string>();
-        for (const a of classification.signalAnchors) {
-          if (!termInJob(a.term)) continue;
-          for (const [prefix, theme] of Object.entries(THEME_MAP)) {
-            if (a.term.toLowerCase().includes(prefix)) { driverThemes.add(theme); break; }
-          }
-        }
-        for (const a of classification.skillAnchors) {
-          if (!termInJob(a.term)) continue;
-          for (const [prefix, theme] of Object.entries(THEME_MAP)) {
-            if (a.term.toLowerCase().includes(prefix)) { driverThemes.add(theme); break; }
-          }
-        }
-        // Generic matched-count driver if we have matches but no themed ones
-        if (driverThemes.size === 0 && breakdown.matchedSignalCount + breakdown.matchedSkillCount > 0) {
-          driverThemes.add(`${breakdown.matchedSignalCount + breakdown.matchedSkillCount} anchor terms from your pattern appear in this job description`);
-        }
-        // Cap at 6
-        const supportsFit = Array.from(driverThemes).slice(0, 6);
-
-        // Stretch factors: growth/level-up areas (not negative — these are ramp directions)
-        const stretchFactors: string[] = [];
-        if (/\b(senior|staff|principal|director|vp|head of)\b/i.test(job.rawText)) {
-          stretchFactors.push("Level expectations may require demonstrating tenure at scale");
-        }
-        if (/\b(ml|machine learning|llm|data science|deep learning|nlp|computer vision)\b/i.test(job.rawText)) {
-          stretchFactors.push("Domain ramp: hands-on ML/pipeline delivery experience to build");
-        }
-        if (/\b(0.{0,3}1|zero.{0,5}one|from scratch|greenfield|net.?new)\b/i.test(job.rawText)) {
-          stretchFactors.push("Ownership breadth: building from scratch demands broader tradeoff judgment");
-        }
-        if (/\b(quota|revenue target|book of business|pipeline generation)\b/i.test(job.rawText)) {
-          stretchFactors.push("Revenue orientation: measurable targets require commercial fluency to develop");
-        }
-        if (/\b(on.?call|incident|pager|sla|uptime|reliability)\b/i.test(job.rawText)) {
-          stretchFactors.push("Ops muscle: on-call/SLA commitments may need operational ramp");
-        }
-        if (/\b(clearance|security clearance|ts\/sci|secret)\b/i.test(job.rawText)) {
-          stretchFactors.push("Clearance process: access requirements add timeline/eligibility overhead");
-        }
-        // Low-match stretch
-        if (breakdown.matchedSignalCount + breakdown.matchedSkillCount === 0) {
-          stretchFactors.push("Anchor gap: few demonstrated strengths surfaced — targeted skill-building may help");
-        } else if (fitScore <= 3) {
-          stretchFactors.push("Narrow overlap: few of this role's core requirements are evidenced in your pattern");
-        }
-        // Cap at 6
-        const stretchFactorsCapped = stretchFactors.slice(0, 6);
-
-        // Bottom line (doctrine-tight: 2 sentences, constraint-based, no vague framing)
-        // De-dup: paragraph must NOT repeat stretch bullet text verbatim
-        const topSupport = supportsFit[0] ?? "general pattern alignment";
-        const topSupport2 = supportsFit[1] ?? "";
-
-        // Deterministic proof artifact from stretch factor content
-        function concreteProof(stretch: string): string {
-          const s = stretch.toLowerCase();
-          if (s.includes("tenure at scale")) return "a shipped, measurable rollout across multiple teams";
-          if (s.includes("pipeline delivery") || s.includes("ml")) return "a scoped project plan + shipped milestone with metrics";
-          if (s.includes("ownership breadth") || s.includes("from scratch")) return "a PRD-to-launch case study with tradeoffs + outcomes";
-          if (s.includes("revenue") || s.includes("commercial")) return "a revenue-impact case study with before/after numbers";
-          if (s.includes("on-call") || s.includes("sla") || s.includes("ops muscle")) return "an incident response runbook or SLA-improvement project";
-          return "a small shipped project with before/after evidence";
-        }
-
-        // Short label for paragraph reference (avoids echoing full bullet)
-        function stretchLabel(stretch: string): string {
-          const s = stretch.toLowerCase();
-          if (s.includes("tenure at scale")) return "demonstrated impact at scale";
-          if (s.includes("pipeline delivery") || s.includes("ml")) return "hands-on delivery experience";
-          if (s.includes("ownership breadth") || s.includes("from scratch")) return "end-to-end ownership";
-          if (s.includes("revenue") || s.includes("commercial")) return "commercial fluency";
-          if (s.includes("on-call") || s.includes("sla") || s.includes("ops muscle")) return "operational readiness";
-          if (s.includes("clearance")) return "access eligibility";
-          if (s.includes("narrow overlap")) return "broader skill overlap";
-          if (s.includes("anchor gap")) return "demonstrated core strengths";
-          return "the primary gap area";
-        }
-
-        const supportsLabel = topSupport2
-          ? `${topSupport.toLowerCase()} and ${topSupport2.toLowerCase()}`
-          : topSupport.toLowerCase();
-
-        // Pick a stretch to reference — use [0] but via the label (never the raw bullet)
-        const stretchForParagraph = stretchFactorsCapped[0] ?? "";
-
-        let bottomLine2s: string;
-        if (fitScore >= 7) {
-          bottomLine2s = `Strong fit — the role rewards ${supportsLabel}. Prove it fast: show 2 concrete artifacts that demonstrate ${topSupport.toLowerCase()} in the job's language.`;
-        } else if (fitScore >= 4) {
-          const proof = concreteProof(stretchForParagraph);
-          const label = stretchLabel(stretchForParagraph);
-          bottomLine2s = stretchForParagraph
-            ? `Partial fit — the overlap is real, but the role will test ${label}. Close the gap: ship ${proof}.`
-            : `Partial fit — the overlap is real through ${supportsLabel}. Strengthen the case with concrete artifacts that map your work to the job's language.`;
-        } else {
-          const proof = concreteProof(stretchForParagraph);
-          const label = stretchLabel(stretchForParagraph);
-          bottomLine2s = stretchForParagraph
-            ? `Low fit — the role requires ${label} that isn't evidenced yet. Pick a nearer title or build proof with ${proof}.`
-            : `Low fit — few of this role's core requirements are evidenced in your pattern. Pick a nearer title where your existing proof is stronger.`;
-        }
-
-        // Merge structured fields into contract.alignment (backward-compatible extension)
-        (contract.alignment as any).supports_fit = supportsFit;
-        (contract.alignment as any).stretch_factors = stretchFactorsCapped;
-        (contract.alignment as any).bottom_line_2s = bottomLine2s;
-
-        // Only transition to TERMINAL_COMPLETE with result present
-        const to: CalibrationState = "TERMINAL_COMPLETE";
+        const to: CalibrationState = "TERMINAL_COMPLETE"
         session = {
           ...session,
           result: contract,
-        };
-        session = pushHistory({ ...session, state: to }, from, to, event.type);
-        storeSet(session);
-        return { ok: true, session };
+        }
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
 
       case "ENCODING_COMPLETE": {

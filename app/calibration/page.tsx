@@ -787,18 +787,32 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* TITLES UI */}
             {step === "TITLES" ? (() => {
-              const rec = session?.synthesis?.titleRecommendation;
-              // New enriched titles array
+              const rec = session?.synthesis?.titleRecommendation as any;
+              // New enriched titles array (from enriched .titles sub-property)
               const enrichedTitles: Array<{ title: string; fit_0_to_10: number; bullets_3?: [string, string, string]; summary_2s?: string }> =
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
-              // Fallback: if no enriched titles, build from legacy candidates
+              // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
+              let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
+              if (enrichedTitles.length === 0 && rec?.primary_title) {
+                recTitles.push({ title: rec.primary_title.title, fit_0_to_10: rec.primary_title.score });
+                if (Array.isArray(rec.adjacent_titles)) {
+                  for (const adj of rec.adjacent_titles) {
+                    recTitles.push({ title: adj.title, fit_0_to_10: adj.score });
+                  }
+                }
+              }
+
+              // Fallback 2: build from legacy candidates
               const fallbackCandidates: Array<{ title: string; score: number }> =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+
               let titlesToRender = enrichedTitles.length > 0
                 ? enrichedTitles
-                : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
+                : recTitles.length > 0
+                  ? recTitles
+                  : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
 
               // Sort by score descending and take top 3
               titlesToRender = [...titlesToRender]
@@ -810,6 +824,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Archetype label */}
                 {archetypeLabel ? (
                   <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+                ) : null}
+
+                {/* Fallback: no title rows available */}
+                {titlesToRender.length === 0 ? (
+                  <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
+                    Your title recommendations are still being generated. Try pasting a job description below to get your fit score.
+                  </div>
                 ) : null}
 
                 {/* Title rows with expand/collapse */}
@@ -902,17 +923,18 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : (
                   <>
                     <div className="mt-8">
-                      <div className="flex items-baseline gap-1.5 mb-2">
+                      <div className="flex flex-col items-center mb-4 gap-1.5 py-3">
                         <a
                           href="/extension"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-medium transition-colors"
-                          style={{ color: "#4ADE80" }}
+                          className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                          style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
                         >
-                          Try our browser extension
+                          Try our browser extension for LinkedIn or Indeed
                         </a>
-                        <span className="text-sm" style={{ color: "#666" }}>, or paste job below</span>
+                        <span className="text-lg font-medium" style={{ color: "#888" }}>or</span>
+                        <span className="text-base font-medium" style={{ color: "#bbb" }}>Paste job description below</span>
                       </div>
                       <textarea
                         value={jobText}
