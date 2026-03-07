@@ -136,7 +136,8 @@ function setCookie(name: string, value: string, days = 7) {
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax${secure}`;
 }
 function clearCookie(name: string) {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? ";Secure" : "";
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax${secure}`;
 }
 
 function saveSessionToLS(s: AnySession | null) {
@@ -248,6 +249,7 @@ export default function CalibrationPage() {
           // Server session gone (serverless cold start) — try restoring from localStorage
           const backup = loadSessionFromLS();
           if (backup && backup.sessionId === targetId) {
+            // Try to push the backup back to the server (best-effort)
             const restored = await restoreSessionToServer(backup);
             if (restored) {
               // Re-fetch to get canonical server copy
@@ -260,8 +262,14 @@ export default function CalibrationPage() {
                 return;
               }
             }
+            // Server round-trip failed, but we have a valid local backup — use it directly
+            setSession(backup);
+            setCookie(COOKIE_NAME, targetId);
+            const resumeStep = getStepFromState(backup.state, backup);
+            setStep(resumeStep);
+            return;
           }
-          // No backup or restore failed — clear stale cookie, stay on LANDING
+          // No backup at all — clear stale cookie, stay on LANDING
           clearCookie(COOKIE_NAME);
           return;
         }
