@@ -7,7 +7,9 @@ import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
 const TYPE_MS = 30;
 const START_DELAY_MS = 200;
-const BULLET_INTERVAL_MS = 1000; // 1 second between each bullet line
+const TITLE_STAGGER_MS = 150;
+const STAGE_GAP_MS = 300; // pause between completed blocks
+const GLOW_MS = 1000; // arrow glow duration
 
 function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: number = START_DELAY_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
@@ -30,30 +32,41 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: numbe
   return [typed, typed === text];
 }
 
-/**
- * Reveal N bullet lines one at a time. Starts when `start` becomes true.
- * Returns [visibleCount, allDone].
+/*
+ * Reveal stages (all sequential, one at a time):
+ *  0 = idle (not on TITLES step)
+ *  1 = typewriter line 1: "Your signals have been calibrated."
+ *  2 = typewriter line 2: "These titles best match your pattern."
+ *  3 = reveal title card 1
+ *  4 = reveal title card 2
+ *  5 = reveal title card 3
+ *  6 = arrow glow pulse (once)
+ *  7 = typewriter line 3: "See your job fit score on real roles."
+ *  8 = typewriter line 4: "Use the Caliber LinkedIn extension."
+ *  9 = show CTA button
  */
-function useBulletReveal(total: number, start: boolean): [number, boolean] {
-  const [visible, setVisible] = useState(0);
+function useRevealStage(active: boolean, titleCount: number): [number, () => void] {
+  const [stage, setStage] = useState(0);
+  const prevActive = useRef(false);
   useEffect(() => {
-    if (!start || total <= 0) { setVisible(0); return; }
-    setVisible(0);
-    let current = 0;
-    let cancelled = false;
-    function tick() {
-      if (cancelled || current >= total) return;
-      setTimeout(() => {
-        if (cancelled) return;
-        current++;
-        setVisible(current);
-        tick();
-      }, BULLET_INTERVAL_MS);
-    }
-    tick();
-    return () => { cancelled = true; };
-  }, [total, start]);
-  return [visible, start && visible >= total];
+    // Reset when entering TITLES
+    if (active && !prevActive.current) setStage(1);
+    if (!active) setStage(0);
+    prevActive.current = active;
+  }, [active]);
+
+  const advance = React.useCallback(() => {
+    setStage(prev => {
+      if (prev === 0) return prev;
+      // Skip title stages beyond actual count
+      let next = prev + 1;
+      // Stages 3,4,5 are title cards. If titleCount < 3, skip empty slots.
+      while (next >= 3 && next <= 5 && (next - 3) >= titleCount) next++;
+      return next;
+    });
+  }, [titleCount]);
+
+  return [stage, advance];
 }
 
 type AnySession = any;
@@ -382,30 +395,57 @@ export default function CalibrationPage() {
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
 
-  // Staged reveal: OB heading → OB bullets → LE heading → LE bullets → summary
-  const _obItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
-  const _leItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
+  // ── Sequenced reveal state machine ──────────────────────────────────────
+  const _titleCount = useMemo(() => {
+    const rec = session?.synthesis?.titleRecommendation as any;
+    const enriched = Array.isArray(rec?.titles) ? rec.titles : [];
+    let fallback: any[] = [];
+    if (enriched.length === 0 && rec?.primary_title) {
+      fallback.push(rec.primary_title);
+      if (Array.isArray(rec.adjacent_titles)) fallback.push(...rec.adjacent_titles);
+    }
+    if (enriched.length === 0 && fallback.length === 0) {
+      fallback = Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+    }
+    return Math.min(3, enriched.length || fallback.length);
+  }, [session?.synthesis]);
 
-  // 1. OB heading typewriter — starts immediately on TITLES
-  const obHasItems = _obItems.length > 0;
-  const [obHeadingTyped, obHeadingDone] = useTypewriter(obHasItems ? "Where you operate best" : "", TYPE_MS, START_DELAY_MS);
+  const [revealStage, advanceStage] = useRevealStage(step === "TITLES", _titleCount);
 
-  // 2. OB bullets — one per second after heading finishes
-  const [obBulletCount, obBulletsDone] = useBulletReveal(_obItems.length, obHeadingDone);
+  // Stage 1: typewriter line 1
+  const [line1Typed, line1Done] = useTypewriter(revealStage >= 1 ? "Your signals have been calibrated." : "", TYPE_MS, START_DELAY_MS);
+  useEffect(() => { if (line1Done && revealStage === 1) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [line1Done, revealStage, advanceStage]);
 
-  // 3. LE heading typewriter — starts after all OB bullets
-  const leHasItems = _leItems.length > 0;
-  const leHeadingStart = obHasItems ? obBulletsDone : step === "TITLES";
-  const [leHeadingTyped, leHeadingDone] = useTypewriter(leHasItems && leHeadingStart ? "Where you lose energy" : "", TYPE_MS, 0);
+  // Stage 2: typewriter line 2
+  const [line2Typed, line2Done] = useTypewriter(revealStage >= 2 ? "These titles best match your pattern." : "", TYPE_MS, 0);
+  useEffect(() => { if (line2Done && revealStage === 2) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [line2Done, revealStage, advanceStage]);
 
-  // 4. LE bullets — one per second after LE heading finishes
-  const [leBulletCount, leBulletsDone] = useBulletReveal(_leItems.length, leHeadingDone);
+  // Stages 3–5: title card reveals (each auto-advances after TITLE_STAGGER_MS)
+  useEffect(() => {
+    if (revealStage >= 3 && revealStage <= 5) {
+      const t = setTimeout(advanceStage, TITLE_STAGGER_MS);
+      return () => clearTimeout(t);
+    }
+  }, [revealStage, advanceStage]);
 
-  // 5. Summary typewriter — starts after all bullets done
-  const summaryRawText: string = step === "TITLES" && typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
-  const allBulletsDone = (!obHasItems || obBulletsDone) && (!leHasItems || leBulletsDone);
-  const summaryReady = allBulletsDone || (!obHasItems && !leHasItems);
-  const [summaryTyped, summaryDone] = useTypewriter(summaryReady ? summaryRawText : "", TYPE_MS, START_DELAY_MS);
+  // Stage 6: arrow glow (auto-advances after GLOW_MS)
+  useEffect(() => {
+    if (revealStage === 6) {
+      const t = setTimeout(advanceStage, GLOW_MS);
+      return () => clearTimeout(t);
+    }
+  }, [revealStage, advanceStage]);
+
+  // Stage 7: typewriter line 3
+  const [ctaLine1Typed, ctaLine1Done] = useTypewriter(revealStage >= 7 ? "See your job fit score on real roles." : "", TYPE_MS, 0);
+  useEffect(() => { if (ctaLine1Done && revealStage === 7) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [ctaLine1Done, revealStage, advanceStage]);
+
+  // Stage 8: typewriter line 4
+  const [ctaLine2Typed, ctaLine2Done] = useTypewriter(revealStage >= 8 ? "Use the Caliber LinkedIn extension." : "", TYPE_MS, 0);
+  useEffect(() => { if (ctaLine2Done && revealStage === 8) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [ctaLine2Done, revealStage, advanceStage]);
+
+  // Stage 9: CTA button visible
+  const ctaButtonVisible = revealStage >= 9;
 
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -777,12 +817,10 @@ export default function CalibrationPage() {
             {/* TITLES UI */}
             {step === "TITLES" ? (() => {
               const rec = session?.synthesis?.titleRecommendation as any;
-              // New enriched titles array (from enriched .titles sub-property)
               const enrichedTitles: Array<{ title: string; fit_0_to_10: number; bullets_3?: [string, string, string]; summary_2s?: string }> =
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
-              // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
               if (enrichedTitles.length === 0 && rec?.primary_title) {
                 recTitles.push({ title: rec.primary_title.title, fit_0_to_10: rec.primary_title.score });
@@ -793,7 +831,6 @@ export default function CalibrationPage() {
                 }
               }
 
-              // Fallback 2: build from legacy candidates
               const fallbackCandidates: Array<{ title: string; score: number }> =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
 
@@ -803,32 +840,50 @@ export default function CalibrationPage() {
                   ? recTitles
                   : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
 
-              // Sort by score descending and take top 3
               titlesToRender = [...titlesToRender]
                 .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
                 .slice(0, 3);
 
-              const operateBestItems: string[] = Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
-              const loseEnergyItems: string[] = Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
-              const hasBullets = operateBestItems.length > 0 || loseEnergyItems.length > 0;
+              // How many title cards are revealed so far (stages 3–5)
+              const titlesVisible = revealStage >= 3 ? Math.min(titlesToRender.length, revealStage - 2) : 0;
+              // Arrow glow active only during stage 6
+              const arrowGlowActive = revealStage === 6;
 
               return (
               <div className="w-full max-w-2xl pb-12">
-                {/* Archetype label */}
-                {archetypeLabel ? (
-                  <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+
+                {/* LINE 1 — typewriter */}
+                {revealStage >= 1 && line1Typed.length > 0 ? (
+                  <div className="mt-6 mb-2 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {line1Typed}{revealStage === 1 ? <span style={{ opacity: 1 }}>▍</span> : null}
+                    </p>
+                  </div>
                 ) : null}
 
-                {/* Fallback: no title rows available */}
-                {titlesToRender.length === 0 ? (
+                {/* LINE 2 — typewriter */}
+                {revealStage >= 2 && line2Typed.length > 0 ? (
+                  <div className="mb-4 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {line2Typed}{revealStage === 2 ? <span style={{ opacity: 1 }}>▍</span> : null}
+                    </p>
+                  </div>
+                ) : null}
+
+                {/* Archetype label — appears once titles start */}
+                {archetypeLabel && revealStage >= 3 ? (
+                  <div className="mt-2 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+                ) : null}
+
+                {/* TITLE CARDS — staggered, one at a time (stages 3–5) */}
+                {titlesToRender.length === 0 && revealStage >= 3 ? (
                   <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
                     Your title recommendations are still being generated.
                   </div>
                 ) : null}
 
-                {/* Title rows with expand/collapse */}
                 <div className="mt-2 space-y-1">
-                  {titlesToRender.map((t, idx) => {
+                  {titlesToRender.slice(0, titlesVisible).map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
                     const validBullets = rawBullets.filter((b: string) => b && b.trim());
@@ -838,7 +893,7 @@ export default function CalibrationPage() {
                     const canExpand = hasBullets || hasSummary;
 
                     return (
-                      <div key={idx}>
+                      <div key={idx} style={{ animation: "cb-title-enter 0.25s ease-out" }}>
                         <div
                           className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors"
                           style={{
@@ -850,11 +905,17 @@ export default function CalibrationPage() {
                             setExpandedTitleIdx(isExpanded ? null : idx);
                           }}
                         >
-                          {/* Title + score + copy row */}
                           <span className="flex items-center justify-between">
                             <span className="flex items-center gap-2 min-w-0">
                               {canExpand ? (
-                                <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
+                                <span
+                                  className="text-xs flex-shrink-0"
+                                  style={{
+                                    color: "#777",
+                                    width: 14,
+                                    animation: arrowGlowActive && !isExpanded ? "cb-arrow-glow 1s ease-in-out forwards" : "none",
+                                  }}
+                                >{isExpanded ? "▼" : "▶"}</span>
                               ) : (
                                 <span className="text-xs flex-shrink-0" style={{ color: "#333", width: 14 }}>·</span>
                               )}
@@ -880,7 +941,6 @@ export default function CalibrationPage() {
                             </span>
                           </span>
                         </div>
-                        {/* Expanded details — summary first, then bullets */}
                         {isExpanded && canExpand ? (
                           <div className="px-6 py-4 sm:px-7 sm:py-5 rounded-b-md mb-1 text-left" style={{ backgroundColor: "#1A1A1A", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
                             {hasSummary ? (
@@ -898,64 +958,39 @@ export default function CalibrationPage() {
                   })}
                 </div>
 
-                {/* Bullet anchors — staged line-by-line reveal */}
-                {hasBullets ? (() => {
-                  const obHeadingVisible = obHeadingTyped.length > 0;
-                  const leHeadingVisible = leHeadingTyped.length > 0;
-
-                  if (!obHeadingVisible && !leHeadingVisible) return null;
-
-                  return (
-                  <div className="mt-6 mb-2 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    {obHeadingVisible ? (
-                      <div className="mb-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>
-                          {obHeadingTyped}<span className="animate-pulse" style={{ opacity: obHeadingDone ? 0 : 1 }}>▍</span>
-                        </div>
-                        {obBulletCount > 0 ? (
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {operateBestItems.slice(0, obBulletCount).map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {leHeadingVisible ? (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>
-                          {leHeadingTyped}<span className="animate-pulse" style={{ opacity: leHeadingDone ? 0 : 1 }}>▍</span>
-                        </div>
-                        {leBulletCount > 0 ? (
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {loseEnergyItems.slice(0, leBulletCount).map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  );
-                })() : null}
-
-                {/* Summary narrative — typewriter reveal, starts after bullets done */}
-                {summaryReady && summaryRawText ? (
-                  <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#E0E0E0" }}>
-                      {summaryTyped}<span className="animate-pulse" style={{ opacity: summaryDone ? 0 : 1 }}>▍</span>
+                {/* LINE 3 — CTA typewriter */}
+                {revealStage >= 7 && ctaLine1Typed.length > 0 ? (
+                  <div className="mt-8 mb-1 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {ctaLine1Typed}{revealStage === 7 ? <span style={{ opacity: 1 }}>▍</span> : null}
                     </p>
                   </div>
                 ) : null}
 
-                {/* Extension CTA */}
-                <div className="mt-8 flex flex-col items-center gap-2 py-3">
-                  <a
-                    href={EXTENSION_LANDING_PATH}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
-                  >
-                    Try our browser extension for LinkedIn or Indeed
-                  </a>
-                </div>
+                {/* LINE 4 — CTA typewriter */}
+                {revealStage >= 8 && ctaLine2Typed.length > 0 ? (
+                  <div className="mb-4 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#CFCFCF" }}>
+                      {ctaLine2Typed}{revealStage === 8 ? <span style={{ opacity: 1 }}>▍</span> : null}
+                    </p>
+                  </div>
+                ) : null}
+
+                {/* CTA BUTTON — appears after all animations */}
+                {ctaButtonVisible ? (
+                  <div className="mt-4 flex flex-col items-center gap-2 py-3" style={{ animation: "cb-title-enter 0.3s ease-out" }}>
+                    <a
+                      href={EXTENSION_LANDING_PATH}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      style={{ backgroundColor: "#4ADE80", color: "#0B0B0B", cursor: "pointer", minWidth: 220 }}
+                    >
+                      Find your fit on LinkedIn
+                    </a>
+                  </div>
+                ) : null}
+
               </div>
               );
             })() : null}
