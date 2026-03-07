@@ -98,6 +98,7 @@ async function fetchSession(sessionId: string): Promise<AnySession | null> {
 }
 
 const COOKIE_NAME = "caliber_sessionId";
+const LS_SESSION_KEY = "caliber_session_backup";
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -105,10 +106,40 @@ function getCookie(name: string): string | null {
 }
 function setCookie(name: string, value: string, days = 7) {
   const d = new Date(); d.setTime(d.getTime() + days * 86400000);
-  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+  const secure = location.protocol === "https:" ? ";Secure" : "";
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax${secure}`;
 }
 function clearCookie(name: string) {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
+}
+
+function saveSessionToLS(s: AnySession | null) {
+  try {
+    if (s?.sessionId) localStorage.setItem(LS_SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(LS_SESSION_KEY);
+  } catch { /* quota or private mode */ }
+}
+
+function loadSessionFromLS(): AnySession | null {
+  try {
+    const raw = localStorage.getItem(LS_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (s?.sessionId && s?.state) return s;
+    return null;
+  } catch { return null; }
+}
+
+async function restoreSessionToServer(s: AnySession): Promise<boolean> {
+  try {
+    const res = await fetch("/api/calibration", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session: s }),
+    });
+    const json = await res.json().catch(() => null);
+    return json?.ok === true;
+  } catch { return false; }
 }
 
 async function uploadResume(sessionId: string, file: File): Promise<AnySession> {
@@ -188,7 +219,23 @@ export default function CalibrationPage() {
         // Try fetching the full session to resume mid-flow
         const s = await fetchSession(targetId);
         if (!s) {
-          // Session expired or not found — clear stale cookie, stay on LANDING
+          // Server session gone (serverless cold start) — try restoring from localStorage
+          const backup = loadSessionFromLS();
+          if (backup && backup.sessionId === targetId) {
+            const restored = await restoreSessionToServer(backup);
+            if (restored) {
+              // Re-fetch to get canonical server copy
+              const fresh = await fetchSession(targetId);
+              if (fresh) {
+                setSession(fresh);
+                setCookie(COOKIE_NAME, targetId);
+                const resumeStep = getStepFromState(fresh.state, fresh);
+                setStep(resumeStep);
+                return;
+              }
+            }
+          }
+          // No backup or restore failed — clear stale cookie, stay on LANDING
           clearCookie(COOKIE_NAME);
           return;
         }
@@ -209,6 +256,10 @@ export default function CalibrationPage() {
       }
     })();
   }, []);
+
+  // Persist session to localStorage on every update (survives serverless cold starts)
+  useEffect(() => { saveSessionToLS(session); }, [session]);
+
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
   function openFilePicker() { fileInputRef.current?.click(); }
@@ -653,7 +704,7 @@ export default function CalibrationPage() {
                 <div className="mt-8 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); saveSessionToLS(null); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                   >

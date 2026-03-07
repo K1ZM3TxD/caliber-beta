@@ -1,7 +1,7 @@
 // app/api/calibration/route.ts
 
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
-import { storeGet } from "@/lib/calibration_store"
+import { storeGet, storeImport } from "@/lib/calibration_store"
 import type { CalibrationEvent } from "@/lib/calibration_types"
 
 function apiBad(code: string, message: string) {
@@ -38,6 +38,24 @@ export async function POST(req: Request) {
     }
 
     return Response.json({ ok: true, session: res.session }, { status: 200 })
+  } catch {
+    return Response.json(apiBad("BAD_REQUEST", "Invalid JSON body"), { status: 400 })
+  }
+}
+
+/** PUT /api/calibration — restore a session from client-side backup */
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json()
+    const blob = body?.session
+    if (!blob || typeof blob !== "object") {
+      return Response.json(apiBad("BAD_REQUEST", "Missing session object"), { status: 400 })
+    }
+    const ok = storeImport(blob)
+    if (!ok) {
+      return Response.json(apiBad("BAD_REQUEST", "Invalid session shape"), { status: 400 })
+    }
+    return Response.json({ ok: true, sessionId: blob.sessionId }, { status: 200 })
   } catch {
     return Response.json(apiBad("BAD_REQUEST", "Invalid JSON body"), { status: 400 })
   }

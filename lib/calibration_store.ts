@@ -80,6 +80,23 @@ export function storeSet(session: CalibrationSession): void {
   writeToDisk(session)
 }
 
+/**
+ * Import a full session blob (e.g. restored from client-side localStorage).
+ * Validates minimal shape before storing. Returns true if accepted.
+ */
+export function storeImport(blob: unknown): boolean {
+  if (!blob || typeof blob !== "object") return false
+  const s = blob as any
+  if (typeof s.sessionId !== "string" || !s.sessionId.startsWith("sess_")) return false
+  if (typeof s.state !== "string") return false
+  if (!s.personVector || typeof s.personVector !== "object") return false
+  // Accept it — store like any other session
+  const session = s as CalibrationSession
+  getStore().set(session.sessionId, session)
+  writeToDisk(session)
+  return true
+}
+
 /** Return the most recently created session (by sessionId timestamp hex suffix). */
 export function storeLatest(): CalibrationSession | null {
   const store = getStore()
