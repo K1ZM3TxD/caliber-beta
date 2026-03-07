@@ -30,8 +30,20 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 - Testing must use the current `extension/` folder build, not stale root zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 
+## Session Decisions (2026-03-07)
+
+- **Calibration results page direction simplified:** intro typewriter lines → title cards → extension CTA. No other summary sections.
+- **operateBest / loseEnergy / summary prose block intentionally removed** from the calibration results page flow. These did not land and felt like regurgitated prompt content.
+- **Extension is now the primary decision surface** — fit explanations should feel most powerful in the extension, not on the calibration page.
+- **Title output quality is an active product concern:** Fabio and Jen profiles produced weak or low-scoring outputs. Title grounding and the 2 + 1 model (2 strong fits + 1 adjacent credible) need improvement.
+- **Known need:** improve title grounding to prevent abstract trait drift into unrelated role families.
+- **Live extension priority:** persistence + upgraded panel integration stability remain the top extension concerns.
+- **Workflow lesson:** multiple parallel extension branches caused renderer/persistence/packaging regressions — only one major extension branch at a time.
+- **Documentation rule adopted:** after major PM sessions, create a documentation task before next PM reload.
+
 ## Next Tasks (in order)
 
-1. Bottom line doctrine polish: reduce repetition across stretch bullets + bottom paragraph (anti-repetition / paraphrase rule).
-2. Extension Phase 2: listings-page overlay — scores rendered next to job posts on LinkedIn/Indeed.
-3. Post-score LLM dialogue mode toggle (deferred).
+1. Title grounding / 2 + 1 model improvement: address abstraction drift, improve match quality for Fabio/Jen-type profiles.
+2. Bottom line doctrine polish: reduce repetition across stretch bullets + bottom paragraph (anti-repetition / paraphrase rule).
+3. Extension Phase 2: listings-page overlay — scores rendered next to job posts on LinkedIn/Indeed.
+4. Post-score LLM dialogue mode toggle (deferred).

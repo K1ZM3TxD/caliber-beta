@@ -100,3 +100,31 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 - No ‘compiled/200 OK’ claims without user-provided logs.
 - Added Remote Visibility Rule and Divergence Playbook to contract to prevent recurrence.
 - Smoke-first: calibration fixes must be proven via smoke terminal complete + result before UI debugging.
+---
+
+## Issues Added 2026-03-07
+
+21. Calibration title-quality / low-score issue — **OPEN** (2026-03-07)
+  - Fabio and Jen profiles produced weak or low-scoring outputs.
+  - Strong profiles should produce top-3 titles scoring 7.0+; these profiles fell below that bar.
+  - Title grounding and the 2 + 1 model (2 strong fits + 1 adjacent credible) need improvement.
+  - Related: #18 (sister-profile), #20 (missing enrichment).
+
+22. Abstract title-family drift — **OPEN** (2026-03-07)
+  - System can over-index on abstract behavioral traits (clarity, systems thinking, communication) and produce role families with no domain support.
+  - Example: cybersecurity user → "Brand Systems Designer" output.
+  - Root cause: synthesis pipeline weighted pattern signals too heavily relative to domain/resume signals.
+  - Guard needed: title selection must verify domain support from resume, not just trait-pattern alignment.
+  - See `docs/calibration_product_logic.md` for full description.
+
+23. Calibration results-page regression risk — **OPEN** (2026-03-07)
+  - Removed sections (Where You Operate Best / Lose Energy / pattern summary prose) were reintroduced by implementation drift in prior iterations.
+  - These sections are intentionally removed from the intended flow.
+  - This is a known UX regression to guard against.
+  - Intended flow: typewriter intro → title cards → extension CTA. Nothing else.
+  - See `docs/calibration_results_ux.md` for canonical spec.
+
+24. Extension panel integration instability — **OPEN** (2026-03-07)
+  - Multiple extension branches caused renderer / persistence / packaging regressions.
+  - Lesson: only one extension branch at a time should make major changes to `extension/content_linkedin.js`.
+  - Integration discipline is required — parallel extension work needs a tightly controlled merge plan.
