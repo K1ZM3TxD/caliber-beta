@@ -81,16 +81,23 @@ async function extractJobText() {
                   if (sel && sel.toString().trim().length > 100) {
                     return sel.toString().trim();
                   }
-                  // Try common job description containers
+                  // Try common job description containers (broad selectors)
                   const candidates = document.querySelectorAll(
-                    'article, [role="main"], .job-description, .description, #job-details'
+                    'article, [role="main"], [class*="job-description"], [class*="jobs-description"], [class*="job-details"], #job-details, .description'
                   );
                   let best = "";
                   candidates.forEach((el) => {
                     const t = el.innerText || "";
                     if (t.length > best.length) best = t;
                   });
-                  return best.trim().length > 100 ? best.trim() : null;
+                  if (best.trim().length > 100) return best.trim();
+                  // Last resort: longest section/div in main
+                  const main = document.querySelector('[role="main"]') || document.body;
+                  main.querySelectorAll("section, div > ul, div > p").forEach((el) => {
+                    const t = el.innerText || "";
+                    if (t.trim().length > best.length && t.trim().length > 200) best = t.trim();
+                  });
+                  return best.length > 200 ? best : null;
                 },
               },
               (results) => {

@@ -8,22 +8,49 @@
   // ─── Job Text Extraction ──────────────────────────────────
 
   var JOB_DESCRIPTION_SELECTORS = [
+    // Current LinkedIn selectors (2025-2026)
     ".jobs-description-content__text",
     ".jobs-box__html-content",
     "#job-details",
     ".jobs-description__content",
+    ".jobs-description",
+    // LinkedIn unified job view
+    ".job-details-jobs-unified-top-card__job-insight",
+    ".jobs-unified-top-card__job-insight",
+    // Broader structural selectors (resilient to class name changes)
+    '[class*="jobs-description"]',
+    '[class*="job-details"]',
+    '[class*="job-description"]',
+    // Fallback: article containers
     'article[data-job-id]',
     ".job-view-layout .description__text",
+    // Generic: main content area with substantial text
+    '[role="main"] section',
   ];
 
   /** Synchronous: try to extract job text from the DOM right now. */
   function extractJobText() {
     for (var i = 0; i < JOB_DESCRIPTION_SELECTORS.length; i++) {
-      var el = document.querySelector(JOB_DESCRIPTION_SELECTORS[i]);
-      if (el && el.innerText && el.innerText.trim().length > 100) {
-        return el.innerText.trim().replace(/\s+/g, " ");
+      var els = document.querySelectorAll(JOB_DESCRIPTION_SELECTORS[i]);
+      for (var j = 0; j < els.length; j++) {
+        var el = els[j];
+        if (el && el.innerText && el.innerText.trim().length > 100) {
+          return el.innerText.trim().replace(/\s+/g, " ");
+        }
       }
     }
+    // Last resort: find the longest text block on the page in the main content area
+    var main = document.querySelector('[role="main"]') || document.body;
+    var allSections = main.querySelectorAll("section, div > ul, div > ol, div > p");
+    var best = "";
+    for (var k = 0; k < allSections.length; k++) {
+      var t = allSections[k].innerText || "";
+      if (t.trim().length > best.length && t.trim().length > 200) {
+        best = t.trim();
+      }
+    }
+    if (best.length > 200) return best.replace(/\s+/g, " ");
+
     var sel = window.getSelection();
     if (sel && sel.toString().trim().length > 100) {
       return sel.toString().trim().replace(/\s+/g, " ");
@@ -197,7 +224,7 @@
 
       showLoading("Extracting job description\u2026");
 
-      const text = await waitForJobDescription(5000);
+      const text = await waitForJobDescription(8000);
       if (!text || text.length < 200) {
         showError(
           text
