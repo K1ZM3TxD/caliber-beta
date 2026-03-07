@@ -7,3 +7,12 @@ export const CHROME_STORE_URL: string | null = null;
 
 /** Fallback landing page for the extension CTA when no store URL is configured. */
 export const EXTENSION_LANDING_PATH = "/extension";
+
+/** Direct download path for the beta extension ZIP (served from /public). */
+export const EXTENSION_ZIP_PATH = "/caliber-extension-beta-v0.3.zip";
+
+/** Current beta version label shown to users. */
+export const EXTENSION_BETA_VERSION = "0.3";
+
+/** Feedback email for beta testers. */
+export const BETA_FEEDBACK_EMAIL = "feedback@caliber-app.com";

@@ -819,6 +819,8 @@ export default function CalibrationPage() {
                 <div className="mt-8 flex flex-col items-center gap-2 py-3">
                   <a
                     href={EXTENSION_LANDING_PATH}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
                   >

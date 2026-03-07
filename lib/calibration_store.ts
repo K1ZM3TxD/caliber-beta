@@ -6,7 +6,14 @@ import * as path from "path"
 
 type Store = Map<string, CalibrationSession>
 
-const PERSIST_DIR = path.join(process.cwd(), ".caliber-sessions")
+// Use /tmp/ on serverless (Vercel) where cwd is read-only; fall back to cwd for local dev
+const PERSIST_DIR = (() => {
+  const cwdDir = path.join(process.cwd(), ".caliber-sessions")
+  try { fs.mkdirSync(cwdDir, { recursive: true }); return cwdDir } catch { /* cwd not writable */ }
+  const tmpDir = path.join("/tmp", ".caliber-sessions")
+  try { fs.mkdirSync(tmpDir, { recursive: true }); return tmpDir } catch { /* neither writable */ }
+  return cwdDir // fallback; writeToDisk will silently fail
+})()
 
 function ensurePersistDir(): void {
   try { fs.mkdirSync(PERSIST_DIR, { recursive: true }) } catch { /* exists */ }

@@ -15,6 +15,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "CALIBER_SESSION_HANDOFF") {
+    // Direct handoff from caliber-app.com content script
+    const sid = msg.sessionId;
+    if (sid && typeof sid === "string") {
+      chrome.storage.local.set({ caliberSessionId: sid });
+      sendResponse({ ok: true });
+    } else {
+      sendResponse({ ok: false });
+    }
+    return false;
+  }
 });
 
 /**
@@ -22,45 +33,49 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  * Returns { sessionId, profileComplete, state } or throws.
  */
 async function discoverSession() {
-  // First check if we already have a stored sessionId and verify it
+  // 1. Check chrome.storage.local first (set by content_caliber.js handoff or prior discovery)
   const store = await chrome.storage.local.get(["caliberSessionId"]);
   const storedId = store.caliberSessionId;
 
-  // Try stored sessionId first
+  // 2. If we have a stored sessionId, try to verify it via the session endpoint
   if (storedId) {
     try {
       const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId));
       if (resp.ok) {
         const data = await resp.json();
-        if (data.ok && data.profileComplete) {
-          return { sessionId: data.sessionId, profileComplete: true, state: data.state };
+        if (data.ok) {
+          return { sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
         }
       }
-    } catch { /* stored session invalid, try latest */ }
+    } catch {
+      // Session endpoint unreachable — use stored sessionId optimistically.
+      // The fit API will validate it server-side anyway.
+      return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
+    }
   }
 
-  // Fall back to server's latest session
-  const resp = await fetch(API_BASE + "/api/extension/session");
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    throw new Error(data.message || "No active calibration session found.");
+  // 3. Fall back to server's latest session (discovery)
+  try {
+    const resp = await fetch(API_BASE + "/api/extension/session");
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.ok && data.sessionId) {
+        await chrome.storage.local.set({ caliberSessionId: data.sessionId });
+        return {
+          sessionId: data.sessionId,
+          profileComplete: data.profileComplete,
+          state: data.state,
+        };
+      }
+    }
+  } catch { /* session endpoint not available */ }
+
+  // 4. If we have a stored sessionId but couldn't verify, use it anyway
+  if (storedId) {
+    return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
   }
 
-  const data = await resp.json();
-  if (!data.ok) {
-    throw new Error(data.message || "No active calibration session found.");
-  }
-
-  // Persist discovered sessionId
-  if (data.sessionId) {
-    await chrome.storage.local.set({ caliberSessionId: data.sessionId });
-  }
-
-  return {
-    sessionId: data.sessionId,
-    profileComplete: data.profileComplete,
-    state: data.state,
-  };
+  throw new Error("No active Caliber session. Complete your profile on Caliber first.");
 }
 
 /**

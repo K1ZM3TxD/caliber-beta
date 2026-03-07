@@ -43,3 +43,5 @@ caliber-extension.zip
 
 # calibration session persistence (local dev)
 .caliber-sessions/
+.caliber_sessions/
+.caliber-sessions/

@@ -23,6 +23,13 @@
   "content_scripts": [
     {
       "matches": [
+        "https://www.caliber-app.com/*"
+      ],
+      "js": ["content_caliber.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://www.linkedin.com/jobs/*",
         "https://www.linkedin.com/jobs/view/*"
       ],
