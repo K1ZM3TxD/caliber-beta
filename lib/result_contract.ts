@@ -9,6 +9,9 @@ export type CaliberResultContract = {
     score: number // 0–10
     explanation: string // structural, not emotional
     signals?: any
+    supports_fit: string[]
+    stretch_factors: string[]
+    bottom_line_2s: string
   }
   skillMatch: {
     score: number // 0–10
@@ -71,7 +74,7 @@ function skillMatchExplanationFromExistingFields(sm: SkillMatchResult): string {
   return "New terrain: role demands exceed experience in at least one dimension by two or more levels."
 }
 
-function alignmentFromRaw(rawAlignment: unknown): { score: number; explanation: string; signals?: any } | null {
+function alignmentFromRaw(rawAlignment: unknown): { score: number; explanation: string; signals?: any; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } | null {
   // If a future Alignment engine exists and already returns score/explanation, pass-through.
   const a: any = rawAlignment
   if (a && typeof a === "object" && isNumber(a.score) && typeof a.explanation === "string") {
@@ -81,6 +84,9 @@ function alignmentFromRaw(rawAlignment: unknown): { score: number; explanation: 
       score: a.score,
       explanation: a.explanation,
       signals: a.signals,
+      supports_fit: Array.isArray(a.supports_fit) ? a.supports_fit : [],
+      stretch_factors: Array.isArray(a.stretch_factors) ? a.stretch_factors : [],
+      bottom_line_2s: typeof a.bottom_line_2s === "string" ? a.bottom_line_2s : "",
     }
   }
 
@@ -95,6 +101,9 @@ function alignmentFromRaw(rawAlignment: unknown): { score: number; explanation: 
         roleVector: a.roleVector,
         dimensionEvidence: a.dimensionEvidence,
       },
+      supports_fit: [],
+      stretch_factors: [],
+      bottom_line_2s: "",
     }
   }
 
@@ -144,6 +153,9 @@ export function toResultContract(raw: {
       score: alignment.score,
       explanation: alignment.explanation,
       signals: alignment.signals,
+      supports_fit: alignment.supports_fit,
+      stretch_factors: alignment.stretch_factors,
+      bottom_line_2s: alignment.bottom_line_2s,
     },
     skillMatch: {
       score: smAny.finalScore,

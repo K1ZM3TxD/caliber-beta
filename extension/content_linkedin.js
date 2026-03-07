@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = "https://www.caliber-app.com";
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.3.4";
+  const PANEL_VERSION = "0.3.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
