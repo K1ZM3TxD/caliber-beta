@@ -73,10 +73,10 @@
 
   /** Synchronous: try to extract job text from the DOM right now. */
   function extractJobText() {
-    // Try each selector, collecting the best (longest) match
     var bestText = "";
     var bestSource = "";
 
+    // Phase 1 — CSS selectors (precise + wildcard)
     for (var i = 0; i < JOB_DESCRIPTION_SELECTORS.length; i++) {
       var sel = JOB_DESCRIPTION_SELECTORS[i];
       var els = document.querySelectorAll(sel);
@@ -84,35 +84,37 @@
         var el = els[j];
         if (!el) continue;
         var t = (el.innerText || "").trim();
-        // Fall back to textContent if innerText is empty/short
         if (t.length < MIN_EXTRACT_CHARS) t = (el.textContent || "").trim();
         if (t.length > bestText.length) {
           bestText = t;
-          bestSource = sel;
+          bestSource = "P1:" + sel;
         }
       }
     }
-
     if (bestText.length >= MIN_EXTRACT_CHARS) {
-      console.log("[caliber] extracted " + bestText.length + " chars via: " + bestSource);
+      console.log("[caliber] P1 extracted " + bestText.length + " chars via: " + bestSource);
       return bestText.replace(/\s+/g, " ");
     }
+    console.log("[caliber] P1 selectors: best=" + bestText.length + " chars");
 
-    // "About the job" text anchor — scan for heading-like elements, walk up to container
-    var anchorPhrases = ["about the job", "job description", "description"];
-    var anchorCandidates = document.querySelectorAll("h1, h2, h3, h4, h5, h6, span, div, p, strong");
+    // Phase 2 — "About the job" / heading text anchor walk
+    var anchorPhrases = ["about the job", "job description", "description",
+                         "position overview", "responsibilities", "qualifications",
+                         "what you'll do", "the role", "role overview", "job summary"];
+    var anchorCandidates = document.querySelectorAll("h1, h2, h3, h4, h5, h6, span, div, p, strong, b");
     for (var a = 0; a < anchorCandidates.length; a++) {
       var node = anchorCandidates[a];
       if (node.children && node.children.length > 10) continue;
       var nt = (node.textContent || "").trim().toLowerCase();
       for (var p = 0; p < anchorPhrases.length; p++) {
-        if (nt === anchorPhrases[p] || nt === anchorPhrases[p] + ":") {
+        if (nt === anchorPhrases[p] || nt === anchorPhrases[p] + ":" ||
+            nt.startsWith(anchorPhrases[p] + " ")) {
           var container = node.parentElement;
-          for (var up = 0; up < 8 && container; up++) {
+          for (var up = 0; up < 10 && container; up++) {
             var ct = (container.innerText || "").trim();
             if (ct.length < MIN_EXTRACT_CHARS) ct = (container.textContent || "").trim();
             if (ct.length > MIN_SCORE_CHARS) {
-              console.log("[caliber] extracted via '" + anchorPhrases[p] + "' anchor walk (" + up + " levels), " + ct.length + " chars");
+              console.log("[caliber] P2 anchor '" + anchorPhrases[p] + "' walk(" + up + ")=" + ct.length + " chars");
               return ct.replace(/\s+/g, " ");
             }
             container = container.parentElement;
@@ -120,38 +122,66 @@
         }
       }
     }
+    console.log("[caliber] P2 anchor scan: no match");
 
-    // Last resort: find the longest text block in the main content area
+    // Phase 3 — broad container scan (sections, articles, job-related classes)
     var main = document.querySelector('[role="main"]') || document.body;
-    var allSections = main.querySelectorAll(
+    var broadSels = main.querySelectorAll(
       "section, article, [role='main'], [role='region'], " +
       "[class*='jobs'], [class*='detail'], [class*='scaffold'], " +
+      "[class*='job-view'], [class*='description'], " +
       "div > ul, div > ol, div > p"
     );
-    for (var k = 0; k < allSections.length; k++) {
-      var st = (allSections[k].innerText || "").trim();
+    for (var k = 0; k < broadSels.length; k++) {
+      var st = (broadSels[k].innerText || "").trim();
       if (st.length > bestText.length) {
         bestText = st;
-        bestSource = "main-content-scan";
+        bestSource = "P3:broad-scan";
       }
     }
     if (bestText.length >= MIN_EXTRACT_CHARS) {
-      console.log("[caliber] extracted " + bestText.length + " chars via: " + bestSource);
+      console.log("[caliber] P3 extracted " + bestText.length + " chars via " + bestSource);
       return bestText.replace(/\s+/g, " ");
     }
+    console.log("[caliber] P3 broad scan: best=" + bestText.length + " chars");
 
-    // User selection fallback
+    // Phase 4 — nuclear: scan ALL divs for the longest text block on the page
+    // Skip tiny elements and navigation-like containers
+    var allDivs = document.querySelectorAll("div, section, article, main, aside");
+    var nuclearText = "";
+    var nuclearSource = "";
+    for (var d = 0; d < allDivs.length; d++) {
+      var div = allDivs[d];
+      var dt = (div.innerText || "").trim();
+      // Skip if this looks like the entire page or is too huge (likely body-level)
+      if (dt.length > 15000) continue;
+      // We want the longest block that's at least MIN_SCORE_CHARS
+      if (dt.length > nuclearText.length && dt.length >= MIN_SCORE_CHARS) {
+        nuclearText = dt;
+        nuclearSource = div.tagName + (div.className ? "." + String(div.className).substring(0, 60) : "");
+      }
+    }
+    if (nuclearText.length >= MIN_SCORE_CHARS) {
+      console.log("[caliber] P4 nuclear: " + nuclearText.length + " chars from " + nuclearSource);
+      return nuclearText.replace(/\s+/g, " ");
+    }
+    console.log("[caliber] P4 nuclear scan: best=" + nuclearText.length + " chars from " + allDivs.length + " elements");
+
+    // Phase 5 — user selection fallback
     var userSel = window.getSelection();
     if (userSel && userSel.toString().trim().length >= MIN_EXTRACT_CHARS) {
-      console.log("[caliber] extracted from user selection");
+      console.log("[caliber] P5 user selection: " + userSel.toString().trim().length + " chars");
       return userSel.toString().trim().replace(/\s+/g, " ");
     }
 
-    // Log what we did find for debugging
+    // Diagnostic dump: log what we see on the page
+    console.log("[caliber] ALL PHASES FAILED. Page URL:", location.href);
+    console.log("[caliber] body.innerText length:", (document.body.innerText || "").length);
+    console.log("[caliber] #job-details exists:", !!document.querySelector("#job-details"));
+    console.log("[caliber] [class*=description] count:", document.querySelectorAll('[class*="description"]').length);
+    console.log("[caliber] [class*=jobs] count:", document.querySelectorAll('[class*="jobs"]').length);
     if (bestText.length > 0) {
-      console.log("[caliber] container found but text too short (" + bestText.length + " chars, need " + MIN_EXTRACT_CHARS + ") via: " + bestSource);
-    } else {
-      console.log("[caliber] no description container found on page");
+      console.log("[caliber] best candidate was " + bestText.length + " chars via " + bestSource);
     }
     return null;
   }
