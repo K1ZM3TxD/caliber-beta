@@ -142,6 +142,29 @@
     if (scoring) return;
     scoring = true;
     try {
+      showLoading("Checking calibration session\u2026");
+
+      // Discover/verify session before attempting to score
+      const sessionInfo = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_SESSION_DISCOVER" },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else if (!response || !response.ok) {
+              reject(new Error((response && response.error) || "No active Caliber session found."));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+
+      if (!sessionInfo.profileComplete) {
+        showError("Calibration incomplete. Finish the calibration prompts on caliber-app.com first.");
+        return;
+      }
+
       showLoading("Extracting job description\u2026");
 
       const text = await extractWithRetry(6, 800);

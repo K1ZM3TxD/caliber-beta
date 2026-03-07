@@ -117,10 +117,21 @@ async function extractJobText() {
 
 /** Get stored sessionId or discover the latest one. */
 async function getSessionId() {
+  // Try session discovery through background service worker first
   return new Promise((resolve) => {
-    chrome.storage.local.get(["caliberSessionId"], (data) => {
-      resolve(data.caliberSessionId || null);
-    });
+    chrome.runtime.sendMessage(
+      { type: "CALIBER_SESSION_DISCOVER" },
+      (response) => {
+        if (chrome.runtime.lastError || !response || !response.ok) {
+          // Fall back to stored value
+          chrome.storage.local.get(["caliberSessionId"], (data) => {
+            resolve(data.caliberSessionId || null);
+          });
+        } else {
+          resolve(response.sessionId || null);
+        }
+      }
+    );
   });
 }
 

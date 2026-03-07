@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 caliber-extension.zip
+
+# calibration session persistence (local dev)
+.caliber-sessions/
