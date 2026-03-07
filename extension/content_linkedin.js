@@ -7,80 +7,169 @@
 
   // ─── Job Text Extraction ──────────────────────────────────
 
+  // Minimum text length to consider extraction successful
+  var MIN_EXTRACT_CHARS = 80;
+  // Minimum text length to send to the scoring API
+  var MIN_SCORE_CHARS = 150;
+
   var JOB_DESCRIPTION_SELECTORS = [
-    // Current LinkedIn selectors (2025-2026)
-    ".jobs-description-content__text",
-    ".jobs-box__html-content",
+    // Primary LinkedIn job detail selectors (2025-2026)
     "#job-details",
+    ".jobs-description-content__text",
     ".jobs-description__content",
+    ".jobs-box__html-content",
     ".jobs-description",
-    // LinkedIn unified job view
-    ".job-details-jobs-unified-top-card__job-insight",
-    ".jobs-unified-top-card__job-insight",
-    // Broader structural selectors (resilient to class name changes)
+    // Wildcard selectors resilient to class renames
     '[class*="jobs-description"]',
     '[class*="job-details"]',
     '[class*="job-description"]',
     // Fallback: article containers
     'article[data-job-id]',
     ".job-view-layout .description__text",
-    // Generic: main content area with substantial text
-    '[role="main"] section',
   ];
 
-  /** Synchronous: try to extract job text from the DOM right now. */
-  function extractJobText() {
-    for (var i = 0; i < JOB_DESCRIPTION_SELECTORS.length; i++) {
-      var els = document.querySelectorAll(JOB_DESCRIPTION_SELECTORS[i]);
-      for (var j = 0; j < els.length; j++) {
-        var el = els[j];
-        if (el && el.innerText && el.innerText.trim().length > 100) {
-          return el.innerText.trim().replace(/\s+/g, " ");
+  // Selectors for the LinkedIn "...more" / "Show more" expand button
+  var SHOW_MORE_SELECTORS = [
+    '.jobs-description__content button[aria-label*="more"]',
+    '.jobs-description button[aria-label*="more"]',
+    '[class*="jobs-description"] button[aria-label*="more"]',
+    '[class*="jobs-description"] footer button',
+    '#job-details ~ button',
+    '#job-details ~ footer button',
+    'button[aria-label="Show more"]',
+    'button[aria-label="show more"]',
+    // LinkedIn sometimes uses a link-style "...show more"
+    '[class*="jobs-description"] [class*="show-more"]',
+    '[class*="job-details"] [class*="show-more"]',
+  ];
+
+  /**
+   * Try to click the "...more" / "Show more" button to expand the job description.
+   * Returns true if a button was found and clicked.
+   */
+  function tryExpandDescription() {
+    for (var i = 0; i < SHOW_MORE_SELECTORS.length; i++) {
+      var btn = document.querySelector(SHOW_MORE_SELECTORS[i]);
+      if (btn && btn.offsetParent !== null) { // visible
+        try {
+          btn.click();
+          console.log("[caliber] expanded job description via:", SHOW_MORE_SELECTORS[i]);
+          return true;
+        } catch (e) {
+          console.warn("[caliber] expand click failed:", e);
         }
       }
     }
-    // Last resort: find the longest text block on the page in the main content area
-    var main = document.querySelector('[role="main"]') || document.body;
-    var allSections = main.querySelectorAll("section, div > ul, div > ol, div > p");
-    var best = "";
-    for (var k = 0; k < allSections.length; k++) {
-      var t = allSections[k].innerText || "";
-      if (t.trim().length > best.length && t.trim().length > 200) {
-        best = t.trim();
+    return false;
+  }
+
+  /** Synchronous: try to extract job text from the DOM right now. */
+  function extractJobText() {
+    // Try each selector, collecting the best (longest) match
+    var bestText = "";
+    var bestSource = "";
+
+    for (var i = 0; i < JOB_DESCRIPTION_SELECTORS.length; i++) {
+      var sel = JOB_DESCRIPTION_SELECTORS[i];
+      var els = document.querySelectorAll(sel);
+      for (var j = 0; j < els.length; j++) {
+        var el = els[j];
+        if (el && el.innerText) {
+          var t = el.innerText.trim();
+          if (t.length > bestText.length) {
+            bestText = t;
+            bestSource = sel;
+          }
+        }
       }
     }
-    if (best.length > 200) return best.replace(/\s+/g, " ");
 
-    var sel = window.getSelection();
-    if (sel && sel.toString().trim().length > 100) {
-      return sel.toString().trim().replace(/\s+/g, " ");
+    if (bestText.length >= MIN_EXTRACT_CHARS) {
+      console.log("[caliber] extracted " + bestText.length + " chars via: " + bestSource);
+      return bestText.replace(/\s+/g, " ");
+    }
+
+    // Last resort: find the longest text block in the main content area
+    var main = document.querySelector('[role="main"]') || document.body;
+    var allSections = main.querySelectorAll("section, div > ul, div > ol, div > p");
+    for (var k = 0; k < allSections.length; k++) {
+      var st = (allSections[k].innerText || "").trim();
+      if (st.length > bestText.length) {
+        bestText = st;
+        bestSource = "main-content-scan";
+      }
+    }
+    if (bestText.length >= MIN_EXTRACT_CHARS) {
+      console.log("[caliber] extracted " + bestText.length + " chars via: " + bestSource);
+      return bestText.replace(/\s+/g, " ");
+    }
+
+    // User selection fallback
+    var userSel = window.getSelection();
+    if (userSel && userSel.toString().trim().length >= MIN_EXTRACT_CHARS) {
+      console.log("[caliber] extracted from user selection");
+      return userSel.toString().trim().replace(/\s+/g, " ");
+    }
+
+    // Log what we did find for debugging
+    if (bestText.length > 0) {
+      console.log("[caliber] container found but text too short (" + bestText.length + " chars, need " + MIN_EXTRACT_CHARS + ") via: " + bestSource);
+    } else {
+      console.log("[caliber] no description container found on page");
     }
     return null;
   }
 
   /**
-   * Wait for any of the job description selectors to appear in the DOM.
-   * Uses MutationObserver for efficiency, with a timeout fallback.
-   * Returns the element's innerText or null on timeout.
+   * Wait for the job description to appear in the DOM.
+   * Uses MutationObserver + tries expanding collapsed descriptions.
+   * Returns extracted text or null on timeout.
    */
   function waitForJobDescription(timeoutMs) {
-    timeoutMs = timeoutMs || 5000;
+    timeoutMs = timeoutMs || 8000;
     return new Promise(function (resolve) {
       // Check immediately — element may already exist
       var immediate = extractJobText();
       if (immediate) { resolve(immediate); return; }
 
       var settled = false;
+      var expandAttempted = false;
+
       function settle(value) {
         if (settled) return;
         settled = true;
         if (observer) observer.disconnect();
         clearTimeout(timer);
+        clearTimeout(expandTimer);
         resolve(value);
       }
 
-      // Timeout fallback
-      var timer = setTimeout(function () { settle(extractJobText()); }, timeoutMs);
+      // After 1.5s, try clicking "...more" to expand collapsed descriptions
+      var expandTimer = setTimeout(function () {
+        if (settled) return;
+        if (!expandAttempted) {
+          expandAttempted = true;
+          var didExpand = tryExpandDescription();
+          if (didExpand) {
+            // Give DOM 500ms to update after expand click, then re-check
+            setTimeout(function () {
+              if (settled) return;
+              var text = extractJobText();
+              if (text) settle(text);
+            }, 500);
+          }
+        }
+      }, 1500);
+
+      // Timeout fallback — final attempt including one more expand try
+      var timer = setTimeout(function () {
+        if (!expandAttempted) {
+          expandAttempted = true;
+          tryExpandDescription();
+        }
+        // Small delay after final expand attempt
+        setTimeout(function () { settle(extractJobText()); }, 300);
+      }, timeoutMs);
 
       // Observe DOM for new nodes
       var observer = new MutationObserver(function () {
@@ -93,7 +182,6 @@
 
   /** Legacy wrapper kept for the message handler (popup asks for text). */
   function extractWithRetry(retries, delayMs) {
-    // Prefer waitForJobDescription; total timeout ≈ retries * delayMs
     return waitForJobDescription(retries * delayMs);
   }
 
@@ -225,14 +313,17 @@
       showLoading("Extracting job description\u2026");
 
       const text = await waitForJobDescription(8000);
-      if (!text || text.length < 200) {
-        showError(
-          text
-            ? "Job description too short. Highlight more text and click Recalculate."
-            : "Couldn\u2019t detect the job description on this page. Try scrolling down or clicking the job again."
-        );
+      if (!text || text.length < MIN_SCORE_CHARS) {
+        if (!text) {
+          console.log("[caliber] extraction failed: no text found after 8s wait");
+          showError("Couldn\u2019t detect the job description on this page. Try scrolling down or clicking the job again.");
+        } else {
+          console.log("[caliber] extraction too short for scoring: " + text.length + " chars (need " + MIN_SCORE_CHARS + ")");
+          showError("Job description too short (" + text.length + " chars). Try expanding \u2018Show more\u2019 or highlight more text.");
+        }
         return;
       }
+      console.log("[caliber] scoring with " + text.length + " chars");
 
       if (!force && text === lastScoredText) return;
       lastScoredText = text;
@@ -273,7 +364,7 @@
       var urlChanged = location.href !== lastUrl;
       if (urlChanged) lastUrl = location.href;
       var text = extractJobText();
-      if (text && text.length >= 200 && (text !== lastScoredText || urlChanged)) {
+      if (text && text.length >= MIN_SCORE_CHARS && (text !== lastScoredText || urlChanged)) {
         scoreCurrentJob(false);
       }
     }, 2000);
