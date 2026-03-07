@@ -17,12 +17,20 @@
     "#job-details",
     ".jobs-description-content__text",
     ".jobs-description__content",
+    ".jobs-description-content",
     ".jobs-box__html-content",
+    ".jobs-description__container",
     ".jobs-description",
+    ".jobs-unified-description__content",
+    // Search results split-pane containers
+    ".jobs-search__job-details--wrapper",
+    ".jobs-search__job-details",
+    ".scaffold-layout__detail",
     // Wildcard selectors resilient to class renames
     '[class*="jobs-description"]',
     '[class*="job-details"]',
     '[class*="job-description"]',
+    '[class*="jobs-search__job-details"]',
     // Fallback: article containers
     'article[data-job-id]',
     ".job-view-layout .description__text",
@@ -74,12 +82,13 @@
       var els = document.querySelectorAll(sel);
       for (var j = 0; j < els.length; j++) {
         var el = els[j];
-        if (el && el.innerText) {
-          var t = el.innerText.trim();
-          if (t.length > bestText.length) {
-            bestText = t;
-            bestSource = sel;
-          }
+        if (!el) continue;
+        var t = (el.innerText || "").trim();
+        // Fall back to textContent if innerText is empty/short
+        if (t.length < MIN_EXTRACT_CHARS) t = (el.textContent || "").trim();
+        if (t.length > bestText.length) {
+          bestText = t;
+          bestSource = sel;
         }
       }
     }
@@ -89,9 +98,36 @@
       return bestText.replace(/\s+/g, " ");
     }
 
+    // "About the job" text anchor — scan for heading-like elements, walk up to container
+    var anchorPhrases = ["about the job", "job description", "description"];
+    var anchorCandidates = document.querySelectorAll("h1, h2, h3, h4, h5, h6, span, div, p, strong");
+    for (var a = 0; a < anchorCandidates.length; a++) {
+      var node = anchorCandidates[a];
+      if (node.children && node.children.length > 10) continue;
+      var nt = (node.textContent || "").trim().toLowerCase();
+      for (var p = 0; p < anchorPhrases.length; p++) {
+        if (nt === anchorPhrases[p] || nt === anchorPhrases[p] + ":") {
+          var container = node.parentElement;
+          for (var up = 0; up < 8 && container; up++) {
+            var ct = (container.innerText || "").trim();
+            if (ct.length < MIN_EXTRACT_CHARS) ct = (container.textContent || "").trim();
+            if (ct.length > MIN_SCORE_CHARS) {
+              console.log("[caliber] extracted via '" + anchorPhrases[p] + "' anchor walk (" + up + " levels), " + ct.length + " chars");
+              return ct.replace(/\s+/g, " ");
+            }
+            container = container.parentElement;
+          }
+        }
+      }
+    }
+
     // Last resort: find the longest text block in the main content area
     var main = document.querySelector('[role="main"]') || document.body;
-    var allSections = main.querySelectorAll("section, div > ul, div > ol, div > p");
+    var allSections = main.querySelectorAll(
+      "section, article, [role='main'], [role='region'], " +
+      "[class*='jobs'], [class*='detail'], [class*='scaffold'], " +
+      "div > ul, div > ol, div > p"
+    );
     for (var k = 0; k < allSections.length; k++) {
       var st = (allSections[k].innerText || "").trim();
       if (st.length > bestText.length) {
