@@ -347,6 +347,8 @@ export default function CalibrationPage() {
   // Typewriter hooks
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
+  const summaryRawText: string = step === "TITLES" && typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
+  const [summaryTyped, summaryDone] = useTypewriter(summaryRawText, TYPE_MS);
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
@@ -748,40 +750,12 @@ export default function CalibrationPage() {
                 .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
                 .slice(0, 3);
 
+              const operateBestItems: string[] = Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
+              const loseEnergyItems: string[] = Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
+              const hasBullets = operateBestItems.length > 0 || loseEnergyItems.length > 0;
+
               return (
               <div className="w-full max-w-2xl pb-12">
-                {/* Pattern Summary */}
-                {(() => {
-                  const patternSummary: string = typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
-                  const operateBestItems: string[] = Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
-                  const loseEnergyItems: string[] = Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
-                  const hasPatternData = patternSummary.length > 0 || operateBestItems.length > 0 || loseEnergyItems.length > 0;
-                  if (!hasPatternData) return null;
-                  return (
-                    <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                      {patternSummary ? (
-                        <p className="text-sm sm:text-base leading-relaxed mb-4" style={{ color: "#E0E0E0" }}>{patternSummary}</p>
-                      ) : null}
-                      {operateBestItems.length > 0 ? (
-                        <div className="mb-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>Operate best</div>
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {operateBestItems.map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        </div>
-                      ) : null}
-                      {loseEnergyItems.length > 0 ? (
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>Lose energy</div>
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {loseEnergyItems.map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })()}
-
                 {/* Archetype label */}
                 {archetypeLabel ? (
                   <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
@@ -865,6 +839,37 @@ export default function CalibrationPage() {
                     );
                   })}
                 </div>
+
+                {/* Bullet anchors — Operate Best then Lose Energy */}
+                {hasBullets ? (
+                  <div className="mt-6 mb-2 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
+                    {operateBestItems.length > 0 ? (
+                      <div className="mb-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>Operate best</div>
+                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                          {operateBestItems.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {loseEnergyItems.length > 0 ? (
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>Lose energy</div>
+                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                          {loseEnergyItems.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Summary narrative — typewriter reveal */}
+                {summaryRawText ? (
+                  <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
+                    <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#E0E0E0" }}>
+                      {summaryTyped}<span className="animate-pulse" style={{ opacity: summaryDone ? 0 : 1 }}>▍</span>
+                    </p>
+                  </div>
+                ) : null}
 
                 {/* Extension CTA */}
                 <div className="mt-8 flex flex-col items-center gap-2 py-3">
