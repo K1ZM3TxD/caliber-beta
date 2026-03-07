@@ -22,10 +22,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === "CALIBER_SESSION_HANDOFF") {
-    // Direct handoff from caliber-app.com content script
+    // Direct handoff from caliber-app.com or codespace content script
     const sid = msg.sessionId;
+    const base = msg.baseUrl;
     if (sid && typeof sid === "string") {
       chrome.storage.local.set({ caliberSessionId: sid });
+      // Store the base URL so we can reach this Caliber instance later
+      if (base && typeof base === "string") {
+        chrome.storage.local.set({ caliberBaseUrl: base });
+        resolvedBase = base;
+      }
       sendResponse({ ok: true });
     } else {
       sendResponse({ ok: false });
@@ -71,11 +77,18 @@ async function trySessionEndpoint(base, storedId) {
 }
 
 async function discoverSession() {
-  const store = await chrome.storage.local.get(["caliberSessionId"]);
+  const store = await chrome.storage.local.get(["caliberSessionId", "caliberBaseUrl"]);
   const storedId = store.caliberSessionId;
+  const storedBase = store.caliberBaseUrl;
+
+  // Build endpoint list: stored base URL first (from content script handoff), then defaults
+  const endpoints = [...API_ENDPOINTS];
+  if (storedBase && !endpoints.includes(storedBase)) {
+    endpoints.unshift(storedBase);
+  }
 
   // Try each endpoint in order; use the first one that has a valid session
-  for (const base of API_ENDPOINTS) {
+  for (const base of endpoints) {
     const result = await trySessionEndpoint(base, storedId);
     if (result.ok) {
       resolvedBase = result.base;
@@ -86,9 +99,9 @@ async function discoverSession() {
     }
   }
 
-  // No endpoint had a session — if we have a stored id, use it optimistically with production
+  // No endpoint had a session — if we have a stored id, use it optimistically
   if (storedId) {
-    resolvedBase = API_ENDPOINTS[0];
+    resolvedBase = storedBase || API_ENDPOINTS[0];
     return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
   }
 

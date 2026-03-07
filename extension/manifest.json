@@ -7,6 +7,7 @@
   "host_permissions": [
     "https://www.caliber-app.com/*",
     "http://localhost:3000/*",
+    "https://*.app.github.dev/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],
@@ -24,7 +25,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.caliber-app.com/*"
+        "https://www.caliber-app.com/*",
+        "https://*.app.github.dev/*"
       ],
       "js": ["content_caliber.js"],
       "run_at": "document_idle"

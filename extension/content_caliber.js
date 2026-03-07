@@ -11,8 +11,10 @@
     var sessionId = readCookie("caliber_sessionId");
     if (!sessionId) return;
 
+    // Send sessionId + the base URL of this Caliber instance
+    var baseUrl = window.location.origin;
     chrome.runtime.sendMessage(
-      { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId },
+      { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId, baseUrl: baseUrl },
       function () {
         // Ignore response / errors — best-effort handoff
         if (chrome.runtime.lastError) { /* noop */ }
