@@ -6,6 +6,7 @@
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
     "https://www.caliber-app.com/*",
+    "http://localhost:3000/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],

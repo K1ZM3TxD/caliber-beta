@@ -1,6 +1,12 @@
 // background.js — Caliber service worker (proxies API calls for content scripts)
 
-const API_BASE = "https://www.caliber-app.com";
+const API_ENDPOINTS = [
+  "https://www.caliber-app.com",  // production first
+  "http://localhost:3000",         // local dev fallback
+];
+
+// Resolved base URL — set once a working endpoint is found
+let resolvedBase = null;
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
@@ -32,46 +38,57 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  * Discover the active calibration session from the server.
  * Returns { sessionId, profileComplete, state } or throws.
  */
-async function discoverSession() {
-  // 1. Check chrome.storage.local first (set by content_caliber.js handoff or prior discovery)
-  const store = await chrome.storage.local.get(["caliberSessionId"]);
-  const storedId = store.caliberSessionId;
-
-  // 2. If we have a stored sessionId, try to verify it via the session endpoint
+/**
+ * Try to fetch a session from a specific base URL.
+ * Returns { ok, sessionId, profileComplete, state, base } or { ok: false }.
+ */
+async function trySessionEndpoint(base, storedId) {
+  // Try stored sessionId first
   if (storedId) {
     try {
-      const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId));
+      const resp = await fetch(base + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(3000) });
       if (resp.ok) {
         const data = await resp.json();
-        if (data.ok) {
-          return { sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
+        if (data.ok && data.profileComplete) {
+          return { ok: true, sessionId: data.sessionId, profileComplete: true, state: data.state, base };
         }
       }
-    } catch {
-      // Session endpoint unreachable — use stored sessionId optimistically.
-      // The fit API will validate it server-side anyway.
-      return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
-    }
+    } catch { /* endpoint unreachable or timeout */ }
   }
 
-  // 3. Fall back to server's latest session (discovery)
+  // Try latest session
   try {
-    const resp = await fetch(API_BASE + "/api/extension/session");
+    const resp = await fetch(base + "/api/extension/session", { signal: AbortSignal.timeout(3000) });
     if (resp.ok) {
       const data = await resp.json();
       if (data.ok && data.sessionId) {
-        await chrome.storage.local.set({ caliberSessionId: data.sessionId });
-        return {
-          sessionId: data.sessionId,
-          profileComplete: data.profileComplete,
-          state: data.state,
-        };
+        return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state, base };
       }
     }
-  } catch { /* session endpoint not available */ }
+  } catch { /* endpoint unreachable */ }
 
-  // 4. If we have a stored sessionId but couldn't verify, use it anyway
+  return { ok: false };
+}
+
+async function discoverSession() {
+  const store = await chrome.storage.local.get(["caliberSessionId"]);
+  const storedId = store.caliberSessionId;
+
+  // Try each endpoint in order; use the first one that has a valid session
+  for (const base of API_ENDPOINTS) {
+    const result = await trySessionEndpoint(base, storedId);
+    if (result.ok) {
+      resolvedBase = result.base;
+      if (result.sessionId) {
+        await chrome.storage.local.set({ caliberSessionId: result.sessionId });
+      }
+      return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
+    }
+  }
+
+  // No endpoint had a session — if we have a stored id, use it optimistically with production
   if (storedId) {
+    resolvedBase = API_ENDPOINTS[0];
     return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
   }
 
@@ -98,21 +115,37 @@ async function ensureSessionThenFit(jobText) {
 }
 
 async function callFitAPI(jobText, sessionId) {
+  const base = resolvedBase || API_ENDPOINTS[0];
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
 
-  const resp = await fetch(API_BASE + "/api/extension/fit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // Try the resolved base first, then fall back to other endpoints
+  const bases = [base, ...API_ENDPOINTS.filter(b => b !== base)];
 
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.error || "API error " + resp.status);
+  for (const url of bases) {
+    try {
+      const resp = await fetch(url + "/api/extension/fit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-  if (data.calibrationId) {
-    await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
+      const data = await resp.json();
+      if (!resp.ok) {
+        // If this endpoint explicitly says no session, try the next one
+        if (resp.status === 401 && bases.indexOf(url) < bases.length - 1) continue;
+        throw new Error(data.error || "API error " + resp.status);
+      }
+
+      resolvedBase = url;
+      if (data.calibrationId) {
+        await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
+      }
+      return data;
+    } catch (err) {
+      // Network error — try next endpoint
+      if (bases.indexOf(url) < bases.length - 1) continue;
+      throw err;
+    }
   }
-
-  return data;
 }
