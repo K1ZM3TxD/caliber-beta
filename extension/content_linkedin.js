@@ -7,37 +7,67 @@
 
   // ─── Job Text Extraction ──────────────────────────────────
 
+  var JOB_DESCRIPTION_SELECTORS = [
+    ".jobs-description-content__text",
+    ".jobs-box__html-content",
+    "#job-details",
+    ".jobs-description__content",
+    'article[data-job-id]',
+    ".job-view-layout .description__text",
+  ];
+
+  /** Synchronous: try to extract job text from the DOM right now. */
   function extractJobText() {
-    const selectors = [
-      ".jobs-description__content",
-      ".jobs-description-content__text",
-      ".jobs-box__html-content",
-      "#job-details",
-      'article[data-job-id]',
-      ".job-view-layout .description__text",
-    ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
+    for (var i = 0; i < JOB_DESCRIPTION_SELECTORS.length; i++) {
+      var el = document.querySelector(JOB_DESCRIPTION_SELECTORS[i]);
       if (el && el.innerText && el.innerText.trim().length > 100) {
         return el.innerText.trim().replace(/\s+/g, " ");
       }
     }
-    const sel = window.getSelection();
+    var sel = window.getSelection();
     if (sel && sel.toString().trim().length > 100) {
       return sel.toString().trim().replace(/\s+/g, " ");
     }
     return null;
   }
 
-  function extractWithRetry(retries, delayMs) {
-    return new Promise((resolve) => {
-      function attempt(remaining) {
-        const text = extractJobText();
-        if (text || remaining <= 0) { resolve(text); return; }
-        setTimeout(() => attempt(remaining - 1), delayMs);
+  /**
+   * Wait for any of the job description selectors to appear in the DOM.
+   * Uses MutationObserver for efficiency, with a timeout fallback.
+   * Returns the element's innerText or null on timeout.
+   */
+  function waitForJobDescription(timeoutMs) {
+    timeoutMs = timeoutMs || 5000;
+    return new Promise(function (resolve) {
+      // Check immediately — element may already exist
+      var immediate = extractJobText();
+      if (immediate) { resolve(immediate); return; }
+
+      var settled = false;
+      function settle(value) {
+        if (settled) return;
+        settled = true;
+        if (observer) observer.disconnect();
+        clearTimeout(timer);
+        resolve(value);
       }
-      attempt(retries);
+
+      // Timeout fallback
+      var timer = setTimeout(function () { settle(extractJobText()); }, timeoutMs);
+
+      // Observe DOM for new nodes
+      var observer = new MutationObserver(function () {
+        var text = extractJobText();
+        if (text) settle(text);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
     });
+  }
+
+  /** Legacy wrapper kept for the message handler (popup asks for text). */
+  function extractWithRetry(retries, delayMs) {
+    // Prefer waitForJobDescription; total timeout ≈ retries * delayMs
+    return waitForJobDescription(retries * delayMs);
   }
 
   // ─── Panel State ──────────────────────────────────────────
@@ -167,12 +197,12 @@
 
       showLoading("Extracting job description\u2026");
 
-      const text = await extractWithRetry(6, 800);
+      const text = await waitForJobDescription(5000);
       if (!text || text.length < 200) {
         showError(
           text
             ? "Job description too short. Highlight more text and click Recalculate."
-            : "Couldn\u2019t detect the job description on this page."
+            : "Couldn\u2019t detect the job description on this page. Try scrolling down or clicking the job again."
         );
         return;
       }
@@ -209,13 +239,17 @@
 
   function startWatching() {
     if (watchInterval) return;
+    // Watch for job navigation: when the URL or description content changes, re-score.
+    var lastUrl = location.href;
     watchInterval = setInterval(function () {
       if (!active || scoring) return;
+      var urlChanged = location.href !== lastUrl;
+      if (urlChanged) lastUrl = location.href;
       var text = extractJobText();
-      if (text && text.length >= 200 && text !== lastScoredText) {
+      if (text && text.length >= 200 && (text !== lastScoredText || urlChanged)) {
         scoreCurrentJob(false);
       }
-    }, 3000);
+    }, 2000);
   }
 
   function stopWatching() {
