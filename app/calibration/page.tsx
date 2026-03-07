@@ -5,10 +5,10 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
-const TYPE_MS = 55;
+const TYPE_MS = 30;
 const START_DELAY_MS = 200;
-const REVEAL_LINE_MS = 180; // stagger between each bullet line reveal
-const REVEAL_HEADING_MS = 300; // pause before a new section heading
+const REVEAL_LINE_MS = 400; // stagger between each bullet line reveal
+const REVEAL_HEADING_MS = 500; // pause before a new section heading
 
 function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: number = START_DELAY_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
@@ -402,7 +402,7 @@ export default function CalibrationPage() {
   // Summary typewriter starts only after all bullets have revealed
   const summaryRawText: string = step === "TITLES" && typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
   const summaryReady = revealDone || _revealIsHeading.length === 0;
-  const [summaryTyped, summaryDone] = useTypewriter(summaryReady ? summaryRawText : "", TYPE_MS, 400);
+  const [summaryTyped, summaryDone] = useTypewriter(summaryReady ? summaryRawText : "", TYPE_MS, 250);
 
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
