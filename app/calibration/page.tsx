@@ -7,7 +7,8 @@ import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
 const TYPE_MS = 30;
 const START_DELAY_MS = 200;
-const BULLET_INTERVAL_MS = 1000; // 1 second between each bullet line
+const TITLE_STAGGER_MS = 150; // stagger between title box reveals
+const GLOW_DURATION_MS = 1200; // arrow glow pulse duration
 
 function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: number = START_DELAY_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
@@ -31,15 +32,16 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: numbe
 }
 
 /**
- * Reveal N bullet lines one at a time. Starts when `start` becomes true.
+ * Reveal N items with a stagger delay. Starts when `start` becomes true.
  * Returns [visibleCount, allDone].
  */
-function useBulletReveal(total: number, start: boolean): [number, boolean] {
+function useStaggerReveal(total: number, start: boolean, intervalMs: number): [number, boolean] {
   const [visible, setVisible] = useState(0);
   useEffect(() => {
     if (!start || total <= 0) { setVisible(0); return; }
-    setVisible(0);
-    let current = 0;
+    setVisible(1); // first item immediately
+    if (total <= 1) return;
+    let current = 1;
     let cancelled = false;
     function tick() {
       if (cancelled || current >= total) return;
@@ -48,11 +50,11 @@ function useBulletReveal(total: number, start: boolean): [number, boolean] {
         current++;
         setVisible(current);
         tick();
-      }, BULLET_INTERVAL_MS);
+      }, intervalMs);
     }
     tick();
     return () => { cancelled = true; };
-  }, [total, start]);
+  }, [total, start, intervalMs]);
   return [visible, start && visible >= total];
 }
 
@@ -382,30 +384,49 @@ export default function CalibrationPage() {
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
 
-  // Staged reveal: OB heading → OB bullets → LE heading → LE bullets → summary
-  const _obItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
-  const _leItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
+  // Staged reveal: Line1 typewriter → Line2 typewriter → titles stagger → CTA typewriter → button
+  const isTitles = step === "TITLES";
 
-  // 1. OB heading typewriter — starts immediately on TITLES
-  const obHasItems = _obItems.length > 0;
-  const [obHeadingTyped, obHeadingDone] = useTypewriter(obHasItems ? "Where you operate best" : "", TYPE_MS, START_DELAY_MS);
+  // 1. "Your signals have been calibrated."
+  const [line1Typed, line1Done] = useTypewriter(isTitles ? "Your signals have been calibrated." : "", TYPE_MS, START_DELAY_MS);
 
-  // 2. OB bullets — one per second after heading finishes
-  const [obBulletCount, obBulletsDone] = useBulletReveal(_obItems.length, obHeadingDone);
+  // 2. "These titles best match your pattern." — starts 400ms after line1 done
+  const [line2Typed, line2Done] = useTypewriter(line1Done ? "These titles best match your pattern." : "", TYPE_MS, 400);
 
-  // 3. LE heading typewriter — starts after all OB bullets
-  const leHasItems = _leItems.length > 0;
-  const leHeadingStart = obHasItems ? obBulletsDone : step === "TITLES";
-  const [leHeadingTyped, leHeadingDone] = useTypewriter(leHasItems && leHeadingStart ? "Where you lose energy" : "", TYPE_MS, 0);
+  // 3. Count of title boxes to render (from session)
+  const _titleCount = useMemo(() => {
+    const rec = session?.synthesis?.titleRecommendation as any;
+    const enriched = Array.isArray(rec?.titles) ? rec.titles : [];
+    let fallback: any[] = [];
+    if (enriched.length === 0 && rec?.primary_title) {
+      fallback.push(rec.primary_title);
+      if (Array.isArray(rec.adjacent_titles)) fallback.push(...rec.adjacent_titles);
+    }
+    if (enriched.length === 0 && fallback.length === 0) {
+      fallback = Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
+    }
+    return Math.min(3, enriched.length || fallback.length);
+  }, [session?.synthesis]);
 
-  // 4. LE bullets — one per second after LE heading finishes
-  const [leBulletCount, leBulletsDone] = useBulletReveal(_leItems.length, leHeadingDone);
+  // Title boxes stagger in after line2 finishes
+  const [titleRevealCount, titlesAllRevealed] = useStaggerReveal(_titleCount, line2Done, TITLE_STAGGER_MS);
 
-  // 5. Summary typewriter — starts after all bullets done
-  const summaryRawText: string = step === "TITLES" && typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
-  const allBulletsDone = (!obHasItems || obBulletsDone) && (!leHasItems || leBulletsDone);
-  const summaryReady = allBulletsDone || (!obHasItems && !leHasItems);
-  const [summaryTyped, summaryDone] = useTypewriter(summaryReady ? summaryRawText : "", TYPE_MS, START_DELAY_MS);
+  // Track glow state — true until any title is interacted with
+  const [glowActive, setGlowActive] = useState(true);
+  useEffect(() => {
+    if (!titlesAllRevealed || !glowActive) return;
+    const timer = setTimeout(() => setGlowActive(false), GLOW_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [titlesAllRevealed, glowActive]);
+
+  // 4. "See your job fit score on real roles." — starts after titles all revealed
+  const [ctaLine1Typed, ctaLine1Done] = useTypewriter(titlesAllRevealed ? "See your job fit score on real roles." : "", TYPE_MS, 400);
+
+  // 5. "Use the Caliber LinkedIn extension." — starts immediately after ctaLine1
+  const [ctaLine2Typed, ctaLine2Done] = useTypewriter(ctaLine1Done ? "Use the Caliber LinkedIn extension." : "", TYPE_MS, 200);
+
+  // CTA button visible after ctaLine2 finishes
+  const ctaButtonVisible = ctaLine2Done;
 
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -808,27 +829,40 @@ export default function CalibrationPage() {
                 .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
                 .slice(0, 3);
 
-              const operateBestItems: string[] = Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
-              const loseEnergyItems: string[] = Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
-              const hasBullets = operateBestItems.length > 0 || loseEnergyItems.length > 0;
-
               return (
               <div className="w-full max-w-2xl pb-12">
-                {/* Archetype label */}
-                {archetypeLabel ? (
-                  <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+
+                {/* STEP 1 — Typewriter intro lines */}
+                {line1Typed.length > 0 ? (
+                  <div className="mt-6 mb-2 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {line1Typed}<span className="animate-pulse" style={{ opacity: line1Done ? 0 : 1 }}>▍</span>
+                    </p>
+                  </div>
                 ) : null}
 
-                {/* Fallback: no title rows available */}
-                {titlesToRender.length === 0 ? (
+                {line2Typed.length > 0 ? (
+                  <div className="mb-4 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {line2Typed}<span className="animate-pulse" style={{ opacity: line2Done ? 0 : 1 }}>▍</span>
+                    </p>
+                  </div>
+                ) : null}
+
+                {/* Archetype label */}
+                {archetypeLabel && line2Done ? (
+                  <div className="mt-2 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
+                ) : null}
+
+                {/* STEP 2 — Title boxes, staggered reveal */}
+                {titlesToRender.length === 0 && line2Done ? (
                   <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
                     Your title recommendations are still being generated.
                   </div>
                 ) : null}
 
-                {/* Title rows with expand/collapse */}
                 <div className="mt-2 space-y-1">
-                  {titlesToRender.map((t, idx) => {
+                  {titlesToRender.slice(0, titleRevealCount).map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
                     const validBullets = rawBullets.filter((b: string) => b && b.trim());
@@ -838,7 +872,7 @@ export default function CalibrationPage() {
                     const canExpand = hasBullets || hasSummary;
 
                     return (
-                      <div key={idx}>
+                      <div key={idx} style={{ animation: "cb-title-enter 0.25s ease-out" }}>
                         <div
                           className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors"
                           style={{
@@ -848,13 +882,22 @@ export default function CalibrationPage() {
                           onClick={() => {
                             if (!canExpand) return;
                             setExpandedTitleIdx(isExpanded ? null : idx);
+                            setGlowActive(false);
                           }}
+                          onMouseEnter={() => setGlowActive(false)}
                         >
                           {/* Title + score + copy row */}
                           <span className="flex items-center justify-between">
                             <span className="flex items-center gap-2 min-w-0">
                               {canExpand ? (
-                                <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
+                                <span
+                                  className="text-xs flex-shrink-0"
+                                  style={{
+                                    color: "#777",
+                                    width: 14,
+                                    animation: glowActive && titlesAllRevealed && !isExpanded ? "cb-arrow-glow 1.2s ease-in-out" : "none",
+                                  }}
+                                >{isExpanded ? "▼" : "▶"}</span>
                               ) : (
                                 <span className="text-xs flex-shrink-0" style={{ color: "#333", width: 14 }}>·</span>
                               )}
@@ -898,64 +941,38 @@ export default function CalibrationPage() {
                   })}
                 </div>
 
-                {/* Bullet anchors — staged line-by-line reveal */}
-                {hasBullets ? (() => {
-                  const obHeadingVisible = obHeadingTyped.length > 0;
-                  const leHeadingVisible = leHeadingTyped.length > 0;
-
-                  if (!obHeadingVisible && !leHeadingVisible) return null;
-
-                  return (
-                  <div className="mt-6 mb-2 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    {obHeadingVisible ? (
-                      <div className="mb-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>
-                          {obHeadingTyped}<span className="animate-pulse" style={{ opacity: obHeadingDone ? 0 : 1 }}>▍</span>
-                        </div>
-                        {obBulletCount > 0 ? (
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {operateBestItems.slice(0, obBulletCount).map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {leHeadingVisible ? (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>
-                          {leHeadingTyped}<span className="animate-pulse" style={{ opacity: leHeadingDone ? 0 : 1 }}>▍</span>
-                        </div>
-                        {leBulletCount > 0 ? (
-                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                            {loseEnergyItems.slice(0, leBulletCount).map((item, i) => <li key={i}>{item}</li>)}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  );
-                })() : null}
-
-                {/* Summary narrative — typewriter reveal, starts after bullets done */}
-                {summaryReady && summaryRawText ? (
-                  <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#E0E0E0" }}>
-                      {summaryTyped}<span className="animate-pulse" style={{ opacity: summaryDone ? 0 : 1 }}>▍</span>
+                {/* STEP 3 — Extension CTA typewriter lines */}
+                {ctaLine1Typed.length > 0 ? (
+                  <div className="mt-8 mb-1 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
+                      {ctaLine1Typed}<span className="animate-pulse" style={{ opacity: ctaLine1Done ? 0 : 1 }}>▍</span>
                     </p>
                   </div>
                 ) : null}
 
-                {/* Extension CTA */}
-                <div className="mt-8 flex flex-col items-center gap-2 py-3">
-                  <a
-                    href={EXTENSION_LANDING_PATH}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
-                  >
-                    Try our browser extension for LinkedIn or Indeed
-                  </a>
-                </div>
+                {ctaLine2Typed.length > 0 ? (
+                  <div className="mb-4 text-center">
+                    <p className="text-base sm:text-lg font-medium" style={{ color: "#CFCFCF" }}>
+                      {ctaLine2Typed}<span className="animate-pulse" style={{ opacity: ctaLine2Done ? 0 : 1 }}>▍</span>
+                    </p>
+                  </div>
+                ) : null}
+
+                {/* STEP 4 — CTA Button */}
+                {ctaButtonVisible ? (
+                  <div className="mt-4 flex flex-col items-center gap-2 py-3" style={{ animation: "cb-title-enter 0.3s ease-out" }}>
+                    <a
+                      href={EXTENSION_LANDING_PATH}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      style={{ backgroundColor: "#4ADE80", color: "#0B0B0B", cursor: "pointer", minWidth: 220 }}
+                    >
+                      Find your fit on LinkedIn
+                    </a>
+                  </div>
+                ) : null}
+
               </div>
               );
             })() : null}
