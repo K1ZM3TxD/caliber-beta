@@ -7,27 +7,66 @@ import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
 const TYPE_MS = 55;
 const START_DELAY_MS = 200;
-function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, boolean] {
+const REVEAL_LINE_MS = 180; // stagger between each bullet line reveal
+const REVEAL_HEADING_MS = 300; // pause before a new section heading
+
+function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: number = START_DELAY_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
     setTyped("");
     if (!text) return;
-    let started = false;
     let interval: any;
     const timeout = setTimeout(() => {
-      started = true;
       interval = setInterval(() => {
         setTyped(text.slice(0, ++i));
         if (i >= text.length) clearInterval(interval);
       }, msPerChar);
-    }, START_DELAY_MS);
+    }, delayMs);
     return () => {
       clearTimeout(timeout);
       if (interval) clearInterval(interval);
     };
-  }, [text, msPerChar]);
+  }, [text, msPerChar, delayMs]);
   return [typed, typed === text];
+}
+
+/**
+ * Staged line-by-line reveal. Returns [visibleCount, allDone].
+ * Each slot uses either REVEAL_LINE_MS or REVEAL_HEADING_MS based on isHeading[].
+ * Starts after initialDelayMs. totalSlots=0 means nothing to reveal.
+ */
+function useStagedReveal(
+  totalSlots: number,
+  isHeading: boolean[],
+  initialDelayMs: number = START_DELAY_MS
+): [number, boolean] {
+  const [visible, setVisible] = useState(0);
+  useEffect(() => {
+    if (totalSlots <= 0) { setVisible(0); return; }
+    setVisible(0);
+    let current = 0;
+    let cancelled = false;
+
+    function scheduleNext() {
+      if (cancelled || current >= totalSlots) return;
+      const delay = isHeading[current] ? REVEAL_HEADING_MS : REVEAL_LINE_MS;
+      setTimeout(() => {
+        if (cancelled) return;
+        current++;
+        setVisible(current);
+        scheduleNext();
+      }, delay);
+    }
+
+    const init = setTimeout(() => {
+      if (cancelled) return;
+      scheduleNext();
+    }, initialDelayMs);
+
+    return () => { cancelled = true; clearTimeout(init); };
+  }, [totalSlots, initialDelayMs]);
+  return [visible, visible >= totalSlots];
 }
 
 type AnySession = any;
@@ -347,8 +386,24 @@ export default function CalibrationPage() {
   // Typewriter hooks
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
+
+  // Staged reveal: compute bullet slots for the TITLES step
+  const _obItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
+  const _leItems: string[] = step === "TITLES" && Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
+  // Slots: [OB heading, ...OB bullets, LE heading, ...LE bullets]
+  const _revealIsHeading = useMemo(() => {
+    const h: boolean[] = [];
+    if (_obItems.length > 0) { h.push(true); _obItems.forEach(() => h.push(false)); }
+    if (_leItems.length > 0) { h.push(true); _leItems.forEach(() => h.push(false)); }
+    return h;
+  }, [_obItems.length, _leItems.length]);
+  const [revealCount, revealDone] = useStagedReveal(_revealIsHeading.length, _revealIsHeading);
+
+  // Summary typewriter starts only after all bullets have revealed
   const summaryRawText: string = step === "TITLES" && typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
-  const [summaryTyped, summaryDone] = useTypewriter(summaryRawText, TYPE_MS);
+  const summaryReady = revealDone || _revealIsHeading.length === 0;
+  const [summaryTyped, summaryDone] = useTypewriter(summaryReady ? summaryRawText : "", TYPE_MS, 400);
+
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
@@ -840,30 +895,51 @@ export default function CalibrationPage() {
                   })}
                 </div>
 
-                {/* Bullet anchors — Operate Best then Lose Energy */}
-                {hasBullets ? (
+                {/* Bullet anchors — staged line-by-line reveal */}
+                {hasBullets ? (() => {
+                  // Map revealCount to visible elements:
+                  // Slots: [OB heading, ...OB bullets, LE heading, ...LE bullets]
+                  let slot = 0;
+                  const obHeadingVisible = operateBestItems.length > 0 && revealCount > slot++;
+                  const obVisibleCount = operateBestItems.length > 0
+                    ? Math.min(operateBestItems.length, Math.max(0, revealCount - slot))
+                    : 0;
+                  if (operateBestItems.length > 0) slot += operateBestItems.length;
+                  const leHeadingVisible = loseEnergyItems.length > 0 && revealCount > slot++;
+                  const leVisibleCount = loseEnergyItems.length > 0
+                    ? Math.min(loseEnergyItems.length, Math.max(0, revealCount - slot))
+                    : 0;
+
+                  if (!obHeadingVisible && !leHeadingVisible) return null;
+
+                  return (
                   <div className="mt-6 mb-2 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    {operateBestItems.length > 0 ? (
+                    {obHeadingVisible ? (
                       <div className="mb-3">
                         <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>Operate best</div>
-                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                          {operateBestItems.map((item, i) => <li key={i}>{item}</li>)}
-                        </ul>
+                        {obVisibleCount > 0 ? (
+                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                            {operateBestItems.slice(0, obVisibleCount).map((item, i) => <li key={i}>{item}</li>)}
+                          </ul>
+                        ) : null}
                       </div>
                     ) : null}
-                    {loseEnergyItems.length > 0 ? (
+                    {leHeadingVisible ? (
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>Lose energy</div>
-                        <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
-                          {loseEnergyItems.map((item, i) => <li key={i}>{item}</li>)}
-                        </ul>
+                        {leVisibleCount > 0 ? (
+                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                            {loseEnergyItems.slice(0, leVisibleCount).map((item, i) => <li key={i}>{item}</li>)}
+                          </ul>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
-                ) : null}
+                  );
+                })() : null}
 
-                {/* Summary narrative — typewriter reveal */}
-                {summaryRawText ? (
+                {/* Summary narrative — typewriter reveal, starts after bullets done */}
+                {summaryReady && summaryRawText ? (
                   <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
                     <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#E0E0E0" }}>
                       {summaryTyped}<span className="animate-pulse" style={{ opacity: summaryDone ? 0 : 1 }}>▍</span>
