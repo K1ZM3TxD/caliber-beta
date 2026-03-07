@@ -264,10 +264,19 @@
   let lastWatchedUrl = location.href;
   let detailObserver = null;
   let detailDebounce = null;
+  let observerTarget = null;
+  let bodyGuard = null;
+  let navScoreTimer = null;
 
   // ─── Panel Creation ───────────────────────────────────────
 
   function getOrCreatePanel() {
+    // Re-append if LinkedIn's SPA removed our host from the DOM
+    if (panelHost && !document.body.contains(panelHost)) {
+      document.body.appendChild(panelHost);
+      var pe = shadow.querySelector('.cb-panel');
+      if (pe) pe.style.animation = 'none';
+    }
     if (shadow) return shadow;
 
     panelHost = document.createElement("div");
@@ -288,6 +297,33 @@
 
     document.body.appendChild(panelHost);
 
+    // Disable entry animation after it plays so re-appends don't flicker
+    setTimeout(function() {
+      if (shadow) {
+        var pe = shadow.querySelector('.cb-panel');
+        if (pe) pe.style.animation = 'none';
+      }
+    }, 300);
+
+    // Guard: watch for LinkedIn removing our host and re-append instantly
+    if (!bodyGuard) {
+      bodyGuard = new MutationObserver(function(muts) {
+        if (!panelHost || !active) return;
+        for (var i = 0; i < muts.length; i++) {
+          var removed = muts[i].removedNodes;
+          for (var j = 0; j < removed.length; j++) {
+            if (removed[j] === panelHost) {
+              document.body.appendChild(panelHost);
+              var pe2 = shadow.querySelector('.cb-panel');
+              if (pe2) pe2.style.animation = 'none';
+              return;
+            }
+          }
+        }
+      });
+      bodyGuard.observe(document.body, { childList: true });
+    }
+
     shadow.getElementById("cb-close").addEventListener("click", deactivatePanel);
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
@@ -296,6 +332,7 @@
   }
 
   function removePanel() {
+    if (bodyGuard) { bodyGuard.disconnect(); bodyGuard = null; }
     if (panelHost && panelHost.parentNode) panelHost.parentNode.removeChild(panelHost);
     panelHost = null;
     shadow = null;
@@ -490,17 +527,48 @@
     }
   }
 
+  // ─── SPA Navigation Hooks ─────────────────────────────────
+
+  var navHooksInstalled = false;
+  function installNavHooks() {
+    if (navHooksInstalled) return;
+    navHooksInstalled = true;
+    var origPush = history.pushState;
+    var origReplace = history.replaceState;
+    function onNav() {
+      if (!active) return;
+      if (location.href === lastWatchedUrl) return;
+      lastWatchedUrl = location.href;
+      lastScoredText = "";
+      console.debug("[Caliber] SPA nav detected, will re-score");
+      // Instant visual feedback: show overlay on existing results
+      if (shadow && !scoring) showLoading("Updating\u2026");
+      clearTimeout(navScoreTimer);
+      navScoreTimer = setTimeout(function() {
+        if (active && !scoring) scoreCurrentJob(true);
+      }, 600);
+    }
+    history.pushState = function() { origPush.apply(this, arguments); onNav(); };
+    history.replaceState = function() { origReplace.apply(this, arguments); onNav(); };
+    window.addEventListener("popstate", onNav);
+  }
+
   // ─── Job Change Detection ─────────────────────────────────
 
   function startWatching() {
     if (watchInterval) return;
-    // Poll: text changes + LinkedIn SPA URL changes (currentJobId param)
+    installNavHooks();
+    // Poll: text changes + fallback URL check
     watchInterval = setInterval(function () {
-      if (!active || scoring) return;
+      if (!active) return;
+      // Periodically re-attach observer if LinkedIn replaced the detail pane
+      tryObserveDetailPane();
+      if (scoring) return;
+      // Fallback URL check (nav hooks handle most SPA changes)
       if (location.href !== lastWatchedUrl) {
         lastWatchedUrl = location.href;
-        lastScoredText = ""; // force re-score on navigation
-        console.debug("[Caliber] URL changed, re-scoring");
+        lastScoredText = "";
+        console.debug("[Caliber] URL poll fallback, re-scoring");
         scoreCurrentJob(true);
         return;
       }
@@ -515,6 +583,13 @@
   }
 
   function tryObserveDetailPane() {
+    // Re-attach if LinkedIn replaced the detail pane container
+    if (detailObserver && observerTarget && !document.body.contains(observerTarget)) {
+      detailObserver.disconnect();
+      detailObserver = null;
+      observerTarget = null;
+      console.debug("[Caliber] detail pane target removed, will re-attach");
+    }
     if (detailObserver) return;
     var target =
       document.querySelector(".scaffold-layout__detail") ||
@@ -525,6 +600,7 @@
       console.debug("[Caliber] no detail pane found for MutationObserver, relying on poll");
       return;
     }
+    observerTarget = target;
     detailObserver = new MutationObserver(function () {
       if (!active || scoring) return;
       clearTimeout(detailDebounce);
@@ -543,7 +619,9 @@
   function stopWatching() {
     if (watchInterval) { clearInterval(watchInterval); watchInterval = null; }
     if (detailObserver) { detailObserver.disconnect(); detailObserver = null; }
+    observerTarget = null;
     clearTimeout(detailDebounce);
+    clearTimeout(navScoreTimer);
   }
 
   // ─── Activation / Deactivation ────────────────────────────
