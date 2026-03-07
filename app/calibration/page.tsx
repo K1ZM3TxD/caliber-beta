@@ -3,7 +3,7 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
-import { CHROME_STORE_URL, EXTENSION_LANDING_PATH } from "@/lib/extension_config";
+import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
 const TYPE_MS = 55;
 const START_DELAY_MS = 200;
@@ -136,15 +136,6 @@ function displayError(e: any): string {
   try { return JSON.stringify(e); } catch { return "Unknown error"; }
 }
 
-/** Truncate text to at most N sentences. */
-function truncateToSentences(text: string, n: number): string {
-  if (!text) return "";
-  // Split on sentence-ending punctuation followed by whitespace or end of string
-  const sentences = text.match(/[^.!?]*[.!?]+/g);
-  if (!sentences || sentences.length === 0) return text;
-  return sentences.slice(0, n).join("").trim();
-}
-
 export default function CalibrationPage() {
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -187,7 +178,6 @@ export default function CalibrationPage() {
               if (resultSession) {
                 setSession(resultSession);
                 setCookie(COOKIE_NAME, urlId);
-                setJobResult(buildJobResult(resultSession, result));
                 setStep("TITLES");
                 return;
               }
@@ -283,23 +273,6 @@ export default function CalibrationPage() {
   }
     // Titles UI state
     const [titleFeedback, setTitleFeedback] = useState("");
-    const [jobText, setJobText] = useState("");
-    const [jobBusy, setJobBusy] = useState(false);
-    const [jobResult, setJobResult] = useState<{ score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } | null>(null);
-    /** Build jobResult from session + optional fetchResult response */
-    function buildJobResult(s: any, result?: any): { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } {
-      const score = result?.score_0_to_10 ?? s?.result?.alignment?.score ?? 0;
-      const rawSummary = result?.summary ?? s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
-      const title = s?.synthesis?.titleRecommendation?.primary_title?.title
-        ?? s?.synthesis?.marketTitle
-        ?? s?.synthesis?.titleCandidates?.[0]?.title ?? "";
-      const supports_fit: string[] = Array.isArray(s?.result?.alignment?.supports_fit) ? s.result.alignment.supports_fit : [];
-      const stretch_factors: string[] = Array.isArray(s?.result?.alignment?.stretch_factors) ? s.result.alignment.stretch_factors : [];
-      const bottom_line_2s: string = typeof s?.result?.alignment?.bottom_line_2s === "string" ? s.result.alignment.bottom_line_2s : "";
-      return { score: Number(score), summary: truncateToSentences(rawSummary, 3), title, supports_fit, stretch_factors, bottom_line_2s };
-    }
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
-    const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
     async function submitTitleFeedback() {
@@ -316,55 +289,6 @@ export default function CalibrationPage() {
       } finally { setBusy(false); }
     }
 
-    /** Run the full job → score pipeline inline, staying on JOB_TEXT. */
-    async function submitJobText() {
-      const sessionId = String(session?.sessionId ?? "");
-      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-      if (!jobText.trim()) return;
-      setError(null); setJobBusy(true); setJobResult(null);
-      try {
-        // 1. Submit job text
-        let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
-        setSession(s);
-
-        // 2. Advance through intermediate states until ALIGNMENT_OUTPUT or TERMINAL_COMPLETE
-        let ticks = 0;
-        while (ticks < 12) {
-          const st = String(s?.state ?? "");
-          if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
-          s = await postEvent({ type: "ADVANCE", sessionId });
-          setSession(s);
-          ticks++;
-        }
-
-        // 3. Fire COMPUTE_ALIGNMENT_OUTPUT if we reached that state
-        if (String(s?.state) === "ALIGNMENT_OUTPUT") {
-          s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
-          setSession(s);
-        }
-
-        // 4. One more ADVANCE if needed to reach TERMINAL_COMPLETE
-        if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
-          s = await postEvent({ type: "ADVANCE", sessionId });
-          setSession(s);
-        }
-
-        // 5. Fetch result and display inline
-        if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
-          try {
-            const result = await fetchResult(sessionId);
-            setJobResult(buildJobResult(s, result));
-          } catch {
-            // Result fetch failed but session has results — extract from session
-            setJobResult(buildJobResult(s));
-          }
-        } else {
-          setError(`Pipeline did not reach results (state: ${String(s?.state)}).`);
-        }
-      } catch (e: any) {
-        setError(displayError(e));
-      } finally { setJobBusy(false); }
-    }
   const canContinueResume = !!selectedFile && !busy;
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
@@ -377,55 +301,6 @@ export default function CalibrationPage() {
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
       : ""
   );
-
-  // Centering: use min-h-screen for main flex container
-  // ...existing code...
-// FitAccordion for inline fit score analysis
-function FitAccordion({ jobResult }: { jobResult: { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } }) {
-  const [expanded, setExpanded] = useState(true);
-  useEffect(() => { setExpanded(true); }, [jobResult]); // expand by default on new result
-  return (
-    <div className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors" style={{ backgroundColor: expanded ? "#1A1A1A" : "#141414", border: expanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)" }}>
-      <span className="flex items-center justify-between" onClick={() => setExpanded(!expanded)}>
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{expanded ? "▼" : "▶"}</span>
-          <span className="text-sm font-semibold truncate" style={{ color: "#4ADE80" }}>Fit Score</span>
-        </span>
-        <span className="flex items-center gap-2 flex-shrink-0 ml-2">
-          <span className="text-sm font-mono font-bold" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
-        </span>
-      </span>
-      {expanded ? (
-        <div className="px-2 py-3">
-          <div className="text-center mb-4">
-            <span className="text-3xl font-bold font-mono" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
-          </div>
-          {jobResult.supports_fit.length > 0 ? (
-            <div className="mb-2">
-              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
-              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
-                {jobResult.supports_fit.map((d, i) => <li key={i}><strong>{d}</strong></li>)}
-              </ul>
-            </div>
-          ) : null}
-          {jobResult.stretch_factors.length > 0 ? (
-            <div className="mb-2">
-              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#F59E0B" }}>Stretch factors</div>
-              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
-                {jobResult.stretch_factors.map((c, i) => <li key={i}><strong>{c}</strong></li>)}
-              </ul>
-            </div>
-          ) : null}
-          {jobResult.bottom_line_2s ? (
-            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.bottom_line_2s}</div>
-          ) : jobResult.summary ? (
-            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.summary}</div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
   // Auto-advance for PROCESSING (use returned session, not stale state)
   useEffect(() => {
@@ -824,6 +699,38 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
               return (
               <div className="w-full max-w-2xl pb-12">
+                {/* Pattern Summary */}
+                {(() => {
+                  const patternSummary: string = typeof session?.synthesis?.patternSummary === "string" ? session.synthesis.patternSummary : "";
+                  const operateBestItems: string[] = Array.isArray(session?.synthesis?.operateBest) ? session.synthesis.operateBest : [];
+                  const loseEnergyItems: string[] = Array.isArray(session?.synthesis?.loseEnergy) ? session.synthesis.loseEnergy : [];
+                  const hasPatternData = patternSummary.length > 0 || operateBestItems.length > 0 || loseEnergyItems.length > 0;
+                  if (!hasPatternData) return null;
+                  return (
+                    <div className="mt-4 mb-6 rounded-md px-5 py-4 text-left" style={{ backgroundColor: "#141414", border: "1px solid rgba(242,242,242,0.10)" }}>
+                      {patternSummary ? (
+                        <p className="text-sm sm:text-base leading-relaxed mb-4" style={{ color: "#E0E0E0" }}>{patternSummary}</p>
+                      ) : null}
+                      {operateBestItems.length > 0 ? (
+                        <div className="mb-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#4ADE80" }}>Operate best</div>
+                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                            {operateBestItems.map((item, i) => <li key={i}>{item}</li>)}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {loseEnergyItems.length > 0 ? (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#F59E0B" }}>Lose energy</div>
+                          <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc" }}>
+                            {loseEnergyItems.map((item, i) => <li key={i}>{item}</li>)}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })()}
+
                 {/* Archetype label */}
                 {archetypeLabel ? (
                   <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
@@ -832,7 +739,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Fallback: no title rows available */}
                 {titlesToRender.length === 0 ? (
                   <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    Your title recommendations are still being generated. Try pasting a job description below to get your fit score.
+                    Your title recommendations are still being generated.
                   </div>
                 ) : null}
 
@@ -908,111 +815,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   })}
                 </div>
 
-                {/* Job area — Fit accordion replaces textarea when results exist */}
-                {jobResult ? (
-                  <div className="mt-8">
-                    <FitAccordion jobResult={jobResult} />
-                    <div className="mt-5 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
-                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
-                      >
-                        ← Try another job
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mt-8">
-                      <div className="flex flex-col items-center mb-2 gap-3 py-2">
-                        <a
-                          href={CHROME_STORE_URL ?? EXTENSION_LANDING_PATH}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                          style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
-                        >
-                          Try our browser extension for LinkedIn or Indeed
-                        </a>
-                        <span className="text-lg font-medium" style={{ color: "#888" }}>or</span>
-                        <span className="text-base font-medium" style={{ color: "#bbb" }}>Paste job description below</span>
-                      </div>
-                      <textarea
-                        value={jobText}
-                        onChange={e => setJobText(e.target.value)}
-                        rows={6}
-                        className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
-                        style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
-                        placeholder="Paste job description here…"
-                        disabled={busy || jobBusy}
-                      />
-                    </div>
-                    {jobBusy ? (
-                      <div className="mt-4 flex items-center justify-center gap-2">
-                        <Spinner />
-                        <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
-                      </div>
-                    ) : null}
-                    <div className="mt-7 flex flex-col items-center gap-2">
-                      {jobText.trim().length < 20 && !(busy || jobBusy) ? (
-                        <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
-                        disabled={busy || jobBusy || jobText.trim().length < 20}
-                        onClick={async () => {
-                          const sessionId = String(session?.sessionId ?? "");
-                          if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-                          setError(null); setBusy(true); setJobBusy(true);
-                          try {
-                            const curState = String(session?.state ?? "");
-                            if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
-                              await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
-                            }
-                            let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
-                            setSession(s);
-                            let ticks = 0;
-                            while (ticks < 12) {
-                              const st = String(s?.state ?? "");
-                              if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
-                              s = await postEvent({ type: "ADVANCE", sessionId });
-                              setSession(s);
-                              ticks++;
-                            }
-                            if (String(s?.state) === "ALIGNMENT_OUTPUT") {
-                              s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
-                              setSession(s);
-                            }
-                            if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
-                              s = await postEvent({ type: "ADVANCE", sessionId });
-                              setSession(s);
-                            }
-                            if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
-                              try {
-                                const result = await fetchResult(sessionId);
-                                setJobResult(buildJobResult(s, result));
-                              } catch {
-                                setJobResult(buildJobResult(s));
-                              }
-                            }
-                          } catch (e: any) {
-                            if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-                              setError("A job description is required.");
-                            } else {
-                              setError(displayError(e));
-                            }
-                          } finally { setBusy(false); setJobBusy(false); }
-                        }}
-                      >
-                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
-                      </button>
-                    </div>
-                  </>
-                )}
+                {/* Extension CTA */}
+                <div className="mt-8 flex flex-col items-center gap-2 py-3">
+                  <a
+                    href={EXTENSION_LANDING_PATH}
+                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
+                  >
+                    Try our browser extension for LinkedIn or Indeed
+                  </a>
+                </div>
               </div>
               );
             })() : null}
