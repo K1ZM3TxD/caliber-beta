@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score",
-  "version": "0.1.0",
+  "version": "0.3.4",
   "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [

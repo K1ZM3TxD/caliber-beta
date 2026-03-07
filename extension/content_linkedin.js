@@ -4,6 +4,8 @@
 (function () {
   const API_BASE = "https://www.caliber-app.com";
   const PANEL_HOST_ID = "caliber-panel-host";
+  const PANEL_VERSION = "0.3.4";
+  console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
 
@@ -354,6 +356,8 @@
     getOrCreatePanel();
     hideOverlay();
 
+    console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
+
     var score = Number(data.score_0_to_10) || 0;
     var decision = getDecision(score);
 
@@ -584,7 +588,7 @@
   var PANEL_HTML = [
     '<div class="cb-panel">',
     '  <div class="cb-header">',
-    '    <span class="cb-logo">Caliber</span>',
+    '    <span class="cb-logo">Caliber <small style="font-size:9px;color:#666;font-weight:400">v' + PANEL_VERSION + '</small></span>',
     '    <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '  </div>',
     '  <div id="cb-loading" class="cb-body">',
