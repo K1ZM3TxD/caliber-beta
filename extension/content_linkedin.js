@@ -193,6 +193,9 @@
   let scoring = false;
   let lastScoredText = "";
   let watchInterval = null;
+  let lastWatchedUrl = location.href;
+  let detailObserver = null;
+  let detailDebounce = null;
 
   // ─── Panel Creation ───────────────────────────────────────
 
@@ -230,6 +233,14 @@
     shadow = null;
   }
 
+  // ─── Decision Label ───────────────────────────────────────
+
+  function getDecision(score) {
+    if (score >= 7.5) return { label: "Strong Fit", cls: "cb-decision-strong" };
+    if (score >= 5) return { label: "Stretch", cls: "cb-decision-stretch" };
+    return { label: "Skip", cls: "cb-decision-skip" };
+  }
+
   // ─── Panel State Rendering ────────────────────────────────
 
   function setPanelState(stateId) {
@@ -241,32 +252,88 @@
 
   function showLoading(msg) {
     getOrCreatePanel();
-    shadow.getElementById("cb-loading-text").textContent = msg || "Computing fit score\u2026";
-    setPanelState("cb-loading");
+    // If results are already showing, overlay a loading indicator instead of hiding
+    var resultsEl = shadow.getElementById("cb-results");
+    var loadingEl = shadow.getElementById("cb-loading");
+    var overlayEl = shadow.getElementById("cb-rescore-overlay");
+    if (resultsEl && resultsEl.style.display !== "none") {
+      // Keep results visible, show overlay
+      if (overlayEl) {
+        overlayEl.querySelector(".cb-overlay-text").textContent = msg || "Rescoring\u2026";
+        overlayEl.style.display = "";
+      }
+      if (loadingEl) loadingEl.style.display = "none";
+    } else {
+      // No previous results — show normal loading
+      shadow.getElementById("cb-loading-text").textContent = msg || "Computing fit score\u2026";
+      if (overlayEl) overlayEl.style.display = "none";
+      setPanelState("cb-loading");
+    }
+  }
+
+  function hideOverlay() {
+    if (!shadow) return;
+    var overlayEl = shadow.getElementById("cb-rescore-overlay");
+    if (overlayEl) overlayEl.style.display = "none";
   }
 
   function showError(msg) {
     getOrCreatePanel();
+    hideOverlay();
     shadow.getElementById("cb-error-msg").textContent = msg;
     setPanelState("cb-error");
   }
 
   function showResults(data) {
     getOrCreatePanel();
+    hideOverlay();
 
-    const scoreEl = shadow.getElementById("cb-score");
-    const score = Number(data.score_0_to_10) || 0;
+    var score = Number(data.score_0_to_10) || 0;
+    var decision = getDecision(score);
+
+    // Score + decision label
+    var scoreEl = shadow.getElementById("cb-score");
     scoreEl.textContent = data.score_0_to_10;
-    scoreEl.style.color = score >= 7 ? "#4ADE80" : score >= 4 ? "#FBBF24" : "#EF4444";
+    scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
+    var decEl = shadow.getElementById("cb-decision");
+    decEl.textContent = decision.label;
+    decEl.className = "cb-decision " + decision.cls;
+
+    // Supports
     renderList(shadow.getElementById("cb-supports"), data.supports_fit || []);
+
+    // Stretch factors
     renderList(shadow.getElementById("cb-stretch"), data.stretch_factors || []);
 
+    // Bottom line
     shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
 
-    const link = shadow.getElementById("cb-link");
+    // Nearby roles (only for stretch/skip)
+    var nearbySection = shadow.getElementById("cb-nearby-section");
+    var nearbyList = shadow.getElementById("cb-nearby");
+    if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
+      nearbySection.style.display = "";
+      nearbyList.innerHTML = "";
+      for (var i = 0; i < data.nearby_roles.length; i++) {
+        var role = data.nearby_roles[i];
+        var li = document.createElement("li");
+        var link = document.createElement("a");
+        link.textContent = role.title;
+        link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(role.title);
+        link.target = "_self";
+        link.className = "cb-nearby-link";
+        li.appendChild(link);
+        nearbyList.appendChild(li);
+      }
+    } else {
+      nearbySection.style.display = "none";
+    }
+
+    // Caliber link
+    var linkEl = shadow.getElementById("cb-link");
     if (data.calibrationId) {
-      link.href = API_BASE + "/calibration?calibrationId=" + data.calibrationId;
+      linkEl.href = API_BASE + "/calibration?calibrationId=" + data.calibrationId;
     }
 
     setPanelState("cb-results");
@@ -325,7 +392,7 @@
       }
       console.log("[caliber] scoring with " + text.length + " chars");
 
-      if (!force && text === lastScoredText) return;
+      if (!force && text === lastScoredText) { hideOverlay(); return; }
       lastScoredText = text;
 
       showLoading("Computing fit score\u2026");
@@ -357,21 +424,56 @@
 
   function startWatching() {
     if (watchInterval) return;
-    // Watch for job navigation: when the URL or description content changes, re-score.
-    var lastUrl = location.href;
+    // Poll: text changes + LinkedIn SPA URL changes (currentJobId param)
     watchInterval = setInterval(function () {
       if (!active || scoring) return;
-      var urlChanged = location.href !== lastUrl;
-      if (urlChanged) lastUrl = location.href;
+      if (location.href !== lastWatchedUrl) {
+        lastWatchedUrl = location.href;
+        lastScoredText = ""; // force re-score on navigation
+        console.debug("[Caliber] URL changed, re-scoring");
+        scoreCurrentJob(true);
+        return;
+      }
       var text = extractJobText();
-      if (text && text.length >= MIN_SCORE_CHARS && (text !== lastScoredText || urlChanged)) {
+      if (text && text.length >= MIN_SCORE_CHARS && text !== lastScoredText) {
         scoreCurrentJob(false);
       }
     }, 2000);
+
+    // MutationObserver on the detail pane for faster job-switch detection
+    tryObserveDetailPane();
+  }
+
+  function tryObserveDetailPane() {
+    if (detailObserver) return;
+    var target =
+      document.querySelector(".scaffold-layout__detail") ||
+      document.querySelector(".jobs-search__job-details") ||
+      document.querySelector("#job-details") ||
+      document.querySelector('[class*="jobs-search__job-details"]');
+    if (!target) {
+      console.debug("[Caliber] no detail pane found for MutationObserver, relying on poll");
+      return;
+    }
+    detailObserver = new MutationObserver(function () {
+      if (!active || scoring) return;
+      clearTimeout(detailDebounce);
+      detailDebounce = setTimeout(function () {
+        var text = extractJobText();
+        if (text && text.length >= MIN_SCORE_CHARS && text !== lastScoredText) {
+          console.debug("[Caliber] detail pane mutation detected, re-scoring");
+          scoreCurrentJob(false);
+        }
+      }, 1000);
+    });
+    detailObserver.observe(target, { childList: true, subtree: true });
+    console.debug("[Caliber] MutationObserver attached to detail pane");
   }
 
   function stopWatching() {
     if (watchInterval) { clearInterval(watchInterval); watchInterval = null; }
+    if (detailObserver) { detailObserver.disconnect(); detailObserver = null; }
+    clearTimeout(detailDebounce);
   }
 
   // ─── Activation / Deactivation ────────────────────────────
@@ -429,21 +531,32 @@
     '    <button id="cb-retry" class="cb-btn cb-btn-s">Recalculate</button>',
     '  </div>',
     '  <div id="cb-results" class="cb-body" style="display:none">',
-    '    <div class="cb-score-row">',
-    '      <span id="cb-score" class="cb-score-num">\u2014</span>',
-    '      <span class="cb-score-of">/10</span>',
+    '    <div id="cb-rescore-overlay" class="cb-overlay" style="display:none">',
+    '      <div class="cb-spinner cb-spinner-sm"></div>',
+    '      <span class="cb-overlay-text">Rescoring\u2026</span>',
+    '    </div>',
+    '    <div class="cb-hero">',
+    '      <div class="cb-score-row">',
+    '        <span id="cb-score" class="cb-score-num">\u2014</span>',
+    '        <span class="cb-score-of">/10</span>',
+    '      </div>',
+    '      <div id="cb-decision" class="cb-decision"></div>',
     '    </div>',
     '    <div class="cb-section">',
-    '      <div class="cb-sec-title">Supports the fit</div>',
+    '      <div class="cb-sec-title">\u2713 Supports the fit</div>',
     '      <ul id="cb-supports" class="cb-bullets"></ul>',
     '    </div>',
     '    <div class="cb-section">',
-    '      <div class="cb-sec-title">Stretch factors</div>',
+    '      <div class="cb-sec-title">\u26a0 Stretch factors</div>',
     '      <ul id="cb-stretch" class="cb-bullets cb-stretch"></ul>',
     '    </div>',
     '    <div class="cb-section">',
     '      <div class="cb-sec-title">Bottom line</div>',
     '      <p id="cb-bottomline" class="cb-bltext"></p>',
+    '    </div>',
+    '    <div id="cb-nearby-section" class="cb-section cb-nearby-section" style="display:none">',
+    '      <div class="cb-sec-title">\u2192 Better nearby roles</div>',
+    '      <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '    </div>',
     '    <div class="cb-actions">',
     '      <button id="cb-recalc" class="cb-btn cb-btn-s">Recalculate</button>',
@@ -456,7 +569,7 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 340px; max-height: 480px; overflow-y: auto;",
+    "  width: 350px; max-height: 520px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -473,15 +586,15 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-logo { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }",
+    ".cb-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }",
     ".cb-close-btn {",
     "  background: none; border: none; color: #888; font-size: 20px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 16px; }",
+    ".cb-body { padding: 14px 16px; position: relative; }",
     ".cb-spinner {",
     "  width: 24px; height: 24px;",
     "  border: 3px solid rgba(242,242,242,0.12);",
@@ -489,6 +602,7 @@
     "  animation: cb-spin 0.7s linear infinite;",
     "  margin: 12px auto 10px;",
     "}",
+    ".cb-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }",
     "@keyframes cb-spin { to { transform: rotate(360deg); } }",
     ".cb-status { text-align: center; color: #AFAFAF; font-size: 13px; }",
     ".cb-error-icon {",
@@ -497,28 +611,60 @@
     "  display: flex; align-items: center; justify-content: center;",
     "  font-weight: 700; font-size: 16px; margin: 8px auto;",
     "}",
-    ".cb-score-row {",
-    "  display: flex; align-items: baseline; justify-content: center;",
-    "  gap: 2px; margin: 4px 0 14px;",
+    ".cb-overlay {",
+    "  position: absolute; inset: 0; z-index: 10;",
+    "  background: rgba(11,11,11,0.75); border-radius: 12px;",
+    "  display: flex; align-items: center; justify-content: center; gap: 8px;",
     "}",
-    ".cb-score-num { font-size: 38px; font-weight: 800; letter-spacing: -0.03em; }",
-    ".cb-score-of { font-size: 16px; font-weight: 500; color: #888; }",
-    ".cb-section { margin-bottom: 12px; }",
+    ".cb-overlay-text { font-size: 13px; color: #AFAFAF; }",
+    ".cb-hero {",
+    "  display: flex; align-items: center; gap: 12px;",
+    "  margin-bottom: 12px; padding-bottom: 10px;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "}",
+    ".cb-score-row {",
+    "  display: flex; align-items: baseline; gap: 1px;",
+    "}",
+    ".cb-score-num { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-of { font-size: 14px; font-weight: 500; color: #888; }",
+    ".cb-decision {",
+    "  font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 6px;",
+    "  letter-spacing: 0.01em;",
+    "}",
+    ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
+    ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
+    ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
+    ".cb-section { margin-bottom: 10px; }",
     ".cb-sec-title {",
     "  font-size: 11px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; color: #888; margin-bottom: 4px;",
+    "  letter-spacing: 0.04em; color: #888; margin-bottom: 3px;",
     "}",
     ".cb-bullets { list-style: none; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 14px;",
-    "  font-size: 13px; color: #CFCFCF; margin-bottom: 3px; line-height: 1.4;",
+    "  font-size: 13px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
-    ".cb-bltext { font-size: 13px; color: #CFCFCF; line-height: 1.5; }",
-    ".cb-actions { display: flex; gap: 8px; margin-top: 14px; }",
+    ".cb-bltext { font-size: 13px; color: #CFCFCF; line-height: 1.4; }",
+    ".cb-nearby-section {",
+    "  background: rgba(255,255,255,0.03); border-radius: 8px;",
+    "  padding: 10px 12px; margin-top: 2px;",
+    "}",
+    ".cb-nearby-section .cb-sec-title { color: #60A5FA; }",
+    ".cb-nearby-list { list-style: none; }",
+    ".cb-nearby-list li {",
+    "  padding: 4px 0; font-size: 13px;",
+    "}",
+    ".cb-nearby-link {",
+    "  color: #93C5FD; text-decoration: none; cursor: pointer;",
+    "  border-bottom: 1px solid rgba(147,197,253,0.25);",
+    "  transition: color 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    ".cb-actions { display: flex; gap: 8px; margin-top: 12px; }",
     ".cb-btn {",
     "  flex: 1; padding: 7px 10px; border: none; border-radius: 6px;",
     "  font-size: 13px; font-weight: 600; cursor: pointer;",
