@@ -59,13 +59,40 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 - **Workflow lesson:** multiple parallel extension branches caused renderer/persistence/packaging regressions — only one major extension branch at a time.
 - **Documentation rule adopted:** after major PM sessions, create a documentation task before next PM reload.
 
-### Phase 2 Direction (Deferred — not current scope)
+### Phase-2 Extension Overlay UX Contract (Finalized 2026-03-08)
 
-- Persistent LinkedIn results-list overlay with score badges on job cards.
-- Sidebar becomes decision console / summary layer.
-- Clicked job controls active sidebar details.
-- Possible next/previous navigation later.
-- Preview-text scoring: experiment only, after beta stability.
+UX design locked. Implementation deferred until scoring credibility and stable beta are resolved.
+
+**Listing Badge:** Each LinkedIn job card displays a Caliber badge (icon + color-coded score) under the company logo.
+- Format: `[Caliber Icon] Score` — e.g. 🟢 8.4
+- Color bands: Green (8.0–10.0, strong fit) · Yellow (6.5–7.9, possible fit) · Gray (0–6.4, skip)
+- Exactly three bands. No additional tiers.
+
+**Loading Placeholder:** When a job card becomes visible, immediately render `[Caliber Icon] …` before scoring completes. Replace with final badge when done. Purpose: eliminate perceived latency and signal scoring in progress.
+
+**Progressive Visible-Job Scoring:** Score jobs based on viewport visibility.
+- Page loads → score first ~10 visible jobs → user scrolls → score newly visible jobs.
+- Must NOT score the entire search page at once.
+
+**Sidecard Trust Header:** Sidecard displays the job currently being scored.
+- Required: Job Title, Company Name.
+- Optional: Company logo.
+- Location intentionally excluded (clutter).
+
+**Sidecard Content:** Minimal structure:
+- Job Title / Company Name
+- Caliber Score
+- Supports (bullets)
+- Stretch (bullets)
+- Bottom Line (short paragraph)
+- No additional LinkedIn metadata duplicated.
+
+**Future Features (documented, NOT Phase-2 scope):**
+- "Show only 7+ matches" filter
+- Adaptive search suggestions when few strong matches appear
+- Deep scoring vs preview scoring experiment
+- Next/previous job navigation
+- Sidebar tools (resume tailoring, interview prep)
 
 ## Next Tasks (locked order)
 
@@ -80,7 +107,10 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 - 5-title discovery expansion / adjacent titles
 - Static "How we arrived at these titles" explainer on titles page
 - Adaptive search suggestions
-- Phase 2 overlay/list scoring (persistent LinkedIn results-list overlay, score badges on job cards, sidebar decision console)
+- Phase 2 overlay/list scoring — UX contract finalized (see above), implementation blocked until scoring credibility resolved
+- "Show only 7+ matches" filter
+- Deep scoring vs preview scoring experiment
 - Next/previous job navigation
+- Sidebar tools (resume tailoring, interview prep)
 - Preview-text scoring (experiment only)
 - Post-score LLM dialogue mode toggle

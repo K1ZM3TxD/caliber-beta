@@ -1,5 +1,26 @@
 ---
 
+Phase-2 Extension Overlay UX Contract Finalized (2026-03-08)
+---
+DONE:
+- Phase-2 LinkedIn overlay UX design locked and documented
+- Listing badge: Caliber icon + color score under company logo on each job card
+- Color bands: Green (8.0–10.0) · Yellow (6.5–7.9) · Gray (0–6.4)
+- Loading placeholder: immediate `[Icon] …` badge before scoring completes
+- Progressive visible-job scoring: ~10 visible jobs first, then on scroll
+- Sidecard trust header: Job Title + Company Name (location excluded)
+- Sidecard content: score + supports + stretch + bottom line, no extra metadata
+- Future ideas documented but explicitly out of Phase-2 scope
+
+BLOCKED:
+- Implementation blocked until scoring credibility (#25) is resolved and PM unblocks
+
+NEXT:
+- Scoring credibility fix remains top priority
+- Phase-2 overlay implementation only after PM explicitly unblocks
+
+---
+
 BREAK + UPDATE (2026-03-08)
 ---
 DONE (this sprint):

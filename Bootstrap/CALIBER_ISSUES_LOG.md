@@ -169,3 +169,21 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Production site + extension verified working live.
   - This must not regress. See `ENVIRONMENT_SPLIT.md` and `CALIBER_EXECUTION_CONTRACT.md` environment rules.
   - Guard: if any code change reintroduces multi-host fallback or cross-environment host permissions, treat as regression.
+
+30. Extension Phase 2 — listings-page overlay (UX contract finalized) — **BLOCKED** (2026-03-08, product initiative)
+  - UX design finalized and documented in CALIBER_CONTEXT_SUMMARY.md (Phase-2 Extension Overlay UX Contract).
+  - Implementation blocked until scoring credibility (#25) is resolved and PM explicitly unblocks.
+  - Key UX decisions locked:
+    - Listing badge: Caliber icon + color-coded score under company logo on each LinkedIn job card.
+    - Color bands: Green 8.0–10.0, Yellow 6.5–7.9, Gray 0–6.4. Exactly three bands.
+    - Loading placeholder: `[Caliber Icon] …` rendered immediately on visible job cards before scoring completes.
+    - Progressive scoring: score ~10 visible jobs first, then newly visible on scroll. Never score entire page at once.
+    - Sidecard trust header: Job Title + Company Name (location excluded, optional logo).
+    - Sidecard content: score, supports bullets, stretch bullets, bottom line. No duplicated LinkedIn metadata.
+  - Future features documented but explicitly out of Phase-2 scope:
+    - "Show only 7+ matches" filter
+    - Adaptive search suggestions
+    - Deep scoring vs preview scoring experiment
+    - Next/previous job navigation
+    - Sidebar tools (resume tailoring, interview prep)
+  - Supersedes #19 (original Phase 2 entry, now captured with full UX contract).
