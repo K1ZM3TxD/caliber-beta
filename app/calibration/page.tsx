@@ -586,7 +586,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto">
       <div className="w-full max-w-[760px] px-6">
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        <style>{`
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+          @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+          .cb-title-card:hover { border-color: rgba(242,242,242,0.16) !important; background-color: #161616 !important; }
+        `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Static header area */}
@@ -867,21 +872,32 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 3);
 
               return (
-              <div className="w-full max-w-2xl pb-12">
-                {/* Archetype label */}
-                {archetypeLabel ? (
-                  <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
-                ) : null}
+              <div className="w-full max-w-2xl pb-20">
+                {/* Section heading */}
+                <div className="mt-2 mb-2 flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2.5">
+                    <span style={{ color: "#4ADE80", fontSize: "1.1rem", lineHeight: 1 }}>✓</span>
+                    <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Titles</h2>
+                  </div>
+                  {archetypeLabel ? (
+                    <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#555" }}>{archetypeLabel}</span>
+                  ) : null}
+                </div>
+
+                {/* Typewriter explanation */}
+                <div className="mb-7" style={{ minHeight: "2.5em" }}>
+                  <p className="text-sm leading-relaxed" style={{ color: "#777" }}>{titleTypewriter}</p>
+                </div>
 
                 {/* Fallback: no title rows available */}
                 {titlesToRender.length === 0 ? (
-                  <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
+                  <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "#141414", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.08)" }}>
                     Your title recommendations are still being generated. Try pasting a job description below to get your fit score.
                   </div>
                 ) : null}
 
                 {/* Title rows with expand/collapse */}
-                <div className="mt-2 space-y-1">
+                <div className="space-y-2">
                   {titlesToRender.map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
@@ -892,12 +908,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     const canExpand = hasBullets || hasSummary;
 
                     return (
-                      <div key={idx}>
+                      <div
+                        key={idx}
+                        style={{ animation: `cb-title-enter 0.35s ease-out ${idx * 0.12}s both` }}
+                      >
                         <div
-                          className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors"
+                          className={`cb-title-card flex flex-col rounded-lg px-4 py-3.5 cursor-pointer select-none transition-all duration-150`}
                           style={{
-                            backgroundColor: isExpanded ? "#1A1A1A" : "#141414",
-                            border: isExpanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)",
+                            backgroundColor: isExpanded ? "#1A1A1A" : "#121212",
+                            border: isExpanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.06)",
                           }}
                           onClick={() => {
                             if (!canExpand) return;
@@ -906,26 +925,26 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         >
                           {/* Title + score + copy row */}
                           <span className="flex items-center justify-between">
-                            <span className="flex items-center gap-2 min-w-0">
+                            <span className="flex items-center gap-2.5 min-w-0">
                               {canExpand ? (
-                                <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
+                                <span className="text-xs flex-shrink-0 transition-colors" style={{ color: isExpanded ? "#999" : "#555", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
                               ) : (
                                 <span className="text-xs flex-shrink-0" style={{ color: "#333", width: 14 }}>·</span>
                               )}
-                              <span className={`text-sm ${idx === 0 ? "font-semibold" : ""} truncate`} style={{ color: "#F2F2F2" }}>{t.title}</span>
+                              <span className={`text-sm sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"} truncate`} style={{ color: "#F2F2F2" }}>{t.title}</span>
                             </span>
-                            <span className="flex items-center gap-2 flex-shrink-0 ml-2">
-                              <span className="text-sm font-mono font-medium" style={{ color: idx === 0 ? "#4ADE80" : "#AFAFAF" }}>{t.fit_0_to_10}/10</span>
+                            <span className="flex items-center gap-3 flex-shrink-0 ml-3">
+                              <span className="text-sm font-mono font-semibold tabular-nums" style={{ color: idx === 0 ? "#4ADE80" : "#777" }}>{t.fit_0_to_10}/10</span>
                               <button
                                 type="button"
                                 aria-label={copiedIndex === idx ? "Copied" : "Copy title"}
                                 onClick={(e) => { e.stopPropagation(); handleCopyTitle(idx, t.title); }}
-                                className="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+                                className="px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150"
                                 style={{
-                                  background: copiedIndex === idx ? "#4ADE80" : "#232323",
-                                  color: copiedIndex === idx ? "#232323" : "#AFAFAF",
-                                  border: "none",
-                                  minWidth: 52,
+                                  background: copiedIndex === idx ? "#4ADE80" : "rgba(242,242,242,0.06)",
+                                  color: copiedIndex === idx ? "#0B0B0B" : "#888",
+                                  border: copiedIndex === idx ? "1px solid #4ADE80" : "1px solid rgba(242,242,242,0.08)",
+                                  minWidth: 54,
                                   cursor: "pointer",
                                 }}
                               >
@@ -936,13 +955,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         </div>
                         {/* Expanded details — summary first, then bullets */}
                         {isExpanded && canExpand ? (
-                          <div className="px-6 py-4 sm:px-7 sm:py-5 rounded-b-md mb-1 text-left" style={{ backgroundColor: "#1A1A1A", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
+                          <div className="px-6 py-4 sm:px-7 sm:py-5 rounded-b-lg mb-1 text-left" style={{ backgroundColor: "#161616", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
                             {hasSummary ? (
-                              <p className="text-sm sm:text-base leading-relaxed sm:leading-7 mb-3" style={{ color: "#E0E0E0", textAlign: "left" }}>{summaryText}</p>
+                              <p className="text-sm sm:text-base leading-relaxed sm:leading-7 mb-3" style={{ color: "#D0D0D0", textAlign: "left" }}>{summaryText}</p>
                             ) : null}
                             {hasBullets ? (
-                              <ul className="text-sm sm:text-base leading-relaxed sm:leading-7 pl-5 space-y-1 text-left" style={{ color: "#B0B0B0", listStyleType: "disc" }}>
-                                {validBullets.map((b: string, bi: number) => <li key={bi} className="font-bold text-left">{b}</li>)}
+                              <ul className="text-sm sm:text-base leading-relaxed sm:leading-7 pl-5 space-y-1 text-left" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                                {validBullets.map((b: string, bi: number) => <li key={bi} className="font-semibold text-left">{b}</li>)}
                               </ul>
                             ) : null}
                           </div>
@@ -952,16 +971,21 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   })}
                 </div>
 
+                {/* Divider */}
+                <div className="mt-10 mb-8 flex items-center gap-4">
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.10), transparent)" }} />
+                </div>
+
                 {/* Job area — Fit accordion replaces textarea when results exist */}
                 {jobResult ? (
-                  <div className="mt-8">
+                  <div style={{ animation: "cb-fade-up 0.3s ease-out" }}>
                     <FitAccordion jobResult={jobResult} />
-                    <div className="mt-5 flex justify-center">
+                    <div className="mt-6 flex justify-center">
                       <button
                         type="button"
                         onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
-                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                        className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ backgroundColor: "rgba(242,242,242,0.07)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)" }}
                       >
                         ← Try another job
                       </button>
@@ -969,27 +993,53 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : (
                   <>
-                    <div className="mt-8">
-                      <div className="flex flex-col items-center mb-4 gap-1.5 py-3">
-                        <a
-                          href="/extension"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                          style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
-                        >
-                          Try our browser extension for LinkedIn or Indeed
-                        </a>
-                        <span className="text-lg font-medium" style={{ color: "#888" }}>or</span>
-                        <span className="text-base font-medium" style={{ color: "#bbb" }}>Paste job description below</span>
-                      </div>
+                    {/* Primary CTA: Extension card */}
+                    <div
+                      className="rounded-xl px-6 py-7 sm:px-8 sm:py-8 flex flex-col items-center text-center"
+                      style={{
+                        background: "linear-gradient(180deg, rgba(74,222,128,0.05) 0%, rgba(74,222,128,0.01) 100%)",
+                        border: "1px solid rgba(74,222,128,0.15)",
+                        animation: "cb-fade-up 0.4s ease-out 0.35s both",
+                      }}
+                    >
+                      <h3 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Score jobs as you browse</h3>
+                      <p className="text-sm mt-1.5 mb-5" style={{ color: "#888", maxWidth: 340 }}>The Caliber extension scores LinkedIn and Indeed listings against your pattern — automatically.</p>
+
+                      <a
+                        href="/extension"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group inline-flex items-center justify-center gap-2.5 rounded-lg px-7 py-3.5 text-sm sm:text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{
+                          background: "#4ADE80",
+                          color: "#0B0B0B",
+                          cursor: "pointer",
+                          minWidth: 240,
+                          border: "1px solid #4ADE80",
+                          boxShadow: "0 4px 24px rgba(74,222,128,0.15)",
+                        }}
+                      >
+                        <span>Get the Caliber Extension</span>
+                        <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">→</span>
+                      </a>
+                      <p className="mt-3 text-xs" style={{ color: "#555" }}>Chrome · Works on LinkedIn and Indeed</p>
+                    </div>
+
+                    {/* Secondary: Paste a job */}
+                    <div className="mt-10 flex items-center gap-4 mb-4">
+                      <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
+                      <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: "#444" }}>or score a job manually</span>
+                      <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
+                    </div>
+
+                    <div>
                       <textarea
                         value={jobText}
                         onChange={e => setJobText(e.target.value)}
-                        rows={6}
-                        className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
-                        style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
-                        placeholder="Paste job description here…"
+                        rows={4}
+                        className="w-full rounded-lg px-4 py-3 text-sm placeholder:text-[#444] focus:outline-none transition-colors duration-200"
+                        style={{ backgroundColor: "#0F0F0F", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.06)", boxShadow: "none", resize: "vertical" }}
+                        placeholder="Paste a job description here…"
                         disabled={busy || jobBusy}
                       />
                     </div>
@@ -999,14 +1049,17 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
                       </div>
                     ) : null}
-                    <div className="mt-7 flex flex-col items-center gap-2">
-                      {jobText.trim().length < 20 && !(busy || jobBusy) ? (
-                        <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
-                      ) : null}
+                    <div className="mt-4 flex justify-center">
                       <button
                         type="button"
-                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
+                        className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium transition-all ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{
+                          backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.06)" : "rgba(242,242,242,0.12)",
+                          color: (busy || jobBusy || jobText.trim().length < 20) ? "#444" : "#CFCFCF",
+                          cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer",
+                          minWidth: 140,
+                          border: (busy || jobBusy || jobText.trim().length < 20) ? "1px solid rgba(242,242,242,0.04)" : "1px solid rgba(242,242,242,0.12)",
+                        }}
                         disabled={busy || jobBusy || jobText.trim().length < 20}
                         onClick={async () => {
                           const sessionId = String(session?.sessionId ?? "");
@@ -1052,7 +1105,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           } finally { setBusy(false); setJobBusy(false); }
                         }}
                       >
-                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
+                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Score this job"}
                       </button>
                     </div>
                   </>
