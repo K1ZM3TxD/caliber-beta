@@ -344,7 +344,7 @@ export default function CalibrationPage() {
       const bottom_line_2s: string = typeof s?.result?.alignment?.bottom_line_2s === "string" ? s.result.alignment.bottom_line_2s : "";
       return { score: Number(score), summary: truncateToSentences(rawSummary, 3), title, supports_fit, stretch_factors, bottom_line_2s };
     }
-    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("Market titles that match your pattern. Use them as search terms.");
     const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
@@ -595,8 +595,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Static header area */}
-            <div style={{ minHeight: "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+            <div style={{ minHeight: step === "TITLES" ? "2em" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "min-height 0.3s" }}>
+              {step === "TITLES" ? (
+                <div className="text-xs font-medium uppercase tracking-widest" style={{ color: "#444" }}>Caliber</div>
+              ) : (
+                <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+              )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
                 {error ? (
@@ -872,21 +876,18 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 3);
 
               return (
-              <div className="w-full max-w-2xl pb-20">
+              <div className="w-full max-w-2xl pb-16">
                 {/* Section heading */}
-                <div className="mt-2 mb-2 flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-2.5">
-                    <span style={{ color: "#4ADE80", fontSize: "1.1rem", lineHeight: 1 }}>✓</span>
-                    <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Titles</h2>
-                  </div>
+                <div className="mt-1 mb-1.5 flex flex-col items-center gap-0.5">
+                  <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Career Pattern</h2>
                   {archetypeLabel ? (
-                    <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "#555" }}>{archetypeLabel}</span>
+                    <span className="text-[11px] font-medium uppercase tracking-widest mt-0.5" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
                 </div>
 
                 {/* Typewriter explanation */}
-                <div className="mb-7" style={{ minHeight: "2.5em" }}>
-                  <p className="text-sm leading-relaxed" style={{ color: "#777" }}>{titleTypewriter}</p>
+                <div className="mb-5" style={{ minHeight: "1.5em" }}>
+                  <p className="text-sm" style={{ color: "#666" }}>{titleTypewriter}</p>
                 </div>
 
                 {/* Fallback: no title rows available */}
@@ -934,7 +935,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                               <span className={`text-sm sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"} truncate`} style={{ color: "#F2F2F2" }}>{t.title}</span>
                             </span>
                             <span className="flex items-center gap-3 flex-shrink-0 ml-3">
-                              <span className="text-sm font-mono font-semibold tabular-nums" style={{ color: idx === 0 ? "#4ADE80" : "#777" }}>{t.fit_0_to_10}/10</span>
+                              <span className="text-base font-mono font-bold tabular-nums" style={{ color: idx <= 1 ? "#4ADE80" : "#777" }}>{t.fit_0_to_10}/10</span>
                               <button
                                 type="button"
                                 aria-label={copiedIndex === idx ? "Copied" : "Copy title"}
@@ -972,8 +973,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* Divider */}
-                <div className="mt-10 mb-8 flex items-center gap-4">
-                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.10), transparent)" }} />
+                <div className="mt-7 mb-6 flex items-center gap-4">
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.08), transparent)" }} />
                 </div>
 
                 {/* Job area — Fit accordion replaces textarea when results exist */}
@@ -995,38 +996,38 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <>
                     {/* Primary CTA: Extension card */}
                     <div
-                      className="rounded-xl px-6 py-7 sm:px-8 sm:py-8 flex flex-col items-center text-center"
+                      className="rounded-xl px-5 py-6 sm:px-7 sm:py-7 flex flex-col items-center text-center"
                       style={{
-                        background: "linear-gradient(180deg, rgba(74,222,128,0.05) 0%, rgba(74,222,128,0.01) 100%)",
-                        border: "1px solid rgba(74,222,128,0.15)",
-                        animation: "cb-fade-up 0.4s ease-out 0.35s both",
+                        background: "linear-gradient(180deg, rgba(74,222,128,0.04) 0%, transparent 100%)",
+                        border: "1px solid rgba(74,222,128,0.12)",
+                        animation: "cb-fade-up 0.4s ease-out 0.3s both",
                       }}
                     >
-                      <h3 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Score jobs as you browse</h3>
-                      <p className="text-sm mt-1.5 mb-5" style={{ color: "#888", maxWidth: 340 }}>The Caliber extension scores LinkedIn and Indeed listings against your pattern — automatically.</p>
+                      <h3 className="text-base sm:text-lg font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                      <p className="text-sm mt-1 mb-4" style={{ color: "#777", maxWidth: 320 }}>The extension scores LinkedIn and Indeed listings against your pattern.</p>
 
                       <a
                         href="/extension"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group inline-flex items-center justify-center gap-2.5 rounded-lg px-7 py-3.5 text-sm sm:text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                         style={{
                           background: "#4ADE80",
                           color: "#0B0B0B",
                           cursor: "pointer",
-                          minWidth: 240,
+                          minWidth: 200,
                           border: "1px solid #4ADE80",
-                          boxShadow: "0 4px 24px rgba(74,222,128,0.15)",
+                          boxShadow: "0 4px 20px rgba(74,222,128,0.12)",
                         }}
                       >
-                        <span>Get the Caliber Extension</span>
+                        <span>Get the Extension</span>
                         <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">→</span>
                       </a>
-                      <p className="mt-3 text-xs" style={{ color: "#555" }}>Chrome · Works on LinkedIn and Indeed</p>
+                      <p className="mt-2.5 text-xs" style={{ color: "#555" }}>Chrome · LinkedIn · Indeed</p>
                     </div>
 
                     {/* Secondary: Paste a job */}
-                    <div className="mt-10 flex items-center gap-4 mb-4">
+                    <div className="mt-7 flex items-center gap-4 mb-3">
                       <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
                       <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: "#444" }}>or score a job manually</span>
                       <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
