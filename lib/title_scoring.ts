@@ -41,7 +41,7 @@ const COMPOUND_MAP: [RegExp, string][] = [
   [/\bgo[\s-]to[\s-]market\b/gi, "market"],
 ];
 
-function normalizeCompounds(text: string): string {
+export function normalizeCompounds(text: string): string {
   let out = text;
   for (const [pattern, replacement] of COMPOUND_MAP) {
     out = out.replace(pattern, replacement);
@@ -77,7 +77,7 @@ function stripSuffix(token: string): string {
   return token;
 }
 
-function canonicalize(token: string): string {
+export function canonicalize(token: string): string {
   const mapped = CANON_MAP[token];
   if (mapped) return mapped;
   const stripped = stripSuffix(token);
@@ -87,7 +87,7 @@ function canonicalize(token: string): string {
   return token;
 }
 
-function extractBroadTokens(text: string): Map<string, number> {
+export function extractBroadTokens(text: string): Map<string, number> {
   const compounded = normalizeCompounds(String(text ?? ""));
   const cleaned = compounded.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return new Map();
