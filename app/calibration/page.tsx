@@ -595,9 +595,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Static header area */}
-            <div style={{ minHeight: step === "TITLES" ? "2em" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "min-height 0.3s" }}>
+            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               {step === "TITLES" ? (
-                <div className="text-xs font-medium uppercase tracking-widest" style={{ color: "#444" }}>Caliber</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>
+                  <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
+                </div>
               ) : (
                 <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
               )}
@@ -876,24 +879,25 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 3);
 
               return (
-              <div className="w-full max-w-2xl pb-16">
+              <div className="w-full max-w-2xl pb-14">
                 {/* Section heading */}
-                <div className="mt-1 mb-1.5 flex flex-col items-center gap-0.5">
-                  <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Career Pattern</h2>
+                <div className="mt-0 mb-1 flex flex-col items-center">
+                  <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Titles</h2>
                   {archetypeLabel ? (
-                    <span className="text-[11px] font-medium uppercase tracking-widest mt-0.5" style={{ color: "#555" }}>{archetypeLabel}</span>
+                    <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
                 </div>
 
-                {/* Typewriter explanation */}
-                <div className="mb-5" style={{ minHeight: "1.5em" }}>
-                  <p className="text-sm" style={{ color: "#666" }}>{titleTypewriter}</p>
+                {/* Explanation */}
+                <div className="mb-5">
+                  <p className="text-sm leading-relaxed" style={{ color: "#777" }}>These are the closest market titles for your pattern.</p>
+                  <p className="text-sm leading-relaxed" style={{ color: "#666" }}>Use them as search terms when exploring jobs.</p>
                 </div>
 
                 {/* Fallback: no title rows available */}
                 {titlesToRender.length === 0 ? (
                   <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "#141414", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.08)" }}>
-                    Your title recommendations are still being generated. Try pasting a job description below to get your fit score.
+                    Your title recommendations are still being generated.
                   </div>
                 ) : null}
 
@@ -973,144 +977,44 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* Divider */}
-                <div className="mt-7 mb-6 flex items-center gap-4">
-                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.08), transparent)" }} />
+                <div className="mt-6 mb-5 flex items-center gap-4">
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
                 </div>
 
-                {/* Job area — Fit accordion replaces textarea when results exist */}
-                {jobResult ? (
-                  <div style={{ animation: "cb-fade-up 0.3s ease-out" }}>
-                    <FitAccordion jobResult={jobResult} />
-                    <div className="mt-6 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
-                        className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{ backgroundColor: "rgba(242,242,242,0.07)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)" }}
-                      >
-                        ← Try another job
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Primary CTA: Extension card */}
-                    <div
-                      className="rounded-xl px-5 py-6 sm:px-7 sm:py-7 flex flex-col items-center text-center"
+                {/* Next step: Extension CTA */}
+                <div>
+                  <div className="mb-3 text-[11px] font-medium uppercase tracking-widest text-center" style={{ color: "#555" }}>Next step</div>
+                  <div
+                    className="rounded-xl px-5 py-5 sm:px-7 sm:py-6 flex flex-col items-center text-center"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(74,222,128,0.04) 0%, transparent 100%)",
+                      border: "1px solid rgba(74,222,128,0.12)",
+                      animation: "cb-fade-up 0.4s ease-out 0.3s both",
+                    }}
+                  >
+                    <h3 className="text-base sm:text-lg font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                    <p className="text-sm mt-1 mb-4" style={{ color: "#777", maxWidth: 340 }}>Use the Caliber extension to score LinkedIn and Indeed roles against your pattern.</p>
+
+                    <a
+                      href="/extension"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                       style={{
-                        background: "linear-gradient(180deg, rgba(74,222,128,0.04) 0%, transparent 100%)",
-                        border: "1px solid rgba(74,222,128,0.12)",
-                        animation: "cb-fade-up 0.4s ease-out 0.3s both",
+                        background: "#4ADE80",
+                        color: "#0B0B0B",
+                        cursor: "pointer",
+                        minWidth: 200,
+                        border: "1px solid #4ADE80",
+                        boxShadow: "0 4px 20px rgba(74,222,128,0.12)",
                       }}
                     >
-                      <h3 className="text-base sm:text-lg font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
-                      <p className="text-sm mt-1 mb-4" style={{ color: "#777", maxWidth: 320 }}>The extension scores LinkedIn and Indeed listings against your pattern.</p>
-
-                      <a
-                        href="/extension"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{
-                          background: "#4ADE80",
-                          color: "#0B0B0B",
-                          cursor: "pointer",
-                          minWidth: 200,
-                          border: "1px solid #4ADE80",
-                          boxShadow: "0 4px 20px rgba(74,222,128,0.12)",
-                        }}
-                      >
-                        <span>Get the Extension</span>
-                        <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">→</span>
-                      </a>
-                      <p className="mt-2.5 text-xs" style={{ color: "#555" }}>Chrome · LinkedIn · Indeed</p>
-                    </div>
-
-                    {/* Secondary: Paste a job */}
-                    <div className="mt-7 flex items-center gap-4 mb-3">
-                      <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
-                      <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: "#444" }}>or score a job manually</span>
-                      <div className="flex-1 h-px" style={{ background: "rgba(242,242,242,0.06)" }} />
-                    </div>
-
-                    <div>
-                      <textarea
-                        value={jobText}
-                        onChange={e => setJobText(e.target.value)}
-                        rows={4}
-                        className="w-full rounded-lg px-4 py-3 text-sm placeholder:text-[#444] focus:outline-none transition-colors duration-200"
-                        style={{ backgroundColor: "#0F0F0F", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.06)", boxShadow: "none", resize: "vertical" }}
-                        placeholder="Paste a job description here…"
-                        disabled={busy || jobBusy}
-                      />
-                    </div>
-                    {jobBusy ? (
-                      <div className="mt-4 flex items-center justify-center gap-2">
-                        <Spinner />
-                        <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
-                      </div>
-                    ) : null}
-                    <div className="mt-4 flex justify-center">
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium transition-all ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                        style={{
-                          backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.06)" : "rgba(242,242,242,0.12)",
-                          color: (busy || jobBusy || jobText.trim().length < 20) ? "#444" : "#CFCFCF",
-                          cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer",
-                          minWidth: 140,
-                          border: (busy || jobBusy || jobText.trim().length < 20) ? "1px solid rgba(242,242,242,0.04)" : "1px solid rgba(242,242,242,0.12)",
-                        }}
-                        disabled={busy || jobBusy || jobText.trim().length < 20}
-                        onClick={async () => {
-                          const sessionId = String(session?.sessionId ?? "");
-                          if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
-                          setError(null); setBusy(true); setJobBusy(true);
-                          try {
-                            const curState = String(session?.state ?? "");
-                            if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
-                              await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
-                            }
-                            let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
-                            setSession(s);
-                            let ticks = 0;
-                            while (ticks < 12) {
-                              const st = String(s?.state ?? "");
-                              if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
-                              s = await postEvent({ type: "ADVANCE", sessionId });
-                              setSession(s);
-                              ticks++;
-                            }
-                            if (String(s?.state) === "ALIGNMENT_OUTPUT") {
-                              s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
-                              setSession(s);
-                            }
-                            if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
-                              s = await postEvent({ type: "ADVANCE", sessionId });
-                              setSession(s);
-                            }
-                            if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
-                              try {
-                                const result = await fetchResult(sessionId);
-                                setJobResult(buildJobResult(s, result));
-                              } catch {
-                                setJobResult(buildJobResult(s));
-                              }
-                            }
-                          } catch (e: any) {
-                            if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
-                              setError("A job description is required.");
-                            } else {
-                              setError(displayError(e));
-                            }
-                          } finally { setBusy(false); setJobBusy(false); }
-                        }}
-                      >
-                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Score this job"}
-                      </button>
-                    </div>
-                  </>
-                )}
+                      <span>Get the Extension</span>
+                      <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
+                    </a>
+                    <p className="mt-2.5 text-xs" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
+                  </div>
+                </div>
               </div>
               );
             })() : null}
