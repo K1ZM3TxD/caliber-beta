@@ -1,0 +1,12 @@
+{
+  "id": "chris",
+  "name": "Chris",
+  "resume_text": "Product Development Manager | 7 years experience in SaaS and B2B\nLed product development from market research through launch for enterprise software.\nBuilt systems for evaluating market gaps and customer needs. Created SOPs for product\ndevelopment workflows. Designed and maintained pitch decks and proposals for executive\nstakeholders. Conducted feasibility studies for new product initiatives. Automated\ninternal workflows and reporting systems. Managed cross-functional product development\nteams. Drove go-to-market strategy and customer discovery processes.",
+  "prompt_answers": {
+    "prompt_1": "design, creating systems, making sop's. building web apps/tools Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions.",
+    "prompt_2": "endless sales cycles, quota driven incentive, jumping from one task to another without real depth or clarity, overall chaos in the company being short staffed and small.",
+    "prompt_3": "design, creating systems, making sop's. Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions.",
+    "prompt_4": "problem solving, product development, customer needs and finding gaps in the market.",
+    "prompt_5": "songwriting, building tools, making graphics, interior design"
+  }
+}
