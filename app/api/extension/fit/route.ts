@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeGet, storeLatest } from "@/lib/calibration_store";
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine";
+import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
@@ -110,11 +111,20 @@ export async function POST(req: NextRequest) {
     }
 
     const alignment = r.alignment as any;
+
+    // Compute Hiring Reality Check (screening likelihood)
+    const resumeText = session.resume?.rawText ?? "";
+    const hiringCheck = computeHiringRealityCheck(body.jobText, resumeText);
+
     const res = NextResponse.json({
       score_0_to_10: alignment.score ?? 0,
       supports_fit: alignment.supports_fit ?? [],
       stretch_factors: alignment.stretch_factors ?? [],
       bottom_line_2s: alignment.bottom_line_2s ?? "",
+      hiring_reality_check: {
+        band: hiringCheck.band,
+        reason: hiringCheck.reason,
+      },
       calibrationId: sessionId,
       sourceUrl: body.sourceUrl ?? null,
     });

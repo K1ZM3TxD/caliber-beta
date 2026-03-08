@@ -12,6 +12,9 @@ const $supportsList = document.getElementById("supports-list");
 const $stretchList = document.getElementById("stretch-list");
 const $bottomLine = document.getElementById("bottom-line");
 const $linkCaliber = document.getElementById("link-caliber");
+const $hiringCheck = document.getElementById("hiring-check");
+const $hiringBand = document.getElementById("hiring-check-band");
+const $hiringReason = document.getElementById("hiring-check-reason");
 
 function show(el) {
   [$loading, $error, $results].forEach(e => e.classList.add("hidden"));
@@ -47,6 +50,20 @@ function renderResults(data) {
   }
 
   $bottomLine.textContent = data.bottom_line_2s || "";
+
+  // Hiring Reality Check
+  const hrc = data.hiring_reality_check;
+  if (hrc && hrc.band) {
+    $hiringCheck.classList.remove("hidden");
+    $hiringBand.textContent = hrc.band;
+    $hiringBand.className = "hiring-check-band";
+    if (hrc.band === "High") $hiringBand.classList.add("band-high");
+    else if (hrc.band === "Possible") $hiringBand.classList.add("band-possible");
+    else $hiringBand.classList.add("band-unlikely");
+    $hiringReason.textContent = hrc.reason || "";
+  } else {
+    $hiringCheck.classList.add("hidden");
+  }
 
   if (data.calibrationId) {
     $linkCaliber.href = API_BASE + "/calibration?calibrationId=" + data.calibrationId;
