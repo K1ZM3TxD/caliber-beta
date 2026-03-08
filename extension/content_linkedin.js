@@ -2,7 +2,7 @@
 // Injected on linkedin.com/jobs/* pages
 
 (function () {
-  const API_BASE = "https://www.caliber-app.com";
+  const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
   const PANEL_VERSION = "0.3.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
@@ -443,7 +443,7 @@
       });
 
       if (!sessionInfo.profileComplete) {
-        showError("Calibration incomplete. Finish the calibration prompts on caliber-app.com first.");
+        showError("Calibration incomplete. Finish the calibration prompts on Caliber first.");
         return;
       }
 

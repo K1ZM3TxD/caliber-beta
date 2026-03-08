@@ -1,6 +1,7 @@
 // popup.js — Caliber extension popup logic
+// env.js is loaded first via popup.html <script> tag
 
-const API_BASE = "https://www.caliber-app.com";
+const API_BASE = CALIBER_ENV.API_BASE;
 
 const $loading = document.getElementById("loading");
 const $error = document.getElementById("error");
@@ -225,6 +226,9 @@ async function run() {
 // Wire up buttons
 document.getElementById("btn-retry").addEventListener("click", run);
 document.getElementById("btn-recalc").addEventListener("click", run);
+
+// Set default calibration link from env config
+$linkCaliber.href = API_BASE + "/calibration";
 
 // Auto-run on popup open
 run();

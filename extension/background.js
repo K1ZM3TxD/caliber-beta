@@ -1,12 +1,10 @@
 // background.js — Caliber service worker (proxies API calls for content scripts)
 
-const API_ENDPOINTS = [
-  "https://www.caliber-app.com",  // production first
-  "http://localhost:3000",         // local dev fallback
-];
+importScripts("env.js");
 
-// Resolved base URL — set once a working endpoint is found
-let resolvedBase = null;
+// Locked base URL from environment config — no fallback between prod/dev
+const API_BASE = CALIBER_ENV.API_BASE;
+let resolvedBase = API_BASE;
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
@@ -22,16 +20,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === "CALIBER_SESSION_HANDOFF") {
-    // Direct handoff from caliber-app.com or codespace content script
+    // Direct handoff from caliber web app content script
     const sid = msg.sessionId;
-    const base = msg.baseUrl;
     if (sid && typeof sid === "string") {
       chrome.storage.local.set({ caliberSessionId: sid });
-      // Store the base URL so we can reach this Caliber instance later
-      if (base && typeof base === "string") {
-        chrome.storage.local.set({ caliberBaseUrl: base });
-        resolvedBase = base;
-      }
       sendResponse({ ok: true });
     } else {
       sendResponse({ ok: false });
@@ -48,15 +40,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  * Try to fetch a session from a specific base URL.
  * Returns { ok, sessionId, profileComplete, state, base } or { ok: false }.
  */
-async function trySessionEndpoint(base, storedId) {
+async function trySessionEndpoint(storedId) {
   // Try stored sessionId first
   if (storedId) {
     try {
-      const resp = await fetch(base + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(3000) });
+      const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(3000) });
       if (resp.ok) {
         const data = await resp.json();
         if (data.ok && data.profileComplete) {
-          return { ok: true, sessionId: data.sessionId, profileComplete: true, state: data.state, base };
+          return { ok: true, sessionId: data.sessionId, profileComplete: true, state: data.state };
         }
       }
     } catch { /* endpoint unreachable or timeout */ }
@@ -64,11 +56,11 @@ async function trySessionEndpoint(base, storedId) {
 
   // Try latest session
   try {
-    const resp = await fetch(base + "/api/extension/session", { signal: AbortSignal.timeout(3000) });
+    const resp = await fetch(API_BASE + "/api/extension/session", { signal: AbortSignal.timeout(3000) });
     if (resp.ok) {
       const data = await resp.json();
       if (data.ok && data.sessionId) {
-        return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state, base };
+        return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
       }
     }
   } catch { /* endpoint unreachable */ }
@@ -77,31 +69,20 @@ async function trySessionEndpoint(base, storedId) {
 }
 
 async function discoverSession() {
-  const store = await chrome.storage.local.get(["caliberSessionId", "caliberBaseUrl"]);
+  const store = await chrome.storage.local.get(["caliberSessionId"]);
   const storedId = store.caliberSessionId;
-  const storedBase = store.caliberBaseUrl;
 
-  // Build endpoint list: stored base URL first (from content script handoff), then defaults
-  const endpoints = [...API_ENDPOINTS];
-  if (storedBase && !endpoints.includes(storedBase)) {
-    endpoints.unshift(storedBase);
-  }
-
-  // Try each endpoint in order; use the first one that has a valid session
-  for (const base of endpoints) {
-    const result = await trySessionEndpoint(base, storedId);
-    if (result.ok) {
-      resolvedBase = result.base;
-      if (result.sessionId) {
-        await chrome.storage.local.set({ caliberSessionId: result.sessionId });
-      }
-      return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
+  // Single locked endpoint — no fallback between prod/dev
+  const result = await trySessionEndpoint(storedId);
+  if (result.ok) {
+    if (result.sessionId) {
+      await chrome.storage.local.set({ caliberSessionId: result.sessionId });
     }
+    return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
   }
 
   // No endpoint had a session — if we have a stored id, use it optimistically
   if (storedId) {
-    resolvedBase = storedBase || API_ENDPOINTS[0];
     return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
   }
 
@@ -128,37 +109,22 @@ async function ensureSessionThenFit(jobText) {
 }
 
 async function callFitAPI(jobText, sessionId) {
-  const base = resolvedBase || API_ENDPOINTS[0];
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
 
-  // Try the resolved base first, then fall back to other endpoints
-  const bases = [base, ...API_ENDPOINTS.filter(b => b !== base)];
+  const resp = await fetch(API_BASE + "/api/extension/fit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
-  for (const url of bases) {
-    try {
-      const resp = await fetch(url + "/api/extension/fit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await resp.json();
-      if (!resp.ok) {
-        // If this endpoint explicitly says no session, try the next one
-        if (resp.status === 401 && bases.indexOf(url) < bases.length - 1) continue;
-        throw new Error(data.error || "API error " + resp.status);
-      }
-
-      resolvedBase = url;
-      if (data.calibrationId) {
-        await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
-      }
-      return data;
-    } catch (err) {
-      // Network error — try next endpoint
-      if (bases.indexOf(url) < bases.length - 1) continue;
-      throw err;
-    }
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(data.error || "API error " + resp.status);
   }
+
+  if (data.calibrationId) {
+    await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
+  }
+  return data;
 }

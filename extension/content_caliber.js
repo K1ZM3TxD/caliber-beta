@@ -1,4 +1,4 @@
-// content_caliber.js — Runs on caliber-app.com to hand off sessionId to the extension.
+// content_caliber.js — Runs on the Caliber web app to hand off sessionId to the extension.
 // Reads the caliber_sessionId cookie and forwards it to the background worker.
 
 (function () {

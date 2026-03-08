@@ -1,13 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Caliber — Job Fit Score",
+  "name": "Caliber — Job Fit Score [DEV]",
   "version": "0.3.5",
-  "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
+  "description": "DEV BUILD — localhost only. Get a fit score on LinkedIn or Indeed job posts.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
-    "https://www.caliber-app.com/*",
     "http://localhost:3000/*",
-    "https://*.app.github.dev/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],
@@ -25,10 +23,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.caliber-app.com/*",
-        "https://*.app.github.dev/*"
+        "http://localhost:3000/*"
       ],
-      "js": ["content_caliber.js"],
+      "js": ["env.js", "content_caliber.js"],
       "run_at": "document_idle"
     },
     {
@@ -36,20 +33,20 @@
         "https://www.linkedin.com/jobs/*",
         "https://www.linkedin.com/jobs/view/*"
       ],
-      "js": ["content_linkedin.js"],
+      "js": ["env.js", "content_linkedin.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
         "https://www.indeed.com/*"
       ],
-      "js": ["content_indeed.js"],
+      "js": ["env.js", "content_indeed.js"],
       "run_at": "document_idle"
     }
   ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "128": "icons/icon48.png"
   }
 }
