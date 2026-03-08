@@ -3,70 +3,30 @@
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
-import { EXTENSION_LANDING_PATH } from "@/lib/extension_config";
 
-const TYPE_MS = 30;
+const TYPE_MS = 55;
 const START_DELAY_MS = 200;
-const TITLE_STAGGER_MS = 150;
-const STAGE_GAP_MS = 300; // pause between completed blocks
-const GLOW_MS = 1000; // arrow glow duration
-
-function useTypewriter(text: string, msPerChar: number = TYPE_MS, delayMs: number = START_DELAY_MS): [string, boolean] {
+function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
     setTyped("");
     if (!text) return;
+    let started = false;
     let interval: any;
     const timeout = setTimeout(() => {
+      started = true;
       interval = setInterval(() => {
         setTyped(text.slice(0, ++i));
         if (i >= text.length) clearInterval(interval);
       }, msPerChar);
-    }, delayMs);
+    }, START_DELAY_MS);
     return () => {
       clearTimeout(timeout);
       if (interval) clearInterval(interval);
     };
-  }, [text, msPerChar, delayMs]);
+  }, [text, msPerChar]);
   return [typed, typed === text];
-}
-
-/*
- * Reveal stages (all sequential, one at a time):
- *  0 = idle (not on TITLES step)
- *  1 = typewriter line 1: "Your signals have been calibrated."
- *  2 = typewriter line 2: "These titles best match your pattern."
- *  3 = reveal title card 1
- *  4 = reveal title card 2
- *  5 = reveal title card 3
- *  6 = arrow glow pulse (once)
- *  7 = typewriter line 3: "See your job fit score on real roles."
- *  8 = typewriter line 4: "Use the Caliber LinkedIn extension."
- *  9 = show CTA button
- */
-function useRevealStage(active: boolean, titleCount: number): [number, () => void] {
-  const [stage, setStage] = useState(0);
-  const prevActive = useRef(false);
-  useEffect(() => {
-    // Reset when entering TITLES
-    if (active && !prevActive.current) setStage(1);
-    if (!active) setStage(0);
-    prevActive.current = active;
-  }, [active]);
-
-  const advance = React.useCallback(() => {
-    setStage(prev => {
-      if (prev === 0) return prev;
-      // Skip title stages beyond actual count
-      let next = prev + 1;
-      // Stages 3,4,5 are title cards. If titleCount < 3, skip empty slots.
-      while (next >= 3 && next <= 5 && (next - 3) >= titleCount) next++;
-      return next;
-    });
-  }, [titleCount]);
-
-  return [stage, advance];
 }
 
 type AnySession = any;
@@ -137,7 +97,6 @@ async function fetchSession(sessionId: string): Promise<AnySession | null> {
 }
 
 const COOKIE_NAME = "caliber_sessionId";
-const LS_SESSION_KEY = "caliber_session_backup";
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -145,40 +104,38 @@ function getCookie(name: string): string | null {
 }
 function setCookie(name: string, value: string, days = 7) {
   const d = new Date(); d.setTime(d.getTime() + days * 86400000);
-  const secure = location.protocol === "https:" ? ";Secure" : "";
-  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax${secure}`;
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
 }
 function clearCookie(name: string) {
-  const secure = typeof location !== "undefined" && location.protocol === "https:" ? ";Secure" : "";
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax${secure}`;
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
 }
 
-function saveSessionToLS(s: AnySession | null) {
+// --- Client-side session backup for rehydration after server-side loss ---
+const SESSION_BACKUP_KEY = "caliber_session_backup";
+function persistSessionBackup(session: AnySession) {
   try {
-    if (s?.sessionId) localStorage.setItem(LS_SESSION_KEY, JSON.stringify(s));
-    else localStorage.removeItem(LS_SESSION_KEY);
-  } catch { /* quota or private mode */ }
+    if (session?.sessionId) localStorage.setItem(SESSION_BACKUP_KEY, JSON.stringify(session));
+  } catch { /* quota exceeded or private browsing */ }
 }
-
-function loadSessionFromLS(): AnySession | null {
+function loadSessionBackup(): AnySession | null {
   try {
-    const raw = localStorage.getItem(LS_SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_BACKUP_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (s?.sessionId && s?.state) return s;
-    return null;
+    return JSON.parse(raw);
   } catch { return null; }
 }
-
-async function restoreSessionToServer(s: AnySession): Promise<boolean> {
+function clearSessionBackup() {
+  try { localStorage.removeItem(SESSION_BACKUP_KEY); } catch {}
+}
+async function tryRestoreSession(backup: AnySession): Promise<boolean> {
   try {
     const res = await fetch("/api/calibration", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session: s }),
+      body: JSON.stringify({ session: backup }),
     });
     const json = await res.json().catch(() => null);
-    return json?.ok === true;
+    return Boolean(res.ok && json?.ok);
   } catch { return false; }
 }
 
@@ -207,6 +164,15 @@ function displayError(e: any): string {
   try { return JSON.stringify(e); } catch { return "Unknown error"; }
 }
 
+/** Truncate text to at most N sentences. */
+function truncateToSentences(text: string, n: number): string {
+  if (!text) return "";
+  // Split on sentence-ending punctuation followed by whitespace or end of string
+  const sentences = text.match(/[^.!?]*[.!?]+/g);
+  if (!sentences || sentences.length === 0) return text;
+  return sentences.slice(0, n).join("").trim();
+}
+
 export default function CalibrationPage() {
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -225,6 +191,11 @@ export default function CalibrationPage() {
   const [resumeUploading, setResumeUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resumeAttemptedRef = useRef(false);
+
+  // Persist session to localStorage on every change for rehydration
+  useEffect(() => {
+    if (session) persistSessionBackup(session);
+  }, [session]);
 
   // On mount: resume from URL param or cookie
   useEffect(() => {
@@ -249,6 +220,7 @@ export default function CalibrationPage() {
               if (resultSession) {
                 setSession(resultSession);
                 setCookie(COOKIE_NAME, urlId);
+                setJobResult(buildJobResult(resultSession, result));
                 setStep("TITLES");
                 return;
               }
@@ -257,33 +229,23 @@ export default function CalibrationPage() {
         }
 
         // Try fetching the full session to resume mid-flow
-        const s = await fetchSession(targetId);
+        let s = await fetchSession(targetId);
+
+        // Server lost the session — try restoring from localStorage backup
         if (!s) {
-          // Server session gone (serverless cold start) — try restoring from localStorage
-          const backup = loadSessionFromLS();
+          const backup = loadSessionBackup();
           if (backup && backup.sessionId === targetId) {
-            // Try to push the backup back to the server (best-effort)
-            const restored = await restoreSessionToServer(backup);
+            const restored = await tryRestoreSession(backup);
             if (restored) {
-              // Re-fetch to get canonical server copy
-              const fresh = await fetchSession(targetId);
-              if (fresh) {
-                setSession(fresh);
-                setCookie(COOKIE_NAME, targetId);
-                const resumeStep = getStepFromState(fresh.state, fresh);
-                setStep(resumeStep);
-                return;
-              }
+              s = await fetchSession(targetId);
             }
-            // Server round-trip failed, but we have a valid local backup — use it directly
-            setSession(backup);
-            setCookie(COOKIE_NAME, targetId);
-            const resumeStep = getStepFromState(backup.state, backup);
-            setStep(resumeStep);
-            return;
           }
-          // No backup at all — clear stale cookie, stay on LANDING
+        }
+
+        if (!s) {
+          // Session truly gone — clear stale cookie + backup, stay on LANDING
           clearCookie(COOKIE_NAME);
+          clearSessionBackup();
           return;
         }
 
@@ -303,10 +265,6 @@ export default function CalibrationPage() {
       }
     })();
   }, []);
-
-  // Persist session to localStorage on every update (survives serverless cold starts)
-  useEffect(() => { saveSessionToLS(session); }, [session]);
-
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
   function openFilePicker() { fileInputRef.current?.click(); }
@@ -371,6 +329,23 @@ export default function CalibrationPage() {
   }
     // Titles UI state
     const [titleFeedback, setTitleFeedback] = useState("");
+    const [jobText, setJobText] = useState("");
+    const [jobBusy, setJobBusy] = useState(false);
+    const [jobResult, setJobResult] = useState<{ score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } | null>(null);
+    /** Build jobResult from session + optional fetchResult response */
+    function buildJobResult(s: any, result?: any): { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } {
+      const score = result?.score_0_to_10 ?? s?.result?.alignment?.score ?? 0;
+      const rawSummary = result?.summary ?? s?.result?.alignment?.summary ?? s?.result?.summary ?? "";
+      const title = s?.synthesis?.titleRecommendation?.primary_title?.title
+        ?? s?.synthesis?.marketTitle
+        ?? s?.synthesis?.titleCandidates?.[0]?.title ?? "";
+      const supports_fit: string[] = Array.isArray(s?.result?.alignment?.supports_fit) ? s.result.alignment.supports_fit : [];
+      const stretch_factors: string[] = Array.isArray(s?.result?.alignment?.stretch_factors) ? s.result.alignment.stretch_factors : [];
+      const bottom_line_2s: string = typeof s?.result?.alignment?.bottom_line_2s === "string" ? s.result.alignment.bottom_line_2s : "";
+      return { score: Number(score), summary: truncateToSentences(rawSummary, 3), title, supports_fit, stretch_factors, bottom_line_2s };
+    }
+    const [titleTypewriter, titleTypewriterDone] = useTypewriter("These titles aren’t you—they’re the market’s shorthand for the kind of work your pattern fits (use them as search terms).");
+    const [jobTypewriter, jobTypewriterDone] = useTypewriter("Paste the job description.");
 
     // Handle TITLE_FEEDBACK event and routing
     async function submitTitleFeedback() {
@@ -387,6 +362,55 @@ export default function CalibrationPage() {
       } finally { setBusy(false); }
     }
 
+    /** Run the full job → score pipeline inline, staying on JOB_TEXT. */
+    async function submitJobText() {
+      const sessionId = String(session?.sessionId ?? "");
+      if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+      if (!jobText.trim()) return;
+      setError(null); setJobBusy(true); setJobResult(null);
+      try {
+        // 1. Submit job text
+        let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
+        setSession(s);
+
+        // 2. Advance through intermediate states until ALIGNMENT_OUTPUT or TERMINAL_COMPLETE
+        let ticks = 0;
+        while (ticks < 12) {
+          const st = String(s?.state ?? "");
+          if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
+          s = await postEvent({ type: "ADVANCE", sessionId });
+          setSession(s);
+          ticks++;
+        }
+
+        // 3. Fire COMPUTE_ALIGNMENT_OUTPUT if we reached that state
+        if (String(s?.state) === "ALIGNMENT_OUTPUT") {
+          s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
+          setSession(s);
+        }
+
+        // 4. One more ADVANCE if needed to reach TERMINAL_COMPLETE
+        if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
+          s = await postEvent({ type: "ADVANCE", sessionId });
+          setSession(s);
+        }
+
+        // 5. Fetch result and display inline
+        if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
+          try {
+            const result = await fetchResult(sessionId);
+            setJobResult(buildJobResult(s, result));
+          } catch {
+            // Result fetch failed but session has results — extract from session
+            setJobResult(buildJobResult(s));
+          }
+        } else {
+          setError(`Pipeline did not reach results (state: ${String(s?.state)}).`);
+        }
+      } catch (e: any) {
+        setError(displayError(e));
+      } finally { setJobBusy(false); }
+    }
   const canContinueResume = !!selectedFile && !busy;
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
@@ -394,64 +418,60 @@ export default function CalibrationPage() {
   // Typewriter hooks
   const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
-
-  // ── Sequenced reveal state machine ──────────────────────────────────────
-  const _titleCount = useMemo(() => {
-    const rec = session?.synthesis?.titleRecommendation as any;
-    const enriched = Array.isArray(rec?.titles) ? rec.titles : [];
-    let fallback: any[] = [];
-    if (enriched.length === 0 && rec?.primary_title) {
-      fallback.push(rec.primary_title);
-      if (Array.isArray(rec.adjacent_titles)) fallback.push(...rec.adjacent_titles);
-    }
-    if (enriched.length === 0 && fallback.length === 0) {
-      fallback = Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
-    }
-    return Math.min(3, enriched.length || fallback.length);
-  }, [session?.synthesis]);
-
-  const [revealStage, advanceStage] = useRevealStage(step === "TITLES", _titleCount);
-
-  // Stage 1: typewriter line 1
-  const [line1Typed, line1Done] = useTypewriter(revealStage >= 1 ? "Your signals have been calibrated." : "", TYPE_MS, START_DELAY_MS);
-  useEffect(() => { if (line1Done && revealStage === 1) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [line1Done, revealStage, advanceStage]);
-
-  // Stage 2: typewriter line 2
-  const [line2Typed, line2Done] = useTypewriter(revealStage >= 2 ? "These titles best match your pattern." : "", TYPE_MS, 0);
-  useEffect(() => { if (line2Done && revealStage === 2) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [line2Done, revealStage, advanceStage]);
-
-  // Stages 3–5: title card reveals (each auto-advances after TITLE_STAGGER_MS)
-  useEffect(() => {
-    if (revealStage >= 3 && revealStage <= 5) {
-      const t = setTimeout(advanceStage, TITLE_STAGGER_MS);
-      return () => clearTimeout(t);
-    }
-  }, [revealStage, advanceStage]);
-
-  // Stage 6: arrow glow (auto-advances after GLOW_MS)
-  useEffect(() => {
-    if (revealStage === 6) {
-      const t = setTimeout(advanceStage, GLOW_MS);
-      return () => clearTimeout(t);
-    }
-  }, [revealStage, advanceStage]);
-
-  // Stage 7: typewriter line 3
-  const [ctaLine1Typed, ctaLine1Done] = useTypewriter(revealStage >= 7 ? "See your job fit score on real roles." : "", TYPE_MS, 0);
-  useEffect(() => { if (ctaLine1Done && revealStage === 7) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [ctaLine1Done, revealStage, advanceStage]);
-
-  // Stage 8: typewriter line 4
-  const [ctaLine2Typed, ctaLine2Done] = useTypewriter(revealStage >= 8 ? "Use the Caliber LinkedIn extension." : "", TYPE_MS, 0);
-  useEffect(() => { if (ctaLine2Done && revealStage === 8) { const t = setTimeout(advanceStage, STAGE_GAP_MS); return () => clearTimeout(t); } }, [ctaLine2Done, revealStage, advanceStage]);
-
-  // Stage 9: CTA button visible
-  const ctaButtonVisible = revealStage >= 9;
-
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
       : ""
   );
+
+  // Centering: use min-h-screen for main flex container
+  // ...existing code...
+// FitAccordion for inline fit score analysis
+function FitAccordion({ jobResult }: { jobResult: { score: number; summary: string; title: string; supports_fit: string[]; stretch_factors: string[]; bottom_line_2s: string } }) {
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => { setExpanded(true); }, [jobResult]); // expand by default on new result
+  return (
+    <div className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors" style={{ backgroundColor: expanded ? "#1A1A1A" : "#141414", border: expanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)" }}>
+      <span className="flex items-center justify-between" onClick={() => setExpanded(!expanded)}>
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{expanded ? "▼" : "▶"}</span>
+          <span className="text-sm font-semibold truncate" style={{ color: "#4ADE80" }}>Fit Score</span>
+        </span>
+        <span className="flex items-center gap-2 flex-shrink-0 ml-2">
+          <span className="text-sm font-mono font-bold" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
+        </span>
+      </span>
+      {expanded ? (
+        <div className="px-2 py-3">
+          <div className="text-center mb-4">
+            <span className="text-3xl font-bold font-mono" style={{ color: "#4ADE80" }}>{jobResult.score}/10</span>
+          </div>
+          {jobResult.supports_fit.length > 0 ? (
+            <div className="mb-2">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#4ADE80" }}>Supports the fit</div>
+              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
+                {jobResult.supports_fit.map((d, i) => <li key={i}><strong>{d}</strong></li>)}
+              </ul>
+            </div>
+          ) : null}
+          {jobResult.stretch_factors.length > 0 ? (
+            <div className="mb-2">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "#F59E0B" }}>Stretch factors</div>
+              <ul className="text-sm leading-relaxed pl-4" style={{ color: "#CFCFCF", listStyleType: "disc", textAlign: "left" }}>
+                {jobResult.stretch_factors.map((c, i) => <li key={i}><strong>{c}</strong></li>)}
+              </ul>
+            </div>
+          ) : null}
+          {jobResult.bottom_line_2s ? (
+            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.bottom_line_2s}</div>
+          ) : jobResult.summary ? (
+            <div className="mt-2 text-sm leading-relaxed" style={{ color: "#CFCFCF", textAlign: "left" }}>{jobResult.summary}</div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
   // Auto-advance for PROCESSING (use returned session, not stale state)
   useEffect(() => {
@@ -563,10 +583,8 @@ export default function CalibrationPage() {
     />
   );
 
-  const isPreResults = ["LANDING", "RESUME", "PROMPT", "PROCESSING"].includes(step);
-
   return (
-    <div className={`fixed inset-0 bg-[#0B0B0B] flex justify-center overflow-y-auto ${isPreResults ? "items-center" : "items-start pt-[8vh] sm:pt-[10vh]"}`}>
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto">
       <div className="w-full max-w-[760px] px-6">
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -804,7 +822,7 @@ export default function CalibrationPage() {
                 <div className="mt-8 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); saveSessionToLS(null); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
                   >
@@ -817,10 +835,12 @@ export default function CalibrationPage() {
             {/* TITLES UI */}
             {step === "TITLES" ? (() => {
               const rec = session?.synthesis?.titleRecommendation as any;
+              // New enriched titles array (from enriched .titles sub-property)
               const enrichedTitles: Array<{ title: string; fit_0_to_10: number; bullets_3?: [string, string, string]; summary_2s?: string }> =
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
+              // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
               if (enrichedTitles.length === 0 && rec?.primary_title) {
                 recTitles.push({ title: rec.primary_title.title, fit_0_to_10: rec.primary_title.score });
@@ -831,6 +851,7 @@ export default function CalibrationPage() {
                 }
               }
 
+              // Fallback 2: build from legacy candidates
               const fallbackCandidates: Array<{ title: string; score: number }> =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
 
@@ -840,50 +861,28 @@ export default function CalibrationPage() {
                   ? recTitles
                   : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
 
+              // Sort by score descending and take top 3
               titlesToRender = [...titlesToRender]
                 .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
                 .slice(0, 3);
 
-              // How many title cards are revealed so far (stages 3–5)
-              const titlesVisible = revealStage >= 3 ? Math.min(titlesToRender.length, revealStage - 2) : 0;
-              // Arrow glow active only during stage 6
-              const arrowGlowActive = revealStage === 6;
-
               return (
               <div className="w-full max-w-2xl pb-12">
-
-                {/* LINE 1 — typewriter */}
-                {revealStage >= 1 && line1Typed.length > 0 ? (
-                  <div className="mt-6 mb-2 text-center">
-                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
-                      {line1Typed}{revealStage === 1 ? <span style={{ opacity: 1 }}>▍</span> : null}
-                    </p>
-                  </div>
+                {/* Archetype label */}
+                {archetypeLabel ? (
+                  <div className="mt-4 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
                 ) : null}
 
-                {/* LINE 2 — typewriter */}
-                {revealStage >= 2 && line2Typed.length > 0 ? (
-                  <div className="mb-4 text-center">
-                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
-                      {line2Typed}{revealStage === 2 ? <span style={{ opacity: 1 }}>▍</span> : null}
-                    </p>
-                  </div>
-                ) : null}
-
-                {/* Archetype label — appears once titles start */}
-                {archetypeLabel && revealStage >= 3 ? (
-                  <div className="mt-2 mb-3 text-xs font-semibold uppercase tracking-widest text-center" style={{ color: "#777" }}>{archetypeLabel}</div>
-                ) : null}
-
-                {/* TITLE CARDS — staggered, one at a time (stages 3–5) */}
-                {titlesToRender.length === 0 && revealStage >= 3 ? (
+                {/* Fallback: no title rows available */}
+                {titlesToRender.length === 0 ? (
                   <div className="mt-6 mb-4 rounded-md px-4 py-3 text-center text-sm" style={{ backgroundColor: "#1A1A1A", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.10)" }}>
-                    Your title recommendations are still being generated.
+                    Your title recommendations are still being generated. Try pasting a job description below to get your fit score.
                   </div>
                 ) : null}
 
+                {/* Title rows with expand/collapse */}
                 <div className="mt-2 space-y-1">
-                  {titlesToRender.slice(0, titlesVisible).map((t, idx) => {
+                  {titlesToRender.map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
                     const validBullets = rawBullets.filter((b: string) => b && b.trim());
@@ -893,7 +892,7 @@ export default function CalibrationPage() {
                     const canExpand = hasBullets || hasSummary;
 
                     return (
-                      <div key={idx} style={{ animation: "cb-title-enter 0.25s ease-out" }}>
+                      <div key={idx}>
                         <div
                           className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors"
                           style={{
@@ -905,17 +904,11 @@ export default function CalibrationPage() {
                             setExpandedTitleIdx(isExpanded ? null : idx);
                           }}
                         >
+                          {/* Title + score + copy row */}
                           <span className="flex items-center justify-between">
                             <span className="flex items-center gap-2 min-w-0">
                               {canExpand ? (
-                                <span
-                                  className="text-xs flex-shrink-0"
-                                  style={{
-                                    color: "#777",
-                                    width: 14,
-                                    animation: arrowGlowActive && !isExpanded ? "cb-arrow-glow 1s ease-in-out forwards" : "none",
-                                  }}
-                                >{isExpanded ? "▼" : "▶"}</span>
+                                <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{isExpanded ? "▼" : "▶"}</span>
                               ) : (
                                 <span className="text-xs flex-shrink-0" style={{ color: "#333", width: 14 }}>·</span>
                               )}
@@ -941,6 +934,7 @@ export default function CalibrationPage() {
                             </span>
                           </span>
                         </div>
+                        {/* Expanded details — summary first, then bullets */}
                         {isExpanded && canExpand ? (
                           <div className="px-6 py-4 sm:px-7 sm:py-5 rounded-b-md mb-1 text-left" style={{ backgroundColor: "#1A1A1A", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
                             {hasSummary ? (
@@ -958,39 +952,111 @@ export default function CalibrationPage() {
                   })}
                 </div>
 
-                {/* LINE 3 — CTA typewriter */}
-                {revealStage >= 7 && ctaLine1Typed.length > 0 ? (
-                  <div className="mt-8 mb-1 text-center">
-                    <p className="text-base sm:text-lg font-medium" style={{ color: "#E0E0E0" }}>
-                      {ctaLine1Typed}{revealStage === 7 ? <span style={{ opacity: 1 }}>▍</span> : null}
-                    </p>
+                {/* Job area — Fit accordion replaces textarea when results exist */}
+                {jobResult ? (
+                  <div className="mt-8">
+                    <FitAccordion jobResult={jobResult} />
+                    <div className="mt-5 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => { setJobResult(null); setJobText(""); setError(null); }}
+                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                      >
+                        ← Try another job
+                      </button>
+                    </div>
                   </div>
-                ) : null}
-
-                {/* LINE 4 — CTA typewriter */}
-                {revealStage >= 8 && ctaLine2Typed.length > 0 ? (
-                  <div className="mb-4 text-center">
-                    <p className="text-base sm:text-lg font-medium" style={{ color: "#CFCFCF" }}>
-                      {ctaLine2Typed}{revealStage === 8 ? <span style={{ opacity: 1 }}>▍</span> : null}
-                    </p>
-                  </div>
-                ) : null}
-
-                {/* CTA BUTTON — appears after all animations */}
-                {ctaButtonVisible ? (
-                  <div className="mt-4 flex flex-col items-center gap-2 py-3" style={{ animation: "cb-title-enter 0.3s ease-out" }}>
-                    <a
-                      href={EXTENSION_LANDING_PATH}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{ backgroundColor: "#4ADE80", color: "#0B0B0B", cursor: "pointer", minWidth: 220 }}
-                    >
-                      Find your fit on LinkedIn
-                    </a>
-                  </div>
-                ) : null}
-
+                ) : (
+                  <>
+                    <div className="mt-8">
+                      <div className="flex flex-col items-center mb-4 gap-1.5 py-3">
+                        <a
+                          href="/extension"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                          style={{ backgroundColor: "rgba(74,222,128,0.12)", color: "#4ADE80", cursor: "pointer", minWidth: 180, border: "1px solid rgba(74,222,128,0.3)" }}
+                        >
+                          Try our browser extension for LinkedIn or Indeed
+                        </a>
+                        <span className="text-lg font-medium" style={{ color: "#888" }}>or</span>
+                        <span className="text-base font-medium" style={{ color: "#bbb" }}>Paste job description below</span>
+                      </div>
+                      <textarea
+                        value={jobText}
+                        onChange={e => setJobText(e.target.value)}
+                        rows={6}
+                        className="w-full rounded-md px-4 py-3 text-base sm:text-lg font-medium placeholder:text-[#9A9A9A] focus:outline-none transition-colors duration-200"
+                        style={{ backgroundColor: "#141414", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.22)", boxShadow: "none" }}
+                        placeholder="Paste job description here…"
+                        disabled={busy || jobBusy}
+                      />
+                    </div>
+                    {jobBusy ? (
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <Spinner />
+                        <span className="text-sm" style={{ color: "#AFAFAF" }}>Scoring… this can take up to ~1 minute.</span>
+                      </div>
+                    ) : null}
+                    <div className="mt-7 flex flex-col items-center gap-2">
+                      {jobText.trim().length < 20 && !(busy || jobBusy) ? (
+                        <p className="text-xs" style={{ color: "#666" }}>Paste a job description to run calibration.</p>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ backgroundColor: (busy || jobBusy || jobText.trim().length < 20) ? "rgba(242,242,242,0.70)" : "#F2F2F2", color: "#0B0B0B", cursor: (busy || jobBusy || jobText.trim().length < 20) ? "not-allowed" : "pointer", minWidth: 180 }}
+                        disabled={busy || jobBusy || jobText.trim().length < 20}
+                        onClick={async () => {
+                          const sessionId = String(session?.sessionId ?? "");
+                          if (!sessionId) { setError("Missing sessionId (session not created)." ); return; }
+                          setError(null); setBusy(true); setJobBusy(true);
+                          try {
+                            const curState = String(session?.state ?? "");
+                            if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
+                              await postEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" });
+                            }
+                            let s = await postEvent({ type: "SUBMIT_JOB_TEXT", sessionId, jobText: jobText.trim() });
+                            setSession(s);
+                            let ticks = 0;
+                            while (ticks < 12) {
+                              const st = String(s?.state ?? "");
+                              if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE" || hasResults(s)) break;
+                              s = await postEvent({ type: "ADVANCE", sessionId });
+                              setSession(s);
+                              ticks++;
+                            }
+                            if (String(s?.state) === "ALIGNMENT_OUTPUT") {
+                              s = await postEvent({ type: "COMPUTE_ALIGNMENT_OUTPUT", sessionId });
+                              setSession(s);
+                            }
+                            if (String(s?.state) !== "TERMINAL_COMPLETE" && !hasResults(s)) {
+                              s = await postEvent({ type: "ADVANCE", sessionId });
+                              setSession(s);
+                            }
+                            if (hasResults(s) || String(s?.state) === "TERMINAL_COMPLETE") {
+                              try {
+                                const result = await fetchResult(sessionId);
+                                setJobResult(buildJobResult(s, result));
+                              } catch {
+                                setJobResult(buildJobResult(s));
+                              }
+                            }
+                          } catch (e: any) {
+                            if (e?.message?.includes("JOB_REQUIRED") || e?.code === "JOB_REQUIRED") {
+                              setError("A job description is required.");
+                            } else {
+                              setError(displayError(e));
+                            }
+                          } finally { setBusy(false); setJobBusy(false); }
+                        }}
+                      >
+                        {(busy || jobBusy) ? (<><Spinner /><span className="ml-2">Running…</span></>) : "Run calibration"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
               );
             })() : null}

@@ -23,7 +23,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     // Direct handoff from caliber web app content script
     const sid = msg.sessionId;
     if (sid && typeof sid === "string") {
-      chrome.storage.local.set({ caliberSessionId: sid });
+      const toStore = { caliberSessionId: sid };
+      // Persist full session backup for server-side restoration
+      if (msg.sessionBackup && typeof msg.sessionBackup === "object" && msg.sessionBackup.sessionId === sid) {
+        toStore.caliberSessionBackup = msg.sessionBackup;
+      }
+      chrome.storage.local.set(toStore);
       sendResponse({ ok: true });
     } else {
       sendResponse({ ok: false });
@@ -108,15 +113,45 @@ async function ensureSessionThenFit(jobText) {
   return callFitAPI(jobText, sessionId);
 }
 
+/**
+ * Attempt to restore a lost session to the server from the locally cached backup.
+ * Returns true if the server accepted the restore.
+ */
+async function tryRestoreSession(sessionId) {
+  const store = await chrome.storage.local.get(["caliberSessionBackup"]);
+  const backup = store.caliberSessionBackup;
+  if (!backup || backup.sessionId !== sessionId) return false;
+  try {
+    const resp = await fetch(API_BASE + "/api/calibration", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session: backup }),
+    });
+    return resp.ok;
+  } catch { return false; }
+}
+
 async function callFitAPI(jobText, sessionId) {
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
 
-  const resp = await fetch(API_BASE + "/api/extension/fit", {
+  let resp = await fetch(API_BASE + "/api/extension/fit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+  // If session not found (401), try restoring from backup and retry once
+  if (resp.status === 401 && sessionId) {
+    const restored = await tryRestoreSession(sessionId);
+    if (restored) {
+      resp = await fetch(API_BASE + "/api/extension/fit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+  }
 
   const data = await resp.json();
   if (!resp.ok) {

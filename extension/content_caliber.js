@@ -11,10 +11,17 @@
     var sessionId = readCookie("caliber_sessionId");
     if (!sessionId) return;
 
-    // Send sessionId + the base URL of this Caliber instance
+    // Include full session backup from localStorage for server-side restoration
+    var sessionBackup = null;
+    try {
+      var raw = localStorage.getItem("caliber_session_backup");
+      if (raw) sessionBackup = JSON.parse(raw);
+    } catch (e) { /* ignore parse errors */ }
+
+    // Send sessionId + backup blob to the background worker
     var baseUrl = window.location.origin;
     chrome.runtime.sendMessage(
-      { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId, baseUrl: baseUrl },
+      { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId, baseUrl: baseUrl, sessionBackup: sessionBackup },
       function () {
         // Ignore response / errors — best-effort handoff
         if (chrome.runtime.lastError) { /* noop */ }
