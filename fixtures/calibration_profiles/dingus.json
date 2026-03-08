@@ -1,0 +1,12 @@
+{
+  "id": "dingus",
+  "name": "Dingus",
+  "resume_text": "Customer Service Associate\n\nResponsible for assisting customers with questions and purchases. Handled daily store operations including stocking shelves, answering phones, and assisting with general tasks around the store.\n\nOccasionally helped with scheduling shifts and organizing paperwork. Assisted team members when needed and supported day-to-day store activities.\n\nExperience using Microsoft Word and Excel. Strong team player and dependable worker who enjoys helping customers and working with others.",
+  "prompt_answers": {
+    "prompt_1": "Helping customers and working with coworkers. I like being part of a team and getting tasks done together.",
+    "prompt_2": "Doing the same repetitive tasks for long periods of time without much variety.",
+    "prompt_3": "Usually people ask me to help when they need an extra hand with something or when they need help talking to customers.",
+    "prompt_4": "Learning new things and figuring out how to do something better than before.",
+    "prompt_5": "Talking to people, staying organized, and helping wherever I'm needed."
+  }
+}
