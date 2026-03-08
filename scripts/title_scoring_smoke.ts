@@ -126,21 +126,29 @@ function extractWeightedAnchors(resumeText: string, promptAnswers: string[]): Ma
   const resumeWords = toWordSet(resumeText);
   const promptWordSets = promptAnswers.map(toWordSet);
 
-  const sourceCount = new Map<string, number>();
-  for (const [term] of allTokens) {
-    let sources = 0;
-    if (resumeWords.has(term)) sources++;
-    for (const pSet of promptWordSets) {
-      if (pSet.has(term)) sources++;
+  // Retain single-mention scoring vocab terms at count=3
+  for (const wordSet of [resumeWords, ...promptWordSets]) {
+    for (const term of wordSet) {
+      if (!allTokens.has(term) && SCORING_VOCAB.has(term)) {
+        allTokens.set(term, 3);
+      }
     }
-    sourceCount.set(term, sources);
   }
+
+  const RESUME_SOURCE_WEIGHT = 1.0;
+  const PROMPT_SOURCE_WEIGHT = 2.5;
 
   const weighted = new Map<string, number>();
   for (const [term, rawCount] of allTokens) {
-    const base = Math.min(3, rawCount);
-    const sources = sourceCount.get(term) ?? 1;
-    const bonus = Math.min(2, Math.max(0, sources - 1));
+    let base = Math.min(4, rawCount);
+    let sourceWeight = 0;
+    if (resumeWords.has(term)) sourceWeight += RESUME_SOURCE_WEIGHT;
+    let inPrompt = false;
+    for (const pSet of promptWordSets) {
+      if (pSet.has(term)) { sourceWeight += PROMPT_SOURCE_WEIGHT; inPrompt = true; }
+    }
+    if (inPrompt && base < 4 && !resumeWords.has(term)) base = Math.min(4, base + 1);
+    const bonus = Math.min(2, Math.max(0, Math.floor(sourceWeight / PROMPT_SOURCE_WEIGHT)));
     const weight = Math.min(5, base + bonus);
     weighted.set(term, weight);
   }
@@ -195,13 +203,13 @@ const TITLE_CLUSTERS: TitleCluster[] = [
   },
   {
     name: "ClientGrowth",
-    core: ["relationship", "client", "team", "outcome"],
+    core: ["customer", "sale", "client"],
     titles: [
-      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["collaboration", "stakeholder", "strategy", "tool"] },
-      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["collaboration", "stakeholder", "strategy", "project"] },
-      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["strategy", "stakeholder", "project", "ownership"] },
-      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["collaboration", "tool", "project", "ownership"] },
-      { title: "Account Manager", unique: ["account", "renewal"], optional: ["stakeholder", "strategy", "project", "collaboration"] },
+      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["relationship", "collaboration", "stakeholder", "strategy", "tool", "service"] },
+      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["relationship", "collaboration", "stakeholder", "strategy", "project", "service"] },
+      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["relationship", "strategy", "stakeholder", "project", "ownership"] },
+      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["relationship", "collaboration", "tool", "project", "ownership"] },
+      { title: "Account Manager", unique: ["account", "renewal"], optional: ["relationship", "stakeholder", "strategy", "project", "collaboration", "service"] },
     ],
   },
 ];
@@ -232,6 +240,12 @@ for (const t of STANDALONE_SIGS) {
   SIGS[t.title] = { required: t.required, optional: t.optional };
 }
 
+const SCORING_VOCAB = new Set<string>();
+for (const sig of Object.values(SIGS)) {
+  for (const t of sig.required) SCORING_VOCAB.add(t);
+  for (const t of sig.optional) SCORING_VOCAB.add(t);
+}
+
 const ACTION_ARTIFACT_PAIRS: [string, string][] = [
   ["design", "system"],
   ["create", "sop"],
@@ -241,6 +255,8 @@ const ACTION_ARTIFACT_PAIRS: [string, string][] = [
   ["customer", "need"],
   ["client", "outcome"],
   ["build", "relationship"],
+  ["partnership", "alliance"],
+  ["sale", "strategy"],
 ];
 
 const HIGH_SPECIFICITY_ANCHORS = new Set<string>([
@@ -400,20 +416,31 @@ const CHRIS_PROMPTS = [
 ];
 
 const JEN_RESUME = `
-Client Relationships & Team Lead | 6 years in B2B SaaS
-Built and maintained long-term client relationships across enterprise accounts. Led client
-onboarding programs and retention initiatives that reduced churn by 30%. Grew a team of 5
-focused on client outcomes and renewal strategy. Developed partnership programs with channel
-partners and alliances. Led community growth initiatives and stakeholder engagement programs.
-Created collaboration tools for tracking client health and team alignment.
+Summary Self-motivated go-getter with over 10 years of experience in sales. Known for
+exceptional customer service and executing sales strategies that produce results. Natural
+proclivity to understanding technology and how to sell to clients. Excellent at building
+alliances and partnerships with customers, prospects and colleagues. Experience Gracer-West
+Holdings Salem OR Estate Manager 01/2021 Present Maintained and managed a large household
+and complex of upscale properties for a private client. Role included accounting managing
+staff coordinating events overseeing new projects and setting up a successful rental property.
+Responsible for working with owner to execute an overall plan for all properties. Developed
+acute business skills in computers finance planning and organization. Set a service standard
+of excellence while on the premises and produced amazing results for client. SOYOUU LLC
+Keizer OR Owner 01/2013 01/2023 Operated a successful college textbook business for 10 years.
+Cultivated relationships that were pivotal in understanding how to deliver superior customer
+service. Achieved over 95% positive customer reviews. Experience with building lucrative
+products and marketing them to consumers. Skills Customer service Communication skills Computer
+literacy Leadership Outside Sales Analytical Thinking Knowledge of Main Sales Platforms
+Advertising Negotiation Active Listening Prospect Communication Identifying Client Needs
+Product Demonstrations Jennifer Bellini
 `;
 
 const JEN_PROMPTS = [
-  "Building relationships with clients is the part that felt most like me — understanding their outcomes, helping them succeed, and making genuine partnerships. I loved the team aspect too, coaching people to build deeper client relationships and drive better outcomes.",
-  "Purely administrative work with no client or relationship connection drained me. When I was stuck in logistics instead of building relationships or growing the team, I lost energy. I need the work to be relationship-driven with clear client outcomes.",
-  "People come to me for relationship strategy — how to build trust with clients, how to structure onboarding for retention, how to grow accounts through renewal. I'm also the person teams call for collaboration challenges and community building.",
-  "I get excited by client challenges that require creative relationship building — especially when there's a real outcome at stake. Building partnership programs, growing community engagement, and strengthening team collaboration are exactly my kind of work.",
-  "I naturally build tools for relationships — tracking how I stay connected with people, creating ways to follow up, and building systems for my team to track client outcomes. I organize community events and programs that build genuine connection and growth.",
+  "making marketing materials, design materials. building sops, automations and tools for business. Developing scripts and pitch decks. working directly with customers and understanding their desires and then building solutions around them.",
+  "endless sales cycles, jumping from one task to another, not being able to go deep on something, jumping from in home, to cold calls, to pitch decks, to scripts to meetings. I want to feel completed with my work. ship something see how it takes and iterate. sales feels like always chasing the same win",
+  "everything i mentioned in prompt 1, and guidance, empathy, listening and good instincts about people and business direction.",
+  "discovering bottlenecks and creating strategies to break them. designing beautiful materials for people to look at and engage with. and building tools and automations that make the business run more efficiently.",
+  "App building, interior design, songwriting, producing",
 ];
 
 // ─── Run tests ───

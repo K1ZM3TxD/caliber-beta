@@ -28,6 +28,9 @@ const CANON_MAP: Record<string, string> = {
   processes: "process",
   customers: "customer",
   teams: "team",
+  investigating: "investigate", investigation: "investigate", investigator: "investigate",
+  vulnerabilities: "vulnerability",
+  strategies: "strategy",
 };
 
 const COMPOUND_MAP: [RegExp, string][] = [
@@ -121,12 +124,12 @@ export function extractWeightedAnchors(resumeText: string, promptAnswers: string
   // Retain single-mention terms that are in the scoring vocabulary.
   // These are domain-significant tokens (e.g. "development", "system") that
   // appeared only once in the combined text and were dropped by the count>=2
-  // gate in extractBroadTokens. They enter at count=2 because a single mention
-  // of a domain-relevant term is as credible as two mentions of a generic word.
+  // gate in extractBroadTokens. They enter at count=3 because a single mention
+  // of a domain-relevant term carries stronger signal than generic vocabulary.
   for (const wordSet of [resumeWords, ...promptWordSets]) {
     for (const term of wordSet) {
       if (!allTokens.has(term) && SCORING_VOCAB.has(term)) {
-        allTokens.set(term, 2);
+        allTokens.set(term, 3);
       }
     }
   }
@@ -138,7 +141,7 @@ export function extractWeightedAnchors(resumeText: string, promptAnswers: string
 
   const weighted = new Map<string, number>();
   for (const [term, rawCount] of allTokens) {
-    let base = Math.min(3, rawCount);
+    let base = Math.min(4, rawCount);
     let sourceWeight = 0;
     if (resumeWords.has(term)) sourceWeight += RESUME_SOURCE_WEIGHT;
     let inPrompt = false;
@@ -147,7 +150,7 @@ export function extractWeightedAnchors(resumeText: string, promptAnswers: string
     }
     // Prompt-only terms get a half-step base lift (2→3) to reflect
     // explicit user signal; terms also in resume are unaffected.
-    if (inPrompt && base < 3 && !resumeWords.has(term)) base = Math.min(3, base + 1);
+    if (inPrompt && base < 4 && !resumeWords.has(term)) base = Math.min(4, base + 1);
     const bonus = Math.min(2, Math.max(0, Math.floor(sourceWeight / PROMPT_SOURCE_WEIGHT)));
     const weight = Math.min(5, base + bonus);
     weighted.set(term, weight);
@@ -203,13 +206,35 @@ const TITLE_CLUSTERS: TitleCluster[] = [
   },
   {
     name: "ClientGrowth",
-    core: ["relationship", "client", "team", "outcome"],
+    core: ["customer", "sale", "client"],
     titles: [
-      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["collaboration", "stakeholder", "strategy", "tool"] },
-      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["collaboration", "stakeholder", "strategy", "project"] },
-      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["strategy", "stakeholder", "project", "ownership"] },
-      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["collaboration", "tool", "project", "ownership"] },
-      { title: "Account Manager", unique: ["account", "renewal"], optional: ["stakeholder", "strategy", "project", "collaboration"] },
+      { title: "Client Success Manager", unique: ["retention", "onboard"], optional: ["relationship", "collaboration", "stakeholder", "strategy", "tool", "service"] },
+      { title: "Partnerships Manager", unique: ["partnership", "alliance"], optional: ["relationship", "collaboration", "stakeholder", "strategy", "project", "service"] },
+      { title: "Business Development Manager", unique: ["pipeline", "negotiation"], optional: ["relationship", "strategy", "stakeholder", "project", "ownership"] },
+      { title: "Community & Growth Lead", unique: ["community", "growth"], optional: ["relationship", "collaboration", "tool", "project", "ownership"] },
+      { title: "Account Manager", unique: ["account", "renewal"], optional: ["relationship", "stakeholder", "strategy", "project", "collaboration", "service"] },
+    ],
+  },
+  {
+    name: "SecurityAnalysis",
+    core: ["security", "technical", "analysis"],
+    titles: [
+      { title: "Security Analyst", unique: ["risk", "network"], optional: ["vulnerability", "assessment", "cybersecurity", "penetration", "system", "investigate"] },
+      { title: "Cybersecurity Specialist", unique: ["network", "vulnerability"], optional: ["penetration", "risk", "system", "assessment", "tool", "cybersecurity", "test"] },
+      { title: "Security Operations Lead", unique: ["team", "risk"], optional: ["network", "system", "vulnerability", "operations", "assessment", "cybersecurity"] },
+      { title: "Technical Security Consultant", unique: ["solution", "risk"], optional: ["client", "assessment", "system", "vulnerability", "investigate", "cybersecurity"] },
+      { title: "Threat & Vulnerability Analyst", unique: ["vulnerability", "risk"], optional: ["network", "assessment", "penetration", "system", "investigate", "cybersecurity"] },
+    ],
+  },
+  {
+    name: "CreativeOps",
+    core: ["design", "business", "tool"],
+    titles: [
+      { title: "Marketing Operations Manager", unique: ["market", "strategy"], optional: ["automate", "sop", "material", "customer", "campaign", "sale"] },
+      { title: "Creative Operations Lead", unique: ["material", "automate"], optional: ["sop", "market", "strategy", "workflow", "customer", "pitch"] },
+      { title: "Sales Enablement Specialist", unique: ["sale", "customer"], optional: ["pitch", "script", "sop", "deck", "strategy", "material"] },
+      { title: "Business Operations Designer", unique: ["automate", "sop"], optional: ["market", "strategy", "workflow", "customer", "material", "process"] },
+      { title: "Brand & Content Strategist", unique: ["market", "material"], optional: ["customer", "strategy", "communication", "sale", "automate", "campaign"] },
     ],
   },
 ];
@@ -252,19 +277,25 @@ const ACTION_ARTIFACT_PAIRS: [string, string][] = [
   ["design", "system"],
   ["create", "sop"],
   ["automate", "workflow"],
-  ["pitch", "decks"],
-  ["feasibility", "studies"],
+  ["pitch", "deck"],
+  ["feasibility", "study"],
   ["customer", "need"],
   ["client", "outcome"],
   ["build", "relationship"],
+  ["penetration", "test"],
+  ["vulnerability", "assessment"],
+  ["investigate", "risk"],
+  ["partnership", "alliance"],
+  ["sale", "strategy"],
 ];
 
 const HIGH_SPECIFICITY_ANCHORS = new Set<string>([
   "sop", "feasibility", "incentives", "automate", "workflow",
-  "pitch", "decks", "proposal", "methodology", "compliance",
+  "pitch", "deck", "study", "proposal", "methodology", "compliance",
   "architecture", "stakeholders", "onboarding", "documentation",
   "retention", "onboard", "partnership", "pipeline", "renewal",
   "alliance", "negotiation", "community",
+  "cybersecurity", "penetration", "vulnerability", "assessment", "risk",
 ]);
 
 // ─── Scoring engine ─────────────────────────────────────────────────────────
@@ -276,6 +307,90 @@ interface EnrichedCandidate {
   _matchedPairs: string[];
   _matchedReq: string[];
   _missing: string[];
+}
+
+const TITLE_TO_CLUSTER = new Map<string, string>();
+for (const cluster of TITLE_CLUSTERS) {
+  for (const t of cluster.titles) {
+    TITLE_TO_CLUSTER.set(t.title, cluster.name);
+  }
+}
+
+const DOMAIN_GROUNDING: Record<string, string[]> = {
+  SecurityAnalysis: ["security", "cybersecurity", "penetration", "vulnerability", "network", "risk", "soc", "analyst", "technical"],
+  CreativeOps: ["marketing", "sale", "customer", "pitch", "deck", "script", "automate", "sop", "material", "business", "design"],
+  ClientGrowth: ["client", "customer", "relationship", "sale", "service", "partnership", "alliance", "retention", "account", "negotiation", "community"],
+  ProductDev: ["product", "development", "market", "launch", "technical", "system", "workflow", "process"],
+  DesignSystems: ["design", "system", "workflow", "research", "users", "documentation", "brand"],
+  OpsProgram: ["operations", "management", "program", "project", "tracking", "reporting", "execution", "planning"],
+};
+
+function detectPrimaryClusters(anchorMap: Map<string, number>): string[] {
+  const clusterScores = new Map<string, number>();
+  for (const [cluster, terms] of Object.entries(DOMAIN_GROUNDING)) {
+    let score = 0;
+    for (const term of terms) {
+      score += anchorMap.get(term) ?? 0;
+    }
+    clusterScores.set(cluster, score);
+  }
+
+  const sorted = [...clusterScores.entries()].sort((a, b) => b[1] - a[1]);
+  const top = sorted[0]?.[1] ?? 0;
+  if (top === 0) return [];
+  return sorted.filter(([, s]) => s >= Math.max(3, top * 0.5)).map(([name]) => name);
+}
+
+function applyGroundingPenalty(candidates: EnrichedCandidate[], anchorMap: Map<string, number>): EnrichedCandidate[] {
+  const primaryClusters = detectPrimaryClusters(anchorMap);
+  if (primaryClusters.length === 0) return candidates;
+
+  const trustedAdjacencies = new Set<string>([
+    "SecurityAnalysis->OpsProgram",
+    "OpsProgram->SecurityAnalysis",
+    "CreativeOps->ClientGrowth",
+    "ClientGrowth->CreativeOps",
+    "ProductDev->DesignSystems",
+    "DesignSystems->ProductDev",
+  ]);
+
+  return candidates.map((c) => {
+    const cluster = TITLE_TO_CLUSTER.get(c.title);
+    if (!cluster) return c;
+    if (primaryClusters.includes(cluster)) return c;
+
+    const isTrustedAdjacent = primaryClusters.some((p) => trustedAdjacencies.has(`${p}->${cluster}`));
+    const penalty = isTrustedAdjacent ? 0.6 : (c.score >= 7 ? 1.6 : 1.0);
+    const adjusted = Math.max(0, Math.round((c.score - penalty) * 10) / 10);
+    return { ...c, score: adjusted };
+  }).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+}
+
+function selectTwoPlusOne(candidates: EnrichedCandidate[]): EnrichedCandidate[] {
+  if (candidates.length <= 3) return candidates;
+
+  const primary = candidates[0];
+  const primaryCluster = TITLE_TO_CLUSTER.get(primary.title);
+  const strongPool = candidates.filter((c) => c.score >= 7.0);
+
+  const second = strongPool.find((c) => c.title !== primary.title && TITLE_TO_CLUSTER.get(c.title) === primaryCluster)
+    ?? strongPool.find((c) => c.title !== primary.title)
+    ?? candidates.find((c) => c.title !== primary.title)
+    ?? primary;
+
+  const selected = new Set<string>([primary.title, second.title]);
+
+  const adjacent = candidates.find((c) => {
+    if (selected.has(c.title)) return false;
+    const cluster = TITLE_TO_CLUSTER.get(c.title);
+    if (!cluster || cluster === primaryCluster) return false;
+    return c.score >= Math.max(6.2, primary.score - 1.8);
+  })
+    ?? candidates.find((c) => !selected.has(c.title));
+
+  const out = [primary, second];
+  if (adjacent) out.push(adjacent);
+  return out.slice(0, 3);
 }
 
 function scoreEnriched(anchorMap: Map<string, number>): EnrichedCandidate[] {
@@ -346,11 +461,9 @@ function scoreEnriched(anchorMap: Map<string, number>): EnrichedCandidate[] {
  */
 export function scoreTitles(resumeText: string, promptAnswers: string[]): Array<{ title: string; score: number }> {
   const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
-  const enriched = scoreEnriched(anchorMap);
-  // Only show top 3 high-fit titles (>=7.0), fallback to top 3 if all are weak
-  const highFit = enriched.filter(e => e.score >= 7.0).slice(0, 3);
-  if (highFit.length > 0) return highFit.map(({ title, score }) => ({ title, score }));
-  return enriched.slice(0, 3).map(({ title, score }) => ({ title, score }));
+  const grounded = applyGroundingPenalty(scoreEnriched(anchorMap), anchorMap);
+  const selected = selectTwoPlusOne(grounded);
+  return selected.map(({ title, score }) => ({ title, score }));
 }
 
 /**
@@ -358,7 +471,7 @@ export function scoreTitles(resumeText: string, promptAnswers: string[]): Array<
  */
 export function scoreAllTitles(resumeText: string, promptAnswers: string[]): Array<{ title: string; score: number }> {
   const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
-  const enriched = scoreEnriched(anchorMap);
+  const enriched = applyGroundingPenalty(scoreEnriched(anchorMap), anchorMap);
   return enriched.map(({ title, score }) => ({ title, score }));
 }
 
@@ -387,22 +500,25 @@ export function generateTitleRecommendation(
   promptAnswers: string[]
 ): { candidates: Array<{ title: string; score: number }>; recommendation: TitleRecommendation } {
   const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
-  const enriched = scoreEnriched(anchorMap);
-  // Only show top 3 high-fit titles (>=7.0), fallback to top 3 if all are weak
-  const top3 = (() => {
-    const highFit = enriched.filter(e => e.score >= 7.0).slice(0, 3);
-    if (highFit.length > 0) return highFit;
-    return enriched.slice(0, 3);
-  })();
+  const enriched = applyGroundingPenalty(scoreEnriched(anchorMap), anchorMap);
+  const top3 = selectTwoPlusOne(enriched);
 
   const primary = top3[0];
   const topScore = primary.score;
 
-  // Adjacent: next titles within 0.8 of primary and >= 7.0 (max 2)
-  const adjacent = top3.slice(1).filter((_c, i) => i < 2 && top3[i + 1].score >= 7.0 && (topScore - top3[i + 1].score) <= 0.8);
+  // Adjacent: include one cross-cluster credible opportunity if available.
+  const adjacentPrimaryCluster = TITLE_TO_CLUSTER.get(primary.title);
+  const adjacent = top3.slice(1).filter((c) => {
+    const cCluster = TITLE_TO_CLUSTER.get(c.title);
+    return c.score >= 6.2 && (!!adjacentPrimaryCluster ? cCluster !== adjacentPrimaryCluster : true);
+  }).slice(0, 1);
 
   // why_primary: describe matched anchors deterministically
   const whyPrimary: string[] = [];
+    const primaryCluster = TITLE_TO_CLUSTER.get(primary.title);
+    if (primaryCluster) {
+      whyPrimary.push(`Grounded cluster: ${primaryCluster}`);
+    }
   if (primary._matchedReq.length > 0) {
     whyPrimary.push(`Matched anchors: ${primary._matchedReq.join(", ")}`);
   }
