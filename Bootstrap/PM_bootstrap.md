@@ -55,6 +55,7 @@ You do **not**:
 
 ```text
 TASK: <short title>
+TARGET: <WEB_APP | EXTENSION | DOCS_ONLY>
 
 CONTEXT:
 - <what coder must know, minimal>
@@ -64,11 +65,13 @@ ACCEPTANCE CRITERIA:
 - <bullet>
 
 FILES/AREAS TO TOUCH:
-- <paths or components>
+- <paths or components — must fall within declared TARGET>
 
 NOTES / CONSTRAINTS:
 - <important guardrails>
 ```
+
+> **TARGET is mandatory.** See `Bootstrap/CALIBER_EXECUTION_CONTRACT.md § Build Target Declaration Rule` for allowed paths per target. Coder must reject tasks missing a TARGET line.
 
 ---
 

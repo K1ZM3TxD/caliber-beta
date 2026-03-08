@@ -1,5 +1,24 @@
 # CALIBER_EXECUTION_CONTRACT
 
+## Build Target Declaration Rule (source of truth)
+
+Every coder task MUST declare exactly one build target:
+
+| Target | Scope | Allowed paths |
+|--------|-------|----------------|
+| `WEB_APP` | Next.js web application | `app/`, `lib/`, `api/`, `results/`, `public/`, `types/`, `scripts/`, config files at repo root |
+| `EXTENSION` | Browser extension | `extension/` only |
+| `DOCS_ONLY` | Documentation / Bootstrap | `Bootstrap/`, `*.md` at repo root, `docs/` |
+
+### Hard boundaries
+
+- **Coder may NOT touch files outside the declared target.** If an edit is needed outside scope, stop and escalate to PM.
+- **WEB_APP tasks:** `extension/` packaging, build, and manifest files are out of scope unless the task explicitly names them.
+- **EXTENSION tasks:** Testing and building must use the **current `extension/` folder** build only. Do not reference, build, or test against stale root-level zip artifacts or any artifact outside `extension/`. The canonical production host is `https://www.caliber-app.com`; dev host is `http://localhost:3000`. See `ENVIRONMENT_SPLIT.md`.
+- **DOCS_ONLY tasks:** No runtime code changes permitted.
+
+If a task omits the target declaration, PM must add it before handoff. Coder must reject any task that lacks a declared target.
+
 ## Guardrails for Coder tasks
 
 - Every task must include the exact file path(s) allowed to change.
