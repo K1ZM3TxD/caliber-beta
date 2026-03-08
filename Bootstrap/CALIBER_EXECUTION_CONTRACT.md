@@ -77,3 +77,32 @@ TASK: [Describe the core logic task]
 REQUIREMENTS:
 - Regression/unit tests pass
 ```
+
+## Production Stability Rule (2026-03-08)
+
+Production stability comes first. Feature expansion is blocked until stable beta is intentionally frozen and scoring credibility issues are resolved.
+
+- Do not start Phase 2 overlay/list scoring tasks until scoring credibility issues (#25, #26) are resolved and PM explicitly unblocks.
+- Do not merge experimental scoring or extension changes into main without PM approval.
+- Production web app (`https://www.caliber-app.com`) must remain the stable beta build.
+
+## Environment Separation Rule (2026-03-08)
+
+Production and development environments are hard-separated. No fallback between hosts.
+
+- Production extension must only target `https://www.caliber-app.com`. No localhost contact.
+- Dev extension must only target `http://localhost:3000`. No production contact.
+- No multi-host fallback arrays or endpoint discovery logic in extension code.
+- If any code change reintroduces cross-environment host permissions or fallback behavior, treat as a regression.
+- See `ENVIRONMENT_SPLIT.md` for operator instructions and build details.
+
+## PM/Coder Sequencing Guardrail (2026-03-08)
+
+Locked task order for current phase:
+1. Scoring calibration / credibility (Jen + Fabio)
+2. Bottom line / explanation polish (only as needed for beta credibility)
+3. Maintain stable beta on production
+4. Extension trust UX (active job identity in sidecard)
+5. Phase 2 overlay/list scoring — deferred until PM explicitly unblocks
+
+Do not skip ahead in this sequence. If a later task is attempted before earlier tasks are resolved, flag it and stop.

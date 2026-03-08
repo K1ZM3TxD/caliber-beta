@@ -29,6 +29,10 @@ If any file is missing or fails to load:
 | Current live / working state   | `Bootstrap/CALIBER_CONTEXT_SUMMARY.md`      |
 | Open regressions & known issues| `Bootstrap/CALIBER_ISSUES_LOG.md`           |
 | Delivery & execution rules     | `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`   |
+| Calibration scoring logic      | `docs/calibration_product_logic.md`         |
+| Calibration results page UX    | `docs/calibration_results_ux.md`            |
+| Extension product loop         | `docs/extension_product_loop.md`            |
+| Regression test profiles       | `docs/test_profiles.md`                     |
 
 > **Rule of thumb:** If you're unsure whether something is _intended_ vs _actual_, check `PROJECT_OVERVIEW.md` for intended and `CALIBER_CONTEXT_SUMMARY.md` for actual. Don't rediscover product behavior from code.
 
@@ -65,3 +69,22 @@ FILES/AREAS TO TOUCH:
 NOTES / CONSTRAINTS:
 - <important guardrails>
 ```
+
+---
+
+## Workflow Lessons (2026-03-07)
+
+### A. Extension Collision Rule
+Only one extension branch at a time should make major changes to `extension/content_linkedin.js` unless there is a tightly controlled integration plan. Multiple parallel extension branches have caused renderer, persistence, and packaging regressions.
+
+### B. Documentation Trigger
+After major PM sessions, create a documentation update task so the repo captures new product truth before the next PM reload. Without this, decisions are lost between sessions and the next PM starts from stale context.
+
+### C. UX Implementation Rule
+Complex reveal/animation UX (like the calibration results page) must be implemented with a **single sequential orchestrator or state machine**, not multiple independent timers. Independent timers cause overlapping reveals, multiple cursors, and simultaneous motion — all of which violate the intended calm-sequential feel.
+
+### D. Current Operating Context (2026-03-08)
+When bootstrap loads, PM should treat these as active operating facts:
+- **Environment split is live.** Production (`caliber-app.com`) and dev (`localhost:3000`) are hard-separated. See `ENVIRONMENT_SPLIT.md`.
+- **Roadmap order is locked.** Scoring credibility → stable beta → trust polish → Phase 2 (deferred). Do not re-open sequencing without new evidence.
+- **Scoring credibility is the #1 open issue.** Jen and Fabio profiles score too low; market jobs under calibrated titles often below 6.

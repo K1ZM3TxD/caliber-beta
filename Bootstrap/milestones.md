@@ -1,5 +1,31 @@
 ---
 
+BREAK + UPDATE (2026-03-08)
+---
+DONE (this sprint):
+- Production/dev environment split implemented and deployed
+  - Production: `https://www.caliber-app.com` (Vercel from main)
+  - Dev: `http://localhost:3000` only
+  - Extension builds hard-separated: no host fallback, no cross-environment permissions
+- Stable beta deployed and verified live on production domain
+- Production extension verified working after build/reload
+- Roadmap order locked: scoring credibility → beta stability → trust polish → Phase 2 (deferred)
+- Product understanding captured: calibration titles are starting search terms, extension is the real decision engine
+- Environment split documented in `ENVIRONMENT_SPLIT.md`
+
+BLOCKED:
+- Scoring credibility for Jen (5.3 / 4.6 / 4.6) and Fabio (low relative to expected strong-profile behavior)
+- Market-job scores low despite high calibration title scores (jobs under calibrated terms often below 6)
+- Possible search-surface / adjacent-title discovery gap (acknowledged, not current scope)
+
+NEXT:
+1. Scoring calibration / credibility fix (Jen + Fabio) — top priority
+2. Bottom line polish only as needed for beta credibility
+3. Extension sidecard: active job identity (title, company, location) for trust
+4. Phase 2 overlay/list scoring — deferred until PM unblocks
+
+---
+
 BREAK + UPDATE (2026-03-06)
 ---
 DONE (this sprint):

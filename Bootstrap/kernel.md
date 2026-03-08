@@ -298,6 +298,24 @@ These must never break:
 If anchor pressure degrades grammar, anchor usage must be reduced — not structure.
 
 
+## Environment Separation Invariant (2026-03-08)
+
+Stable production and experimental development must remain host-separated at all times.
+
+- Production extension targets `https://www.caliber-app.com` exclusively.
+- Dev extension targets `http://localhost:3000` exclusively.
+- No multi-host fallback, no endpoint discovery between environments.
+- Reintroduction of cross-environment host permissions or fallback arrays is a structural regression.
+
+## Roadmap Sequencing Invariant (2026-03-08)
+
+Roadmap sequencing can block feature work when credibility or stability issues remain.
+
+- Scoring credibility and production stability gate all feature expansion.
+- Phase 2 / feature-layer work is blocked until PM explicitly unblocks.
+- This is a durable rule, not a temporary pause.
+
+
 
 
 

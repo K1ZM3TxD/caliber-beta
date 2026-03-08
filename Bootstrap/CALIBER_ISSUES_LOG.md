@@ -55,9 +55,11 @@
   - A sister-profile run produced only one low-scoring title with no three options/dropdown.
   - Needs investigation to determine if title scoring bands are too restrictive for certain profile types.
 
-19. Extension Phase 2: listings-page overlay — **OPEN** (2026-03-06, product initiative)
+19. Extension Phase 2: listings-page overlay — **DEFERRED** (2026-03-08, product initiative)
   - Target: render fit scores next to job posts on LinkedIn/Indeed listings pages.
-  - Blocked until Phase 1 is stable and popup rendering is polished.
+  - Explicitly blocked until scoring credibility is resolved and stable beta is intentionally frozen.
+  - Phase 2 direction clarified (2026-03-08): persistent results-list overlay, score badges on job cards, sidebar as decision console, clicked-job controls active sidebar details.
+  - Not current scope. See CALIBER_CONTEXT_SUMMARY.md Deferred / Later section.
 
 20. Title rows may render without expandable detail — **OPEN** (2026-03-06, regression risk)
   - Intended behavior: each recommended title row is expandable with a ~2-sentence summary and 3 explanatory bullet points (see `PROJECT_OVERVIEW.md`).
@@ -100,3 +102,70 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 - No ‘compiled/200 OK’ claims without user-provided logs.
 - Added Remote Visibility Rule and Divergence Playbook to contract to prevent recurrence.
 - Smoke-first: calibration fixes must be proven via smoke terminal complete + result before UI debugging.
+---
+
+## Issues Added 2026-03-07
+
+21. Calibration title-quality / low-score issue — **OPEN** (2026-03-07)
+  - Fabio and Jen profiles produced weak or low-scoring outputs.
+  - Strong profiles should produce top-3 titles scoring 7.0+; these profiles fell below that bar.
+  - Title grounding and the 2 + 1 model (2 strong fits + 1 adjacent credible) need improvement.
+  - Related: #18 (sister-profile), #20 (missing enrichment).
+
+22. Abstract title-family drift — **OPEN** (2026-03-07)
+  - System can over-index on abstract behavioral traits (clarity, systems thinking, communication) and produce role families with no domain support.
+  - Example: cybersecurity user → "Brand Systems Designer" output.
+  - Root cause: synthesis pipeline weighted pattern signals too heavily relative to domain/resume signals.
+  - Guard needed: title selection must verify domain support from resume, not just trait-pattern alignment.
+  - See `docs/calibration_product_logic.md` for full description.
+
+23. Calibration results-page regression risk — **OPEN** (2026-03-07)
+  - Removed sections (Where You Operate Best / Lose Energy / pattern summary prose) were reintroduced by implementation drift in prior iterations.
+  - These sections are intentionally removed from the intended flow.
+  - This is a known UX regression to guard against.
+  - Intended flow: typewriter intro → title cards → extension CTA. Nothing else.
+  - See `docs/calibration_results_ux.md` for canonical spec.
+
+24. Extension panel integration instability — **OPEN** (2026-03-07)
+  - Multiple extension branches caused renderer / persistence / packaging regressions.
+  - Lesson: only one extension branch at a time should make major changes to `extension/content_linkedin.js`.
+  - Integration discipline is required — parallel extension work needs a tightly controlled merge plan.
+
+---
+
+## Issues Added 2026-03-08
+
+25. Scoring compression / credibility for Jen and Fabio — **OPEN** (2026-03-08, TOP PRIORITY)
+  - Jen's title family appears directionally correct, but scores are compressed too low:
+    - Partnerships Manager — 5.3
+    - Account Manager — 4.6
+    - Business Development Manager — 4.6
+  - Fabio also appears low-scored relative to expected strong-profile behavior.
+  - These profiles should produce job-fit scores reflecting their calibration strength, but real-market jobs routinely score below 6.
+  - This is the #1 blocking issue for stable beta credibility.
+  - Related: #21 (title-quality), #22 (abstract drift).
+
+26. Market-job scores low despite high calibration title scores — **OPEN** (2026-03-08)
+  - User's own calibration can produce high title scores (7+), but real LinkedIn jobs searched under those same calibrated terms often score mostly below 6, with rare ~7+.
+  - This suggests job-score weighting and/or search-surface limitations, not just calibration failure.
+  - May require tuning of job-fit scoring weights or expansion of title search surface.
+  - Related: #25 (scoring compression), #27 (search-surface gap).
+
+27. Search-surface limitation / adjacent-title discovery gap — **OPEN** (2026-03-08, product learning)
+  - Calibration titles are a starting hypothesis, not a complete market-search solution.
+  - Real-market discovery may require adjacent/expanded title families to surface strong-fit jobs.
+  - Current scope: acknowledge gap, do not solve. Deferred to post-beta-stability phase.
+  - Related: #26 (market-job score gap).
+
+28. Extension sidecard ambiguity — active job identity missing — **OPEN** (2026-03-08)
+  - Sidecard/panel should show the active job's title, company, and optional location for user trust.
+  - Without this, user cannot confirm which job the score refers to, especially after SPA navigation.
+  - Sequenced after scoring credibility fix (#25).
+
+29. Prod/dev environment split — **RESOLVED** (2026-03-08)
+  - Production extension locked to `https://www.caliber-app.com` only.
+  - Dev extension locked to `http://localhost:3000` only.
+  - No host fallback behavior in either build.
+  - Production site + extension verified working live.
+  - This must not regress. See `ENVIRONMENT_SPLIT.md` and `CALIBER_EXECUTION_CONTRACT.md` environment rules.
+  - Guard: if any code change reintroduces multi-host fallback or cross-environment host permissions, treat as regression.

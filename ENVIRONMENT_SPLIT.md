@@ -1,5 +1,18 @@
 # Caliber — Environment Split: Production vs Dev
 
+## Operating Model (2026-03-08)
+
+This environment split is the active beta operating model for Caliber, not just an implementation detail.
+
+- **Production extension** is for real users. It connects only to `https://www.caliber-app.com`. It is built from `dist/extension-prod/`.
+- **Dev extension** is for localhost-only experiments and scoring development. It connects only to `http://localhost:3000`. It is the source `extension/` directory or `dist/extension-dev/`.
+- **Never mix the two during routine testing.** Use separate Chrome profiles if both must be active simultaneously.
+- **Production must remain stable.** Experimental changes happen only in dev. No experimental code merges to main without PM approval.
+
+This split is enforced at the manifest `host_permissions` level — even modified code cannot cross environments.
+
+---
+
 ## Architecture
 
 | Component | Production | Dev/Testing |

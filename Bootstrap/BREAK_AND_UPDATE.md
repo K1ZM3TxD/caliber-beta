@@ -71,6 +71,5 @@ When the change lands, report:
 
 ## Notes / Scope
 - This workflow is for process + enforcement + contract drift control.
-- It is not required for routine implementation that doesn’t change expectations.
-- If unsure whether something is a “break”, treat it as a break and run the workflow.
+- It is not required for routine implementation that doesn’t change expectations.- Architecture shifts, release-model changes (e.g., prod/dev environment separation), and roadmap re-sequencing qualify as breaks and should use this workflow.- If unsure whether something is a “break”, treat it as a break and run the workflow.
 (See <attachments> above for file contents. You may not need to search or read the file again.)
