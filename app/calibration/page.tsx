@@ -920,26 +920,26 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Section heading */}
                 <div className="mb-1 flex flex-col items-center">
-                  <h2 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Your Titles</h2>
+                  <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Top title directions for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
                 </div>
 
                 {/* Explanation */}
-                <div className="mb-4">
-                  <p className="text-sm" style={{ color: "#666" }}>The closest market titles for your pattern. Use them to search for jobs.</p>
+                <div className="mb-5">
+                  <p className="text-sm" style={{ color: "#666" }}>These are the market titles closest to your background. Tap a card to learn why it fits.</p>
                 </div>
 
-                {/* Fallback: no title rows available */}
+                {/* Fallback: no title cards available */}
                 {titlesToRender.length === 0 ? (
                   <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "#141414", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.08)" }}>
                     Your title recommendations are still being generated.
                   </div>
                 ) : null}
 
-                {/* Title rows */}
-                <div className="space-y-2">
+                {/* Title cards */}
+                <div className="space-y-3">
                   {titlesToRender.map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
@@ -952,61 +952,59 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     return (
                       <div
                         key={idx}
-                        style={{ animation: `cb-title-enter 0.35s ease-out ${idx * 0.12 + 0.15}s both` }}
+                        className="cb-title-card rounded-xl transition-all duration-150 cursor-pointer"
+                        style={{
+                          animation: `cb-title-enter 0.35s ease-out ${idx * 0.12 + 0.15}s both`,
+                          backgroundColor: isExpanded ? "#1A1A1A" : "#121212",
+                          border: isExpanded ? "1px solid rgba(242,242,242,0.16)" : "1px solid rgba(242,242,242,0.06)",
+                        }}
+                        onClick={() => {
+                          if (!canExpand) return;
+                          setExpandedTitleIdx(isExpanded ? null : idx);
+                        }}
                       >
-                        <div
-                          className="cb-title-card flex flex-col rounded-lg px-4 py-3 select-none transition-all duration-150"
-                          style={{
-                            backgroundColor: isExpanded ? "#1A1A1A" : "#121212",
-                            border: isExpanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.06)",
-                          }}
-                        >
-                          {/* Title + score row */}
-                          <span className="flex items-center justify-between">
-                            <span className="flex items-center gap-2 min-w-0">
-                              <span className={`text-sm sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"} truncate`} style={{ color: "#F2F2F2" }}>{t.title}</span>
-                            </span>
-                            <span className="flex items-center gap-2 flex-shrink-0 ml-3">
-                              <span className="text-base font-mono font-bold tabular-nums" style={{ color: idx <= 1 ? "#4ADE80" : "#777" }}>{t.fit_0_to_10}/10</span>
+                        {/* Card header */}
+                        <div className="px-5 py-4">
+                          <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
+                          <div className="text-xs mt-0.5" style={{ color: "#555" }}>Role direction for your pattern</div>
+                          {canExpand ? (
+                            <div className="text-[11px] mt-2 font-medium" style={{ color: isExpanded ? "#888" : "#555" }}>
+                              {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {/* Expanded content */}
+                        {isExpanded && canExpand ? (
+                          <div className="px-5 pb-4 text-left" onClick={(e) => e.stopPropagation()}>
+                            <div className="border-t pt-3 mb-2" style={{ borderColor: "rgba(242,242,242,0.08)" }}>
+                              <div className="text-[11px] font-medium uppercase tracking-widest mb-2" style={{ color: "#555" }}>Why it fits</div>
+                              {hasSummary ? (
+                                <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>{summaryText}</p>
+                              ) : null}
+                              {hasBullets ? (
+                                <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                                  {validBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
+                                </ul>
+                              ) : null}
+                            </div>
+                            {/* Search actions */}
+                            <div className="flex items-center gap-2 mt-3">
                               <a
                                 href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-1 rounded text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#999", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
-                              >LinkedIn</a>
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                                style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
+                              >Search on LinkedIn</a>
                               <a
                                 href={`https://www.indeed.com/jobs?q=${encodeURIComponent(t.title)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-1 rounded text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#999", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
-                              >Indeed</a>
-                            </span>
-                          </span>
-                          {/* Expand affordance */}
-                          {canExpand ? (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedTitleIdx(isExpanded ? null : idx)}
-                              className="mt-1.5 text-left text-xs font-medium transition-colors duration-150 hover:underline"
-                              style={{ color: isExpanded ? "#888" : "#555", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                            >
-                              {isExpanded ? "Hide summary \u25B4" : "Why this title? \u25BE"}
-                            </button>
-                          ) : null}
-                        </div>
-                        {/* Expanded details */}
-                        {isExpanded && canExpand ? (
-                          <div className="px-5 py-3.5 sm:px-6 sm:py-4 rounded-b-lg mb-1 text-left" style={{ backgroundColor: "#161616", borderLeft: "1px solid rgba(242,242,242,0.18)", borderRight: "1px solid rgba(242,242,242,0.18)", borderBottom: "1px solid rgba(242,242,242,0.18)" }}>
-                            {hasSummary ? (
-                              <p className="text-sm leading-relaxed mb-2" style={{ color: "#D0D0D0" }}>{summaryText}</p>
-                            ) : null}
-                            {hasBullets ? (
-                              <ul className="text-sm leading-relaxed pl-4 space-y-0.5" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                                {validBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
-                              </ul>
-                            ) : null}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                                style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
+                              >Search on Indeed</a>
+                            </div>
                           </div>
                         ) : null}
                       </div>
