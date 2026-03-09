@@ -978,12 +978,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         >Search on LinkedIn</a>
                         <span className="text-[10px] uppercase tracking-widest" style={{ color: "#444" }}>or</span>
                         {heroCanExpand ? (
-                          <span
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
                             className="px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
-                            style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap" }}
+                            style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap", cursor: "pointer" }}
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
-                          </span>
+                          </button>
                         ) : null}
                       </div>
                     </div>
@@ -1034,9 +1036,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     }}
                     onClick={() => setExpandedTitleIdx(expandedTitleIdx === -1 ? null : -1)}
                   >
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: expandedTitleIdx === -1 ? "#999" : "#555" }}>How we score this</span>
-                      <span className="text-[11px]" style={{ color: "#555" }}>{expandedTitleIdx === -1 ? "\u25B4" : "\u25BE"}</span>
+                    <div className="px-4 py-3 flex items-center justify-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: expandedTitleIdx === -1 ? "#999" : "#666" }}>How we score this</span>
+                      <span className="text-xs" style={{ color: "#666" }}>{expandedTitleIdx === -1 ? "\u25B4" : "\u25BE"}</span>
                     </div>
                     {expandedTitleIdx === -1 ? (
                       <div className="px-4 pb-3 text-left text-sm leading-relaxed" style={{ color: "#777" }} onClick={(e) => e.stopPropagation()}>
