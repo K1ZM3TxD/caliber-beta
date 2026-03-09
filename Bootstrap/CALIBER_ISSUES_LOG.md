@@ -3,6 +3,20 @@
 
 ## Current Open Issues
 
+21. Extension session handshake requires refresh after installation — **OPEN** (2026-03-08)
+  - Fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes of both Caliber and LinkedIn tabs.
+  - Top blocker for extension-first flow.
+
+22. Hiring Reality Check implementation — **ACTIVE** (2026-03-08)
+  - Add hiring-reality signal to extension sidecard as next product feature after handshake reliability.
+
+23. Sidecard compact UX redesign — **ACTIVE** (2026-03-08)
+  - Decision-first compact layout for extension sidecard. Sequenced after Hiring Reality Check.
+
+24. Calibration multi-title scoring confusion — **RESOLVED** (2026-03-08)
+  - Calibration page previously showed multiple scored titles, causing users to interpret low scores as failure.
+  - Resolved by redesigning calibration page as extension launchpad with a single hero title direction and no scores.
+
 0. PM drift: afterthought additions and premature long tasks violate distilled UX. Enforce No-Afterthoughts + Input-First rules in PM mode. (2026-03-04)
 1. TITLES step: session.synthesis.marketTitle/titleExplanation can be null in TITLE_DIALOGUE; Continue may misroute (JOB_REQUIRED/0-10 pending)
 2. Title suggestion missing/null blocks job description entry; must surface job description gate reliably

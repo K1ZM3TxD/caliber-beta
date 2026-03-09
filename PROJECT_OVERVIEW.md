@@ -56,6 +56,14 @@ The calibration experience lives at `/calibration` on a single page with no navi
 
 ---
 
+## Scoring Context Separation
+
+Caliber separates two distinct evaluation contexts:
+
+- **Calibration produces directional guidance.** It answers "What direction should I search?" — not "Is this job a good fit?"
+- **The extension performs real job analysis.** Job scoring occurs primarily within the browser extension, where a real job description provides evaluative context.
+- **Calibration titles are not job fit scores.** They are directional starting points for market exploration.
+
 ## Extension as Primary Decision Surface
 
 Calibration prepares the signal. The extension is where users evaluate real jobs. **Real job-fit analysis lives primarily in the extension.**

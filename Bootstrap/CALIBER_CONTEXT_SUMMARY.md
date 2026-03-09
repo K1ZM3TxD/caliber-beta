@@ -9,6 +9,11 @@
 - Active blocker: extension fresh-install / refresh handshake is unreliable — user must manually refresh Caliber and LinkedIn tabs after install.
 - Next tasks (locked order): handshake reliability fix → Hiring Reality Check → compact sidecard UX polish.
 
+**Scoring Context Separation:**
+- **Calibration → Direction:** determine job-search direction, display single hero title direction, prompt extension install.
+- **Extension → Evaluation:** analyze real job descriptions, provide fit + hiring reality evaluation (Fit Score, Hiring Reality Check, Bottom Line).
+- These are fundamentally different evaluation contexts and must not be conflated.
+
 Calibration flow runs end-to-end: resume upload → prompt answers → title recommendation → extension CTA. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys from main.
 
 **Stable Beta — Production/Dev Environment Split Active (2026-03-08).**

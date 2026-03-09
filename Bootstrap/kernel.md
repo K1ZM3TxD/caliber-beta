@@ -57,6 +57,23 @@ Older calibration-core steps (anchors, overlap/gap, mechanical title producer) a
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
 
+## Scoring Context Invariant
+
+Caliber uses two scoring contexts:
+
+**Calibration (Directional)**
+- Purpose: suggest job search direction
+- Output: one title direction
+- No scores shown
+
+**Extension (Evaluative)**
+- Purpose: evaluate a specific job posting
+- Outputs: Fit Score, Hiring Reality Check, Bottom Line decision
+
+Calibration MUST NOT evaluate specific jobs.
+
+Extension is the primary job-evaluation surface.
+
 ## Extension-First Invariant
 
 - `/calibration` is a launchpad, not the primary job-scoring surface.

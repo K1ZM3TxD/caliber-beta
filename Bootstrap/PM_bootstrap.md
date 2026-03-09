@@ -97,3 +97,10 @@ When bootstrap loads, PM should treat these as active operating facts:
   3. Compact sidecard UX polish
 - **Scoring credibility remains open.** Jen and Fabio profiles score too low; market jobs under calibrated titles often below 6.
 - Do not re-open task sequencing without new blocking evidence.
+
+### E. Product Surface Priority (2026-03-08)
+1. **Extension reliability** — handshake, session discovery, scoring stability
+2. **Hiring Reality Check** — next product feature for extension
+3. **Sidecard UX polish** — compact, decision-first layout
+
+Calibration page should remain a launchpad, not a scoring engine.
