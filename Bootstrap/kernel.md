@@ -87,6 +87,16 @@ Extension is the primary job-evaluation surface.
 - No manual paste as primary continuation path on this screen.
 - The calibration page guides users into extension usage.
 
+## Scoring Regression Invariant
+
+- Canonical fixture profiles (Chris, Jen, Fabio, Dingus) are regression anchors and must remain stable across scoring updates.
+- Thin-input synthetic control must continue to validate score suppression.
+- Smoke tests must import canonical production scoring logic; duplicated or inlined scoring logic in tests is not allowed.
+- Future scoring changes must preserve:
+  - Cross-cluster isolation
+  - Thin-profile caps
+  - Stable fixture outputs — unless an intentional scoring-model revision is explicitly documented
+
 ## PM Task Sequencing Invariant
 
 - Handshake reliability precedes Hiring Reality Check.

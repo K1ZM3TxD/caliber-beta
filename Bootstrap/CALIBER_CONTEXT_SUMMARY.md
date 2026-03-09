@@ -118,11 +118,21 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 
 ## Scoring Baseline
 
-Caliber title scoring now uses canonical fixture profiles to prevent regression.
+Caliber title scoring now uses canonical fixture profiles as regression anchors.
 
-**Fixture profiles:** Chris, Jen, Fabio, Dingus (weak-profile control).
+**Fixture profiles:**
+- **Chris** — systems / product builder pattern (Product Designer 9.9, Product Development Lead 9.9, UX Design Strategist 8.6)
+- **Jen** — creative operations / enablement pattern (Creative Operations Lead 9.9, Sales Enablement Specialist 9.9, Partnerships Manager 8.8)
+- **Fabio** — technical investigation / security analysis pattern (Technical Security Consultant 9.3, Cybersecurity Specialist 8.8, Security Analyst 8.8)
+- **Dingus** — weak / generic control pattern (Account Manager 2.3, Business Development Manager 2.3, Client Success Manager 2.3)
 
-These fixtures are used by `scripts/title_scoring_smoke.ts` to verify:
+Dingus is the weak-profile control fixture used to validate scoring suppression for thin or generic inputs.
+
+**Thin-input synthetic control:** A minimal input ("Software developer. 3 years.") is also validated; observed max score: 0.0.
+
+Smoke test (`scripts/title_scoring_smoke.ts`) imports the canonical scoring library — no stale inlined scoring logic in tests.
+
+These fixtures verify:
 - Correct cluster mapping
 - Cross-cluster isolation
 - Thin-profile score caps
