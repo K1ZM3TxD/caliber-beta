@@ -1,35 +1,41 @@
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
 body {
-  width: 380px;
-  min-height: 200px;
-  max-height: 580px;
+  width: 360px;
+  min-height: 180px;
+  max-height: 520px;
   overflow-y: auto;
   background: #0B0B0B;
   color: #F2F2F2;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
 }
+body::-webkit-scrollbar { width: 5px; }
+body::-webkit-scrollbar-track { background: transparent; }
+body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 
 #app {
-  padding: 16px;
+  padding: 12px 14px;
 }
 
+/* Header */
 .header {
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-
 .logo {
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: #888;
 }
 
 /* States */
@@ -38,26 +44,26 @@ body {
 
 /* Loading */
 .spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(242,242,242,0.15);
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(242,242,242,0.12);
   border-top-color: #4ADE80;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-  margin: 24px auto 12px;
+  margin: 10px auto 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .status-text {
   text-align: center;
   color: #AFAFAF;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 /* Error */
 .error-icon {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: rgba(239,68,68,0.15);
   color: #EF4444;
@@ -65,86 +71,221 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 18px;
-  margin: 16px auto 10px;
+  font-size: 14px;
+  margin: 6px auto;
 }
 
-/* Score */
-.score-ring {
+/* Company / Job Identity */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.company-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+.identity-text {
+  min-width: 0;
+  flex: 1;
+}
+.company-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #AFAFAF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.job-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #F2F2F2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hero: Score + Decision */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.score-row {
   display: flex;
   align-items: baseline;
-  justify-content: center;
-  gap: 2px;
-  margin: 8px 0 16px;
+  gap: 1px;
 }
-.score-number {
-  font-size: 42px;
+.score-num {
+  font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: #F2F2F2;
 }
-.score-label {
-  font-size: 18px;
+.score-of {
+  font-size: 13px;
   font-weight: 500;
   color: #888;
 }
-
-/* Sections */
-.section {
-  margin-bottom: 14px;
+.decision {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 6px;
+  letter-spacing: 0.01em;
 }
-.section-title {
-  font-size: 12px;
+.decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }
+.decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }
+.decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }
+
+/* Hiring Reality Check */
+.hrc {
+  margin-bottom: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.hrc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hrc-row + .hrc-row {
+  margin-top: 4px;
+}
+.hrc-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #888;
+}
+.hrc-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(242,242,242,0.10);
+  color: #888;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+}
+.hrc-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.band-high { background: rgba(74,222,128,0.15); color: #4ADE80; }
+.band-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }
+.band-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }
+.hrc-reason {
+  font-size: 11px;
+  color: #999;
+  line-height: 1.3;
+}
+
+/* Bottom line */
+.bottomline-section {
+  margin-bottom: 8px;
+}
+.bl-text {
+  font-size: 13px;
+  color: #CFCFCF;
+  line-height: 1.4;
+}
+
+/* Collapsible sections */
+.collapsible {
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.collapse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #888;
-  margin-bottom: 6px;
+  padding: 7px 0;
+  text-align: left;
 }
+.collapse-toggle:hover { color: #CFCFCF; }
+.collapse-icon {
+  font-size: 10px;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+.collapse-count {
+  font-weight: 400;
+  color: #666;
+  margin-left: auto;
+}
+.collapse-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+.collapsible.open .collapse-icon { transform: rotate(90deg); }
+.collapsible.open .collapse-body { max-height: 500px; }
 
-.bullet-list {
+/* Bullet lists */
+.bullets {
   list-style: none;
-  padding: 0;
+  padding-bottom: 6px;
 }
-.bullet-list li {
+.bullets li {
   position: relative;
   padding-left: 14px;
-  font-size: 13px;
+  font-size: 12px;
   color: #CFCFCF;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   line-height: 1.4;
 }
-.bullet-list li::before {
-  content: "•";
+.bullets li::before {
+  content: "\2022";
   position: absolute;
   left: 0;
   color: #4ADE80;
   font-weight: 700;
 }
-
-.stretch-list li::before {
+.stretch li::before {
   color: #FBBF24;
-}
-
-.bottom-text {
-  font-size: 13px;
-  color: #CFCFCF;
-  line-height: 1.5;
 }
 
 /* Buttons */
 .actions {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
-
 .btn {
   flex: 1;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border: none;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   text-align: center;
@@ -155,79 +296,12 @@ body {
   transition: opacity 0.15s;
 }
 .btn:hover { opacity: 0.85; }
-
 .btn-primary {
   background: #F2F2F2;
   color: #0B0B0B;
 }
-
 .btn-secondary {
   background: rgba(242,242,242,0.10);
   color: #F2F2F2;
   border: 1px solid rgba(242,242,242,0.16);
-}
-
-/* Hiring Reality Check */
-.hiring-check {
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(242,242,242,0.05);
-  border: 1px solid rgba(242,242,242,0.08);
-}
-.hiring-check-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-.hiring-check-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #888;
-}
-.hiring-check-info {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(242,242,242,0.10);
-  color: #888;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: help;
-  flex-shrink: 0;
-}
-.hiring-check-body {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.hiring-check-band {
-  font-size: 13px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-.band-high {
-  color: #4ADE80;
-  background: rgba(74,222,128,0.12);
-}
-.band-possible {
-  color: #FBBF24;
-  background: rgba(251,191,36,0.12);
-}
-.band-unlikely {
-  color: #EF4444;
-  background: rgba(239,68,68,0.12);
-}
-.hiring-check-reason {
-  font-size: 12px;
-  color: #AFAFAF;
-  line-height: 1.3;
 }

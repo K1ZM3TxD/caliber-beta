@@ -15,6 +15,14 @@ const $linkCaliber = document.getElementById("link-caliber");
 const $hiringCheck = document.getElementById("hiring-check");
 const $hiringBand = document.getElementById("hiring-check-band");
 const $hiringReason = document.getElementById("hiring-check-reason");
+const $identity = document.getElementById("identity");
+const $logoImg = document.getElementById("logo-img");
+const $companyName = document.getElementById("company-name");
+const $jobTitle = document.getElementById("job-title");
+const $decision = document.getElementById("decision");
+const $supportsCount = document.getElementById("supports-count");
+const $stretchCount = document.getElementById("stretch-count");
+const $stretchSection = document.getElementById("stretch-section");
 
 function show(el) {
   [$loading, $error, $results].forEach(e => e.classList.add("hidden"));
@@ -26,50 +34,92 @@ function showError(msg) {
   show($error);
 }
 
-function renderResults(data) {
-  $scoreValue.textContent = data.score_0_to_10;
-  // Color the score
-  const score = data.score_0_to_10;
-  if (score >= 7) $scoreValue.style.color = "#4ADE80";
-  else if (score >= 4) $scoreValue.style.color = "#FBBF24";
+function getDecision(score) {
+  if (score >= 7.5) return { label: "Strong Fit", cls: "decision-strong" };
+  if (score >= 5) return { label: "Stretch", cls: "decision-stretch" };
+  return { label: "Skip", cls: "decision-skip" };
+}
+
+function renderResults(data, meta) {
+  const score = Number(data.score_0_to_10) || 0;
+
+  // Company / job identity
+  if (meta && (meta.company || meta.title)) {
+    $identity.style.display = "";
+    $companyName.textContent = meta.company || "";
+    $jobTitle.textContent = meta.title || "";
+    if (meta.logoUrl) {
+      $logoImg.src = meta.logoUrl;
+      $logoImg.style.display = "";
+    } else {
+      $logoImg.style.display = "none";
+    }
+  } else {
+    $identity.style.display = "none";
+  }
+
+  // Score + color
+  $scoreValue.textContent = score;
+  if (score >= 7.5) $scoreValue.style.color = "#4ADE80";
+  else if (score >= 5) $scoreValue.style.color = "#FBBF24";
   else $scoreValue.style.color = "#EF4444";
 
-  $supportsList.innerHTML = "";
-  for (const item of data.supports_fit || []) {
-    const li = document.createElement("li");
-    li.textContent = item;
-    $supportsList.appendChild(li);
-  }
-
-  $stretchList.innerHTML = "";
-  $stretchList.classList.add("stretch-list");
-  for (const item of data.stretch_factors || []) {
-    const li = document.createElement("li");
-    li.textContent = item;
-    $stretchList.appendChild(li);
-  }
-
-  $bottomLine.textContent = data.bottom_line_2s || "";
+  // Decision badge
+  const decision = getDecision(score);
+  $decision.textContent = decision.label;
+  $decision.className = "decision " + decision.cls;
 
   // Hiring Reality Check
   const hrc = data.hiring_reality_check;
   if (hrc && hrc.band) {
-    $hiringCheck.classList.remove("hidden");
+    $hiringCheck.style.display = "";
     $hiringBand.textContent = hrc.band;
-    $hiringBand.className = "hiring-check-band";
+    $hiringBand.className = "hrc-badge";
     if (hrc.band === "High") $hiringBand.classList.add("band-high");
     else if (hrc.band === "Possible") $hiringBand.classList.add("band-possible");
     else $hiringBand.classList.add("band-unlikely");
     $hiringReason.textContent = hrc.reason || "";
   } else {
-    $hiringCheck.classList.add("hidden");
+    $hiringCheck.style.display = "none";
   }
+
+  // Bottom line
+  $bottomLine.textContent = data.bottom_line_2s || "";
+
+  // Supports (collapsible)
+  const supportItems = data.supports_fit || [];
+  $supportsList.innerHTML = "";
+  for (const item of supportItems) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    $supportsList.appendChild(li);
+  }
+  $supportsCount.textContent = supportItems.length ? "(" + supportItems.length + ")" : "";
+
+  // Stretch factors (collapsible)
+  const stretchItems = data.stretch_factors || [];
+  $stretchList.innerHTML = "";
+  for (const item of stretchItems) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    $stretchList.appendChild(li);
+  }
+  $stretchCount.textContent = stretchItems.length ? "(" + stretchItems.length + ")" : "";
+  $stretchSection.style.display = stretchItems.length ? "" : "none";
 
   if (data.calibrationId) {
     $linkCaliber.href = API_BASE + "/calibration?calibrationId=" + data.calibrationId;
   }
   show($results);
 }
+
+// Wire collapsible toggles
+document.querySelectorAll(".collapse-toggle").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    var section = btn.closest(".collapsible");
+    if (section) section.classList.toggle("open");
+  });
+});
 
 /** Extract job text from the active tab via content script. */
 async function extractJobText() {
@@ -201,6 +251,84 @@ async function tryActivatePanel() {
   });
 }
 
+/** Extract job title, company name, and logo from the active tab. */
+async function extractJobMeta() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab || !tab.id) { resolve({}); return; }
+      try {
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: tab.id },
+            func: () => {
+              var meta = { title: "", company: "", logoUrl: "" };
+              // Job title
+              var titleSels = [
+                "h1.t-24", "h1[class*='job-title']", "h2[class*='job-title']",
+                ".job-details-jobs-unified-top-card__job-title a",
+                ".job-details-jobs-unified-top-card__job-title",
+                ".jobs-unified-top-card__job-title a",
+                ".topcard__title",
+                "[data-testid='jobsearch-JobInfoHeader-title']",
+                "h1",
+              ];
+              for (var i = 0; i < titleSels.length; i++) {
+                var el = document.querySelector(titleSels[i]);
+                if (el) {
+                  var t = (el.textContent || "").trim();
+                  if (t.length > 2 && t.length < 200) { meta.title = t; break; }
+                }
+              }
+              // Company name
+              var companySels = [
+                ".job-details-jobs-unified-top-card__company-name a",
+                ".job-details-jobs-unified-top-card__company-name",
+                ".jobs-unified-top-card__company-name a",
+                ".topcard__org-name-link",
+                "[data-testid='inlineHeader-companyName'] a",
+                "[class*='company-name'] a",
+                "[class*='company-name']",
+              ];
+              for (var j = 0; j < companySels.length; j++) {
+                var el2 = document.querySelector(companySels[j]);
+                if (el2) {
+                  var c = (el2.textContent || "").trim();
+                  if (c.length > 1 && c.length < 150) { meta.company = c; break; }
+                }
+              }
+              // Logo
+              var logoSels = [
+                ".job-details-jobs-unified-top-card__company-logo img",
+                ".jobs-unified-top-card__company-logo img",
+                "[class*='company-logo'] img",
+                "[class*='CompanyAvatar'] img",
+              ];
+              for (var k = 0; k < logoSels.length; k++) {
+                var img = document.querySelector(logoSels[k]);
+                if (img && img.src && img.src.startsWith("http")) {
+                  meta.logoUrl = img.src;
+                  break;
+                }
+              }
+              return meta;
+            },
+          },
+          (results) => {
+            if (chrome.runtime.lastError || !results || !results[0]) {
+              resolve({});
+            } else {
+              resolve(results[0].result || {});
+            }
+          }
+        );
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
 /** Main flow: activate panel if possible, otherwise extract → call API → render. */
 async function run() {
   show($loading);
@@ -220,7 +348,7 @@ async function run() {
   $loading.querySelector(".status-text").textContent = "Extracting job description…";
 
   try {
-    const jobText = await extractJobText();
+    const [jobText, jobMeta] = await Promise.all([extractJobText(), extractJobMeta()]);
     if (!jobText || jobText.length < 200) {
       showError(
         jobText
@@ -234,7 +362,7 @@ async function run() {
 
     const sessionId = await getSessionId();
     const data = await callFitAPI(jobText, sessionId);
-    renderResults(data);
+    renderResults(data, jobMeta);
   } catch (err) {
     showError(err.message || "Something went wrong.");
   }

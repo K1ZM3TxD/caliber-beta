@@ -9,7 +9,7 @@
   <script src="env.js"></script>
   <div id="app">
     <div class="header">
-      <div class="logo">Caliber</div>
+      <span class="logo">Caliber</span>
     </div>
 
     <!-- Loading state -->
@@ -27,35 +27,63 @@
 
     <!-- Results state -->
     <div id="results" class="state hidden">
-      <div class="score-ring">
-        <span id="score-value" class="score-number">—</span>
-        <span class="score-label">/10</span>
-      </div>
-
-      <div id="hiring-check" class="hiring-check hidden">
-        <div class="hiring-check-header">
-          <span class="hiring-check-title">Hiring Reality Check</span>
-          <span class="hiring-check-info" title="How likely your background is to pass the employer's initial screening based on stated requirements like domain experience, credentials, and years of experience.">?</span>
-        </div>
-        <div class="hiring-check-body">
-          <span id="hiring-check-band" class="hiring-check-band"></span>
-          <span id="hiring-check-reason" class="hiring-check-reason"></span>
+      <!-- Company / Job identity -->
+      <div id="identity" class="identity" style="display:none">
+        <img id="logo-img" class="company-logo" src="" alt="" style="display:none">
+        <div class="identity-text">
+          <div id="company-name" class="company-name"></div>
+          <div id="job-title" class="job-title"></div>
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Supports the fit</div>
-        <ul id="supports-list" class="bullet-list"></ul>
+      <!-- Score + Decision -->
+      <div class="hero">
+        <div class="score-row">
+          <span id="score-value" class="score-num">—</span>
+          <span class="score-of">/10</span>
+        </div>
+        <div id="decision" class="decision"></div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Stretch factors</div>
-        <ul id="stretch-list" class="bullet-list"></ul>
+      <!-- Hiring Reality Check -->
+      <div id="hiring-check" class="hrc" style="display:none">
+        <div class="hrc-row">
+          <span class="hrc-label">Hiring Reality Check</span>
+          <span class="hrc-info" title="How likely your background is to pass the employer's initial screening based on stated requirements like domain experience, credentials, and years of experience.">?</span>
+        </div>
+        <div class="hrc-row">
+          <span id="hiring-check-band" class="hrc-badge"></span>
+          <span id="hiring-check-reason" class="hrc-reason"></span>
+        </div>
       </div>
 
-      <div class="section">
-        <div class="section-title">Bottom line</div>
-        <p id="bottom-line" class="bottom-text"></p>
+      <!-- Bottom line (high in card) -->
+      <div class="bottomline-section">
+        <p id="bottom-line" class="bl-text"></p>
+      </div>
+
+      <!-- Supports the fit (collapsible) -->
+      <div class="collapsible" id="supports-section">
+        <button class="collapse-toggle" type="button">
+          <span class="collapse-icon">&#x25b8;</span>
+          <span>&#x2713; Supports the fit</span>
+          <span id="supports-count" class="collapse-count"></span>
+        </button>
+        <div class="collapse-body">
+          <ul id="supports-list" class="bullets"></ul>
+        </div>
+      </div>
+
+      <!-- Stretch factors (collapsible) -->
+      <div class="collapsible" id="stretch-section">
+        <button class="collapse-toggle" type="button">
+          <span class="collapse-icon">&#x25b8;</span>
+          <span>&#x26a0; Stretch factors</span>
+          <span id="stretch-count" class="collapse-count"></span>
+        </button>
+        <div class="collapse-body">
+          <ul id="stretch-list" class="bullets stretch"></ul>
+        </div>
       </div>
 
       <div class="actions">
