@@ -2,31 +2,47 @@
 // Reads the caliber_sessionId cookie and forwards it to the background worker.
 
 (function () {
+  // Guard against duplicate injection within the same extension lifecycle.
+  // Use the extension ID so that after an extension refresh (new ID/context),
+  // a fresh injection is allowed.
+  var guardKey = "__CALIBER_CONTENT_CALIBER_" + chrome.runtime.id;
+  if (window[guardKey]) return;
+  window[guardKey] = true;
+
   function readCookie(name) {
     var m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
     return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function getSessionBackup() {
+    try {
+      var raw = localStorage.getItem("caliber_session_backup");
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore parse errors */ }
+    return null;
   }
 
   function handoff() {
     var sessionId = readCookie("caliber_sessionId");
     if (!sessionId) return;
 
-    // Include full session backup from localStorage for server-side restoration
-    var sessionBackup = null;
-    try {
-      var raw = localStorage.getItem("caliber_session_backup");
-      if (raw) sessionBackup = JSON.parse(raw);
-    } catch (e) { /* ignore parse errors */ }
+    var sessionBackup = getSessionBackup();
 
     // Send sessionId + backup blob to the background worker
     var baseUrl = window.location.origin;
-    chrome.runtime.sendMessage(
-      { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId, baseUrl: baseUrl, sessionBackup: sessionBackup },
-      function () {
-        // Ignore response / errors — best-effort handoff
-        if (chrome.runtime.lastError) { /* noop */ }
-      }
-    );
+    try {
+      chrome.runtime.sendMessage(
+        { type: "CALIBER_SESSION_HANDOFF", sessionId: sessionId, baseUrl: baseUrl, sessionBackup: sessionBackup },
+        function () {
+          // Ignore response / errors — best-effort handoff
+          if (chrome.runtime.lastError) { /* noop */ }
+        }
+      );
+    } catch (e) {
+      // Extension context invalidated (extension was reloaded/updated).
+      // Nothing we can do here — the background's onInstalled handler will
+      // re-inject this script and retry.
+    }
   }
 
   // Run immediately on page load
@@ -46,10 +62,26 @@
   window.addEventListener("caliber:session-ready", function (e) {
     var detail = e.detail || {};
     if (detail.sessionId) {
-      chrome.runtime.sendMessage(
-        { type: "CALIBER_SESSION_HANDOFF", sessionId: detail.sessionId },
-        function () { if (chrome.runtime.lastError) { /* noop */ } }
-      );
+      try {
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_SESSION_HANDOFF", sessionId: detail.sessionId },
+          function () { if (chrome.runtime.lastError) { /* noop */ } }
+        );
+      } catch (e) { /* extension context invalidated */ }
+    }
+  });
+
+  // Listen for explicit session probe from the background worker.
+  // This handles the case where the background needs the session after
+  // extension install/refresh and probeCaliberTabsForSession() injected us.
+  chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
+    if (msg.type === "CALIBER_SESSION_PROBE") {
+      var sessionId = readCookie("caliber_sessionId");
+      var sessionBackup = getSessionBackup();
+      sendResponse({ sessionId: sessionId, sessionBackup: sessionBackup });
+      // Also trigger a full handoff for good measure
+      if (sessionId) handoff();
+      return false;
     }
   });
 })();

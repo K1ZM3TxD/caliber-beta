@@ -6,6 +6,68 @@ importScripts("env.js");
 const API_BASE = CALIBER_ENV.API_BASE;
 let resolvedBase = API_BASE;
 
+// Derive the Caliber origin from the API_BASE URL (e.g. "http://localhost:3000")
+const CALIBER_ORIGIN = new URL(API_BASE).origin;
+
+// ─── Proactive Session Handoff on Install/Startup ───────────
+// After fresh install, extension refresh, or browser restart, content scripts
+// are NOT re-injected into existing tabs. We must proactively inject into any
+// open Caliber tabs to get the session handoff without requiring a user reload.
+
+async function injectIntoCaliberTabs() {
+  try {
+    const tabs = await chrome.tabs.query({ url: CALIBER_ORIGIN + "/*" });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["env.js", "content_caliber.js"],
+        });
+      } catch { /* tab may be restricted or discarded */ }
+    }
+  } catch { /* query may fail if permissions not yet granted */ }
+}
+
+chrome.runtime.onInstalled.addListener(() => { injectIntoCaliberTabs(); });
+chrome.runtime.onStartup.addListener(() => { injectIntoCaliberTabs(); });
+
+/**
+ * Probe open Caliber tabs for the session cookie by injecting a small script.
+ * Returns { sessionId, sessionBackup } or null if no tab has a session.
+ * Used as a fallback when chrome.storage.local has no session and the server
+ * API is unreachable or returns no session.
+ */
+async function probeCaliberTabsForSession() {
+  try {
+    const tabs = await chrome.tabs.query({ url: CALIBER_ORIGIN + "/*" });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            // Read session cookie
+            const m = document.cookie.match(/(?:^|; )caliber_sessionId=([^;]*)/);
+            const sessionId = m ? decodeURIComponent(m[1]) : null;
+            if (!sessionId) return null;
+            // Read session backup from localStorage
+            let sessionBackup = null;
+            try {
+              const raw = localStorage.getItem("caliber_session_backup");
+              if (raw) sessionBackup = JSON.parse(raw);
+            } catch { /* ignore */ }
+            return { sessionId, sessionBackup };
+          },
+        });
+        const result = results && results[0] && results[0].result;
+        if (result && result.sessionId) return result;
+      } catch { /* tab may be restricted */ }
+    }
+  } catch { /* query failure */ }
+  return null;
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
     ensureSessionThenFit(msg.jobText)
@@ -89,6 +151,40 @@ async function discoverSession() {
   // No endpoint had a session — if we have a stored id, use it optimistically
   if (storedId) {
     return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
+  }
+
+  // Last resort: probe open Caliber tabs for the session cookie directly.
+  // This handles the case where the extension was just installed/refreshed
+  // and chrome.storage.local is empty, but the Caliber tab is already open.
+  const probed = await probeCaliberTabsForSession();
+  if (probed && probed.sessionId) {
+    // Store for future use
+    const toStore = { caliberSessionId: probed.sessionId };
+    if (probed.sessionBackup && typeof probed.sessionBackup === "object" && probed.sessionBackup.sessionId === probed.sessionId) {
+      toStore.caliberSessionBackup = probed.sessionBackup;
+    }
+    await chrome.storage.local.set(toStore);
+
+    // If we also have a backup, try restoring it to the server so the API works
+    if (probed.sessionBackup) {
+      try {
+        await fetch(API_BASE + "/api/calibration", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session: probed.sessionBackup }),
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch { /* best-effort restore */ }
+    }
+
+    // Re-try the server endpoint now that we have a sessionId (and possibly restored the session)
+    const retry = await trySessionEndpoint(probed.sessionId);
+    if (retry.ok) {
+      return { sessionId: retry.sessionId, profileComplete: retry.profileComplete, state: retry.state };
+    }
+
+    // Even if server is unreachable, we have a valid sessionId from the cookie — use optimistically
+    return { sessionId: probed.sessionId, profileComplete: true, state: "UNKNOWN" };
   }
 
   throw new Error("No active Caliber session. Complete your profile on Caliber first.");
