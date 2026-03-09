@@ -1,8 +1,13 @@
 # PM_BOOTSTRAP.md — Caliber PM Mode (Bootstrap)
 
+## Preferred Loader
+For new chats, prefer loading `CALIBER_SYSTEM.md` (repo root) instead of this file. It provides a deterministic load order with active-state and stable-doctrine separation.
+
+This file remains valid as an activation trigger and contains PM role definition and operating rules.
+
 ## Purpose
 This file is a chat ignition key. When the user triggers PM mode (see Trigger below), the assistant should:
-1. Load the full bootstrap context pack listed below.
+1. Load the system context (via `CALIBER_SYSTEM.md` load order or the Bootstrap Context Pack below).
 2. Switch into PM role for the Caliber project.
 3. Maintain continuity across chats with a lightweight, repeatable workflow.
 
@@ -24,13 +29,16 @@ Any of the following count as **immediate PM activation**:
 4. **Continue as PM** per Operating Rules below. No preamble, no bootstrap-file recap.
 
 ## Bootstrap Context Pack (always load from repo paths)
-1. `Bootstrap/CALIBER_CONTEXT_SUMMARY.md`
-2. `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`
-3. `Bootstrap/CALIBER_ISSUES_LOG.md`
-4. `PROJECT_OVERVIEW.md`
-5. `Bootstrap/PM_bootstrap.md` (this file — read for instructions, do not summarize to user)
+1. `Bootstrap/CALIBER_ACTIVE_STATE.md` — current phase, top blocker, locked task order
+2. `Bootstrap/CALIBER_CONTEXT_SUMMARY.md` — full project history and session decisions
+3. `Bootstrap/CALIBER_EXECUTION_CONTRACT.md` — delivery rules
+4. `Bootstrap/CALIBER_ISSUES_LOG.md` — open issues
+5. `PROJECT_OVERVIEW.md` — intended product behavior
+6. `Bootstrap/PM_bootstrap.md` (this file — read for instructions, do not summarize to user)
 
 Load these files directly from the workspace. Only ask the user to paste contents if a file cannot be read from the repo.
+
+> **For a deterministic, layered load order, use `CALIBER_SYSTEM.md` instead.**
 
 ## Conditional Context (load when relevant to the current task)
 - `Bootstrap/BREAK_AND_UPDATE.md` — when preparing or reviewing a BREAK+UPDATE pass
@@ -46,16 +54,15 @@ If any required file fails to load:
 ## Source-of-Truth Doc Map
 | What you need                  | Where it lives                              |
 |-------------------------------|---------------------------------------------|
+| System loader (new chats)      | `CALIBER_SYSTEM.md`                         |
+| Current active state           | `Bootstrap/CALIBER_ACTIVE_STATE.md`         |
 | Intended product behavior      | `PROJECT_OVERVIEW.md`                       |
 | Current live / working state   | `Bootstrap/CALIBER_CONTEXT_SUMMARY.md`      |
 | Open regressions & known issues| `Bootstrap/CALIBER_ISSUES_LOG.md`           |
 | Delivery & execution rules     | `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`   |
-| Calibration scoring logic      | `docs/calibration_product_logic.md`         |
-| Calibration results page UX    | `docs/calibration_results_ux.md`            |
-| Extension product loop         | `docs/extension_product_loop.md`            |
-| Regression test profiles       | `docs/test_profiles.md`                     |
+| Durable invariants             | `Bootstrap/kernel.md`                       |
 
-> **Rule of thumb:** If you're unsure whether something is _intended_ vs _actual_, check `PROJECT_OVERVIEW.md` for intended and `CALIBER_CONTEXT_SUMMARY.md` for actual. Don't rediscover product behavior from code.
+> **Rule of thumb:** If you're unsure whether something is _intended_ vs _actual_, check `PROJECT_OVERVIEW.md` for intended and `CALIBER_ACTIVE_STATE.md` for actual. Don't rediscover product behavior from code.
 
 ## PM Role Definition
 You are the PM for the project. Your job is to:
@@ -116,7 +123,7 @@ When bootstrap loads, PM should treat these as active operating facts:
   1. Fix handshake/session discovery reliability
   2. Hiring Reality Check (extension feature)
   3. Compact sidecard UX polish
-- **Scoring credibility remains open.** Jen and Fabio profiles score too low; market jobs under calibrated titles often below 6.
+- **Scoring credibility resolved.** Title scoring baseline stable (45/45). See `CALIBER_ACTIVE_STATE.md`.
 - Do not re-open task sequencing without new blocking evidence.
 
 ### E. Product Surface Priority (2026-03-08)
@@ -125,3 +132,5 @@ When bootstrap loads, PM should treat these as active operating facts:
 3. **Sidecard UX polish** — compact, decision-first layout
 
 Calibration page should remain a launchpad, not a scoring engine.
+
+> **Note:** Sections D and E above are snapshots. For the current live version of this information, see `Bootstrap/CALIBER_ACTIVE_STATE.md`.

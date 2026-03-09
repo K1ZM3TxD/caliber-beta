@@ -1,5 +1,7 @@
 # CALIBER_CONTEXT_SUMMARY
 
+> **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
+
 ## Project Status (2026-03-08, Extension-First Update)
 
 **Operating model has shifted to extension-first.**
