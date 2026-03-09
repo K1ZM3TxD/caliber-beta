@@ -966,16 +966,26 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         }}
                       >
                         {/* Card header */}
-                        <div className="px-5 py-4 flex items-center justify-between">
-                          <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
-                          {canExpand ? (
-                            <span
-                              className="shrink-0 ml-3 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
-                              style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33` }}
-                            >
-                              {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
-                            </span>
-                          ) : null}
+                        <div className="px-5 py-4">
+                          <div className="flex items-center justify-between">
+                            <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
+                            {canExpand ? (
+                              <span
+                                className="shrink-0 ml-3 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
+                                style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33` }}
+                              >
+                                {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
+                              </span>
+                            ) : null}
+                          </div>
+                          <a
+                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                            style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
+                          >Search this title on LinkedIn</a>
                         </div>
 
                         {/* Expanded content */}
