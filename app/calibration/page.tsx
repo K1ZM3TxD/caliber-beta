@@ -965,15 +965,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       setExpandedTitleIdx(heroExpanded ? null : 0);
                     }}
                   >
-                    <div className="px-8 py-10 sm:px-12 sm:py-12 text-center">
-                      <div className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.15 }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-5 mt-7">
+                    <div className="px-10 py-14 sm:px-14 sm:py-16 text-center">
+                      <div className="text-5xl sm:text-6xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-6 mt-9">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
                           style={{ background: "rgba(242,242,242,0.06)", color: "#CCC", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none", whiteSpace: "nowrap" }}
                         >Search on LinkedIn</a>
                         <span className="text-[10px] uppercase tracking-widest" style={{ color: "#444" }}>or</span>
@@ -981,7 +981,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
-                            className="px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
+                            className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
                             style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap", cursor: "pointer" }}
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
@@ -1027,7 +1027,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
 
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-3">
+                <div className="mt-2">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
