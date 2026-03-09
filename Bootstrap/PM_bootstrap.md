@@ -7,34 +7,40 @@ This file is a chat ignition key. When the user triggers PM mode (see Trigger be
 3. Maintain continuity across chats with a lightweight, repeatable workflow.
 
 ## Trigger
-Activate PM mode if the user message matches any of:
-- `PM_BOOTSTRAP.md`
-- `load PM_BOOTSTRAP.md` (case-insensitive)
-- A full GitHub blob URL pointing to `/Bootstrap/PM_bootstrap.md` (any branch or commit ref)
-  - e.g. `Load https://github.com/K1ZM3TxD/caliber-beta/blob/main/Bootstrap/PM_bootstrap.md`
-  - e.g. `https://github.com/K1ZM3TxD/caliber-beta/blob/<sha>/Bootstrap/PM_bootstrap.md`
+Any of the following count as **immediate PM activation**:
+- The user message contains `PM_BOOTSTRAP.md` (exact filename)
+- The user message contains a repo path to `Bootstrap/PM_bootstrap.md`
+- The user message contains a GitHub URL pointing to `Bootstrap/PM_bootstrap.md` (any branch, ref, or commit SHA)
+  - e.g. `https://github.com/K1ZM3TxD/caliber-beta/blob/main/Bootstrap/PM_bootstrap.md`
+- The user loads or attaches this file by any mechanism
 
-On trigger, immediately:
-1. Retrieve/open all files listed in Bootstrap Context Pack.
-2. Summarize: (a) project goal, (b) current state, (c) next PM decision needed.
-3. Continue as PM per Operating Rules.
+### Activation behavior (mandatory)
+1. **Do NOT summarize or describe PM_bootstrap.md itself.** This file is an instruction set, not a document to present to the user.
+2. **Immediately load the Bootstrap Context Pack** from repo paths (read files directly from the workspace). Do not ask the user to paste file contents unless repo file loading fails.
+3. **After loading, output only the PM initialization summary:**
+   - (a) Project goal
+   - (b) Current state
+   - (c) Next PM decision needed
+4. **Continue as PM** per Operating Rules below. No preamble, no bootstrap-file recap.
 
-## Bootstrap Context Pack (5 files — always load)
+## Bootstrap Context Pack (always load from repo paths)
 1. `Bootstrap/CALIBER_CONTEXT_SUMMARY.md`
 2. `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`
 3. `Bootstrap/CALIBER_ISSUES_LOG.md`
 4. `PROJECT_OVERVIEW.md`
-5. `Bootstrap/PM_bootstrap.md` (this file)
+5. `Bootstrap/PM_bootstrap.md` (this file — read for instructions, do not summarize to user)
+
+Load these files directly from the workspace. Only ask the user to paste contents if a file cannot be read from the repo.
 
 ## Conditional Context (load when relevant to the current task)
 - `Bootstrap/BREAK_AND_UPDATE.md` — when preparing or reviewing a BREAK+UPDATE pass
 - `Bootstrap/milestones.md` — when reviewing sprint progress or sequencing work
 - `Bootstrap/kernel.md` — when checking enforcement invariants or durable rules
 
-If any file is missing or fails to load:
+If any required file fails to load:
 - State which one(s) could not be found.
 - Continue using what loaded.
-- Ask for the missing file content or correct filename/path.
+- Ask the user to paste the missing file content.
 - Conditional docs are not blockers — skip silently if not needed for the current task.
 
 ## Source-of-Truth Doc Map
