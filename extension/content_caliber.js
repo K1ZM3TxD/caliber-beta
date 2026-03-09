@@ -51,7 +51,7 @@
   // Also watch for the cookie to appear after SPA navigation / calibration completion.
   // The calibration page sets the cookie via JS, so poll briefly.
   var attempts = 0;
-  var maxAttempts = 30; // 30s of polling
+  var maxAttempts = 1800; // 30 min — generous window for calibration to complete
   var interval = setInterval(function () {
     attempts++;
     handoff();
@@ -62,12 +62,13 @@
   window.addEventListener("caliber:session-ready", function (e) {
     var detail = e.detail || {};
     if (detail.sessionId) {
+      var sessionBackup = getSessionBackup();
       try {
         chrome.runtime.sendMessage(
-          { type: "CALIBER_SESSION_HANDOFF", sessionId: detail.sessionId },
+          { type: "CALIBER_SESSION_HANDOFF", sessionId: detail.sessionId, baseUrl: window.location.origin, sessionBackup: sessionBackup },
           function () { if (chrome.runtime.lastError) { /* noop */ } }
         );
-      } catch (e) { /* extension context invalidated */ }
+      } catch (ex) { /* extension context invalidated */ }
     }
   });
 
