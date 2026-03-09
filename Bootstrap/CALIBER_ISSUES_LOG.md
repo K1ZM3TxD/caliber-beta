@@ -174,15 +174,16 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ## Issues Added 2026-03-08 (Scoring Credibility)
 
-25. Scoring compression / credibility for Jen and Fabio — **OPEN** (2026-03-08, TOP PRIORITY)
-  - Jen's title family appears directionally correct, but scores are compressed too low:
-    - Partnerships Manager — 5.3
-    - Account Manager — 4.6
-    - Business Development Manager — 4.6
-  - Fabio also appears low-scored relative to expected strong-profile behavior.
-  - These profiles should produce job-fit scores reflecting their calibration strength, but real-market jobs routinely score below 6.
-  - This is the #1 blocking issue for stable beta credibility.
-  - Related: #21 (title-quality), #22 (abstract drift).
+25. Scoring compression / credibility for Jen and Fabio — **RESOLVED** (2026-03-09)
+  - Title scoring baseline verified with canonical fixture profiles (Chris, Jen, Fabio, Dingus).
+  - Canonical fixture profiles created and committed to `fixtures/calibration_profiles/`.
+  - Smoke test (`scripts/title_scoring_smoke.ts`) now imports the canonical scoring library; stale inlined scoring logic removed.
+  - Fabio correctly maps to SecurityAnalysis cluster.
+  - Jen correctly maps to CreativeOps / partnerships outputs.
+  - Cross-cluster isolation preserved.
+  - Thin-input caps preserved (Dingus weak-profile control).
+  - Smoke baseline: 45 passed, 0 failed.
+  - No longer a blocking issue.
 
 26. Market-job scores low despite high calibration title scores — **OPEN** (2026-03-08)
   - User's own calibration can produce high title scores (7+), but real LinkedIn jobs searched under those same calibrated terms often score mostly below 6, with rare ~7+.

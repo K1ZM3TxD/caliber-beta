@@ -8,6 +8,7 @@ DONE:
 - Title scores removed from calibration page
 - Manual paste scoring removed from calibration primary flow
 - Extension sidecard is now the primary decision surface for real-role evaluation
+- Canonical scoring fixtures created and scoring baseline verified (Chris / Jen / Fabio / Dingus smoke test)
 
 BLOCKED:
 - Extension fresh-install / refresh handshake still unreliable (user calibrates → installs/refreshes extension → opens LinkedIn → extension says no active session until manual Caliber and LinkedIn refresh)

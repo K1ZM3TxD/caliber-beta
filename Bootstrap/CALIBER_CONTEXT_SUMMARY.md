@@ -61,10 +61,12 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
   - Extension is the real job-fit decision engine. Fit explanations should feel most powerful in the extension.
   - Real-market search may require adjacent/expanded titles later — this is a known gap, not current scope.
   - Adaptive search suggestions are a later feature.
-- **Scoring credibility is the top open issue:**
-  - Jen's title family appears directionally correct, but scores are compressed too low (Partnerships Manager 5.3, Account Manager 4.6, Business Development Manager 4.6).
-  - Fabio also appears low-scored relative to expected strong-profile behavior.
-  - User's own calibration titles score high, but real market jobs found under those terms often score below 6, with rare ~7+. This suggests search-surface and/or job-score weighting issues, not just calibration failure.
+- **Scoring credibility resolved:**
+  - Title scoring baseline verified with canonical fixture profiles (Chris, Jen, Fabio, Dingus).
+  - Fabio correctly maps to SecurityAnalysis cluster; Jen correctly maps to CreativeOps / partnerships outputs.
+  - Cross-cluster isolation and thin-input caps preserved.
+  - Smoke baseline: 45 passed, 0 failed.
+  - Market-job score compression (#26) and search-surface gap (#27) remain open but are separate from title-scoring correctness.
 - **Calibration results page direction simplified:** intro typewriter lines → title cards → extension CTA. No other summary sections.
 - **operateBest / loseEnergy / summary prose block intentionally removed** from the calibration results page flow.
 - **Extension sidecard should show active job identity** (job title, company, optional location) for trust.
@@ -111,9 +113,22 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 1. **Fix extension handshake / session discovery bug** — fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes. Top blocker for extension-first flow.
 2. **Hiring Reality Check** — add to extension as next product feature after handshake reliability.
 3. **Compact sidecard UX polish** — decision-first layout for extension sidecard, sequenced after Hiring Reality Check.
-4. **Scoring calibration / credibility** — fix score compression for Jen and Fabio profiles; investigate why real market jobs under calibrated titles score mostly below 6.
-5. **Bottom line / explanation polish** — only as needed for beta credibility (anti-repetition / paraphrase rule).
-6. **Phase 2 overlay/list scoring** — deferred until after stable beta and scoring credibility are resolved.
+4. **Bottom line / explanation polish** — only as needed for beta credibility (anti-repetition / paraphrase rule).
+5. **Phase 2 overlay/list scoring** — deferred until after stable beta is resolved.
+
+## Scoring Baseline
+
+Caliber title scoring now uses canonical fixture profiles to prevent regression.
+
+**Fixture profiles:** Chris, Jen, Fabio, Dingus (weak-profile control).
+
+These fixtures are used by `scripts/title_scoring_smoke.ts` to verify:
+- Correct cluster mapping
+- Cross-cluster isolation
+- Thin-profile score caps
+- Stable top-title outputs
+
+**Current baseline status:** Smoke test passes 45/45.
 
 ## Deferred / Later
 
