@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.3.5";
+  const PANEL_VERSION = "0.4.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -253,6 +253,67 @@
     return waitForJobDescription(retries * delayMs);
   }
 
+  // ─── Job Metadata Extraction ──────────────────────────────
+
+  var JOB_TITLE_SELECTORS = [
+    ".job-details-jobs-unified-top-card__job-title a",
+    ".job-details-jobs-unified-top-card__job-title",
+    ".jobs-unified-top-card__job-title a",
+    ".jobs-unified-top-card__job-title",
+    ".t-24.job-details-jobs-unified-top-card__job-title",
+    "h1.t-24",
+    "h1[class*='job-title']",
+    "h2[class*='job-title']",
+    ".topcard__title",
+    "h1",
+  ];
+
+  var COMPANY_NAME_SELECTORS = [
+    ".job-details-jobs-unified-top-card__company-name a",
+    ".job-details-jobs-unified-top-card__company-name",
+    ".jobs-unified-top-card__company-name a",
+    ".jobs-unified-top-card__company-name",
+    ".topcard__org-name-link",
+    "[class*='top-card'] [class*='company-name'] a",
+    "[class*='top-card'] [class*='company-name']",
+  ];
+
+  var COMPANY_LOGO_SELECTORS = [
+    ".job-details-jobs-unified-top-card__company-logo img",
+    ".jobs-unified-top-card__company-logo img",
+    ".EntityPhoto-square-3 img",
+    "[class*='top-card'] img[class*='logo']",
+    "[class*='top-card'] img[alt*='logo']",
+    "[class*='company-logo'] img",
+  ];
+
+  /** Extract job title, company name, and company logo from the LinkedIn DOM. */
+  function extractJobMeta() {
+    var meta = { title: "", company: "", logoUrl: "" };
+    for (var i = 0; i < JOB_TITLE_SELECTORS.length; i++) {
+      var el = document.querySelector(JOB_TITLE_SELECTORS[i]);
+      if (el) {
+        var t = (el.textContent || "").trim();
+        if (t.length > 2 && t.length < 200) { meta.title = t; break; }
+      }
+    }
+    for (var j = 0; j < COMPANY_NAME_SELECTORS.length; j++) {
+      var el2 = document.querySelector(COMPANY_NAME_SELECTORS[j]);
+      if (el2) {
+        var c = (el2.textContent || "").trim();
+        if (c.length > 1 && c.length < 150) { meta.company = c; break; }
+      }
+    }
+    for (var k = 0; k < COMPANY_LOGO_SELECTORS.length; k++) {
+      var img = document.querySelector(COMPANY_LOGO_SELECTORS[k]);
+      if (img && img.src && img.src.startsWith("http")) {
+        meta.logoUrl = img.src;
+        break;
+      }
+    }
+    return meta;
+  }
+
   // ─── Panel State ──────────────────────────────────────────
 
   let panelHost = null;
@@ -260,6 +321,7 @@
   let active = false;
   let scoring = false;
   let lastScoredText = "";
+  let lastJobMeta = { title: "", company: "", logoUrl: "" };
   let watchInterval = null;
   let lastWatchedUrl = location.href;
   let detailObserver = null;
@@ -291,6 +353,14 @@
     shadow.getElementById("cb-close").addEventListener("click", deactivatePanel);
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
+
+    // Wire collapsible section toggles
+    shadow.querySelectorAll(".cb-collapse-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var section = btn.closest(".cb-collapsible");
+        if (section) section.classList.toggle("cb-open");
+      });
+    });
 
     return shadow;
   }
@@ -361,6 +431,25 @@
     var score = Number(data.score_0_to_10) || 0;
     var decision = getDecision(score);
 
+    // Company identity
+    var identEl = shadow.getElementById("cb-identity");
+    var logoEl = shadow.getElementById("cb-logo-img");
+    var companyEl = shadow.getElementById("cb-company");
+    var titleEl = shadow.getElementById("cb-jobtitle");
+    if (lastJobMeta.company || lastJobMeta.title) {
+      identEl.style.display = "";
+      companyEl.textContent = lastJobMeta.company || "";
+      titleEl.textContent = lastJobMeta.title || "";
+      if (lastJobMeta.logoUrl) {
+        logoEl.src = lastJobMeta.logoUrl;
+        logoEl.style.display = "";
+      } else {
+        logoEl.style.display = "none";
+      }
+    } else {
+      identEl.style.display = "none";
+    }
+
     // Score + decision label
     var scoreEl = shadow.getElementById("cb-score");
     scoreEl.textContent = data.score_0_to_10;
@@ -370,14 +459,40 @@
     decEl.textContent = decision.label;
     decEl.className = "cb-decision " + decision.cls;
 
-    // Supports
-    renderList(shadow.getElementById("cb-supports"), data.supports_fit || []);
-
-    // Stretch factors
-    renderList(shadow.getElementById("cb-stretch"), data.stretch_factors || []);
+    // Hiring Reality Check
+    var hrcEl = shadow.getElementById("cb-hrc");
+    var hrcBand = shadow.getElementById("cb-hrc-band");
+    var hrcReason = shadow.getElementById("cb-hrc-reason");
+    var hrc = data.hiring_reality_check;
+    if (hrc && hrc.band) {
+      hrcEl.style.display = "";
+      hrcBand.textContent = hrc.band;
+      hrcBand.className = "cb-hrc-badge";
+      if (hrc.band === "High") hrcBand.classList.add("cb-hrc-high");
+      else if (hrc.band === "Possible") hrcBand.classList.add("cb-hrc-possible");
+      else hrcBand.classList.add("cb-hrc-unlikely");
+      hrcReason.textContent = hrc.reason || "";
+    } else {
+      hrcEl.style.display = "none";
+    }
 
     // Bottom line
     shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
+
+    // Supports (collapsible — show count in toggle)
+    var supportItems = data.supports_fit || [];
+    renderList(shadow.getElementById("cb-supports"), supportItems);
+    var supCount = shadow.getElementById("cb-supports-count");
+    if (supCount) supCount.textContent = supportItems.length ? "(" + supportItems.length + ")" : "";
+
+    // Stretch factors (collapsible — show count in toggle)
+    var stretchItems = data.stretch_factors || [];
+    renderList(shadow.getElementById("cb-stretch"), stretchItems);
+    var strCount = shadow.getElementById("cb-stretch-count");
+    if (strCount) strCount.textContent = stretchItems.length ? "(" + stretchItems.length + ")" : "";
+    // Hide stretch section entirely if empty
+    var stretchSection = shadow.getElementById("cb-stretch-section");
+    if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
 
     // Nearby roles (only for stretch/skip)
     var nearbySection = shadow.getElementById("cb-nearby-section");
@@ -448,6 +563,9 @@
       }
 
       showLoading("Extracting job description\u2026");
+
+      // Capture job metadata from the page for the card header
+      lastJobMeta = extractJobMeta();
 
       const text = await waitForJobDescription(8000);
       if (!text || text.length < MIN_SCORE_CHARS) {
@@ -588,7 +706,7 @@
   var PANEL_HTML = [
     '<div class="cb-panel">',
     '  <div class="cb-header">',
-    '    <span class="cb-logo">Caliber <small style="font-size:9px;color:#666;font-weight:400">v' + PANEL_VERSION + '</small></span>',
+    '    <span class="cb-logo">Caliber</span>',
     '    <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '  </div>',
     '  <div id="cb-loading" class="cb-body">',
@@ -605,6 +723,13 @@
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
+    '    <div id="cb-identity" class="cb-identity" style="display:none">',
+    '      <img id="cb-logo-img" class="cb-company-logo" src="" alt="" style="display:none">',
+    '      <div class="cb-identity-text">',
+    '        <div id="cb-company" class="cb-company-name"></div>',
+    '        <div id="cb-jobtitle" class="cb-job-title"></div>',
+    '      </div>',
+    '    </div>',
     '    <div class="cb-hero">',
     '      <div class="cb-score-row">',
     '        <span id="cb-score" class="cb-score-num">\u2014</span>',
@@ -612,21 +737,42 @@
     '      </div>',
     '      <div id="cb-decision" class="cb-decision"></div>',
     '    </div>',
-    '    <div class="cb-section">',
-    '      <div class="cb-sec-title">\u2713 Supports the fit</div>',
-    '      <ul id="cb-supports" class="cb-bullets"></ul>',
+    '    <div id="cb-hrc" class="cb-hrc" style="display:none">',
+    '      <span class="cb-hrc-label">Screening</span>',
+    '      <span id="cb-hrc-band" class="cb-hrc-badge"></span>',
+    '      <span id="cb-hrc-reason" class="cb-hrc-reason"></span>',
     '    </div>',
-    '    <div class="cb-section">',
-    '      <div class="cb-sec-title">\u26a0 Stretch factors</div>',
-    '      <ul id="cb-stretch" class="cb-bullets cb-stretch"></ul>',
-    '    </div>',
-    '    <div class="cb-section">',
-    '      <div class="cb-sec-title">Bottom line</div>',
+    '    <div class="cb-bottomline-section">',
     '      <p id="cb-bottomline" class="cb-bltext"></p>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-section cb-nearby-section" style="display:none">',
-    '      <div class="cb-sec-title">\u2192 Better nearby roles</div>',
-    '      <ul id="cb-nearby" class="cb-nearby-list"></ul>',
+    '    <div class="cb-collapsible" id="cb-supports-section">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>\u2713 Supports the fit</span>',
+    '        <span id="cb-supports-count" class="cb-collapse-count"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <ul id="cb-supports" class="cb-bullets"></ul>',
+    '      </div>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-stretch-section">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>\u26a0 Stretch factors</span>',
+    '        <span id="cb-stretch-count" class="cb-collapse-count"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <ul id="cb-stretch" class="cb-bullets cb-stretch"></ul>',
+    '      </div>',
+    '    </div>',
+    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>\u2192 Better nearby roles</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
+    '      </div>',
     '    </div>',
     '    <div class="cb-actions">',
     '      <button id="cb-recalc" class="cb-btn cb-btn-s">Recalculate</button>',
@@ -639,11 +785,11 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 350px; max-height: 520px; overflow-y: auto;",
+    "  width: 340px; max-height: 480px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  font-size: 14px; line-height: 1.5;",
+    "  font-size: 13px; line-height: 1.45;",
     "  border: 1px solid rgba(255,255,255,0.08);",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
@@ -651,82 +797,133 @@
     "  from { opacity: 0; transform: translateY(12px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
-    ".cb-panel::-webkit-scrollbar { width: 6px; }",
+    ".cb-panel::-webkit-scrollbar { width: 5px; }",
     ".cb-panel::-webkit-scrollbar-track { background: transparent; }",
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }",
+    ".cb-logo { font-size: 13px; font-weight: 700; letter-spacing: -0.02em; color: #888; }",
     ".cb-close-btn {",
-    "  background: none; border: none; color: #888; font-size: 20px;",
+    "  background: none; border: none; color: #666; font-size: 18px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 14px 16px; position: relative; }",
+    ".cb-body { padding: 12px 14px; position: relative; }",
     ".cb-spinner {",
-    "  width: 24px; height: 24px;",
+    "  width: 22px; height: 22px;",
     "  border: 3px solid rgba(242,242,242,0.12);",
     "  border-top-color: #4ADE80; border-radius: 50%;",
     "  animation: cb-spin 0.7s linear infinite;",
-    "  margin: 12px auto 10px;",
+    "  margin: 10px auto 8px;",
     "}",
     ".cb-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }",
     "@keyframes cb-spin { to { transform: rotate(360deg); } }",
-    ".cb-status { text-align: center; color: #AFAFAF; font-size: 13px; }",
+    ".cb-status { text-align: center; color: #AFAFAF; font-size: 12px; }",
     ".cb-error-icon {",
-    "  width: 32px; height: 32px; border-radius: 50%;",
+    "  width: 28px; height: 28px; border-radius: 50%;",
     "  background: rgba(239,68,68,0.15); color: #EF4444;",
     "  display: flex; align-items: center; justify-content: center;",
-    "  font-weight: 700; font-size: 16px; margin: 8px auto;",
+    "  font-weight: 700; font-size: 14px; margin: 6px auto;",
     "}",
     ".cb-overlay {",
     "  position: absolute; inset: 0; z-index: 10;",
     "  background: rgba(11,11,11,0.75); border-radius: 12px;",
     "  display: flex; align-items: center; justify-content: center; gap: 8px;",
     "}",
-    ".cb-overlay-text { font-size: 13px; color: #AFAFAF; }",
-    ".cb-hero {",
-    "  display: flex; align-items: center; gap: 12px;",
-    "  margin-bottom: 12px; padding-bottom: 10px;",
+    ".cb-overlay-text { font-size: 12px; color: #AFAFAF; }",
+    // Company identity
+    ".cb-identity {",
+    "  display: flex; align-items: center; gap: 10px;",
+    "  margin-bottom: 10px; padding-bottom: 8px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "}",
+    ".cb-company-logo {",
+    "  width: 32px; height: 32px; border-radius: 6px;",
+    "  object-fit: contain; background: #1a1a1a; flex-shrink: 0;",
+    "}",
+    ".cb-identity-text { min-width: 0; flex: 1; }",
+    ".cb-company-name {",
+    "  font-size: 12px; font-weight: 600; color: #AFAFAF;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "}",
+    ".cb-job-title {",
+    "  font-size: 13px; font-weight: 700; color: #F2F2F2;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "}",
+    // Hero score + decision
+    ".cb-hero {",
+    "  display: flex; align-items: center; gap: 10px;",
+    "  margin-bottom: 6px;",
     "}",
     ".cb-score-row {",
     "  display: flex; align-items: baseline; gap: 1px;",
     "}",
-    ".cb-score-num { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }",
-    ".cb-score-of { font-size: 14px; font-weight: 500; color: #888; }",
+    ".cb-score-num { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-of { font-size: 13px; font-weight: 500; color: #888; }",
     ".cb-decision {",
-    "  font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 6px;",
+    "  font-size: 13px; font-weight: 700; padding: 2px 9px; border-radius: 6px;",
     "  letter-spacing: 0.01em;",
     "}",
     ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-section { margin-bottom: 10px; }",
-    ".cb-sec-title {",
-    "  font-size: 11px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; color: #888; margin-bottom: 3px;",
+    // Hiring Reality Check
+    ".cb-hrc {",
+    "  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;",
+    "  margin-bottom: 8px; padding: 6px 0;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-bullets { list-style: none; }",
+    ".cb-hrc-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #888; }",
+    ".cb-hrc-badge {",
+    "  font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px;",
+    "}",
+    ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
+    ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
+    ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
+    ".cb-hrc-reason { font-size: 11px; color: #999; }",
+    // Bottom line
+    ".cb-bottomline-section { margin-bottom: 8px; }",
+    ".cb-bltext { font-size: 13px; color: #CFCFCF; line-height: 1.4; }",
+    // Collapsible sections
+    ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.04); }",
+    ".cb-collapse-toggle {",
+    "  display: flex; align-items: center; gap: 5px; width: 100%;",
+    "  background: none; border: none; color: #888; cursor: pointer;",
+    "  font-size: 11px; font-weight: 600; text-transform: uppercase;",
+    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "}",
+    ".cb-collapse-toggle:hover { color: #CFCFCF; }",
+    ".cb-collapse-icon {",
+    "  font-size: 10px; transition: transform 0.15s; display: inline-block;",
+    "}",
+    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; }",
+    ".cb-collapse-body {",
+    "  max-height: 0; overflow: hidden;",
+    "  transition: max-height 0.2s ease-out;",
+    "}",
+    ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
+    ".cb-open .cb-collapse-body { max-height: 500px; }",
+    // Bullet lists
+    ".cb-bullets { list-style: none; padding-bottom: 6px; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 14px;",
-    "  font-size: 13px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
+    "  font-size: 12px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
-    ".cb-bltext { font-size: 13px; color: #CFCFCF; line-height: 1.4; }",
+    // Nearby roles
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.03); border-radius: 8px;",
-    "  padding: 10px 12px; margin-top: 2px;",
+    "  padding: 0 10px; margin-top: 2px;",
     "}",
-    ".cb-nearby-section .cb-sec-title { color: #60A5FA; }",
-    ".cb-nearby-list { list-style: none; }",
+    ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
+    ".cb-nearby-list { list-style: none; padding-bottom: 6px; }",
     ".cb-nearby-list li {",
-    "  padding: 4px 0; font-size: 13px;",
+    "  padding: 3px 0; font-size: 12px;",
     "}",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
@@ -734,10 +931,11 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    ".cb-actions { display: flex; gap: 8px; margin-top: 12px; }",
+    // Actions
+    ".cb-actions { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-btn {",
-    "  flex: 1; padding: 7px 10px; border: none; border-radius: 6px;",
-    "  font-size: 13px; font-weight: 600; cursor: pointer;",
+    "  flex: 1; padding: 6px 8px; border: none; border-radius: 6px;",
+    "  font-size: 12px; font-weight: 600; cursor: pointer;",
     "  text-align: center; text-decoration: none;",
     "  display: inline-flex; align-items: center; justify-content: center;",
     "  transition: opacity 0.15s;",
