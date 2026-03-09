@@ -961,24 +961,24 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           setExpandedTitleIdx(isExpanded ? null : idx);
                         }}
                       >
-                        {/* Card row: title left, actions right */}
-                        <div className="px-4 py-3 flex items-center justify-between gap-3">
-                          <div className={`text-[15px] sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"} min-w-0 truncate`} style={{ color: "#F2F2F2" }}>{t.title}</div>
-                          <div className="shrink-0 flex items-center gap-1.5">
+                        {/* Card content: centered title + action row */}
+                        <div className="px-4 py-3 text-center">
+                          <div className={`text-[15px] sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
                             <a
                               href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                              className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
                               style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none", whiteSpace: "nowrap" }}
-                            >LinkedIn \u2197</a>
+                            >Search on LinkedIn</a>
                             {canExpand ? (
                               <span
-                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
+                                className="px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
                                 style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33`, whiteSpace: "nowrap" }}
                               >
-                                {isExpanded ? "Hide \u25B4" : "Why \u25BE"}
+                                {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
                               </span>
                             ) : null}
                           </div>
