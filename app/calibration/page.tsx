@@ -966,11 +966,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         {/* Card header */}
                         <div className="px-5 py-4">
                           <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
-                          <div className="text-xs mt-0.5" style={{ color: "#555" }}>Role direction for your pattern</div>
                           {canExpand ? (
-                            <div className="text-[11px] mt-2 font-medium" style={{ color: isExpanded ? "#888" : "#555" }}>
+                            <span
+                              className="inline-block mt-2 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
+                              style={{ background: "rgba(242,242,242,0.06)", color: isExpanded ? "#999" : "#777", border: "1px solid rgba(242,242,242,0.10)" }}
+                            >
                               {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
-                            </div>
+                            </span>
                           ) : null}
                         </div>
 
