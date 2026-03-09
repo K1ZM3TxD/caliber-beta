@@ -914,21 +914,17 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* Divider */}
-                <div className="mb-5 flex items-center gap-4">
+                <div className="mb-4 flex items-center gap-4">
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
                 </div>
 
                 {/* Section heading */}
-                <div className="mb-1 flex flex-col items-center">
+                <div className="mb-3 flex flex-col items-center">
                   <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Top title directions for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
-                </div>
-
-                {/* Explanation */}
-                <div className="mb-5">
-                  <p className="text-sm" style={{ color: "#666" }}>These are the market titles closest to your background. Tap a card to learn why it fits.</p>
+                  <p className="text-sm mt-1.5" style={{ color: "#555" }}>Tap a card to learn why it fits.</p>
                 </div>
 
                 {/* Fallback: no title cards available */}
@@ -939,7 +935,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
 
                 {/* Title cards */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {titlesToRender.map((t, idx) => {
                     const isExpanded = expandedTitleIdx === idx;
                     const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
@@ -957,67 +953,67 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         className="cb-title-card rounded-xl transition-all duration-150 cursor-pointer"
                         style={{
                           animation: `cb-title-enter 0.35s ease-out ${idx * 0.12 + 0.15}s both`,
-                          backgroundColor: isExpanded ? "#1A1A1A" : "#121212",
-                          border: isExpanded ? "1px solid rgba(242,242,242,0.16)" : "1px solid rgba(242,242,242,0.06)",
+                          backgroundColor: isExpanded ? "#1A1A1A" : "#111",
+                          border: isExpanded ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
                         }}
                         onClick={() => {
                           if (!canExpand) return;
                           setExpandedTitleIdx(isExpanded ? null : idx);
                         }}
                       >
-                        {/* Card header */}
-                        <div className="px-5 py-4">
-                          <div className="flex items-center justify-between">
-                            <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
+                        {/* Card row: title left, actions right */}
+                        <div className="px-4 py-3 flex items-center justify-between gap-3">
+                          <div className={`text-[15px] sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"} min-w-0 truncate`} style={{ color: "#F2F2F2" }}>{t.title}</div>
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <a
+                              href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                              style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none", whiteSpace: "nowrap" }}
+                            >LinkedIn \u2197</a>
                             {canExpand ? (
                               <span
-                                className="shrink-0 ml-3 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
-                                style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33` }}
+                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
+                                style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33`, whiteSpace: "nowrap" }}
                               >
-                                {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
+                                {isExpanded ? "Hide \u25B4" : "Why \u25BE"}
                               </span>
                             ) : null}
                           </div>
-                          <a
-                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
-                          >Search this title on LinkedIn</a>
                         </div>
 
                         {/* Expanded content */}
                         {isExpanded && canExpand ? (
-                          <div className="px-5 pb-4 text-left" onClick={(e) => e.stopPropagation()}>
-                            <div className="border-t pt-3 mb-2" style={{ borderColor: "rgba(242,242,242,0.08)" }}>
-                              <div className="text-[11px] font-medium uppercase tracking-widest mb-2" style={{ color: "#555" }}>Why it fits</div>
+                          <div className="px-4 pb-3 text-left" onClick={(e) => e.stopPropagation()}>
+                            <div className="border-t pt-2.5 mb-1.5" style={{ borderColor: "rgba(242,242,242,0.07)" }}>
+                              <div className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "#555" }}>Why it fits</div>
                               {hasSummary ? (
-                                <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>{summaryText}</p>
+                                <p className="text-sm leading-relaxed mb-1.5" style={{ color: "#CFCFCF" }}>{summaryText}</p>
                               ) : null}
                               {hasBullets ? (
-                                <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                                <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-1.5" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
                                   {validBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
                                 </ul>
                               ) : null}
                             </div>
                             {/* Search actions */}
-                            <div className="flex items-center gap-2 mt-3">
+                            <div className="flex items-center gap-1.5 mt-2">
                               <a
                                 href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
-                              >Search on LinkedIn</a>
+                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                                style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                              >LinkedIn \u2197</a>
                               <a
                                 href={`https://www.indeed.com/jobs?q=${encodeURIComponent(t.title)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none" }}
-                              >Search on Indeed</a>
+                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                                style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                              >Indeed \u2197</a>
                             </div>
                           </div>
                         ) : null}
@@ -1026,23 +1022,28 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   })}
                 </div>
 
-                {/* How we score this — collapsible philosophy */}
-                <div className="mt-6 text-center">
-                  <button
-                    type="button"
+                {/* How we score this — integrated philosophy */}
+                <div className="mt-4">
+                  <div
+                    className="rounded-xl transition-all duration-150 cursor-pointer"
+                    style={{
+                      backgroundColor: expandedTitleIdx === -1 ? "#1A1A1A" : "#111",
+                      border: expandedTitleIdx === -1 ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
+                    }}
                     onClick={() => setExpandedTitleIdx(expandedTitleIdx === -1 ? null : -1)}
-                    className="px-4 py-1.5 rounded-md text-xs font-medium uppercase tracking-widest transition-colors duration-150"
-                    style={{ color: expandedTitleIdx === -1 ? "#999" : "#666", background: "rgba(242,242,242,0.06)", border: "1px solid rgba(242,242,242,0.10)", cursor: "pointer" }}
                   >
-                    {expandedTitleIdx === -1 ? "Hide scoring philosophy \u25B4" : "How we score this \u25BE"}
-                  </button>
-                  {expandedTitleIdx === -1 ? (
-                    <div className="mt-2 rounded-lg px-5 py-4 text-left text-sm leading-relaxed" style={{ backgroundColor: "#121212", border: "1px solid rgba(242,242,242,0.06)", color: "#888" }}>
-                      <p className="mb-2">Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.</p>
-                      <p className="mb-2">These titles reflect the kind of work your background most closely matches. They may not be your last job title, but they represent where your pattern has the strongest signal.</p>
-                      <p>The goal is to help you search more effectively and assess real roles faster — not to limit what you can do.</p>
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <span className="text-[11px] font-medium uppercase tracking-widest" style={{ color: expandedTitleIdx === -1 ? "#999" : "#555" }}>How we score this</span>
+                      <span className="text-[11px]" style={{ color: "#555" }}>{expandedTitleIdx === -1 ? "\u25B4" : "\u25BE"}</span>
                     </div>
-                  ) : null}
+                    {expandedTitleIdx === -1 ? (
+                      <div className="px-4 pb-3 text-left text-sm leading-relaxed" style={{ color: "#777" }} onClick={(e) => e.stopPropagation()}>
+                        <p className="mb-1.5">Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.</p>
+                        <p className="mb-1.5">These titles reflect the kind of work your background most closely matches. They may not be your last job title, but they represent where your pattern has the strongest signal.</p>
+                        <p>The goal is to help you search more effectively and assess real roles faster — not to limit what you can do.</p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               );
