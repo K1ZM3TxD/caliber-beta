@@ -197,6 +197,15 @@ export default function CalibrationPage() {
     if (session) persistSessionBackup(session);
   }, [session]);
 
+  // Notify extension content script when calibration reaches TITLES (session ready)
+  useEffect(() => {
+    if (step === "TITLES" && session?.sessionId) {
+      window.dispatchEvent(new CustomEvent("caliber:session-ready", {
+        detail: { sessionId: session.sessionId },
+      }));
+    }
+  }, [step, session?.sessionId]);
+
   // On mount: resume from URL param or cookie
   useEffect(() => {
     if (resumeAttemptedRef.current) return;
@@ -888,7 +897,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
-              <div className="w-full max-w-2xl pb-14">
+              <div className="w-full max-w-3xl pb-14">
                 {/* Extension install — primary action, before titles */}
                 <div className="mb-6" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                   <div
@@ -945,7 +954,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Hero title card */}
                 {heroTitle ? (
                   <div
-                    className="cb-title-card rounded-xl transition-all duration-150 cursor-pointer"
+                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: heroExpanded ? "#1A1A1A" : "#111",
@@ -956,21 +965,21 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       setExpandedTitleIdx(heroExpanded ? null : 0);
                     }}
                   >
-                    <div className="px-6 py-6 sm:px-8 sm:py-7 text-center">
-                      <div className="text-xl sm:text-2xl font-semibold" style={{ color: "#F2F2F2" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-3 mt-4">
+                    <div className="px-8 py-10 sm:px-12 sm:py-12 text-center">
+                      <div className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.15 }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-5 mt-7">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="px-4 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                          className="px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
                           style={{ background: "rgba(242,242,242,0.06)", color: "#CCC", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none", whiteSpace: "nowrap" }}
                         >Search on LinkedIn</a>
                         <span className="text-[10px] uppercase tracking-widest" style={{ color: "#444" }}>or</span>
                         {heroCanExpand ? (
                           <span
-                            className="px-4 py-1.5 rounded-md text-xs font-medium transition-colors duration-150"
+                            className="px-5 py-2 rounded-lg text-sm font-medium transition-colors duration-150"
                             style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap" }}
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
@@ -1016,7 +1025,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
 
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-5">
+                <div className="mt-3">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
