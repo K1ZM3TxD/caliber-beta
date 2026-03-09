@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Caliber Fit Score</title>
+  <title>Caliber</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -11,88 +11,9 @@
     <div class="header">
       <span class="logo">Caliber</span>
     </div>
-
-    <!-- Loading state -->
-    <div id="loading" class="state">
-      <div class="spinner"></div>
-      <p class="status-text">Extracting job description…</p>
-    </div>
-
-    <!-- Error state -->
-    <div id="error" class="state hidden">
-      <div class="error-icon">!</div>
-      <p id="error-msg" class="status-text"></p>
-      <button id="btn-retry" class="btn btn-primary">Recalculate</button>
-    </div>
-
-    <!-- Results state -->
-    <div id="results" class="state hidden">
-      <!-- Company / Job identity -->
-      <div id="identity" class="identity" style="display:none">
-        <img id="logo-img" class="company-logo" src="" alt="" style="display:none">
-        <div class="identity-text">
-          <div id="company-name" class="company-name"></div>
-          <div id="job-title" class="job-title"></div>
-        </div>
-      </div>
-
-      <!-- Score + Decision -->
-      <div class="hero">
-        <div class="score-row">
-          <span id="score-value" class="score-num">—</span>
-          <span class="score-of">/10</span>
-        </div>
-        <div id="decision" class="decision"></div>
-      </div>
-
-      <!-- Hiring Reality Check -->
-      <div id="hiring-check" class="hrc" style="display:none">
-        <div class="hrc-row">
-          <span class="hrc-label">Hiring Reality Check</span>
-          <span class="hrc-info" title="How likely your background is to pass the employer's initial screening based on stated requirements like domain experience, credentials, and years of experience.">?</span>
-        </div>
-        <div class="hrc-row">
-          <span id="hiring-check-band" class="hrc-badge"></span>
-          <span id="hiring-check-reason" class="hrc-reason"></span>
-        </div>
-      </div>
-
-      <!-- Bottom line (high in card) -->
-      <div class="bottomline-section">
-        <p id="bottom-line" class="bl-text"></p>
-      </div>
-
-      <!-- Supports the fit (collapsible) -->
-      <div class="collapsible" id="supports-section">
-        <button class="collapse-toggle" type="button">
-          <span class="collapse-icon">&#x25b8;</span>
-          <span>&#x2713; Supports the fit</span>
-          <span id="supports-count" class="collapse-count"></span>
-        </button>
-        <div class="collapse-body">
-          <ul id="supports-list" class="bullets"></ul>
-        </div>
-      </div>
-
-      <!-- Stretch factors (collapsible) -->
-      <div class="collapsible" id="stretch-section">
-        <button class="collapse-toggle" type="button">
-          <span class="collapse-icon">&#x25b8;</span>
-          <span>&#x26a0; Stretch factors</span>
-          <span id="stretch-count" class="collapse-count"></span>
-        </button>
-        <div class="collapse-body">
-          <ul id="stretch-list" class="bullets stretch"></ul>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="btn-recalc" class="btn btn-secondary">Recalculate</button>
-        <a id="link-caliber" href="#" target="_blank" class="btn btn-primary">Open in Caliber</a>
-      </div>
-    </div>
+    <p id="popup-status" class="status-text">Checking…</p>
+    <button id="popup-toggle" class="btn btn-primary" style="display:none">Open Sidecard</button>
   </div>
-
   <script src="popup.js"></script>
 </body>
 </html>

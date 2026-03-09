@@ -382,10 +382,15 @@
   // ─── Panel State Rendering ────────────────────────────────
 
   function setPanelState(stateId) {
-    for (const id of ["cb-loading", "cb-error", "cb-results"]) {
+    for (const id of ["cb-idle", "cb-loading", "cb-error", "cb-results"]) {
       const el = shadow.getElementById(id);
       if (el) el.style.display = (id === stateId) ? "" : "none";
     }
+  }
+
+  function showIdle() {
+    getOrCreatePanel();
+    setPanelState("cb-idle");
   }
 
   function showLoading(msg) {
@@ -670,8 +675,13 @@
     if (active) { scoreCurrentJob(true); return; }
     active = true;
     chrome.storage.local.set({ caliberPanelEnabled: true });
-    scoreCurrentJob(true);
+    showIdle();
     startWatching();
+    // If a job description is already visible, score immediately
+    var text = extractJobText();
+    if (text && text.length >= MIN_SCORE_CHARS) {
+      scoreCurrentJob(true);
+    }
   }
 
   function deactivatePanel() {
@@ -682,9 +692,9 @@
     lastScoredText = "";
   }
 
-  // Auto-activate if previously enabled
+  // Auto-activate unless user explicitly dismissed
   chrome.storage.local.get(["caliberPanelEnabled"], function (data) {
-    if (data.caliberPanelEnabled) activatePanel();
+    if (data.caliberPanelEnabled !== false) activatePanel();
   });
 
   // ─── Message Handler ──────────────────────────────────────
@@ -709,7 +719,11 @@
     '    <span class="cb-logo">Caliber</span>',
     '    <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '  </div>',
-    '  <div id="cb-loading" class="cb-body">',
+    '  <div id="cb-idle" class="cb-body" style="display:none">',
+    '    <div class="cb-idle-icon">\u25CE</div>',
+    '    <p class="cb-status">Select a job to analyze</p>',
+    '  </div>',
+    '  <div id="cb-loading" class="cb-body" style="display:none">',
     '    <div class="cb-spinner"></div>',
     '    <p id="cb-loading-text" class="cb-status">Computing fit score\u2026</p>',
     '  </div>',
@@ -826,6 +840,12 @@
     ".cb-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }",
     "@keyframes cb-spin { to { transform: rotate(360deg); } }",
     ".cb-status { text-align: center; color: #AFAFAF; font-size: 12px; }",
+    ".cb-idle-icon {",
+    "  width: 32px; height: 32px; border-radius: 50%;",
+    "  background: rgba(242,242,242,0.06); color: #666;",
+    "  display: flex; align-items: center; justify-content: center;",
+    "  font-size: 16px; margin: 10px auto 8px;",
+    "}",
     ".cb-error-icon {",
     "  width: 28px; height: 28px; border-radius: 50%;",
     "  background: rgba(239,68,68,0.15); color: #EF4444;",
