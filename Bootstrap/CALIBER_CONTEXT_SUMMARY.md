@@ -1,8 +1,15 @@
 # CALIBER_CONTEXT_SUMMARY
 
-## Project Status (2026-03-08)
+## Project Status (2026-03-08, Extension-First Update)
 
-Calibration flow runs end-to-end: resume upload → prompt answers → title recommendations → job paste → fit score + results. All steps render on a single /calibration page with no navigation away. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys from main.
+**Operating model has shifted to extension-first.**
+- The calibration page (`/calibration`) is now a launchpad, not the main scoring surface.
+- Calibration output is directional guidance: one top title direction displayed, no title scores, no manual paste as primary path.
+- The browser extension sidecard is the primary decision surface for real-role evaluation.
+- Active blocker: extension fresh-install / refresh handshake is unreliable — user must manually refresh Caliber and LinkedIn tabs after install.
+- Next tasks (locked order): handshake reliability fix → Hiring Reality Check → compact sidecard UX polish.
+
+Calibration flow runs end-to-end: resume upload → prompt answers → title recommendation → extension CTA. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys from main.
 
 **Stable Beta — Production/Dev Environment Split Active (2026-03-08).**
 - Production web app served from `https://www.caliber-app.com` (Vercel, auto-deployed from main).
@@ -94,13 +101,14 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 - Next/previous job navigation
 - Sidebar tools (resume tailoring, interview prep)
 
-## Next Tasks (locked order)
+## Next Tasks (locked order, updated 2026-03-08)
 
-1. **Scoring calibration / credibility** — fix score compression for Jen and Fabio profiles; investigate why real market jobs under calibrated titles score mostly below 6.
-2. **Bottom line / explanation polish** — only as needed for beta credibility (anti-repetition / paraphrase rule).
-3. **Maintain stable beta on production** — no experimental changes to production extension or web app.
-4. **Extension trust UX** — active job identity in sidecard (job title, company, optional location).
-5. **Phase 2 overlay/list scoring** — deferred until after stable beta and scoring credibility are resolved.
+1. **Fix extension handshake / session discovery bug** — fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes. Top blocker for extension-first flow.
+2. **Hiring Reality Check** — add to extension as next product feature after handshake reliability.
+3. **Compact sidecard UX polish** — decision-first layout for extension sidecard, sequenced after Hiring Reality Check.
+4. **Scoring calibration / credibility** — fix score compression for Jen and Fabio profiles; investigate why real market jobs under calibrated titles score mostly below 6.
+5. **Bottom line / explanation polish** — only as needed for beta credibility (anti-repetition / paraphrase rule).
+6. **Phase 2 overlay/list scoring** — deferred until after stable beta and scoring credibility are resolved.
 
 ## Deferred / Later
 

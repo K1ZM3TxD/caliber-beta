@@ -86,8 +86,14 @@ After major PM sessions, create a documentation update task so the repo captures
 ### C. UX Implementation Rule
 Complex reveal/animation UX (like the calibration results page) must be implemented with a **single sequential orchestrator or state machine**, not multiple independent timers. Independent timers cause overlapping reveals, multiple cursors, and simultaneous motion — all of which violate the intended calm-sequential feel.
 
-### D. Current Operating Context (2026-03-08)
+### D. Current Operating Context (2026-03-08, Extension-First Update)
 When bootstrap loads, PM should treat these as active operating facts:
+- **Operating model is extension-first.** The calibration page is a launchpad, not the primary scoring surface. The extension sidecard is the primary decision surface.
 - **Environment split is live.** Production (`caliber-app.com`) and dev (`localhost:3000`) are hard-separated. See `ENVIRONMENT_SPLIT.md`.
-- **Roadmap order is locked.** Scoring credibility → stable beta → trust polish → Phase 2 (deferred). Do not re-open sequencing without new evidence.
-- **Scoring credibility is the #1 open issue.** Jen and Fabio profiles score too low; market jobs under calibrated titles often below 6.
+- **Active blocker: extension handshake/session discovery bug.** Fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes.
+- **Current decision stack (locked order):**
+  1. Fix handshake/session discovery reliability
+  2. Hiring Reality Check (extension feature)
+  3. Compact sidecard UX polish
+- **Scoring credibility remains open.** Jen and Fabio profiles score too low; market jobs under calibrated titles often below 6.
+- Do not re-open task sequencing without new blocking evidence.

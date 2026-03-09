@@ -1,5 +1,24 @@
 ---
 
+BREAK + UPDATE — 2026-03-08 (Extension-First Operating Model)
+---
+DONE:
+- Calibration results page repositioned as extension-first launchpad
+- Single hero title direction replaces multi-title scored list on calibration page
+- Title scores removed from calibration page
+- Manual paste scoring removed from calibration primary flow
+- Extension sidecard is now the primary decision surface for real-role evaluation
+
+BLOCKED:
+- Extension fresh-install / refresh handshake still unreliable (user calibrates → installs/refreshes extension → opens LinkedIn → extension says no active session until manual Caliber and LinkedIn refresh)
+
+NEXT:
+1. Fix handshake/session discovery bug
+2. Add Hiring Reality Check to extension
+3. Compact sidecard UX polish
+
+---
+
 Phase-2 Extension Overlay UX Contract Finalized (2026-03-08)
 ---
 DONE:

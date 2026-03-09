@@ -57,6 +57,25 @@ Older calibration-core steps (anchors, overlap/gap, mechanical title producer) a
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
 
+## Extension-First Invariant
+
+- `/calibration` is a launchpad, not the primary job-scoring surface.
+- The browser extension is the primary scoring surface for real-role evaluation.
+- Calibration output is directional guidance; real job-fit analysis lives in the extension.
+
+## Calibration Page Invariant
+
+- One top title direction displayed (hero title, not a scored list).
+- No calibration title scores shown on the calibration page.
+- No manual paste as primary continuation path on this screen.
+- The calibration page guides users into extension usage.
+
+## PM Task Sequencing Invariant
+
+- Handshake reliability precedes Hiring Reality Check.
+- Hiring Reality Check precedes sidecard polish.
+- This order must not be re-sequenced without new blocking evidence.
+
 ### Coder Task Payload Format
 
 Coder tasks use the standard structured handoff block (title, scope, changes, DoD, notes). Fenced code blocks and multi-line structured objects are allowed. Single-line plain text is acceptable for trivial or docs-only tasks.

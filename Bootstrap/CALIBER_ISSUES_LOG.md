@@ -133,7 +133,32 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ---
 
-## Issues Added 2026-03-08
+## Issues Added 2026-03-08 (Extension-First Update)
+
+31. Extension handshake / session discovery bug on fresh install or refresh — **OPEN, BLOCKING** (2026-03-08)
+  - After calibration completes and user installs or refreshes the extension, opening LinkedIn shows "no active session" until the user manually refreshes both the Caliber tab and the LinkedIn tab.
+  - This is the top blocker for the extension-first flow.
+  - Must be resolved before Hiring Reality Check or sidecard polish.
+
+32. Hiring Reality Check — **OPEN, PRODUCT TASK** (2026-03-08)
+  - Active product feature to be added to the extension.
+  - Sequenced after handshake reliability fix (#31).
+  - Not yet implemented.
+
+33. Sidecard compact / decision-first UX polish — **OPEN, NEXT UX TASK** (2026-03-08)
+  - Compact sidecard layout for the extension decision surface.
+  - Sequenced after Hiring Reality Check (#32).
+
+34. Calibration-page UX simplification (extension-first launchpad) — **RESOLVED** (2026-03-08)
+  - Calibration results page is now an extension-first launchpad.
+  - Single hero title direction replaces multi-title scored list.
+  - Title scores removed from calibration page.
+  - Manual paste removed as primary continuation path.
+  - Extension CTA is the primary action on this screen.
+
+---
+
+## Issues Added 2026-03-08 (Scoring Credibility)
 
 25. Scoring compression / credibility for Jen and Fabio — **OPEN** (2026-03-08, TOP PRIORITY)
   - Jen's title family appears directionally correct, but scores are compressed too low:
