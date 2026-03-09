@@ -82,10 +82,13 @@ Extension is the primary job-evaluation surface.
 
 ## Calibration Page Invariant
 
-- One top title direction displayed (hero title, not a scored list).
-- No calibration title scores shown on the calibration page.
-- No manual paste as primary continuation path on this screen.
-- The calibration page guides users into extension usage.
+- `/calibration` is a direction-setting launchpad, not a job-scoring surface.
+- Layout order: "Calibration Complete" → Extension install CTA → hero title direction → "How we score this".
+- Extension CTA appears before the title recommendation — it is the primary next action.
+- One hero title direction displayed (centered title, search action, "See why it fits" expandable explanation).
+- No title scores shown on this page.
+- No manual job paste or inline job scoring on this page.
+- "How we score this" philosophy section sits below the hero card.
 
 ## Scoring Regression Invariant
 

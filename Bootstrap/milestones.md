@@ -14,6 +14,7 @@ DONE:
 - Jen scoring correction validated (CreativeOps / partnerships outputs)
 - Smoke test aligned to canonical scoring library (stale inlined logic removed)
 - Baseline smoke passes 45/45
+- /calibration extension-first hero-title layout merged and documented as canonical surface contract
 
 BLOCKED:
 - Extension fresh-install / refresh handshake still unreliable (user calibrates → installs/refreshes extension → opens LinkedIn → extension says no active session until manual Caliber and LinkedIn refresh)

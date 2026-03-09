@@ -50,9 +50,11 @@ The calibration experience lives at `/calibration` on a single page with no navi
 
 1. **Resume upload** — user uploads a resume file.
 2. **Prompt answers** — user responds to calibration prompts to surface anchors and identity signals.
-3. **Title recommendations** — system recommends up to 3 high-alignment titles.
-4. **Job paste / extension** — user pastes a job description (or the browser extension extracts one) to score fit.
-5. **Fit result** — inline fit score, supports-fit bullets, stretch factors, and bottom line render below the titles.
+3. **Calibration complete** — confirmation state appears at the top of the results view.
+4. **Extension CTA** — primary next action; guides user to install or activate the browser extension.
+5. **Hero title direction** — a single top title direction is displayed (not multiple scored titles).
+
+Job-fit evaluation (scoring a specific job description) is no longer part of this page. That flow now lives in the browser extension.
 
 ---
 
@@ -99,45 +101,25 @@ The real insight appears in the extension when applied to live jobs.
 
 ---
 
-## Calibration Title-Detail UX (Canonical)
+## Hero Title Card UX (Canonical)
 
-Recommended titles are displayed as expandable rows on the calibration page. Each title row includes a fit score and supports rich detail content when enriched data is available.
+The calibration results page displays a single hero title recommendation — not a multi-title scored list.
 
-### Title Row (Collapsed)
+### Hero Title Card
 
-Each title row shows:
+The card contains:
+- **Centered title text** — the single recommended title direction.
+- **Primary action: "Search"** — launches a job search for this title direction.
+- **Secondary action: "See why it fits"** — toggles an expandable explanation area.
+- **Expandable explanation** — when opened, shows why this title direction matches the user's calibration pattern.
 
-- **Expand indicator** — `▶` arrow if enriched detail exists; `·` dot if not.
-- **Title text** — the recommended title string (first title rendered bold).
-- **Fit score** — `N/10` (first title in green `#4ADE80`; others in gray).
-- **Copy button** — copies the title text to clipboard.
+### "How we score this"
 
-Up to 3 titles are displayed, sorted by fit score descending. An archetype label may appear above the title list when available.
-
-### Title Row (Expanded)
-
-Clicking an expandable title row reveals per-title detail content:
-
-1. **Summary** — a short (~2 sentence) summary explaining the title's fit to the user's profile.
-2. **Three explanatory bullet points** — mechanism-level bullets grounding the title recommendation in matched signals and evidence from the resume/prompts.
-
-The expanded panel uses a slightly lighter background (`#1A1A1A`) with a visible border to distinguish it from collapsed rows. Clicking the expanded row collapses it again.
-
-### Enrichment Data Shape
-
-Each enriched title carries:
-
-| Field | Description |
-|---|---|
-| `title` | The recommended title string |
-| `fit_0_to_10` | Numeric fit score (0–10) |
-| `summary_2s` | ~2-sentence summary of title fit |
-| `bullets_3` | Exactly 3 explanatory bullet points |
-
-Titles without `summary_2s` or `bullets_3` render as non-expandable flat rows (dot indicator, no click action).
+Beneath the hero card, a scoring philosophy section explains Caliber's approach to directional guidance.
 
 ### Key Invariants
 
-- Title rows without enrichment data must still render with score and copy — they just lack expand behavior.
-- The expanded detail is part of the intended calibration UX, not an incidental implementation artifact.
-- Titles remain visible on screen when the user enters job text and sees fit results below.
+- Only one title direction is displayed (hero title, not a list).
+- No title scores are shown on this page.
+- No manual job paste or inline fit results appear on this page.
+- The extension CTA appears above the title card — it is the primary next action.

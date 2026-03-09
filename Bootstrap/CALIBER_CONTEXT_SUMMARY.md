@@ -26,16 +26,30 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 
 **Extension Phase 1 MVP: VERIFIED WORKING (2026-03-06).** The Chrome extension extracts job descriptions from LinkedIn job detail pages and calls the production API at `https://www.caliber-app.com/api/extension/fit`. The popup renders a fit score (confirmed live: 4.3/10 screenshot), supports-fit bullets, stretch factors, bottom line, and Recalculate / Open in Caliber actions.
 
-## Current UI Behavior (2026-03-05)
+## Current Calibration Page Layout (2026-03-09, canonical)
 
-- **Titles screen:** Archetype header label; max 3 titles shown (high-alignment only); clean dropdown — no collapsed summary preview; expand for summary + mechanism bullets (left-aligned, bold); copy button per title. No "Search in parallel" chips.
-- **Title detail (enriched):** Each title row is expandable when enriched data exists (`summary_2s` + `bullets_3`). Expanded state shows a ~2-sentence summary and three mechanism-level bullet points. Titles without enrichment render as flat rows with score and copy only (dot indicator, not clickable). This is canonical product behavior — see `PROJECT_OVERVIEW.md`.
-- **Title scoring:** Strong profiles → top 3 titles with scores ≥7 (at least one ≥8). Weak/generic/thin input → hard cap at ≤5.0; smoke tests enforce both bands.
-- **Unified screen:** Titles + job paste area on the same screen. Running a job replaces only the job textarea area with an inline Fit accordion; titles remain visible above.
-- **Fit accordion:** "Supports the fit" bullets + "Stretch factors" (growth framing) + "Bottom line" (1–2 sentences, doctrine-tight, score-band templates). Fit score rendered prominently (centered, larger).
-- **Controls:** "Try another job" resets only the job area (titles stay). No Restart button.
-- **Extension-first CTA:** Above the job textarea — 3-line centered layout: green button "Try our browser extension for LinkedIn or Indeed" → "or" → "Paste job description below". Links to /extension landing page.
-- **Dialogue panel:** Removed. No clarifications chat below titles.
+The `/calibration` page is an extension-first launchpad. It answers "What direction should I search?" — not "Is this specific job a fit?"
+
+Layout from top to bottom:
+
+1. **"Calibration Complete"** — confirmation that calibration is done.
+2. **Extension install CTA** — primary next action, positioned above the title result. Framed as the main next step after calibration.
+3. **Title section heading** — "Top title direction for your pattern" (directional, not evaluative).
+4. **Hero title card** — single title recommendation:
+   - Centered title text
+   - Primary "Search" action
+   - Secondary "See why it fits" action
+   - Expandable explanation area
+5. **"How we score this"** — scoring philosophy / explanation section beneath the hero card.
+
+What is **not** on this page:
+- Multiple title suggestions
+- Title scores
+- Manual job paste / manual scoring
+- Fit accordion or inline job results
+- Dialogue panel or clarifications chat
+
+Job-fit evaluation now lives exclusively in the browser extension sidecard.
 
 ## Known Pain Points
 
