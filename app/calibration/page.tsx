@@ -873,10 +873,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   ? recTitles
                   : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
 
-              // Sort by score descending and take top 3
+              // Sort by score descending and take top 1
               titlesToRender = [...titlesToRender]
                 .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
-                .slice(0, 3);
+                .slice(0, 1);
+
+              const heroTitle = titlesToRender[0] ?? null;
+              const heroExpanded = expandedTitleIdx === 0;
+              const heroRawBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3 : [];
+              const heroValidBullets = heroRawBullets.filter((b: string) => b && b.trim());
+              const heroHasBullets = heroValidBullets.length > 0;
+              const heroSummaryText: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
+              const heroHasSummary = heroSummaryText.length > 0;
+              const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
               <div className="w-full max-w-2xl pb-14">
@@ -914,116 +923,100 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* Divider */}
-                <div className="mb-4 flex items-center gap-4">
+                <div className="mb-5 flex items-center gap-4">
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
                 </div>
 
                 {/* Section heading */}
-                <div className="mb-3 flex flex-col items-center">
-                  <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Top title directions for your pattern</h2>
+                <div className="mb-4 flex flex-col items-center">
+                  <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
-                  <p className="text-sm mt-1.5" style={{ color: "#555" }}>Tap a card to learn why it fits.</p>
                 </div>
 
-                {/* Fallback: no title cards available */}
-                {titlesToRender.length === 0 ? (
+                {/* Fallback: no title available */}
+                {!heroTitle ? (
                   <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "#141414", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.08)" }}>
-                    Your title recommendations are still being generated.
+                    Your title recommendation is still being generated.
                   </div>
                 ) : null}
 
-                {/* Title cards */}
-                <div className="space-y-2">
-                  {titlesToRender.map((t, idx) => {
-                    const isExpanded = expandedTitleIdx === idx;
-                    const rawBullets: string[] = Array.isArray((t as any).bullets_3) ? (t as any).bullets_3 : [];
-                    const validBullets = rawBullets.filter((b: string) => b && b.trim());
-                    const hasBullets = validBullets.length > 0;
-                    const summaryText: string = typeof (t as any).summary_2s === "string" ? (t as any).summary_2s.trim() : "";
-                    const hasSummary = summaryText.length > 0;
-                    const canExpand = hasBullets || hasSummary;
-                    const score = (t as any).fit_0_to_10 ?? 0;
-                    const tierColor = score >= 7 ? "#4ADE80" : score >= 4 ? "#FACC15" : "#666";
-
-                    return (
-                      <div
-                        key={idx}
-                        className="cb-title-card rounded-xl transition-all duration-150 cursor-pointer"
-                        style={{
-                          animation: `cb-title-enter 0.35s ease-out ${idx * 0.12 + 0.15}s both`,
-                          backgroundColor: isExpanded ? "#1A1A1A" : "#111",
-                          border: isExpanded ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
-                        }}
-                        onClick={() => {
-                          if (!canExpand) return;
-                          setExpandedTitleIdx(isExpanded ? null : idx);
-                        }}
-                      >
-                        {/* Card content: centered title + action row */}
-                        <div className="px-4 py-3 text-center">
-                          <div className={`text-[15px] sm:text-base ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
-                          <div className="flex items-center justify-center gap-2 mt-2">
-                            <a
-                              href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                              style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none", whiteSpace: "nowrap" }}
-                            >Search on LinkedIn</a>
-                            {canExpand ? (
-                              <span
-                                className="px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
-                                style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33`, whiteSpace: "nowrap" }}
-                              >
-                                {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {/* Expanded content */}
-                        {isExpanded && canExpand ? (
-                          <div className="px-4 pb-3 text-left" onClick={(e) => e.stopPropagation()}>
-                            <div className="border-t pt-2.5 mb-1.5" style={{ borderColor: "rgba(242,242,242,0.07)" }}>
-                              <div className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "#555" }}>Why it fits</div>
-                              {hasSummary ? (
-                                <p className="text-sm leading-relaxed mb-1.5" style={{ color: "#CFCFCF" }}>{summaryText}</p>
-                              ) : null}
-                              {hasBullets ? (
-                                <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-1.5" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                                  {validBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
-                                </ul>
-                              ) : null}
-                            </div>
-                            {/* Search actions */}
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <a
-                                href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t.title)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
-                              >LinkedIn \u2197</a>
-                              <a
-                                href={`https://www.indeed.com/jobs?q=${encodeURIComponent(t.title)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                                style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
-                              >Indeed \u2197</a>
-                            </div>
-                          </div>
+                {/* Hero title card */}
+                {heroTitle ? (
+                  <div
+                    className="cb-title-card rounded-xl transition-all duration-150 cursor-pointer"
+                    style={{
+                      animation: "cb-title-enter 0.35s ease-out 0.15s both",
+                      backgroundColor: heroExpanded ? "#1A1A1A" : "#111",
+                      border: heroExpanded ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
+                    }}
+                    onClick={() => {
+                      if (!heroCanExpand) return;
+                      setExpandedTitleIdx(heroExpanded ? null : 0);
+                    }}
+                  >
+                    <div className="px-6 py-6 sm:px-8 sm:py-7 text-center">
+                      <div className="text-xl sm:text-2xl font-semibold" style={{ color: "#F2F2F2" }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-3 mt-4">
+                        <a
+                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-4 py-1.5 rounded-md text-xs font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                          style={{ background: "rgba(242,242,242,0.06)", color: "#CCC", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none", whiteSpace: "nowrap" }}
+                        >Search on LinkedIn</a>
+                        <span className="text-[10px] uppercase tracking-widest" style={{ color: "#444" }}>or</span>
+                        {heroCanExpand ? (
+                          <span
+                            className="px-4 py-1.5 rounded-md text-xs font-medium transition-colors duration-150"
+                            style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap" }}
+                          >
+                            {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
+                          </span>
                         ) : null}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+
+                    {/* Expanded content */}
+                    {heroExpanded && heroCanExpand ? (
+                      <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
+                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(242,242,242,0.07)" }}>
+                          <div className="text-[10px] font-medium uppercase tracking-widest mb-2" style={{ color: "#555" }}>Why it fits</div>
+                          {heroHasSummary ? (
+                            <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>{heroSummaryText}</p>
+                          ) : null}
+                          {heroHasBullets ? (
+                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                              {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
+                            </ul>
+                          ) : null}
+                        </div>
+                        {/* Search actions */}
+                        <div className="flex items-center gap-2 mt-3">
+                          <a
+                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                            style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                          >Search on LinkedIn</a>
+                          <a
+                            href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                            style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                          >Search on Indeed</a>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-4">
+                <div className="mt-5">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
@@ -1039,7 +1032,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {expandedTitleIdx === -1 ? (
                       <div className="px-4 pb-3 text-left text-sm leading-relaxed" style={{ color: "#777" }} onClick={(e) => e.stopPropagation()}>
                         <p className="mb-1.5">Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.</p>
-                        <p className="mb-1.5">These titles reflect the kind of work your background most closely matches. They may not be your last job title, but they represent where your pattern has the strongest signal.</p>
+                        <p className="mb-1.5">This title reflects the kind of work your background most closely matches. It may not be your last job title, but it represents where your pattern has the strongest signal.</p>
                         <p>The goal is to help you search more effectively and assess real roles faster — not to limit what you can do.</p>
                       </div>
                     ) : null}
