@@ -948,6 +948,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     const summaryText: string = typeof (t as any).summary_2s === "string" ? (t as any).summary_2s.trim() : "";
                     const hasSummary = summaryText.length > 0;
                     const canExpand = hasBullets || hasSummary;
+                    const score = (t as any).fit_0_to_10 ?? 0;
+                    const tierColor = score >= 7 ? "#4ADE80" : score >= 4 ? "#FACC15" : "#666";
 
                     return (
                       <div
@@ -964,12 +966,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         }}
                       >
                         {/* Card header */}
-                        <div className="px-5 py-4">
+                        <div className="px-5 py-4 flex items-center justify-between">
                           <div className={`text-base sm:text-lg ${idx === 0 ? "font-semibold" : "font-medium"}`} style={{ color: "#F2F2F2" }}>{t.title}</div>
                           {canExpand ? (
                             <span
-                              className="inline-block mt-2 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
-                              style={{ background: "rgba(242,242,242,0.06)", color: isExpanded ? "#999" : "#777", border: "1px solid rgba(242,242,242,0.10)" }}
+                              className="shrink-0 ml-3 px-3 py-1 rounded-md text-[11px] font-medium transition-colors duration-150"
+                              style={{ background: `${tierColor}14`, color: isExpanded ? "#999" : tierColor, border: `1px solid ${tierColor}33` }}
                             >
                               {isExpanded ? "Hide details \u25B4" : "Why it fits \u25BE"}
                             </span>
@@ -1015,12 +1017,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* How we score this — collapsible philosophy */}
-                <div className="mt-6">
+                <div className="mt-6 text-center">
                   <button
                     type="button"
                     onClick={() => setExpandedTitleIdx(expandedTitleIdx === -1 ? null : -1)}
-                    className="w-full text-left text-xs font-medium uppercase tracking-widest transition-colors duration-150"
-                    style={{ color: expandedTitleIdx === -1 ? "#888" : "#444", background: "none", border: "none", cursor: "pointer", padding: "6px 0" }}
+                    className="px-4 py-1.5 rounded-md text-xs font-medium uppercase tracking-widest transition-colors duration-150"
+                    style={{ color: expandedTitleIdx === -1 ? "#999" : "#666", background: "rgba(242,242,242,0.06)", border: "1px solid rgba(242,242,242,0.10)", cursor: "pointer" }}
                   >
                     {expandedTitleIdx === -1 ? "Hide scoring philosophy \u25B4" : "How we score this \u25BE"}
                   </button>
