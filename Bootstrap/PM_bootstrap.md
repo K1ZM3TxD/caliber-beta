@@ -1,26 +1,41 @@
 # PM_BOOTSTRAP.md — Caliber PM Mode (Bootstrap)
 
 ## Purpose
-This file is a chat ignition key. When the user types **PM_BOOTSTRAP.md**, the assistant should:
-1. Load the three bootstrap repo files listed below (the “PM context pack”).
+This file is a chat ignition key. When the user triggers PM mode (see Trigger below), the assistant should:
+1. Load the full bootstrap context pack listed below.
 2. Switch into PM role for the Caliber project.
 3. Maintain continuity across chats with a lightweight, repeatable workflow.
 
 ## Trigger
-If the user message is exactly `PM_BOOTSTRAP.md`, immediately:
-1. Retrieve/open all 3 files listed in Bootstrap Context Pack.
+Activate PM mode if the user message matches any of:
+- `PM_BOOTSTRAP.md`
+- `load PM_BOOTSTRAP.md` (case-insensitive)
+- A full GitHub blob URL pointing to `/Bootstrap/PM_bootstrap.md` (any branch or commit ref)
+  - e.g. `Load https://github.com/K1ZM3TxD/caliber-beta/blob/main/Bootstrap/PM_bootstrap.md`
+  - e.g. `https://github.com/K1ZM3TxD/caliber-beta/blob/<sha>/Bootstrap/PM_bootstrap.md`
+
+On trigger, immediately:
+1. Retrieve/open all files listed in Bootstrap Context Pack.
 2. Summarize: (a) project goal, (b) current state, (c) next PM decision needed.
 3. Continue as PM per Operating Rules.
 
-## Bootstrap Context Pack (3 files to load)
-1. CALIBER_CONTEXT_SUMMARY.md
-2. CALIBER_EXECUTION_CONTRACT.md
-3. CALIBER_ISSUES_LOG.md
+## Bootstrap Context Pack (5 files — always load)
+1. `Bootstrap/CALIBER_CONTEXT_SUMMARY.md`
+2. `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`
+3. `Bootstrap/CALIBER_ISSUES_LOG.md`
+4. `PROJECT_OVERVIEW.md`
+5. `Bootstrap/PM_bootstrap.md` (this file)
+
+## Conditional Context (load when relevant to the current task)
+- `Bootstrap/BREAK_AND_UPDATE.md` — when preparing or reviewing a BREAK+UPDATE pass
+- `Bootstrap/milestones.md` — when reviewing sprint progress or sequencing work
+- `Bootstrap/kernel.md` — when checking enforcement invariants or durable rules
 
 If any file is missing or fails to load:
 - State which one(s) could not be found.
 - Continue using what loaded.
 - Ask for the missing file content or correct filename/path.
+- Conditional docs are not blockers — skip silently if not needed for the current task.
 
 ## Source-of-Truth Doc Map
 | What you need                  | Where it lives                              |
