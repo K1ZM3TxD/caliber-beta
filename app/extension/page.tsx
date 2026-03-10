@@ -11,26 +11,22 @@ export default function ExtensionPage() {
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[6vh] overflow-y-auto">
       <div className="w-full max-w-[640px] px-6 pb-16" style={{ color: "#F2F2F2" }}>
-        {/* Header */}
-        <div className="text-center font-semibold tracking-tight text-4xl sm:text-5xl mb-4">
-          Caliber Extension
-        </div>
-        <div className="text-center text-lg sm:text-xl mb-8" style={{ color: "#CFCFCF" }}>
-          Get a fit score on LinkedIn or Indeed — without copy/paste.
-        </div>
-
-        {/* Beta status message */}
-        <div
-          className="rounded-lg px-6 py-5 mb-8 text-sm leading-relaxed"
-          style={{
-            backgroundColor: "rgba(74,222,128,0.06)",
-            border: "1px solid rgba(74,222,128,0.25)",
-            color: "#CFCFCF",
-          }}
-        >
-          This extension is currently in beta and will be available in the Chrome
-          Web Store soon. We&apos;re sharing the beta version so early users can
-          try Caliber and help improve it.
+        {/* Status bubble + Download CTA */}
+        <div className="text-center mb-10">
+          <div
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium mb-5"
+            style={{
+              backgroundColor: "rgba(74,222,128,0.08)",
+              border: "1px solid rgba(74,222,128,0.22)",
+              color: "#4ADE80",
+            }}
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: "#4ADE80" }}
+            />
+            Chrome Web Store review in progress
+          </div>
         </div>
 
         {/* Download button */}
