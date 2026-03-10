@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.4.5";
+  const PANEL_VERSION = "0.4.9";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -538,17 +538,13 @@
   // ─── Rolling Weak-Search Detection ─────────────────────
 
   // Returns true if two titles are semantically equivalent for search purposes.
-  // Catches exact matches, case/whitespace differences, and containment overlap.
+  // Only exact normalized match — keeps containment-different titles like
+  // "Senior Product Manager" vs "Product Manager" as distinct suggestions.
   function titlesEquivalent(a, b) {
     if (!a || !b) return false;
     var na = a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     var nb = b.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    if (na === nb) return true;
-    // One contains the other ("product manager" ≈ "senior product manager")
-    if (na.length >= 4 && nb.length >= 4) {
-      if (nb.indexOf(na) !== -1 || na.indexOf(nb) !== -1) return true;
-    }
-    return false;
+    return na === nb;
   }
 
   function checkWeakSearchPattern() {
@@ -646,17 +642,17 @@
       hrcSection.style.display = "none";
     }
 
-    // Supports (collapsible — show count in toggle)
+    // Supports (collapsible — dot indicators in toggle)
     var supportItems = data.supports_fit || [];
     renderList(shadow.getElementById("cb-supports"), supportItems);
     var supCount = shadow.getElementById("cb-supports-count");
-    if (supCount) supCount.textContent = supportItems.length ? "(" + supportItems.length + ")" : "";
+    if (supCount) supCount.innerHTML = renderDotIndicators(supportItems.length, "green");
 
-    // Stretch factors (collapsible — show count in toggle)
+    // Stretch factors (collapsible — dot indicators in toggle)
     var stretchItems = data.stretch_factors || [];
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
     var strCount = shadow.getElementById("cb-stretch-count");
-    if (strCount) strCount.textContent = stretchItems.length ? "(" + stretchItems.length + ")" : "";
+    if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
     var stretchSection = shadow.getElementById("cb-stretch-section");
     if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
 
@@ -742,6 +738,27 @@
       li.textContent = text;
       ul.appendChild(li);
     }
+  }
+
+  /**
+   * Build dot-indicator HTML for collapsed Supports/Stretch rows.
+   * Up to 5 filled/empty dots; a star (★) if count exceeds 5.
+   * @param {number} count  - actual item count
+   * @param {"green"|"yellow"} tone - color family
+   */
+  function renderDotIndicators(count, tone) {
+    if (count === 0) return "";
+    var maxDots = 5;
+    var filled = Math.min(count, maxDots);
+    var html = '<span class="cb-dots">';
+    for (var i = 0; i < maxDots; i++) {
+      html += '<span class="cb-dot ' + (i < filled ? "cb-dot-on-" + tone : "cb-dot-off-" + tone) + '"></span>';
+    }
+    if (count > maxDots) {
+      html += '<span class="cb-dot-star cb-dot-star-' + tone + '">\u2605</span>';
+    }
+    html += '</span>';
+    return html;
   }
 
   // ─── API Call via Background Service Worker ───────────────
@@ -1198,6 +1215,21 @@
     "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
     ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; }",
+    // Dot indicators (collapsed row signal strength)
+    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }",
+    ".cb-dot {",
+    "  width: 5px; height: 5px; border-radius: 50%; display: inline-block;",
+    "  flex-shrink: 0;",
+    "}",
+    ".cb-dot-on-green  { background: #4ADE80; }",
+    ".cb-dot-off-green { background: rgba(74,222,128,0.18); }",
+    ".cb-dot-on-yellow  { background: #FBBF24; }",
+    ".cb-dot-off-yellow { background: rgba(251,191,36,0.18); }",
+    ".cb-dot-star {",
+    "  font-size: 8px; line-height: 1; margin-left: 1px;",
+    "}",
+    ".cb-dot-star-green  { color: #4ADE80; }",
+    ".cb-dot-star-yellow { color: #FBBF24; }",
     ".cb-collapse-body {",
     "  max-height: 0; overflow: hidden;",
     "  transition: max-height 0.2s ease-out;",
