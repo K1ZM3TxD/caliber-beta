@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.4.0";
+  const PANEL_VERSION = "0.4.3";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -327,6 +327,15 @@
   let detailObserver = null;
   let detailDebounce = null;
 
+  // Rolling weak-search detection
+  let recentScores = [];       // last 4 entries: { score, nearbyRoles }
+  let lastSearchQuery = getSearchKeywords();
+
+  function getSearchKeywords() {
+    try { return new URL(location.href).searchParams.get("keywords") || ""; }
+    catch (e) { return ""; }
+  }
+
   // ─── Panel Creation ───────────────────────────────────────
 
   function getOrCreatePanel() {
@@ -427,6 +436,28 @@
     setPanelState("cb-error");
   }
 
+  // ─── Rolling Weak-Search Detection ─────────────────────
+
+  function checkWeakSearchPattern() {
+    if (recentScores.length < 3) return null;
+    var window = recentScores.slice(-4);
+    var weakCount = 0;
+    var hasStrong = false;
+    for (var i = 0; i < window.length; i++) {
+      if (window[i].score < 6.0) weakCount++;
+      if (window[i].score > 7.0) hasStrong = true;
+    }
+    if (weakCount >= 3 && !hasStrong) {
+      // Pick best nearby role from most recent result that has them
+      for (var j = window.length - 1; j >= 0; j--) {
+        if (window[j].nearbyRoles && window[j].nearbyRoles.length > 0) {
+          return window[j].nearbyRoles[0].title;
+        }
+      }
+    }
+    return null;
+  }
+
   function showResults(data) {
     getOrCreatePanel();
     hideOverlay();
@@ -506,6 +537,20 @@
       }
     } else {
       nearbySection.style.display = "none";
+    }
+
+    // Rolling weak-search detection
+    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [] });
+    if (recentScores.length > 4) recentScores.shift();
+    var suggestedTitle = checkWeakSearchPattern();
+    var sugSection = shadow.getElementById("cb-search-suggest");
+    if (suggestedTitle) {
+      sugSection.style.display = "";
+      var sugLink = shadow.getElementById("cb-suggest-link");
+      sugLink.textContent = suggestedTitle;
+      sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+    } else {
+      sugSection.style.display = "none";
     }
 
     setPanelState("cb-results");
@@ -605,6 +650,13 @@
       if (location.href !== lastWatchedUrl) {
         lastWatchedUrl = location.href;
         lastScoredText = ""; // force re-score on navigation
+        // Reset rolling window if search query changed
+        var currentQuery = getSearchKeywords();
+        if (currentQuery !== lastSearchQuery) {
+          recentScores = [];
+          lastSearchQuery = currentQuery;
+          console.debug("[Caliber] search query changed, reset rolling window");
+        }
         console.debug("[Caliber] URL changed, re-scoring");
         scoreCurrentJob(true);
         return;
@@ -672,6 +724,7 @@
     stopWatching();
     removePanel();
     lastScoredText = "";
+    recentScores = [];
   }
 
   // Auto-activate unless user explicitly dismissed
@@ -782,6 +835,10 @@
     '      <div class="cb-collapse-body">',
     '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '      </div>',
+    '    </div>',
+    '    <div id="cb-search-suggest" class="cb-suggest-banner" style="display:none">',
+    '      <div class="cb-suggest-label">\uD83D\uDD0D Try a better search title</div>',
+    '      <a id="cb-suggest-link" class="cb-suggest-link" target="_self"></a>',
     '    </div>',
     '  </div>',
     '</div>'
@@ -936,6 +993,20 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    // Search suggestion banner
+    ".cb-suggest-banner {",
+    "  background: rgba(96,165,250,0.10); border-radius: 6px;",
+    "  padding: 6px 8px; margin-top: 4px; text-align: center;",
+    "}",
+    ".cb-suggest-label {",
+    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
+    "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 3px;",
+    "}",
+    ".cb-suggest-link {",
+    "  font-size: 11px; font-weight: 700; color: #93C5FD;",
+    "  text-decoration: none; border-bottom: 1px solid rgba(147,197,253,0.3);",
+    "}",
+    ".cb-suggest-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
