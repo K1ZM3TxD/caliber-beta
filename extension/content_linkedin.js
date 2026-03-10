@@ -402,6 +402,16 @@
       });
     });
 
+    // Wire bug report controls
+    shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
+    shadow.getElementById("cb-bug-submit").addEventListener("click", handleBugSubmit);
+    shadow.getElementById("cb-bug-cancel").addEventListener("click", handleBugCancel);
+    shadow.querySelectorAll(".cb-bug-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("cb-fb-chip-selected");
+      });
+    });
+
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
       var btn = shadow.getElementById("cb-tailor-btn");
@@ -534,6 +544,62 @@
     shadow.getElementById("cb-fb-panel").style.display = "none";
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.style.display = "";
+  }
+
+  function handleBugOpen() {
+    var panel = shadow.getElementById("cb-bug-panel");
+    if (panel) panel.style.display = "";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "none";
+    // Also hide thumbs-down panel if open
+    var fbPanel = shadow.getElementById("cb-fb-panel");
+    if (fbPanel) fbPanel.style.display = "none";
+  }
+
+  function handleBugSubmit() {
+    var selected = shadow.querySelectorAll(".cb-bug-chip.cb-fb-chip-selected");
+    var category = null;
+    if (selected.length > 0) category = selected[0].getAttribute("data-bug");
+    var comment = (shadow.getElementById("cb-bug-text").value || "").trim();
+    sendBugReport(category, comment || null);
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    showFeedbackConfirm();
+  }
+
+  function handleBugCancel() {
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "";
+  }
+
+  function sendBugReport(category, comment) {
+    var d = lastFeedbackData || {};
+    var payload = {
+      surface: "extension",
+      site: "linkedin",
+      company_name: d.company || null,
+      job_title: d.jobTitle || null,
+      search_title: getSearchKeywords() || null,
+      calibration_title_direction: null,
+      fit_score: d.score != null ? d.score : null,
+      decision_label: d.decision || null,
+      hiring_reality_band: d.hrcBand || null,
+      better_search_title_suggestion: d.suggestedTitle || null,
+      feedback_type: "bug_report",
+      feedback_reason: null,
+      bug_category: category,
+      optional_comment: comment,
+      behavioral_signals: {
+        jobs_viewed_in_session: sessionSignals.jobs_viewed,
+        scores_below_6_count: sessionSignals.scores_below_6,
+        highest_score_seen: sessionSignals.highest_score,
+        better_title_suggestion_shown: sessionSignals.suggest_shown,
+        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
+      },
+    };
+    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
+      console.debug("[Caliber] bug report sent:", category)
+    });
   }
 
   function showFeedbackConfirm() {
@@ -720,11 +786,23 @@
       nearbySection.style.display = "none";
     }
 
-    // Tailor Resume banner (above sidecard, 8.0+ only)
+    // Tailor Resume banner (above sidecard, 8.0+ only, suppressed if already in pipeline)
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
-        tailorBanner.style.display = "";
+        // Check pipeline membership before showing CTA
+        tailorBanner.style.display = "none";
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
+          function (resp) {
+            if (resp && resp.exists) {
+              console.debug("[Caliber] job already in pipeline, suppressing tailor CTA");
+              tailorBanner.style.display = "none";
+            } else {
+              tailorBanner.style.display = "";
+            }
+          }
+        );
       } else {
         tailorBanner.style.display = "none";
       }
@@ -765,14 +843,19 @@
     // Reset feedback UI for new result (unless already given in this session)
     var fbRow = shadow.getElementById("cb-fb-row");
     var fbPanel = shadow.getElementById("cb-fb-panel");
+    var bugPanel = shadow.getElementById("cb-bug-panel");
     if (fbPanel) fbPanel.style.display = "none";
+    if (bugPanel) bugPanel.style.display = "none";
     if (fbRow && !feedbackGiven) {
       fbRow.style.display = "";
       fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
         '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
-        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>';
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
+        '<span class="cb-fb-sep"></span>' +
+        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B</button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
+      shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
     }
 
     setPanelState("cb-results");
@@ -1101,6 +1184,8 @@
     '      <span class="cb-fb-prompt">Helpful?</span>',
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
     '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
+    '      <span class="cb-fb-sep"></span>',
+    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B</button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1115,6 +1200,22 @@
     '      <div class="cb-fb-actions">',
     '        <button id="cb-fb-submit" class="cb-fb-submit">Submit</button>',
     '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
+    '      </div>',
+    '    </div>',
+    '    <div id="cb-bug-panel" class="cb-fb-panel" style="display:none">',
+    '      <div class="cb-fb-panel-title">What went wrong?</div>',
+    '      <div class="cb-fb-chips">',
+    '        <button class="cb-bug-chip" data-bug="wrong_job_detected">Wrong job detected</button>',
+    '        <button class="cb-bug-chip" data-bug="score_failed_to_load">Score failed to load</button>',
+    '        <button class="cb-bug-chip" data-bug="panel_not_opening">Panel not opening correctly</button>',
+    '        <button class="cb-bug-chip" data-bug="content_missing">Content missing or cut off</button>',
+    '        <button class="cb-bug-chip" data-bug="action_not_working">Button/action not working</button>',
+    '        <button class="cb-bug-chip" data-bug="other">Other</button>',
+    '      </div>',
+    '      <textarea id="cb-bug-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
+    '      <div class="cb-fb-actions">',
+    '        <button id="cb-bug-submit" class="cb-fb-submit">Submit</button>',
+    '        <button id="cb-bug-cancel" class="cb-fb-cancel">Cancel</button>',
     '      </div>',
     '    </div>',
     '  </div>',
@@ -1366,6 +1467,13 @@
     "  transition: background 0.15s, border-color 0.15s;",
     "}",
     ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
+    ".cb-bug-btn {",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 11px; padding: 2px 6px; line-height: 1;",
+    "  transition: background 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
     // Feedback detail panel
     ".cb-fb-panel {",
     "  padding: 6px 0 2px; margin-top: 4px;",

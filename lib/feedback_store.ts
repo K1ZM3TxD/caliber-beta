@@ -16,8 +16,9 @@ export interface FeedbackEvent {
   decision_label: string | null;
   hiring_reality_band: string | null;
   better_search_title_suggestion: string | null;
-  feedback_type: "thumbs_up" | "thumbs_down";
+  feedback_type: "thumbs_up" | "thumbs_down" | "bug_report";
   feedback_reason: string | null;
+  bug_category: string | null;
   optional_comment: string | null;
   behavioral_signals: {
     jobs_viewed_in_session: number | null;

@@ -5,10 +5,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   pipelineList,
+  pipelineFindByJob,
   pipelineCreate,
   pipelineUpdateStage,
+  normalizeJobUrl,
   type PipelineStage,
 } from "@/lib/pipeline_store";
+
+const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
+
+function corsHeaders(req: NextRequest): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  if (CHROME_EXT_ORIGIN_RE.test(origin)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+  }
+  return {};
+}
+
+export async function OPTIONS(req: NextRequest) {
+  const res = new NextResponse(null, { status: 204 });
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+  return res;
+}
 
 const VALID_STAGES: PipelineStage[] = [
   "strong_match",
@@ -22,8 +44,23 @@ const VALID_STAGES: PipelineStage[] = [
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("sessionId") ?? undefined;
+  const jobUrl = searchParams.get("jobUrl") ?? undefined;
+
+  // Check if a specific job URL exists in the pipeline
+  if (jobUrl && sessionId) {
+    const entry = pipelineFindByJob(sessionId, jobUrl);
+    const res = NextResponse.json(
+      { ok: true, exists: !!entry, entry: entry ?? undefined },
+      { status: 200 }
+    );
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+    return res;
+  }
+
   const entries = pipelineList(sessionId);
-  return NextResponse.json({ ok: true, entries }, { status: 200 });
+  const res = NextResponse.json({ ok: true, entries }, { status: 200 });
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+  return res;
 }
 
 export async function POST(req: NextRequest) {

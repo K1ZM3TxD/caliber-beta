@@ -60,13 +60,40 @@ export function pipelineGet(id: string): PipelineEntry | null {
   return readAll().find((e) => e.id === id) ?? null;
 }
 
+/**
+ * Normalize a job URL for consistent comparison.
+ * Strips tracking query params, hash, and trailing slashes.
+ * For LinkedIn /jobs/view/<id> URLs, extracts the canonical path.
+ */
+export function normalizeJobUrl(raw: string): string {
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    // LinkedIn: extract job ID from currentJobId param or /jobs/view/<id>
+    const jobViewMatch = u.pathname.match(/\/jobs\/view\/(\d+)/);
+    const currentJobId = u.searchParams.get("currentJobId");
+    if (currentJobId && /^\d+$/.test(currentJobId)) {
+      return u.origin + "/jobs/view/" + currentJobId;
+    }
+    if (jobViewMatch) {
+      return u.origin + "/jobs/view/" + jobViewMatch[1];
+    }
+    // Generic: strip query and hash, trim trailing slash
+    return (u.origin + u.pathname).replace(/\/+$/, "");
+  } catch {
+    return raw.split("?")[0].split("#")[0].replace(/\/+$/, "");
+  }
+}
+
 export function pipelineFindByJob(
   sessionId: string,
   jobUrl: string
 ): PipelineEntry | null {
+  const normalized = normalizeJobUrl(jobUrl);
   return (
-    readAll().find((e) => e.sessionId === sessionId && e.jobUrl === jobUrl) ??
-    null
+    readAll().find(
+      (e) => e.sessionId === sessionId && normalizeJobUrl(e.jobUrl) === normalized
+    ) ?? null
   );
 }
 
@@ -74,6 +101,13 @@ export function pipelineCreate(
   entry: Omit<PipelineEntry, "id" | "createdAt" | "updatedAt">
 ): PipelineEntry {
   const all = readAll();
+  // Prevent duplicate entries for the same job URL within a session
+  const normalized = normalizeJobUrl(entry.jobUrl);
+  const existing = all.find(
+    (e) => e.sessionId === entry.sessionId && normalizeJobUrl(e.jobUrl) === normalized
+  );
+  if (existing) return existing;
+
   const now = new Date().toISOString();
   const created: PipelineEntry = {
     ...entry,

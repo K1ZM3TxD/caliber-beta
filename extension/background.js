@@ -113,6 +113,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "CALIBER_PIPELINE_CHECK") {
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberSessionId"]);
+        const sessionId = store.caliberSessionId;
+        if (!sessionId) { sendResponse({ ok: true, exists: false }); return; }
+        const url = API_BASE + "/api/pipeline?sessionId=" + encodeURIComponent(sessionId)
+          + "&jobUrl=" + encodeURIComponent(msg.jobUrl || "");
+        const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        const data = await resp.json();
+        sendResponse({ ok: true, exists: !!data.exists });
+      } catch {
+        // On error, don't suppress — let the CTA show
+        sendResponse({ ok: true, exists: false });
+      }
+    })();
+    return true;
+  }
   if (msg.type === "CALIBER_TAILOR_PREPARE") {
     (async () => {
       try {

@@ -64,13 +64,14 @@ export async function POST(req: NextRequest) {
       tailoredText,
     });
 
-    // Create or update pipeline entry
+    // Advance existing pipeline entry to tailored (created at prepare time)
     let pipeline = pipelineFindByJob(prep.sessionId, prep.jobUrl);
     if (pipeline) {
       pipelineUpdateStage(pipeline.id, "tailored", {
         tailorId: result.id,
       });
     } else {
+      // Fallback: create if somehow missing (e.g. data was cleared)
       pipeline = pipelineCreate({
         sessionId: prep.sessionId,
         jobTitle: prep.jobTitle,

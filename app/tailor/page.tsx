@@ -30,6 +30,7 @@ function TailorInner() {
 
   const [status, setStatus] = useState<Status>("loading");
   const [prep, setPrep] = useState<Prep | null>(null);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [tailoredText, setTailoredText] = useState("");
   const [error, setError] = useState("");
 
@@ -45,6 +46,7 @@ function TailorInner() {
       .then((data) => {
         if (!data.ok) throw new Error(data.error || "Failed to load context");
         setPrep(data.prep);
+        setPipelineId(data.pipelineId ?? null);
         setStatus("ready");
       })
       .catch((err) => {
@@ -94,11 +96,11 @@ function TailorInner() {
           "radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      {/* Pipeline confirmation banner */}
+      {/* Pipeline confirmation banner — only if entry actually exists */}
       <PipelineConfirmationBanner
         jobTitle={prep?.jobTitle ?? ""}
         company={prep?.company ?? ""}
-        visible={!!prep && status !== "done"}
+        visible={!!pipelineId && status !== "done"}
       />
 
       {/* Wordmark */}

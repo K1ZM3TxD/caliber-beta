@@ -21,12 +21,20 @@ function corsHeaders(req: NextRequest): Record<string, string> {
 
 const VALID_SURFACES = new Set(["extension", "calibration_results", "title_suggestion"]);
 const VALID_SITES = new Set(["linkedin", "indeed", "glassdoor", "ziprecruiter", "monster", "other"]);
-const VALID_FEEDBACK_TYPES = new Set(["thumbs_up", "thumbs_down"]);
+const VALID_FEEDBACK_TYPES = new Set(["thumbs_up", "thumbs_down", "bug_report"]);
 const VALID_REASONS = new Set([
   "score_wrong",
   "hiring_reality_wrong",
   "title_suggestion_wrong",
   "explanation_not_helpful",
+  "other",
+]);
+const VALID_BUG_CATEGORIES = new Set([
+  "wrong_job_detected",
+  "score_failed_to_load",
+  "panel_not_opening",
+  "content_missing",
+  "action_not_working",
   "other",
 ]);
 
@@ -56,6 +64,7 @@ export async function POST(req: NextRequest) {
       better_search_title_suggestion: sanitize(body.better_search_title_suggestion, 200),
       feedback_type: body.feedback_type,
       feedback_reason: VALID_REASONS.has(body.feedback_reason) ? body.feedback_reason : null,
+      bug_category: VALID_BUG_CATEGORIES.has(body.bug_category) ? body.bug_category : null,
       optional_comment: sanitize(body.optional_comment, 1000),
       behavioral_signals: {
         jobs_viewed_in_session: clampInt(body.behavioral_signals?.jobs_viewed_in_session, 0, 9999),

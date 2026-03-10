@@ -1,8 +1,9 @@
-// POST: extension stages job context for tailoring
+// POST: extension stages job context for tailoring + creates pipeline entry
 // GET:  tailor page retrieves prepared context by id
 
 import { NextRequest, NextResponse } from "next/server";
 import { tailorPrepSave, tailorPrepGet } from "@/lib/tailor_store";
+import { pipelineCreate, pipelineFindByJob } from "@/lib/pipeline_store";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
@@ -49,7 +50,21 @@ export async function POST(req: NextRequest) {
       score: typeof score === "number" ? score : 0,
     });
 
-    const res = NextResponse.json({ ok: true, prepareId: prep.id }, { status: 200 });
+    // Create pipeline entry at prepare time (strong_match stage).
+    // pipelineCreate deduplicates by canonical jobUrl.
+    const pipeline = pipelineCreate({
+      sessionId: prep.sessionId,
+      jobTitle: prep.jobTitle,
+      company: prep.company,
+      jobUrl: prep.jobUrl,
+      score: prep.score,
+      stage: "strong_match",
+    });
+
+    const res = NextResponse.json(
+      { ok: true, prepareId: prep.id, pipelineId: pipeline.id },
+      { status: 200 }
+    );
     for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
     return res;
   } catch {
@@ -78,7 +93,12 @@ export async function GET(req: NextRequest) {
       { status: 404 }
     );
   }
-  return NextResponse.json({ ok: true, prep }, { status: 200 });
+  // Include pipeline status so the tailor page can show a truthful banner
+  const pipeline = pipelineFindByJob(prep.sessionId, prep.jobUrl);
+  return NextResponse.json(
+    { ok: true, prep, pipelineId: pipeline?.id ?? null },
+    { status: 200 }
+  );
 }
 
 export async function OPTIONS(req: NextRequest) {
