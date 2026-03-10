@@ -117,8 +117,9 @@ export async function POST(req: NextRequest) {
     const hiringCheck = computeHiringRealityCheck(body.jobText, resumeText);
 
     // Extract calibration titles for search suggestions
-    const primaryTitle = session.titleRecommendation?.primary_title?.title ?? "";
-    const adjTitles = session.titleRecommendation?.adjacent_titles ?? [];
+    const titleRec = session.synthesis?.titleRecommendation;
+    const primaryTitle = titleRec?.primary_title?.title ?? "";
+    const adjTitles = titleRec?.adjacent_titles ?? [];
     const nearbyRoles = adjTitles.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
 
     const res = NextResponse.json({
