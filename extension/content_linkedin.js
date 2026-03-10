@@ -328,8 +328,27 @@
   let detailDebounce = null;
 
   // Rolling weak-search detection
-  let recentScores = [];       // last 4 entries: { score, nearbyRoles }
+  let recentScores = [];       // last 4 entries: { score, nearbyRoles, jobTitle }
   let lastSearchQuery = getSearchKeywords();
+
+  // Behavioral signals (per search session)
+  let sessionSignals = {
+    jobs_viewed: 0,
+    scores_below_6: 0,
+    highest_score: 0,
+    suggest_shown: false,
+    suggest_clicked: false,
+  };
+
+  // Feedback session guard (one prompt per eval)
+  let feedbackGiven = false;
+  let lastFeedbackData = null;  // snapshot of last scored result for feedback context
+
+  function resetSessionSignals() {
+    sessionSignals = { jobs_viewed: 0, scores_below_6: 0, highest_score: 0, suggest_shown: false, suggest_clicked: false };
+    feedbackGiven = false;
+    lastFeedbackData = null;
+  }
 
   function getSearchKeywords() {
     try { return new URL(location.href).searchParams.get("keywords") || ""; }
@@ -368,6 +387,17 @@
       btn.addEventListener("click", function () {
         var section = btn.closest(".cb-collapsible");
         if (section) section.classList.toggle("cb-open");
+      });
+    });
+
+    // Wire feedback controls
+    shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
+    shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
+    shadow.getElementById("cb-fb-submit").addEventListener("click", handleFeedbackSubmit);
+    shadow.getElementById("cb-fb-cancel").addEventListener("click", handleFeedbackCancel);
+    shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("cb-fb-chip-selected");
       });
     });
 
@@ -434,6 +464,75 @@
     hideOverlay();
     shadow.getElementById("cb-error-msg").textContent = msg;
     setPanelState("cb-error");
+  }
+
+  // ─── Feedback Handlers ─────────────────────────────────
+
+  function handleThumbsUp() {
+    if (feedbackGiven) return;
+    feedbackGiven = true;
+    sendFeedback("thumbs_up", null, null);
+    showFeedbackConfirm();
+  }
+
+  function handleThumbsDown() {
+    if (feedbackGiven) return;
+    // Show the negative feedback panel
+    var panel = shadow.getElementById("cb-fb-panel");
+    if (panel) panel.style.display = "";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "none";
+  }
+
+  function handleFeedbackSubmit() {
+    feedbackGiven = true;
+    var selected = shadow.querySelectorAll(".cb-fb-chip-selected");
+    var reason = null;
+    if (selected.length > 0) reason = selected[0].getAttribute("data-reason");
+    var comment = (shadow.getElementById("cb-fb-text").value || "").trim();
+    sendFeedback("thumbs_down", reason, comment || null);
+    shadow.getElementById("cb-fb-panel").style.display = "none";
+    showFeedbackConfirm();
+  }
+
+  function handleFeedbackCancel() {
+    shadow.getElementById("cb-fb-panel").style.display = "none";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "";
+  }
+
+  function showFeedbackConfirm() {
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.innerHTML = '<span class="cb-fb-thanks">Thanks for the feedback</span>';
+  }
+
+  function sendFeedback(type, reason, comment) {
+    var d = lastFeedbackData || {};
+    var payload = {
+      surface: "extension",
+      site: "linkedin",
+      company_name: d.company || null,
+      job_title: d.jobTitle || null,
+      search_title: getSearchKeywords() || null,
+      calibration_title_direction: null,
+      fit_score: d.score != null ? d.score : null,
+      decision_label: d.decision || null,
+      hiring_reality_band: d.hrcBand || null,
+      better_search_title_suggestion: d.suggestedTitle || null,
+      feedback_type: type,
+      feedback_reason: reason,
+      optional_comment: comment,
+      behavioral_signals: {
+        jobs_viewed_in_session: sessionSignals.jobs_viewed,
+        scores_below_6_count: sessionSignals.scores_below_6,
+        highest_score_seen: sessionSignals.highest_score,
+        better_title_suggestion_shown: sessionSignals.suggest_shown,
+        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
+      },
+    };
+    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
+      console.debug("[Caliber] feedback sent:", type, reason)
+    });
   }
 
   // ─── Rolling Weak-Search Detection ─────────────────────
@@ -582,11 +681,42 @@
       sugLink.textContent = suggestedTitle;
       sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
       sugLink.style.display = "";
+      sessionSignals.suggest_shown = true;
+      // Track clicks on suggestion link
+      sugLink.onclick = function () { sessionSignals.suggest_clicked = true; };
     } else if (suggestedTitle === "") {
-      // Trigger fired but absolutely no title to suggest — hide rather than show dead-end
       sugSection.style.display = "none";
     } else {
       sugSection.style.display = "none";
+    }
+
+    // Behavioral signal tracking
+    sessionSignals.jobs_viewed++;
+    if (score < 6) sessionSignals.scores_below_6++;
+    if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
+
+    // Snapshot context for feedback
+    var hrc = data.hiring_reality_check;
+    lastFeedbackData = {
+      score: score,
+      decision: decision.label,
+      company: lastJobMeta.company || null,
+      jobTitle: lastJobMeta.title || null,
+      hrcBand: (hrc && hrc.band) ? hrc.band : null,
+      suggestedTitle: suggestedTitle || null,
+    };
+
+    // Reset feedback UI for new result (unless already given in this session)
+    var fbRow = shadow.getElementById("cb-fb-row");
+    var fbPanel = shadow.getElementById("cb-fb-panel");
+    if (fbPanel) fbPanel.style.display = "none";
+    if (fbRow && !feedbackGiven) {
+      fbRow.style.display = "";
+      fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>';
+      shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
+      shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
     }
 
     setPanelState("cb-results");
@@ -691,7 +821,8 @@
         if (currentQuery !== lastSearchQuery) {
           recentScores = [];
           lastSearchQuery = currentQuery;
-          console.debug("[Caliber] search query changed, reset rolling window");
+          resetSessionSignals();
+          console.debug("[Caliber] search query changed, reset rolling window + session signals");
         }
         console.debug("[Caliber] URL changed, re-scoring");
         scoreCurrentJob(true);
@@ -761,6 +892,7 @@
     removePanel();
     lastScoredText = "";
     recentScores = [];
+    resetSessionSignals();
   }
 
   // Auto-activate unless user explicitly dismissed
@@ -875,6 +1007,26 @@
     '    <div id="cb-search-suggest" class="cb-suggest-banner" style="display:none">',
     '      <div id="cb-suggest-label" class="cb-suggest-label">\uD83D\uDD0D Try a better search title</div>',
     '      <a id="cb-suggest-link" class="cb-suggest-link" target="_self"></a>',
+    '    </div>',
+    '    <div id="cb-fb-row" class="cb-fb-row">',
+    '      <span class="cb-fb-prompt">Helpful?</span>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
+    '    </div>',
+    '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
+    '      <div class="cb-fb-panel-title">What was off?</div>',
+    '      <div class="cb-fb-chips">',
+    '        <button class="cb-fb-chip" data-reason="score_wrong">Score wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="hiring_reality_wrong">Hiring reality wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="title_suggestion_wrong">Title suggestion wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="explanation_not_helpful">Explanation not helpful</button>',
+    '        <button class="cb-fb-chip" data-reason="other">Other</button>',
+    '      </div>',
+    '      <textarea id="cb-fb-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
+    '      <div class="cb-fb-actions">',
+    '        <button id="cb-fb-submit" class="cb-fb-submit">Submit</button>',
+    '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
+    '      </div>',
     '    </div>',
     '  </div>',
     '</div>'
@@ -1056,6 +1208,62 @@
     ".cb-btn-s {",
     "  background: rgba(242,242,242,0.10); color: #F2F2F2;",
     "  border: 1px solid rgba(242,242,242,0.16);",
+    "}",
+    // Feedback row
+    ".cb-fb-row {",
+    "  display: flex; align-items: center; gap: 6px;",
+    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "}",
+    ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
+    ".cb-fb-btn {",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;",
+    "  transition: background 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    // Feedback detail panel
+    ".cb-fb-panel {",
+    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "}",
+    ".cb-fb-panel-title { font-size: 10px; font-weight: 600; color: #888; margin-bottom: 5px; }",
+    ".cb-fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }",
+    ".cb-fb-chip {",
+    "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
+    "  border-radius: 10px; padding: 2px 8px; font-size: 10px; color: #AFAFAF;",
+    "  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;",
+    "}",
+    ".cb-fb-chip:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
+    ".cb-fb-chip-selected {",
+    "  background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.4); color: #93C5FD;",
+    "}",
+    ".cb-fb-text {",
+    "  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);",
+    "  border-radius: 5px; padding: 4px 6px; font-size: 10px; color: #CFCFCF;",
+    "  resize: none; font-family: inherit; outline: none;",
+    "}",
+    ".cb-fb-text::placeholder { color: #555; }",
+    ".cb-fb-text:focus { border-color: rgba(96,165,250,0.4); }",
+    ".cb-fb-actions { display: flex; gap: 6px; margin-top: 5px; }",
+    ".cb-fb-submit {",
+    "  background: rgba(74,222,128,0.15); color: #4ADE80; border: none;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
+    "  cursor: pointer; transition: opacity 0.15s;",
+    "}",
+    ".cb-fb-submit:hover { opacity: 0.85; }",
+    ".cb-fb-cancel {",
+    "  background: none; color: #666; border: 1px solid rgba(255,255,255,0.08);",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
+    "  cursor: pointer; transition: color 0.15s;",
+    "}",
+    ".cb-fb-cancel:hover { color: #AFAFAF; }",
+    // Feedback thanks
+    ".cb-fb-thanks {",
+    "  font-size: 10px; color: #4ADE80; font-weight: 600;",
+    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "  text-align: center;",
     "}"
   ].join("\n");
 })();

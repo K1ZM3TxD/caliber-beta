@@ -8,6 +8,97 @@ function fetchResult(calibrationId: string) {
     .then((r) => r.json());
 }
 
+const FEEDBACK_REASONS = [
+  { value: "score_wrong", label: "Score wrong" },
+  { value: "hiring_reality_wrong", label: "Hiring reality wrong" },
+  { value: "explanation_not_helpful", label: "Explanation not helpful" },
+  { value: "other", label: "Other" },
+] as const;
+
+function FeedbackWidget({ result, calibrationId }: { result: any; calibrationId: string }) {
+  const [state, setState] = useState<"idle" | "negative" | "done">("idle");
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [comment, setComment] = useState("");
+
+  function sendFeedback(type: "thumbs_up" | "thumbs_down", reason?: string, optionalComment?: string) {
+    const payload = {
+      surface: "calibration_results",
+      site: "caliber",
+      company_name: result.companyName || "",
+      job_title: result.jobTitle || "",
+      search_title: "",
+      fit_score: result.score_0_to_10 ?? null,
+      decision_label: "",
+      hiring_reality_band: "",
+      better_search_title_suggestion: "",
+      feedback_type: type,
+      feedback_reason: reason || (type === "thumbs_up" ? "helpful" : ""),
+      optional_comment: optionalComment || "",
+      behavioral_signals: {},
+    };
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+    setState("done");
+  }
+
+  if (state === "done") {
+    return <p style={{ color: "#4ADE80", fontWeight: 600, fontSize: 13, marginTop: 16 }}>Thanks for your feedback!</p>;
+  }
+
+  if (state === "negative") {
+    return (
+      <div style={{ marginTop: 16, padding: 12, background: "#F7F7F7", borderRadius: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>What was off?</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {FEEDBACK_REASONS.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setSelectedReason(r.value === selectedReason ? null : r.value)}
+              style={{
+                padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                border: "1px solid",
+                borderColor: selectedReason === r.value ? "#3B82F6" : "#CCC",
+                background: selectedReason === r.value ? "rgba(59,130,246,0.10)" : "#FFF",
+                color: selectedReason === r.value ? "#2563EB" : "#555",
+              }}
+            >{r.label}</button>
+          ))}
+        </div>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Optional details…"
+          maxLength={500}
+          rows={2}
+          style={{ width: "100%", padding: "4px 8px", fontSize: 12, borderRadius: 5, border: "1px solid #CCC", resize: "none" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <button
+            disabled={!selectedReason}
+            onClick={() => sendFeedback("thumbs_down", selectedReason!, comment)}
+            style={{ padding: "4px 14px", borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#EF4444", color: "#FFF", border: "none", opacity: selectedReason ? 1 : 0.4 }}
+          >Submit</button>
+          <button
+            onClick={() => { setState("idle"); setSelectedReason(null); setComment(""); }}
+            style={{ padding: "4px 14px", borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "#EEE", color: "#555", border: "none" }}
+          >Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, borderTop: "1px solid #EEE", paddingTop: 12 }}>
+      <span style={{ fontSize: 13, color: "#888", fontWeight: 600 }}>Helpful?</span>
+      <button onClick={() => sendFeedback("thumbs_up")} style={{ fontSize: 18, cursor: "pointer", background: "none", border: "1px solid #DDD", borderRadius: 5, padding: "2px 8px" }} aria-label="Thumbs up" title="Yes">👍</button>
+      <button onClick={() => setState("negative")} style={{ fontSize: 18, cursor: "pointer", background: "none", border: "1px solid #DDD", borderRadius: 5, padding: "2px 8px" }} aria-label="Thumbs down" title="No">👎</button>
+    </div>
+  );
+}
+
 export default function ResultsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,6 +179,7 @@ export default function ResultsClient() {
       <div style={{ display: "flex", gap: 16, marginTop: 32 }}>
         <button onClick={() => router.push("/")} style={{ padding: "10px 24px", fontWeight: 600, borderRadius: 6, background: "#EEE" }}>Start over / Re-run</button>
       </div>
+      <FeedbackWidget result={result} calibrationId={calibrationId} />
     </main>
   );
 }

@@ -93,7 +93,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ensureSessionThenFit(msg.jobText)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
-    return true; // keep channel open for async
+    return true;
+  }
+  if (msg.type === "CALIBER_FEEDBACK") {
+    fetch(API_BASE + "/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg.payload),
+      signal: AbortSignal.timeout(5000),
+    })
+      .then((r) => r.json())
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
   if (msg.type === "CALIBER_SESSION_DISCOVER") {
     discoverSession()
