@@ -436,13 +436,7 @@
     var score = Number(data.score_0_to_10) || 0;
     var decision = getDecision(score);
 
-    // Company identity (left side of header row)
-    var companyEl = shadow.getElementById("cb-company");
-    var titleEl = shadow.getElementById("cb-jobtitle");
-    companyEl.textContent = lastJobMeta.company || "";
-    titleEl.textContent = lastJobMeta.title || "";
-
-    // Score + decision (right side of header row)
+    // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
     scoreEl.textContent = data.score_0_to_10;
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
@@ -450,6 +444,12 @@
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
     decEl.className = "cb-decision " + decision.cls;
+
+    // Company identity (right side of header row)
+    var companyEl = shadow.getElementById("cb-company");
+    var titleEl = shadow.getElementById("cb-jobtitle");
+    companyEl.textContent = lastJobMeta.company || "";
+    titleEl.textContent = lastJobMeta.title || "";
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
@@ -506,12 +506,6 @@
       }
     } else {
       nearbySection.style.display = "none";
-    }
-
-    // Caliber link
-    var linkEl = shadow.getElementById("cb-link");
-    if (data.calibrationId) {
-      linkEl.href = API_BASE + "/calibration?calibrationId=" + data.calibrationId;
     }
 
     setPanelState("cb-results");
@@ -705,7 +699,10 @@
     '<div class="cb-panel">',
     '  <div class="cb-header">',
     '    <span class="cb-logo">Caliber</span>',
-    '    <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
+    '    <div class="cb-header-controls">',
+    '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
+    '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
+    '    </div>',
     '  </div>',
     '  <div id="cb-idle" class="cb-body" style="display:none">',
     '    <div class="cb-idle-icon">\u25CE</div>',
@@ -718,7 +715,7 @@
     '  <div id="cb-error" class="cb-body" style="display:none">',
     '    <div class="cb-error-icon">!</div>',
     '    <p id="cb-error-msg" class="cb-status"></p>',
-    '    <button id="cb-retry" class="cb-btn cb-btn-s">Recalculate</button>',
+    '    <button id="cb-retry" class="cb-btn cb-btn-s">Retry</button>',
     '  </div>',
     '  <div id="cb-results" class="cb-body" style="display:none">',
     '    <div id="cb-rescore-overlay" class="cb-overlay" style="display:none">',
@@ -727,15 +724,15 @@
     '    </div>',
     '    <div class="cb-toprow">',
     '      <div class="cb-toprow-left">',
-    '        <div id="cb-company" class="cb-company-name"></div>',
-    '        <div id="cb-jobtitle" class="cb-job-title"></div>',
-    '      </div>',
-    '      <div class="cb-toprow-right">',
     '        <div class="cb-score-row">',
     '          <span id="cb-score" class="cb-score-num">\u2014</span>',
     '          <span class="cb-score-of">/10</span>',
     '        </div>',
     '        <div id="cb-decision" class="cb-decision"></div>',
+    '      </div>',
+    '      <div class="cb-toprow-right">',
+    '        <div id="cb-company" class="cb-company-name"></div>',
+    '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
     '    </div>',
     '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
@@ -786,10 +783,6 @@
     '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '      </div>',
     '    </div>',
-    '    <div class="cb-actions">',
-    '      <button id="cb-recalc" class="cb-btn cb-btn-s">Recalculate</button>',
-    '      <a id="cb-link" href="#" target="_blank" class="cb-btn cb-btn-p">Open in Caliber</a>',
-    '    </div>',
     '  </div>',
     '</div>'
   ].join("\n");
@@ -797,7 +790,7 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 320px; max-height: 420px; overflow-y: auto;",
+    "  width: 300px; max-height: 380px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -814,89 +807,95 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-logo { font-size: 11px; font-weight: 700; letter-spacing: -0.02em; color: #666; }",
+    ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
+    ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
+    ".cb-refresh-btn {",
+    "  background: none; border: none; color: #555; font-size: 14px;",
+    "  cursor: pointer; padding: 0 4px; line-height: 1;",
+    "}",
+    ".cb-refresh-btn:hover { color: #AFAFAF; }",
     ".cb-close-btn {",
-    "  background: none; border: none; color: #666; font-size: 16px;",
+    "  background: none; border: none; color: #555; font-size: 15px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 10px 12px; position: relative; }",
+    ".cb-body { padding: 8px 10px; position: relative; }",
     ".cb-spinner {",
-    "  width: 22px; height: 22px;",
-    "  border: 3px solid rgba(242,242,242,0.12);",
+    "  width: 20px; height: 20px;",
+    "  border: 2px solid rgba(242,242,242,0.12);",
     "  border-top-color: #4ADE80; border-radius: 50%;",
     "  animation: cb-spin 0.7s linear infinite;",
-    "  margin: 10px auto 8px;",
+    "  margin: 8px auto 6px;",
     "}",
-    ".cb-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }",
+    ".cb-spinner-sm { width: 14px; height: 14px; border-width: 2px; margin: 0; }",
     "@keyframes cb-spin { to { transform: rotate(360deg); } }",
-    ".cb-status { text-align: center; color: #AFAFAF; font-size: 12px; }",
+    ".cb-status { text-align: center; color: #AFAFAF; font-size: 11px; }",
     ".cb-idle-icon {",
-    "  width: 32px; height: 32px; border-radius: 50%;",
+    "  width: 28px; height: 28px; border-radius: 50%;",
     "  background: rgba(242,242,242,0.06); color: #666;",
     "  display: flex; align-items: center; justify-content: center;",
-    "  font-size: 16px; margin: 10px auto 8px;",
+    "  font-size: 14px; margin: 8px auto 6px;",
     "}",
     ".cb-error-icon {",
-    "  width: 28px; height: 28px; border-radius: 50%;",
+    "  width: 24px; height: 24px; border-radius: 50%;",
     "  background: rgba(239,68,68,0.15); color: #EF4444;",
     "  display: flex; align-items: center; justify-content: center;",
-    "  font-weight: 700; font-size: 14px; margin: 6px auto;",
+    "  font-weight: 700; font-size: 12px; margin: 6px auto;",
     "}",
     ".cb-overlay {",
     "  position: absolute; inset: 0; z-index: 10;",
     "  background: rgba(11,11,11,0.75); border-radius: 12px;",
-    "  display: flex; align-items: center; justify-content: center; gap: 8px;",
+    "  display: flex; align-items: center; justify-content: center; gap: 6px;",
     "}",
-    ".cb-overlay-text { font-size: 12px; color: #AFAFAF; }",
-    // Top row: identity left, score right
+    ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
+    // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
     "  display: flex; align-items: center; gap: 10px;",
-    "  padding-bottom: 8px; margin-bottom: 4px;",
+    "  padding-bottom: 6px; margin-bottom: 2px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-toprow-left { flex: 1; min-width: 0; }",
-    ".cb-company-name {",
-    "  font-size: 11px; font-weight: 600; color: #888;",
-    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-    "}",
-    ".cb-job-title {",
-    "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
-    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-    "}",
-    ".cb-toprow-right {",
-    "  flex-shrink: 0; text-align: right;",
-    "  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;",
+    ".cb-toprow-left {",
+    "  flex-shrink: 0;",
+    "  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
-    ".cb-score-num { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }",
-    ".cb-score-of { font-size: 12px; font-weight: 500; color: #666; }",
+    ".cb-score-num { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
-    "  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px;",
+    "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
     "  letter-spacing: 0.01em;",
     "}",
     ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    // Hiring Reality Check badge (inside collapsible toggle)
+    ".cb-toprow-right { flex: 1; min-width: 0; text-align: right; }",
+    ".cb-company-name {",
+    "  font-size: 10px; font-weight: 600; color: #777;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "}",
+    ".cb-job-title {",
+    "  font-size: 11px; font-weight: 700; color: #F2F2F2;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "}",
+    // Hiring Reality Check badge
     ".cb-hrc-badge {",
-    "  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: auto;",
+    "  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: auto;",
     "}",
     ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-hrc-reason { font-size: 11px; color: #999; padding: 2px 0 6px; line-height: 1.4; }",
+    ".cb-hrc-reason { font-size: 10px; color: #999; padding: 2px 0 4px; line-height: 1.4; }",
     // Bottom line text
-    ".cb-bltext { font-size: 12px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 6px; }",
+    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
     // Collapsible sections
     ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.04); }",
     ".cb-collapse-toggle {",
-    "  display: flex; align-items: center; gap: 5px; width: 100%;",
+    "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
-    "  font-size: 11px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 6px 0; text-align: left;",
+    "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
+    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
     ".cb-toggle-green { color: #4ADE80; }",
@@ -904,7 +903,7 @@
     ".cb-toggle-yellow { color: #FBBF24; }",
     ".cb-toggle-yellow:hover { color: #FCD34D; }",
     ".cb-collapse-icon {",
-    "  font-size: 10px; transition: transform 0.15s; display: inline-block;",
+    "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
     ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; }",
     ".cb-collapse-body {",
@@ -914,10 +913,10 @@
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
     ".cb-open .cb-collapse-body { max-height: 500px; }",
     // Bullet lists
-    ".cb-bullets { list-style: none; padding-bottom: 4px; }",
+    ".cb-bullets { list-style: none; padding-bottom: 3px; }",
     ".cb-bullets li {",
-    "  position: relative; padding-left: 12px;",
-    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
+    "  position: relative; padding-left: 10px;",
+    "  font-size: 10px; color: #CFCFCF; margin-bottom: 1px; line-height: 1.4;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
@@ -925,29 +924,26 @@
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles
     ".cb-nearby-section {",
-    "  background: rgba(255,255,255,0.03); border-radius: 8px;",
-    "  padding: 0 10px; margin-top: 2px;",
+    "  background: rgba(255,255,255,0.03); border-radius: 6px;",
+    "  padding: 0 8px; margin-top: 2px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
-    ".cb-nearby-list { list-style: none; padding-bottom: 4px; }",
-    ".cb-nearby-list li { padding: 2px 0; font-size: 11px; }",
+    ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
+    ".cb-nearby-list li { padding: 1px 0; font-size: 10px; }",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
     "  border-bottom: 1px solid rgba(147,197,253,0.25);",
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    // Actions
-    ".cb-actions { display: flex; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); }",
+    // Retry button (error state)
     ".cb-btn {",
-    "  flex: 1; padding: 5px 8px; border: none; border-radius: 6px;",
-    "  font-size: 11px; font-weight: 600; cursor: pointer;",
-    "  text-align: center; text-decoration: none;",
-    "  display: inline-flex; align-items: center; justify-content: center;",
-    "  transition: opacity 0.15s;",
+    "  padding: 4px 10px; border: none; border-radius: 5px;",
+    "  font-size: 10px; font-weight: 600; cursor: pointer;",
+    "  text-align: center; display: inline-flex; align-items: center; justify-content: center;",
+    "  transition: opacity 0.15s; margin-top: 6px;",
     "}",
     ".cb-btn:hover { opacity: 0.85; }",
-    ".cb-btn-p { background: #F2F2F2; color: #0B0B0B; }",
     ".cb-btn-s {",
     "  background: rgba(242,242,242,0.10); color: #F2F2F2;",
     "  border: 1px solid rgba(242,242,242,0.16);",
