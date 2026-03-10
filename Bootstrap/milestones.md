@@ -1,5 +1,65 @@
 ---
 
+Milestone: Extension-First UX Stabilization (2026-03-10)
+---
+
+**Status:** COMPLETE
+
+Extension sidecard and calibration results page received final polish pass, completing the extension-first operating model stabilization.
+
+**What shipped:**
+
+Extension sidecard (primary decision surface):
+- Compact two-column header: company + job title (left), fit score + decision badge (right)
+- Hiring Reality Check: collapsible with High/Possible/Unlikely band badge
+- Bottom line: collapsible, collapsed by default
+- Supports fit: green toggle, bullet count, collapsible
+- Stretch factors: yellow toggle, bullet count, collapsible
+- Panel dimensions: 320px × 420px max
+- Extension v0.4.1 deployed
+
+Calibration results page (final polish):
+- Hero title reduced ~10% (text-[1.7rem] / sm:text-[2.4rem])
+- Section label font-light (300 weight)
+- "Search on LinkedIn" = green primary CTA
+- "See why it fits" = scoring-yellow secondary
+- Explanation dropdown: "WHY IT FITS" label removed, opens with "Your pattern matches on 4 core signals.", human-language bullets, no technical/internal scoring terminology
+- summary_2s and bullets_3 generation rewritten for plain language
+
+Extension delivery:
+- Stale v0.3.5 zip replaced via version bumps (v0.4.0, then v0.4.1)
+- New filename on each build to bust Vercel CDN cache
+- `/extension` page serves current build as primary user install path
+
+**Real user flow (canonical):**
+calibration → results page → /extension → download ZIP → install in Chrome → LinkedIn → extension scores jobs
+
+**Issues resolved:** #28, #32, #33, #35, #36, #37
+**Issues downgraded:** #31 (handshake: BLOCKING → known friction)
+
+---
+
+BREAK + UPDATE — 2026-03-10 (Extension-First UX Stabilization)
+---
+DONE:
+- Extension sidecard shipped as primary decision surface with job identity, HRC, collapsible sections
+- Calibration results page final polish: smaller hero, lighter label, green/yellow button hierarchy, human-language explanation
+- Explanation generation (title_scoring.ts) rewritten to remove all internal scoring language
+- Extension v0.4.1 deployed with CDN cache-bust discipline
+- Stale extension download artifacts eliminated
+- Repo consolidated to single mainline (main)
+- Issues #28, #32, #33, #35, #36, #37 resolved; #31 downgraded from blocking
+
+BLOCKED:
+- Nothing currently blocking
+
+NEXT:
+1. Extension compact scanline UX refinement
+2. Extension decision trust / scoring clarity
+3. No unnecessary expansion of calibration scope
+
+---
+
 Milestone: Repository Stabilization — Single Mainline (2026-03-10)
 ---
 

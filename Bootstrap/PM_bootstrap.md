@@ -114,22 +114,24 @@ After major PM sessions, create a documentation update task so the repo captures
 ### C. UX Implementation Rule
 Complex reveal/animation UX (like the calibration results page) must be implemented with a **single sequential orchestrator or state machine**, not multiple independent timers. Independent timers cause overlapping reveals, multiple cursors, and simultaneous motion — all of which violate the intended calm-sequential feel.
 
-### D. Current Operating Context (2026-03-08, Extension-First Update)
+### D. Current Operating Context (2026-03-10, Extension-First UX Stabilization)
 When bootstrap loads, PM should treat these as active operating facts:
-- **Operating model is extension-first.** The calibration page is a launchpad, not the primary scoring surface. The extension sidecard is the primary decision surface.
+- **Extension sidecard is the primary product surface.** Compact decision-first layout with job identity, HRC, collapsible detail sections. v0.4.1.
+- **Calibration page is a polished launchpad.** Final polish shipped: smaller hero, lighter label, green/yellow button hierarchy, human-language explanation.
 - **Environment split is live.** Production (`caliber-app.com`) and dev (`localhost:3000`) are hard-separated. See `ENVIRONMENT_SPLIT.md`.
-- **Active blocker: extension handshake/session discovery bug.** Fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes.
+- **Extension handshake friction (#31) is known.** May require manual tab refresh on first install. Not currently blocking.
+- **Real user flow:** calibration → results page → /extension → download ZIP → install → LinkedIn → scoring.
 - **Current decision stack (locked order):**
-  1. Fix handshake/session discovery reliability
-  2. Hiring Reality Check (extension feature)
-  3. Compact sidecard UX polish
-- **Scoring credibility resolved.** Title scoring baseline stable (45/45). See `CALIBER_ACTIVE_STATE.md`.
+  1. Extension compact scanline UX refinement
+  2. Extension decision trust / scoring clarity
+  3. No unnecessary expansion of calibration scope
+- **Scoring baseline stable.** 45/45 smoke tests pass. See `CALIBER_ACTIVE_STATE.md`.
 - Do not re-open task sequencing without new blocking evidence.
 
-### E. Product Surface Priority (2026-03-08)
-1. **Extension reliability** — handshake, session discovery, scoring stability
-2. **Hiring Reality Check** — next product feature for extension
-3. **Sidecard UX polish** — compact, decision-first layout
+### E. Product Surface Priority (2026-03-10)
+1. **Extension sidecard** — compact scanline refinement, decision trust, scoring clarity
+2. **Extension reliability** — handshake/session discovery (known friction, not blocking)
+3. **Calibration page** — stable launchpad, no further expansion planned
 
 Calibration page should remain a launchpad, not a scoring engine.
 

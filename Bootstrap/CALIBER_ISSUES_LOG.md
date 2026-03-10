@@ -149,19 +149,21 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ## Issues Added 2026-03-08 (Extension-First Update)
 
-31. Extension handshake / session discovery bug on fresh install or refresh — **OPEN, BLOCKING** (2026-03-08)
-  - After calibration completes and user installs or refreshes the extension, opening LinkedIn shows "no active session" until the user manually refreshes both the Caliber tab and the LinkedIn tab.
-  - This is the top blocker for the extension-first flow.
-  - Must be resolved before Hiring Reality Check or sidecard polish.
+31. Extension handshake / session discovery bug on fresh install or refresh — **OPEN, KNOWN FRICTION** (2026-03-08, updated 2026-03-10)
+  - After calibration completes and user installs or refreshes the extension, opening LinkedIn may show "no active session" until the user manually refreshes both the Caliber tab and the LinkedIn tab.
+  - Known friction point but no longer top blocker — primary user flow works after initial refresh.
+  - Downgraded from BLOCKING to known friction (2026-03-10).
 
-32. Hiring Reality Check — **OPEN, PRODUCT TASK** (2026-03-08)
-  - Active product feature to be added to the extension.
-  - Sequenced after handshake reliability fix (#31).
-  - Not yet implemented.
+32. Hiring Reality Check — **RESOLVED** (2026-03-10)
+  - Hiring Reality Check implemented and shipped in extension sidecard.
+  - Shows band (High / Possible / Unlikely) with color-coded badge and reason text.
+  - Collapsible section in compact sidecard layout.
+  - Resolved as part of extension-first UX stabilization.
 
-33. Sidecard compact / decision-first UX polish — **OPEN, NEXT UX TASK** (2026-03-08)
-  - Compact sidecard layout for the extension decision surface.
-  - Sequenced after Hiring Reality Check (#32).
+33. Sidecard compact / decision-first UX polish — **RESOLVED** (2026-03-10)
+  - Compact sidecard layout shipped: two-column header (identity left, score+decision right), collapsible HRC/bottomline/supports/stretch.
+  - Panel narrowed 340→320px, max height 480→420px.
+  - Decision-first scanline: score and verdict visible at a glance without scrolling.
 
 34. Calibration-page UX simplification (extension-first launchpad) — **RESOLVED** (2026-03-08)
   - Calibration results page is now an extension-first launchpad.
@@ -197,10 +199,10 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Current scope: acknowledge gap, do not solve. Deferred to post-beta-stability phase.
   - Related: #26 (market-job score gap).
 
-28. Extension sidecard ambiguity — active job identity missing — **OPEN** (2026-03-08)
-  - Sidecard/panel should show the active job's title, company, and optional location for user trust.
-  - Without this, user cannot confirm which job the score refers to, especially after SPA navigation.
-  - Sequenced after scoring credibility fix (#25).
+28. Extension sidecard ambiguity — active job identity missing — **RESOLVED** (2026-03-10)
+  - Resolved: compact sidecard now shows company name and job title in the top row header.
+  - Two-column layout: identity left, score+decision right.
+  - No longer ambiguous which job the score refers to.
 
 29. Prod/dev environment split — **RESOLVED** (2026-03-08)
   - Production extension locked to `https://www.caliber-app.com` only.
@@ -227,3 +229,31 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
     - Next/previous job navigation
     - Sidebar tools (resume tailoring, interview prep)
   - Supersedes #19 (original Phase 2 entry, now captured with full UX contract).
+
+---
+
+## Issues Added 2026-03-10 (Extension-First UX Stabilization)
+
+35. Calibration results page final polish — **RESOLVED** (2026-03-10)
+  - Hero title reduced ~10% (text-[1.7rem] / text-[2.4rem]).
+  - Section label changed to font-light.
+  - "Search on LinkedIn" is now green primary CTA.
+  - "See why it fits" is now scoring-yellow secondary.
+  - "WHY IT FITS" label removed from explanation dropdown.
+  - Explanation dropdown opens with "Your pattern matches on 4 core signals."
+  - All technical language removed from explanation copy (no "Action-artifact evidence", "Evidence pairs", "Gap areas", "anchor coverage").
+  - summary_2s and bullets_3 generation in title_scoring.ts rewritten for human-friendly language.
+
+36. Extension sidecard compact decision-first layout — **RESOLVED** (2026-03-10)
+  - Compact two-column header: company+title left, score+decision right.
+  - Hiring Reality Check as collapsible section with band badge.
+  - Bottom line collapsible, collapsed by default.
+  - Supports fit: green toggle, collapsible with bullet count.
+  - Stretch factors: yellow toggle, collapsible with bullet count.
+  - Panel 320px wide, 420px max height.
+  - Extension v0.4.1 built, zipped, deployed.
+
+37. Extension version cache-bust discipline — **RESOLVED** (2026-03-10)
+  - Stale v0.3.5 zip was being served due to CDN caching.
+  - Bumped to v0.4.0, then v0.4.1 with new filenames to bust Vercel CDN cache.
+  - Rule: always bump version AND rename zip file when rebuilding extension for deployment.

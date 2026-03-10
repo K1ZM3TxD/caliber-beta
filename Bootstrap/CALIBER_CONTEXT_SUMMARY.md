@@ -2,14 +2,22 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-08, Extension-First Update)
+## Project Status (2026-03-10, Extension-First UX Stabilization)
 
-**Operating model has shifted to extension-first.**
-- The calibration page (`/calibration`) is now a launchpad, not the main scoring surface.
-- Calibration output is directional guidance: one top title direction displayed, no title scores, no manual paste as primary path.
-- The browser extension sidecard is the primary decision surface for real-role evaluation.
-- Active blocker: extension fresh-install / refresh handshake is unreliable — user must manually refresh Caliber and LinkedIn tabs after install.
-- Next tasks (locked order): handshake reliability fix → Hiring Reality Check → compact sidecard UX polish.
+**Extension sidecard is the primary product surface.** Calibration page is a polished launchpad; extension delivers all real-role evaluation.
+
+- The calibration page (`/calibration`) is a launchpad. Output: one hero title direction, extension install CTA, scoring philosophy.
+- The browser extension sidecard is the primary decision surface: job identity, fit score, decision badge, Hiring Reality Check, collapsible supports/stretch/bottom line.
+- Extension v0.4.1 deployed with compact decision-first layout.
+- Calibration results page received final polish pass (2026-03-10): smaller hero title, lighter section label, green primary CTA, yellow secondary, human-language explanation dropdown.
+- Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
+- Next priorities: extension compact scanline refinement → decision trust / scoring clarity. No expansion of calibration scope.
+
+**Real User Flow:**
+```
+calibration → results page → /extension → download ZIP → install in Chrome → navigate LinkedIn → extension scores jobs
+```
+`/extension` must always serve the current extension build.
 
 **Scoring Context Separation:**
 - **Calibration → Direction:** determine job-search direction, display single hero title direction, prompt extension install.
@@ -28,30 +36,47 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 
 **Extension Phase 1 MVP: VERIFIED WORKING (2026-03-06).** The Chrome extension extracts job descriptions from LinkedIn job detail pages and calls the production API at `https://www.caliber-app.com/api/extension/fit`. The popup renders a fit score (confirmed live: 4.3/10 screenshot), supports-fit bullets, stretch factors, bottom line, and Recalculate / Open in Caliber actions.
 
-## Current Calibration Page Layout (2026-03-09, canonical)
+## Current Calibration Page Layout (2026-03-10, canonical)
 
 The `/calibration` page is an extension-first launchpad. It answers "What direction should I search?" — not "Is this specific job a fit?"
 
 Layout from top to bottom:
 
 1. **"Calibration Complete"** — confirmation that calibration is done.
-2. **Extension install CTA** — primary next action, positioned above the title result. Framed as the main next step after calibration.
-3. **Title section heading** — "Top title direction for your pattern" (directional, not evaluative).
+2. **Extension install CTA** — primary next action, positioned above the title result.
+3. **Title section heading** — "Top title direction for your pattern" (font-light, directional).
 4. **Hero title card** — single title recommendation:
-   - Centered title text
-   - Primary "Search" action
-   - Secondary "See why it fits" action
-   - Expandable explanation area
-5. **"How we score this"** — scoring philosophy / explanation section beneath the hero card.
+   - Centered title text (text-[1.7rem] / sm:text-[2.4rem])
+   - Primary "Search on LinkedIn" (green CTA)
+   - Secondary "See why it fits" (scoring-yellow)
+   - Expandable explanation: opens with "Your pattern matches on 4 core signals.", bullets first, summary below
+5. **"How we score this"** — scoring philosophy section.
 
 What is **not** on this page:
 - Multiple title suggestions
 - Title scores
 - Manual job paste / manual scoring
 - Fit accordion or inline job results
-- Dialogue panel or clarifications chat
+- "OR" divider between buttons
+- Technical internal language in explanations
 
-Job-fit evaluation now lives exclusively in the browser extension sidecard.
+Job-fit evaluation lives exclusively in the browser extension sidecard.
+
+## Current Extension Sidecard (2026-03-10, canonical)
+
+The extension sidecard is the primary decision surface. Compact, decision-first layout.
+
+**Structure (top to bottom):**
+1. **Header bar** — Caliber logo + close button
+2. **Top row** — Two-column: company name + job title (left), fit score (26px) + decision badge (right)
+3. **Hiring Reality Check** — Collapsible row with band badge (High/Possible/Unlikely) in toggle; expands to show reason
+4. **Bottom line** — Collapsible, collapsed by default
+5. **Supports fit** — Green toggle with bullet count; expands to bullet list
+6. **Stretch factors** — Yellow toggle with bullet count; expands to bullet list
+7. **Actions** — "Open in Caliber" primary, "Recalculate" secondary
+
+**Dimensions:** 320px wide, 420px max height.
+**Version:** v0.4.1.
 
 ## Known Pain Points
 
@@ -125,13 +150,13 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 - Next/previous job navigation
 - Sidebar tools (resume tailoring, interview prep)
 
-## Next Tasks (locked order, updated 2026-03-08)
+## Next Tasks (locked order, updated 2026-03-10)
 
-1. **Fix extension handshake / session discovery bug** — fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes. Top blocker for extension-first flow.
-2. **Hiring Reality Check** — add to extension as next product feature after handshake reliability.
-3. **Compact sidecard UX polish** — decision-first layout for extension sidecard, sequenced after Hiring Reality Check.
-4. **Bottom line / explanation polish** — only as needed for beta credibility (anti-repetition / paraphrase rule).
-5. **Phase 2 overlay/list scoring** — deferred until after stable beta is resolved.
+1. **Extension compact scanline UX refinement** — tune visual/interaction details of the decision-first sidecard.
+2. **Extension decision trust / scoring clarity** — ensure scores and signals feel credible and actionable.
+3. **No unnecessary expansion of calibration scope** — calibration page is stable.
+4. **Bottom line / explanation polish** — only as needed for beta credibility.
+5. **Phase 2 overlay/list scoring** — deferred until after stable beta.
 
 ## Scoring Baseline
 
