@@ -436,26 +436,13 @@
     var score = Number(data.score_0_to_10) || 0;
     var decision = getDecision(score);
 
-    // Company identity
-    var identEl = shadow.getElementById("cb-identity");
-    var logoEl = shadow.getElementById("cb-logo-img");
+    // Company identity (left side of header row)
     var companyEl = shadow.getElementById("cb-company");
     var titleEl = shadow.getElementById("cb-jobtitle");
-    if (lastJobMeta.company || lastJobMeta.title) {
-      identEl.style.display = "";
-      companyEl.textContent = lastJobMeta.company || "";
-      titleEl.textContent = lastJobMeta.title || "";
-      if (lastJobMeta.logoUrl) {
-        logoEl.src = lastJobMeta.logoUrl;
-        logoEl.style.display = "";
-      } else {
-        logoEl.style.display = "none";
-      }
-    } else {
-      identEl.style.display = "none";
-    }
+    companyEl.textContent = lastJobMeta.company || "";
+    titleEl.textContent = lastJobMeta.title || "";
 
-    // Score + decision label
+    // Score + decision (right side of header row)
     var scoreEl = shadow.getElementById("cb-score");
     scoreEl.textContent = data.score_0_to_10;
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
@@ -464,13 +451,13 @@
     decEl.textContent = decision.label;
     decEl.className = "cb-decision " + decision.cls;
 
-    // Hiring Reality Check
-    var hrcEl = shadow.getElementById("cb-hrc");
+    // Hiring Reality Check (collapsible row)
+    var hrcSection = shadow.getElementById("cb-hrc-section");
     var hrcBand = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrc = data.hiring_reality_check;
     if (hrc && hrc.band) {
-      hrcEl.style.display = "";
+      hrcSection.style.display = "";
       hrcBand.textContent = hrc.band;
       hrcBand.className = "cb-hrc-badge";
       if (hrc.band === "High") hrcBand.classList.add("cb-hrc-high");
@@ -478,11 +465,8 @@
       else hrcBand.classList.add("cb-hrc-unlikely");
       hrcReason.textContent = hrc.reason || "";
     } else {
-      hrcEl.style.display = "none";
+      hrcSection.style.display = "none";
     }
-
-    // Bottom line
-    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
 
     // Supports (collapsible — show count in toggle)
     var supportItems = data.supports_fit || [];
@@ -495,9 +479,13 @@
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.textContent = stretchItems.length ? "(" + stretchItems.length + ")" : "";
-    // Hide stretch section entirely if empty
     var stretchSection = shadow.getElementById("cb-stretch-section");
     if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
+
+    // Bottom line (collapsible)
+    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
+    var blSection = shadow.getElementById("cb-bottomline-section");
+    if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
 
     // Nearby roles (only for stretch/skip)
     var nearbySection = shadow.getElementById("cb-nearby-section");
@@ -737,37 +725,33 @@
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
-    '    <div id="cb-identity" class="cb-identity" style="display:none">',
-    '      <img id="cb-logo-img" class="cb-company-logo" src="" alt="" style="display:none">',
-    '      <div class="cb-identity-text">',
+    '    <div class="cb-toprow">',
+    '      <div class="cb-toprow-left">',
     '        <div id="cb-company" class="cb-company-name"></div>',
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
-    '    </div>',
-    '    <div class="cb-hero">',
-    '      <div class="cb-score-row">',
-    '        <span id="cb-score" class="cb-score-num">\u2014</span>',
-    '        <span class="cb-score-of">/10</span>',
-    '      </div>',
-    '      <div id="cb-decision" class="cb-decision"></div>',
-    '    </div>',
-    '    <div id="cb-hrc" class="cb-hrc" style="display:none">',
-    '      <div class="cb-hrc-row">',
-    '        <span class="cb-hrc-label">Hiring Reality Check</span>',
-    '        <span class="cb-hrc-info" title="How likely your background is to pass the employer\'s initial screening based on stated requirements like domain experience, credentials, and years of experience.">?</span>',
-    '      </div>',
-    '      <div class="cb-hrc-row">',
-    '        <span id="cb-hrc-band" class="cb-hrc-badge"></span>',
-    '        <span id="cb-hrc-reason" class="cb-hrc-reason"></span>',
+    '      <div class="cb-toprow-right">',
+    '        <div class="cb-score-row">',
+    '          <span id="cb-score" class="cb-score-num">\u2014</span>',
+    '          <span class="cb-score-of">/10</span>',
+    '        </div>',
+    '        <div id="cb-decision" class="cb-decision"></div>',
     '      </div>',
     '    </div>',
-    '    <div class="cb-bottomline-section">',
-    '      <p id="cb-bottomline" class="cb-bltext"></p>',
-    '    </div>',
-    '    <div class="cb-collapsible" id="cb-supports-section">',
+    '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span>\u2713 Supports the fit</span>',
+    '        <span>Hiring Reality</span>',
+    '        <span id="cb-hrc-band" class="cb-hrc-badge"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <p id="cb-hrc-reason" class="cb-hrc-reason"></p>',
+    '      </div>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-supports-section">',
+    '      <button class="cb-collapse-toggle cb-toggle-green" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Supports the Fit</span>',
     '        <span id="cb-supports-count" class="cb-collapse-count"></span>',
     '      </button>',
     '      <div class="cb-collapse-body">',
@@ -775,13 +759,22 @@
     '      </div>',
     '    </div>',
     '    <div class="cb-collapsible" id="cb-stretch-section">',
-    '      <button class="cb-collapse-toggle" type="button">',
+    '      <button class="cb-collapse-toggle cb-toggle-yellow" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span>\u26a0 Stretch factors</span>',
+    '        <span>Stretch Factors</span>',
     '        <span id="cb-stretch-count" class="cb-collapse-count"></span>',
     '      </button>',
     '      <div class="cb-collapse-body">',
     '        <ul id="cb-stretch" class="cb-bullets cb-stretch"></ul>',
+    '      </div>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-bottomline-section">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Bottom Line</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
     '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
@@ -804,7 +797,7 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 340px; max-height: 480px; overflow-y: auto;",
+    "  width: 320px; max-height: 420px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -816,20 +809,20 @@
     "  from { opacity: 0; transform: translateY(12px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
-    ".cb-panel::-webkit-scrollbar { width: 5px; }",
+    ".cb-panel::-webkit-scrollbar { width: 4px; }",
     ".cb-panel::-webkit-scrollbar-track { background: transparent; }",
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-logo { font-size: 13px; font-weight: 700; letter-spacing: -0.02em; color: #888; }",
+    ".cb-logo { font-size: 11px; font-weight: 700; letter-spacing: -0.02em; color: #666; }",
     ".cb-close-btn {",
-    "  background: none; border: none; color: #666; font-size: 18px;",
+    "  background: none; border: none; color: #666; font-size: 16px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 12px 14px; position: relative; }",
+    ".cb-body { padding: 10px 12px; position: relative; }",
     ".cb-spinner {",
     "  width: 22px; height: 22px;",
     "  border: 3px solid rgba(242,242,242,0.12);",
@@ -858,75 +851,58 @@
     "  display: flex; align-items: center; justify-content: center; gap: 8px;",
     "}",
     ".cb-overlay-text { font-size: 12px; color: #AFAFAF; }",
-    // Company identity
-    ".cb-identity {",
+    // Top row: identity left, score right
+    ".cb-toprow {",
     "  display: flex; align-items: center; gap: 10px;",
-    "  margin-bottom: 10px; padding-bottom: 8px;",
+    "  padding-bottom: 8px; margin-bottom: 4px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-company-logo {",
-    "  width: 32px; height: 32px; border-radius: 6px;",
-    "  object-fit: contain; background: #1a1a1a; flex-shrink: 0;",
-    "}",
-    ".cb-identity-text { min-width: 0; flex: 1; }",
+    ".cb-toprow-left { flex: 1; min-width: 0; }",
     ".cb-company-name {",
-    "  font-size: 12px; font-weight: 600; color: #AFAFAF;",
+    "  font-size: 11px; font-weight: 600; color: #888;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     ".cb-job-title {",
-    "  font-size: 13px; font-weight: 700; color: #F2F2F2;",
+    "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
-    // Hero score + decision
-    ".cb-hero {",
-    "  display: flex; align-items: center; gap: 10px;",
-    "  margin-bottom: 6px;",
+    ".cb-toprow-right {",
+    "  flex-shrink: 0; text-align: right;",
+    "  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;",
     "}",
-    ".cb-score-row {",
-    "  display: flex; align-items: baseline; gap: 1px;",
-    "}",
-    ".cb-score-num { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; }",
-    ".cb-score-of { font-size: 13px; font-weight: 500; color: #888; }",
+    ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
+    ".cb-score-num { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-of { font-size: 12px; font-weight: 500; color: #666; }",
     ".cb-decision {",
-    "  font-size: 13px; font-weight: 700; padding: 2px 9px; border-radius: 6px;",
+    "  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px;",
     "  letter-spacing: 0.01em;",
     "}",
     ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    // Hiring Reality Check
-    ".cb-hrc {",
-    "  margin-bottom: 8px; padding: 6px 0;",
-    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
-    "}",
-    ".cb-hrc-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }",
-    ".cb-hrc-row + .cb-hrc-row { margin-top: 4px; }",
-    ".cb-hrc-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #888; }",
-    ".cb-hrc-info {",
-    "  display: inline-flex; align-items: center; justify-content: center;",
-    "  width: 14px; height: 14px; border-radius: 50%;",
-    "  background: rgba(242,242,242,0.10); color: #888;",
-    "  font-size: 9px; font-weight: 700; cursor: help; flex-shrink: 0;",
-    "}",
+    // Hiring Reality Check badge (inside collapsible toggle)
     ".cb-hrc-badge {",
-    "  font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px;",
+    "  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: auto;",
     "}",
     ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-hrc-reason { font-size: 11px; color: #999; }",
-    // Bottom line
-    ".cb-bottomline-section { margin-bottom: 8px; }",
-    ".cb-bltext { font-size: 13px; color: #CFCFCF; line-height: 1.4; }",
+    ".cb-hrc-reason { font-size: 11px; color: #999; padding: 2px 0 6px; line-height: 1.4; }",
+    // Bottom line text
+    ".cb-bltext { font-size: 12px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 6px; }",
     // Collapsible sections
     ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.04); }",
     ".cb-collapse-toggle {",
     "  display: flex; align-items: center; gap: 5px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 11px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 6px 0; text-align: left;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
+    ".cb-toggle-green { color: #4ADE80; }",
+    ".cb-toggle-green:hover { color: #6EE7A0; }",
+    ".cb-toggle-yellow { color: #FBBF24; }",
+    ".cb-toggle-yellow:hover { color: #FCD34D; }",
     ".cb-collapse-icon {",
     "  font-size: 10px; transition: transform 0.15s; display: inline-block;",
     "}",
@@ -938,10 +914,10 @@
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
     ".cb-open .cb-collapse-body { max-height: 500px; }",
     // Bullet lists
-    ".cb-bullets { list-style: none; padding-bottom: 6px; }",
+    ".cb-bullets { list-style: none; padding-bottom: 4px; }",
     ".cb-bullets li {",
-    "  position: relative; padding-left: 14px;",
-    "  font-size: 12px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
+    "  position: relative; padding-left: 12px;",
+    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.4;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
@@ -953,10 +929,8 @@
     "  padding: 0 10px; margin-top: 2px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
-    ".cb-nearby-list { list-style: none; padding-bottom: 6px; }",
-    ".cb-nearby-list li {",
-    "  padding: 3px 0; font-size: 12px;",
-    "}",
+    ".cb-nearby-list { list-style: none; padding-bottom: 4px; }",
+    ".cb-nearby-list li { padding: 2px 0; font-size: 11px; }",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
     "  border-bottom: 1px solid rgba(147,197,253,0.25);",
@@ -964,10 +938,10 @@
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Actions
-    ".cb-actions { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); }",
+    ".cb-actions { display: flex; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-btn {",
-    "  flex: 1; padding: 6px 8px; border: none; border-radius: 6px;",
-    "  font-size: 12px; font-weight: 600; cursor: pointer;",
+    "  flex: 1; padding: 5px 8px; border: none; border-radius: 6px;",
+    "  font-size: 11px; font-weight: 600; cursor: pointer;",
     "  text-align: center; text-decoration: none;",
     "  display: inline-flex; align-items: center; justify-content: center;",
     "  transition: opacity 0.15s;",
