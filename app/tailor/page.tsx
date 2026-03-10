@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
 
@@ -93,6 +94,13 @@ function TailorInner() {
           "radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
+      {/* Pipeline confirmation banner */}
+      <PipelineConfirmationBanner
+        jobTitle={prep?.jobTitle ?? ""}
+        company={prep?.company ?? ""}
+        visible={!!prep && status !== "done"}
+      />
+
       {/* Wordmark */}
       <div className="text-center mb-10">
         <span
