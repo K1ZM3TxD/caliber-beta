@@ -938,7 +938,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Section heading */}
                 <div className="mb-4 flex flex-col items-center">
-                  <h2 className="text-lg sm:text-xl font-normal tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
+                  <h2 className="text-lg sm:text-xl font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -966,22 +966,22 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     }}
                   >
                     <div className="px-10 py-14 sm:px-14 sm:py-16 text-center">
-                      <div className="text-3xl sm:text-[2.7rem] font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
+                      <div className="text-[1.7rem] sm:text-[2.4rem] font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
                       <div className="flex items-center justify-center gap-6 mt-9">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                          style={{ background: "rgba(242,242,242,0.06)", color: "#CCC", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none", whiteSpace: "nowrap" }}
+                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:brightness-110"
+                          style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.22)", textDecoration: "none", whiteSpace: "nowrap" }}
                         >Search on LinkedIn</a>
                         {heroCanExpand ? (
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
                             className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
-                            style={{ background: "rgba(74,222,128,0.08)", color: heroExpanded ? "#999" : "#4ADE80", border: "1px solid rgba(74,222,128,0.20)", whiteSpace: "nowrap", cursor: "pointer" }}
+                            style={{ background: "rgba(251,191,36,0.08)", color: heroExpanded ? "#999" : "#FBBF24", border: "1px solid rgba(251,191,36,0.18)", whiteSpace: "nowrap", cursor: "pointer" }}
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
                           </button>
@@ -993,14 +993,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {heroExpanded && heroCanExpand ? (
                       <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
                         <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(242,242,242,0.07)" }}>
-                          <div className="text-[10px] font-medium uppercase tracking-widest mb-2" style={{ color: "#555" }}>Why it fits</div>
-                          {heroHasSummary ? (
-                            <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>{heroSummaryText}</p>
-                          ) : null}
+                          <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>Your pattern matches on 4 core signals.</p>
                           {heroHasBullets ? (
                             <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
                               {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
                             </ul>
+                          ) : null}
+                          {heroHasSummary ? (
+                            <p className="text-[13px] leading-relaxed" style={{ color: "#999" }}>{heroSummaryText}</p>
                           ) : null}
                         </div>
                         {/* Search actions */}

@@ -545,29 +545,31 @@ export function generateTitleRecommendation(
   const enrichedTitles = top3.map((c) => {
     const summaryParts: string[] = [];
     if (c._matchedReq.length > 0) {
-      summaryParts.push(`Pattern match on ${c._matchedReq.length} core signal${c._matchedReq.length > 1 ? "s" : ""}: ${c._matchedReq.slice(0, 4).join(", ")}.`);
+      const signalNames = c._matchedReq.slice(0, 4).join(", ");
+      summaryParts.push(`Your background lines up on ${c._matchedReq.length} key area${c._matchedReq.length > 1 ? "s" : ""}: ${signalNames}.`);
     }
     if (c._matchedPairs.length > 0) {
-      summaryParts.push(`Action-artifact evidence: ${c._matchedPairs.join(", ")}.`);
+      const pairNames = c._matchedPairs.map(p => p.replace("+", " with ")).join(", ");
+      summaryParts.push(`We see direct experience in ${pairNames}.`);
     } else if (c._reqCov >= 0.7) {
-      summaryParts.push(`${Math.round(c._reqCov * 100)}% anchor coverage across required signals.`);
+      summaryParts.push(`Strong overlap across what this role typically requires.`);
     }
     if (summaryParts.length === 0) {
-      summaryParts.push(`Score ${c.score}/9.9 based on anchor analysis.`);
+      summaryParts.push(`Solid overall alignment based on your experience.`);
     }
     const summary_2s = summaryParts.join(" ");
 
     const rawBullets: string[] = [];
     if (c._matchedReq.length > 0) {
-      rawBullets.push(`Matched signals: ${c._matchedReq.join(", ")}`);
+      rawBullets.push(`Strongest signals: ${c._matchedReq.join(", ")}`);
     }
     if (c._matchedPairs.length > 0) {
-      rawBullets.push(`Evidence pairs: ${c._matchedPairs.map(p => p.replace("+", " → ")).join(", ")}`);
+      rawBullets.push(`Hands-on experience: ${c._matchedPairs.map(p => p.replace("+", " → ")).join(", ")}`);
     }
     if (c._missing.length > 0) {
-      rawBullets.push(`Gap areas: ${c._missing.join(", ")}`);
+      rawBullets.push(`Areas to grow: ${c._missing.join(", ")}`);
     } else if (rawBullets.length < 3 && c._reqCov > 0) {
-      rawBullets.push(`Anchor coverage: ${Math.round(c._reqCov * 100)}%`);
+      rawBullets.push(`${Math.round(c._reqCov * 100)}% alignment with typical requirements`);
     }
     // Pad to exactly 3 or truncate
     while (rawBullets.length < 3) rawBullets.push("");
