@@ -328,7 +328,7 @@
   let detailDebounce = null;
 
   // Rolling weak-search detection
-  let recentScores = [];       // last 4 entries: { score, nearbyRoles, jobTitle }
+  let recentScores = [];       // last 4 entries: { score, nearbyRoles, calibrationTitle }
   let lastSearchQuery = getSearchKeywords();
 
   // Behavioral signals (per search session)
@@ -551,24 +551,22 @@
     }
     console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {
-      // Pick best nearby role from most recent result that has them
+      // Primary: calibration primary title (the user's strongest fit direction)
+      for (var j = win.length - 1; j >= 0; j--) {
+        if (win[j].calibrationTitle) {
+          console.debug("[Caliber] weak-search triggered, suggesting calibration title: " + win[j].calibrationTitle);
+          return win[j].calibrationTitle;
+        }
+      }
+      // Secondary: adjacent search-surface titles from calibration
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
-          console.debug("[Caliber] weak-search triggered, suggesting nearby: " + win[j].nearbyRoles[0].title);
+          console.debug("[Caliber] weak-search triggered, suggesting adjacent title: " + win[j].nearbyRoles[0].title);
           return win[j].nearbyRoles[0].title;
         }
       }
-      // Fallback: use the best-scored job's title from the window
-      var bestEntry = win[0];
-      for (var k = 1; k < win.length; k++) {
-        if (win[k].score > bestEntry.score) bestEntry = win[k];
-      }
-      if (bestEntry.jobTitle) {
-        console.debug("[Caliber] weak-search triggered, suggesting best-scored title: " + bestEntry.jobTitle);
-        return bestEntry.jobTitle;
-      }
-      // Last resort: use current search query as-is
-      console.debug("[Caliber] weak-search triggered, no title available for suggestion");
+      // No calibration data available — suppress banner
+      console.debug("[Caliber] weak-search triggered, no calibration title available");
       return "";
     }
     return null;
@@ -668,26 +666,20 @@
     }
 
     // Rolling weak-search detection
-    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], jobTitle: lastJobMeta.title || "" });
+    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" });
     if (recentScores.length > 4) recentScores.shift();
     console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
     var suggestedTitle = checkWeakSearchPattern();
-    var sugSection = shadow.getElementById("cb-search-suggest");
-    var sugLabel = shadow.getElementById("cb-suggest-label");
-    var sugLink = shadow.getElementById("cb-suggest-link");
+    var recoveryBanner = shadow.getElementById("cb-recovery-banner");
+    var recoveryLink = shadow.getElementById("cb-recovery-link");
     if (suggestedTitle !== null && suggestedTitle !== "") {
-      sugSection.style.display = "";
-      sugLabel.textContent = "\uD83D\uDD0D Try a better search title";
-      sugLink.textContent = suggestedTitle;
-      sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
-      sugLink.style.display = "";
+      recoveryBanner.style.display = "";
+      recoveryLink.textContent = suggestedTitle;
+      recoveryLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
       sessionSignals.suggest_shown = true;
-      // Track clicks on suggestion link
-      sugLink.onclick = function () { sessionSignals.suggest_clicked = true; };
-    } else if (suggestedTitle === "") {
-      sugSection.style.display = "none";
+      recoveryLink.onclick = function () { sessionSignals.suggest_clicked = true; };
     } else {
-      sugSection.style.display = "none";
+      recoveryBanner.style.display = "none";
     }
 
     // Behavioral signal tracking
@@ -917,6 +909,14 @@
   // ─── Panel Markup & Styles ────────────────────────────────
 
   var PANEL_HTML = [
+    '<div class="cb-container">',
+    '<div id="cb-recovery-banner" class="cb-recovery-banner" style="display:none">',
+    '  <span class="cb-recovery-icon">\uD83D\uDD0D</span>',
+    '  <div class="cb-recovery-body">',
+    '    <div class="cb-recovery-label">Try a stronger search title</div>',
+    '    <a id="cb-recovery-link" class="cb-recovery-link" target="_self"></a>',
+    '  </div>',
+    '</div>',
     '<div class="cb-panel">',
     '  <div class="cb-header">',
     '    <span class="cb-logo">Caliber</span>',
@@ -1004,10 +1004,6 @@
     '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-search-suggest" class="cb-suggest-banner" style="display:none">',
-    '      <div id="cb-suggest-label" class="cb-suggest-label">\uD83D\uDD0D Try a better search title</div>',
-    '      <a id="cb-suggest-link" class="cb-suggest-link" target="_self"></a>',
-    '    </div>',
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
@@ -1029,11 +1025,38 @@
     '      </div>',
     '    </div>',
     '  </div>',
+    '</div>',
     '</div>'
   ].join("\n");
 
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
+    // Container: stacks recovery banner above sidecard
+    ".cb-container {",
+    "  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;",
+    "}",
+    // Recovery banner (above sidecard)
+    ".cb-recovery-banner {",
+    "  width: 340px; background: rgba(96,165,250,0.08);",
+    "  border: 1px solid rgba(96,165,250,0.18); border-radius: 10px;",
+    "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
+    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+    "  animation: cb-enter 0.2s ease-out;",
+    "}",
+    ".cb-recovery-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
+    ".cb-recovery-body { flex: 1; min-width: 0; }",
+    ".cb-recovery-label {",
+    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
+    "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
+    "}",
+    ".cb-recovery-link {",
+    "  font-size: 12px; font-weight: 700; color: #93C5FD;",
+    "  text-decoration: none; display: block;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "  border-bottom: 1px solid rgba(147,197,253,0.3);",
+    "  transition: color 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
     "  width: 340px; max-height: 460px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
@@ -1183,20 +1206,6 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    // Search suggestion banner
-    ".cb-suggest-banner {",
-    "  background: rgba(96,165,250,0.10); border-radius: 6px;",
-    "  padding: 6px 8px; margin-top: 4px; text-align: center;",
-    "}",
-    ".cb-suggest-label {",
-    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
-    "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 3px;",
-    "}",
-    ".cb-suggest-link {",
-    "  font-size: 11px; font-weight: 700; color: #93C5FD;",
-    "  text-decoration: none; border-bottom: 1px solid rgba(147,197,253,0.3);",
-    "}",
-    ".cb-suggest-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
