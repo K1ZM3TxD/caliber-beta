@@ -938,7 +938,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Section heading */}
                 <div className="mb-4 flex flex-col items-center">
-                  <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
+                  <h2 className="text-lg sm:text-xl font-normal tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -966,7 +966,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     }}
                   >
                     <div className="px-10 py-14 sm:px-14 sm:py-16 text-center">
-                      <div className="text-4xl sm:text-5xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
+                      <div className="text-3xl sm:text-[2.7rem] font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
                       <div className="flex items-center justify-center gap-6 mt-9">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
@@ -976,7 +976,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
                           style={{ background: "rgba(242,242,242,0.06)", color: "#CCC", border: "1px solid rgba(242,242,242,0.10)", textDecoration: "none", whiteSpace: "nowrap" }}
                         >Search on LinkedIn</a>
-                        <span className="text-[10px] uppercase tracking-widest" style={{ color: "#444" }}>or</span>
                         {heroCanExpand ? (
                           <button
                             type="button"
