@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.4.4";
+  const PANEL_VERSION = "0.4.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -455,12 +455,21 @@
       // Pick best nearby role from most recent result that has them
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
-          console.debug("[Caliber] weak-search triggered, suggesting: " + win[j].nearbyRoles[0].title);
+          console.debug("[Caliber] weak-search triggered, suggesting nearby: " + win[j].nearbyRoles[0].title);
           return win[j].nearbyRoles[0].title;
         }
       }
-      // Pattern detected but no nearby roles available — signal with empty string
-      console.debug("[Caliber] weak-search triggered, no nearby roles for suggestion");
+      // Fallback: use the best-scored job's title from the window
+      var bestEntry = win[0];
+      for (var k = 1; k < win.length; k++) {
+        if (win[k].score > bestEntry.score) bestEntry = win[k];
+      }
+      if (bestEntry.jobTitle) {
+        console.debug("[Caliber] weak-search triggered, suggesting best-scored title: " + bestEntry.jobTitle);
+        return bestEntry.jobTitle;
+      }
+      // Last resort: use current search query as-is
+      console.debug("[Caliber] weak-search triggered, no title available for suggestion");
       return "";
     }
     return null;
@@ -560,24 +569,22 @@
     }
 
     // Rolling weak-search detection
-    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [] });
+    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], jobTitle: lastJobMeta.title || "" });
     if (recentScores.length > 4) recentScores.shift();
     console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
     var suggestedTitle = checkWeakSearchPattern();
     var sugSection = shadow.getElementById("cb-search-suggest");
     var sugLabel = shadow.getElementById("cb-suggest-label");
     var sugLink = shadow.getElementById("cb-suggest-link");
-    if (suggestedTitle !== null) {
+    if (suggestedTitle !== null && suggestedTitle !== "") {
       sugSection.style.display = "";
-      if (suggestedTitle) {
-        sugLabel.textContent = "\uD83D\uDD0D Try a better search title";
-        sugLink.textContent = suggestedTitle;
-        sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
-        sugLink.style.display = "";
-      } else {
-        sugLabel.textContent = "\uD83D\uDD0D Most jobs here are a weak fit \u2014 try a different search";
-        sugLink.style.display = "none";
-      }
+      sugLabel.textContent = "\uD83D\uDD0D Try a better search title";
+      sugLink.textContent = suggestedTitle;
+      sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+      sugLink.style.display = "";
+    } else if (suggestedTitle === "") {
+      // Trigger fired but absolutely no title to suggest — hide rather than show dead-end
+      sugSection.style.display = "none";
     } else {
       sugSection.style.display = "none";
     }
@@ -876,7 +883,7 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 320px; max-height: 420px; overflow-y: auto;",
+    "  width: 340px; max-height: 460px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -893,7 +900,7 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -907,7 +914,7 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 10px 12px; position: relative; }",
+    ".cb-body { padding: 12px 14px; position: relative; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -938,8 +945,8 @@
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
     // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
-    "  display: flex; align-items: center; gap: 10px;",
-    "  padding-bottom: 6px; margin-bottom: 2px;",
+    "  display: flex; align-items: center; gap: 12px;",
+    "  padding-bottom: 8px; margin-bottom: 4px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
     ".cb-toprow-left {",
@@ -981,7 +988,7 @@
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 6px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
     ".cb-toggle-green { color: #4ADE80; }",

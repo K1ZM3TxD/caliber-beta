@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score [DEV]",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "DEV BUILD — localhost only. Get a fit score on LinkedIn or Indeed job posts.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
