@@ -116,6 +116,10 @@ export async function POST(req: NextRequest) {
     const resumeText = session.resume?.rawText ?? "";
     const hiringCheck = computeHiringRealityCheck(body.jobText, resumeText);
 
+    // Extract nearby/adjacent titles from calibration for search suggestions
+    const adjTitles = session.titleRecommendation?.adjacent_titles ?? [];
+    const nearbyRoles = adjTitles.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
+
     const res = NextResponse.json({
       score_0_to_10: alignment.score ?? 0,
       supports_fit: alignment.supports_fit ?? [],
@@ -127,6 +131,7 @@ export async function POST(req: NextRequest) {
       },
       calibrationId: sessionId,
       sourceUrl: body.sourceUrl ?? null,
+      nearby_roles: nearbyRoles,
     });
     for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
     return res;
