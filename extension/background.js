@@ -113,6 +113,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "CALIBER_TAILOR_PREPARE") {
+    (async () => {
+      try {
+        // Get session ID
+        const store = await chrome.storage.local.get(["caliberSessionId"]);
+        const sessionId = store.caliberSessionId;
+        if (!sessionId) throw new Error("No Caliber session. Complete calibration first.");
+
+        const resp = await fetch(API_BASE + "/api/tailor/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            jobTitle: msg.jobTitle || "",
+            company: msg.company || "",
+            jobUrl: msg.jobUrl || "",
+            jobText: msg.jobText || "",
+            score: msg.score || 0,
+          }),
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || "Prepare failed");
+
+        // Open the tailor page
+        chrome.tabs.create({ url: API_BASE + "/tailor?id=" + encodeURIComponent(data.prepareId) });
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
   if (msg.type === "CALIBER_SESSION_HANDOFF") {
     // Direct handoff from caliber web app content script
     const sid = msg.sessionId;

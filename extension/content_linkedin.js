@@ -321,6 +321,7 @@
   let active = false;
   let scoring = false;
   let lastScoredText = "";
+  let lastScoredScore = 0;
   let lastJobMeta = { title: "", company: "", logoUrl: "" };
   let watchInterval = null;
   let lastWatchedUrl = location.href;
@@ -398,6 +399,27 @@
     shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
       chip.addEventListener("click", function () {
         chip.classList.toggle("cb-fb-chip-selected");
+      });
+    });
+
+    // Wire tailor banner button
+    shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
+      var btn = shadow.getElementById("cb-tailor-btn");
+      if (btn) { btn.textContent = "Preparing\u2026"; btn.disabled = true; }
+      chrome.runtime.sendMessage({
+        type: "CALIBER_TAILOR_PREPARE",
+        jobTitle: lastJobMeta.title || "",
+        company: lastJobMeta.company || "",
+        jobUrl: location.href,
+        jobText: lastScoredText || "",
+        score: lastScoredScore || 0,
+      }, function (resp) {
+        if (resp && resp.ok) {
+          if (btn) btn.textContent = "Opened \u2713";
+        } else {
+          if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
+          console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
+        }
       });
     });
 
@@ -596,6 +618,7 @@
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
     var score = Number(data.score_0_to_10) || 0;
+    lastScoredScore = score;
     var decision = getDecision(score);
 
     // Score + decision (left side of header row)
@@ -682,21 +705,13 @@
       nearbySection.style.display = "none";
     }
 
-    // Tailor Resume CTA (8.0+ only)
-    var tailorCta = shadow.getElementById("cb-tailor-cta");
-    var tailorLink = shadow.getElementById("cb-tailor-link");
-    if (tailorCta && tailorLink) {
+    // Tailor Resume banner (above sidecard, 8.0+ only)
+    var tailorBanner = shadow.getElementById("cb-tailor-banner");
+    if (tailorBanner) {
       if (score >= 8.0) {
-        var tailorParams = new URLSearchParams({
-          action: "tailor",
-          jobTitle: lastJobMeta.title || "",
-          company: lastJobMeta.company || "",
-          jobUrl: location.href,
-        });
-        tailorLink.href = API_BASE + "/calibration?" + tailorParams.toString();
-        tailorCta.style.display = "";
+        tailorBanner.style.display = "";
       } else {
-        tailorCta.style.display = "none";
+        tailorBanner.style.display = "none";
       }
     }
 
@@ -966,6 +981,13 @@
 
   var PANEL_HTML = [
     '<div class="cb-container">',
+    '<div id="cb-tailor-banner" class="cb-tailor-banner" style="display:none">',
+    '  <span class="cb-tailor-icon">\u2728</span>',
+    '  <div class="cb-tailor-body">',
+    '    <div class="cb-tailor-label">Strong match</div>',
+    '    <button id="cb-tailor-btn" class="cb-tailor-link">Tailor resume for this job \u2192</button>',
+    '  </div>',
+    '</div>',
     '<div id="cb-recovery-banner" class="cb-recovery-banner" style="display:none">',
     '  <span class="cb-recovery-icon">\uD83D\uDD0D</span>',
     '  <div class="cb-recovery-body">',
@@ -1060,11 +1082,7 @@
     '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-tailor-cta" class="cb-tailor-cta" style="display:none">',
-    '      <a id="cb-tailor-link" class="cb-tailor-btn" target="_blank" rel="noopener noreferrer">',
-    '        Tailor resume for this job',
-    '      </a>',
-    '    </div>',
+    // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
@@ -1283,20 +1301,31 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    // Tailor Resume CTA
-    ".cb-tailor-cta {",
-    "  padding: 8px 0 4px; border-top: 1px solid rgba(255,255,255,0.06);",
+    // Tailor Resume above-sidecard banner
+    ".cb-tailor-banner {",
+    "  width: 340px; background: #0F2318;",
+    "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
+    "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
+    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+    "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
     "}",
-    ".cb-tailor-btn {",
-    "  display: block; width: 100%; text-align: center;",
-    "  padding: 7px 0; border-radius: 6px;",
-    "  font-size: 11px; font-weight: 700; letter-spacing: 0.01em;",
-    "  color: #0B0B0B; background: #4ADE80;",
-    "  text-decoration: none; cursor: pointer;",
-    "  transition: opacity 0.15s, box-shadow 0.15s;",
-    "  box-shadow: 0 2px 10px rgba(74,222,128,0.15);",
+    ".cb-tailor-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
+    ".cb-tailor-body { flex: 1; min-width: 0; }",
+    ".cb-tailor-label {",
+    "  font-size: 9px; font-weight: 600; color: #4ADE80;",
+    "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
     "}",
-    ".cb-tailor-btn:hover { opacity: 0.9; box-shadow: 0 2px 14px rgba(74,222,128,0.25); }",
+    ".cb-tailor-link {",
+    "  font-size: 12px; font-weight: 700; color: #86EFAC;",
+    "  text-decoration: none; display: block; cursor: pointer;",
+    "  background: none; border: none; padding: 0; text-align: left;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "  border-bottom: 1px solid rgba(74,222,128,0.3);",
+    "  transition: color 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-tailor-link:hover { color: #BBF7D0; border-color: #BBF7D0; }",
+    ".cb-tailor-link:disabled { opacity: 0.6; cursor: default; }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
