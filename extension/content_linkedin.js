@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.4.9";
+  const PANEL_VERSION = "0.5.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -682,6 +682,24 @@
       nearbySection.style.display = "none";
     }
 
+    // Tailor Resume CTA (8.0+ only)
+    var tailorCta = shadow.getElementById("cb-tailor-cta");
+    var tailorLink = shadow.getElementById("cb-tailor-link");
+    if (tailorCta && tailorLink) {
+      if (score >= 8.0) {
+        var tailorParams = new URLSearchParams({
+          action: "tailor",
+          jobTitle: lastJobMeta.title || "",
+          company: lastJobMeta.company || "",
+          jobUrl: location.href,
+        });
+        tailorLink.href = API_BASE + "/calibration?" + tailorParams.toString();
+        tailorCta.style.display = "";
+      } else {
+        tailorCta.style.display = "none";
+      }
+    }
+
     // Rolling weak-search detection
     recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" });
     if (recentScores.length > 4) recentScores.shift();
@@ -1042,6 +1060,11 @@
     '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '      </div>',
     '    </div>',
+    '    <div id="cb-tailor-cta" class="cb-tailor-cta" style="display:none">',
+    '      <a id="cb-tailor-link" class="cb-tailor-btn" target="_blank" rel="noopener noreferrer">',
+    '        Tailor resume for this job',
+    '      </a>',
+    '    </div>',
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
@@ -1260,6 +1283,20 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    // Tailor Resume CTA
+    ".cb-tailor-cta {",
+    "  padding: 8px 0 4px; border-top: 1px solid rgba(255,255,255,0.06);",
+    "}",
+    ".cb-tailor-btn {",
+    "  display: block; width: 100%; text-align: center;",
+    "  padding: 7px 0; border-radius: 6px;",
+    "  font-size: 11px; font-weight: 700; letter-spacing: 0.01em;",
+    "  color: #0B0B0B; background: #4ADE80;",
+    "  text-decoration: none; cursor: pointer;",
+    "  transition: opacity 0.15s, box-shadow 0.15s;",
+    "  box-shadow: 0 2px 10px rgba(74,222,128,0.15);",
+    "}",
+    ".cb-tailor-btn:hover { opacity: 0.9; box-shadow: 0 2px 14px rgba(74,222,128,0.25); }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
