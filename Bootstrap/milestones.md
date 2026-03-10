@@ -1,5 +1,80 @@
 ---
 
+Milestone: Repository Stabilization — Single Mainline (2026-03-10)
+---
+
+**Status:** COMPLETE
+
+Multiple parallel extension branches (`extension-panel-persistence-restore`,
+`extension-upgraded-panel-restore`, `extension-market-navigation`,
+`extension-beta-download-page`, `docs-extension-beta-workflow`) caused
+renderer/persistence/packaging regressions and made it unclear which branch
+held the source of truth for the extension.
+
+**Actions taken:**
+- Stable extension changes consolidated onto main in a single commit.
+- Regression-prone identity-key tracking and `updateIdentityHeader()` removed;
+  identity rendering inlined into `showResults()`.
+- All stale local and remote extension branches deleted.
+- Hiring Reality Check display confirmed intact after consolidation.
+- Extension build (`scripts/build-extensions.sh`) verified producing correct
+  prod and dev outputs from the consolidated main.
+
+**Rule going forward (during development):**
+- `main` is the single integration branch.
+- One extension feature branch at a time — no parallel extension branches.
+- Extension testing uses the `extension/` source folder or `dist/extension-dev/`
+  build, never stale zip artifacts.
+
+---
+
+Milestone: Beta Launch Infrastructure Lock (FUTURE — activates at beta launch)
+---
+
+**Status:** NOT YET ACTIVE — documenting the operational rule now so it is not
+forgotten when beta launch arrives. Current behavior (main auto-deploys to
+production) remains unchanged until this milestone activates.
+
+**Trigger:** This milestone activates when the team declares "beta launch."
+Until then, the current workflow (push to main → auto-deploy) continues.
+
+### Deployment Workflow After Beta Launch
+
+1. **main = stable production branch.**
+   - `main` auto-deploys to `https://www.caliber-app.com` via Vercel.
+   - After beta launch, nothing merges to main without passing staging
+     verification first.
+
+2. **Feature branches for all development.**
+   - All new work happens on feature branches off main.
+   - No direct commits to main after beta launch.
+
+3. **Staging / preview deployment for testing.**
+   - Every PR to main gets a Vercel preview deployment URL.
+   - QA and PM verify the preview deployment before approving merge.
+   - Extension dev builds (`dist/extension-dev/`) test against
+     `http://localhost:3000`; production extension (`dist/extension-prod/`)
+     is only updated after main merges.
+
+4. **Production deploys only from main after verification.**
+   - Merge to main = production deploy.
+   - No hotfix pushes without at least one preview verification pass.
+
+### Why This Matters
+
+During early development, main-as-dev is acceptable because the product is
+still forming. At beta launch, real users depend on production stability.
+The staging gate prevents half-finished work from reaching users.
+
+### Checklist (activate at beta launch)
+
+- [ ] Branch protection rule on main (require PR + at least one approval)
+- [ ] Vercel preview deployments confirmed working for PRs
+- [ ] Team notified: no direct pushes to main
+- [ ] Extension build script verified against preview URL if needed
+
+---
+
 BREAK + UPDATE — 2026-03-08 (Extension-First Operating Model)
 ---
 DONE:

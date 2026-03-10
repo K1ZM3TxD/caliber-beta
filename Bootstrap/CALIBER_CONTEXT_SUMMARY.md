@@ -88,6 +88,7 @@ Job-fit evaluation now lives exclusively in the browser extension sidecard.
 - **Extension sidecard should show active job identity** (job title, company, optional location) for trust.
 - **Workflow lesson:** multiple parallel extension branches caused renderer/persistence/packaging regressions — only one major extension branch at a time.
 - **Documentation rule adopted:** after major PM sessions, create a documentation task before next PM reload.
+- **Beta Launch Infrastructure Lock (future):** At beta launch, main becomes the stable production branch. All development moves to feature branches, staging/preview deploys must pass verification before merging to main. Rule is documented in `Bootstrap/milestones.md` but not yet active — current push-to-main workflow continues until beta launch is declared.
 
 ### Phase-2 Extension Overlay UX Contract (Finalized 2026-03-08)
 
