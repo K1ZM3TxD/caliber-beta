@@ -583,8 +583,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         display: "inline-block",
         width: 24,
         height: 24,
-        border: "3px solid #444",
-        borderTop: "3px solid #F2F2F2",
+        border: "3px solid rgba(74,222,128,0.15)",
+        borderTop: "3px solid #4ADE80",
         borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
         marginLeft: 8,
@@ -593,13 +593,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto" style={{ background: 'radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045) 0%, transparent 100%) #0B0B0B' }}>
       <div className="w-full max-w-[760px] px-6">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(242,242,242,0.16) !important; background-color: #161616 !important; }
+          .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
+          .cb-dropzone:hover { border-color: rgba(74,222,128,0.4) !important; background-color: rgba(74,222,128,0.03) !important; }
+          .cb-textarea:focus { border-color: rgba(74,222,128,0.45) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.15) !important; }
         `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
@@ -611,7 +614,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <div className="font-semibold tracking-tight text-5xl sm:text-6xl">Caliber</div>
+                <div className="font-semibold tracking-tight text-5xl sm:text-6xl" style={{ textShadow: '0 0 40px rgba(74,222,128,0.08)' }}>Caliber</div>
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
@@ -635,11 +638,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={begin}
                     disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
-                      backgroundColor: busy ? "rgba(242,242,242,0.35)" : "#F2F2F2",
+                      backgroundColor: busy ? "rgba(74,222,128,0.35)" : "#4ADE80",
                       color: "#0B0B0B",
                       cursor: busy ? "not-allowed" : "pointer",
+                      boxShadow: busy ? "none" : "0 4px 20px rgba(74,222,128,0.15)",
                     }}
                   >
                     {busy ? "Processing…" : "Begin Calibration"}
@@ -659,9 +663,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-8 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
                     <div
-                      className="rounded-md transition-opacity"
+                      className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(242,242,242,0.28)",
+                        border: "1px dashed rgba(74,222,128,0.25)",
                         backgroundColor: selectedFile ? "#121212" : "#0F0F0F",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
@@ -728,13 +732,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={submitResume}
                     disabled={!canContinueResume}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: canContinueResume ? "#F2F2F2" : "rgba(242,242,242,0.35)",
+                      backgroundColor: canContinueResume ? "#4ADE80" : "rgba(74,222,128,0.25)",
                       color: "#0B0B0B",
                       cursor: canContinueResume ? "pointer" : "not-allowed",
-                      boxShadow: canContinueResume ? "0 8px 20px rgba(0,0,0,0.25)" : "none",
+                      boxShadow: canContinueResume ? "0 4px 20px rgba(74,222,128,0.15)" : "none",
                       transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)",
                       minWidth: 140
                     }}
@@ -771,15 +775,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       value={answerText}
                       onChange={(e) => setAnswerText(e.target.value)}
                       rows={6}
-                      className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200"
+                      className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
                       style={{
                         backgroundColor: "#141414",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(242,242,242,0.14)",
+                        border: "1px solid rgba(242,242,242,0.10)",
                         boxShadow: "none",
                         opacity: 1,
                         fontSize: "1em",
-                        marginTop: "0.5em"
+                        marginTop: "0.5em",
+                        outline: "none",
                       }}
                       placeholder="Type your response here…"
                       disabled={busy}
@@ -791,13 +796,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={submitAnswer}
                     disabled={promptIndex == null || !hasAnswer || busy}
-                    className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm sm:text-base font-medium transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(242,242,242,0.70)" : "#F2F2F2",
+                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.25)" : "#4ADE80",
                       color: "#0B0B0B",
                       cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
-                      boxShadow: promptIndex == null || !hasAnswer || busy ? "0 0 0 rgba(0,0,0,0)" : "0 8px 20px rgba(0,0,0,0.35)",
+                      boxShadow: promptIndex == null || !hasAnswer || busy ? "none" : "0 4px 20px rgba(74,222,128,0.15)",
                       transform: promptIndex == null || !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)",
                     }}
                   >
