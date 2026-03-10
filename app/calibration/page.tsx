@@ -746,6 +746,17 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {resumeUploading ? (<><Spinner /><span className="ml-2">Uploading…</span></>) : "Continue"}
                   </button>
                 </div>
+                <div className="mt-10 text-center" style={{ opacity: resumeDone ? 1 : 0, transition: "opacity 0.6s 0.3s" }}>
+                  <a
+                    href="/calibration/build-resume"
+                    className="text-xs transition-colors duration-200"
+                    style={{ color: "rgba(207,207,207,0.5)", textDecoration: "none", borderBottom: "1px solid rgba(207,207,207,0.18)" }}
+                    onMouseEnter={e => { e.currentTarget.style.color = "rgba(207,207,207,0.8)"; e.currentTarget.style.borderBottomColor = "rgba(207,207,207,0.35)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = "rgba(207,207,207,0.5)"; e.currentTarget.style.borderBottomColor = "rgba(207,207,207,0.18)"; }}
+                  >
+                    Don&apos;t have a resume? Build a great one.
+                  </a>
+                </div>
               </div>
             ) : null}
 
