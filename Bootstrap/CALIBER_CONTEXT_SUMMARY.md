@@ -67,16 +67,57 @@ Job-fit evaluation lives exclusively in the browser extension sidecard.
 The extension sidecard is the primary decision surface. Compact, decision-first layout.
 
 **Structure (top to bottom):**
-1. **Header bar** — Caliber logo + close button
-2. **Top row** — Two-column: company name + job title (left), fit score (26px) + decision badge (right)
-3. **Hiring Reality Check** — Collapsible row with band badge (High/Possible/Unlikely) in toggle; expands to show reason
+
+*Above the sidecard (conditional):*
+0. **Better Search Title recovery banner** — appears only when weak-fit trigger fires. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
+
+*Inside the sidecard:*
+1. **Header bar** — Caliber logo + refresh + close button
+2. **Top row** — Two-column: company name + job title (right), fit score (28px) + decision badge (left)
+3. **Hiring Reality Check** — Collapsible row with band badge (High/Possible/Unlikely); reason text color-matched to band
 4. **Bottom line** — Collapsible, collapsed by default
 5. **Supports fit** — Green toggle with bullet count; expands to bullet list
 6. **Stretch factors** — Yellow toggle with bullet count; expands to bullet list
-7. **Actions** — "Open in Caliber" primary, "Recalculate" secondary
+7. **Nearby roles** — Collapsible, blue-tinted (conditional)
+8. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text
 
-**Dimensions:** 320px wide, 420px max height.
-**Version:** v0.4.1.
+**Dimensions:** 340px wide, 460px max height.
+**Version:** v0.4.7.
+
+## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
+
+Better Search Title is a **Search Surface Recovery Mechanism**. It answers the user question: "What title should I search to find better-fit jobs?"
+
+**Trigger:** Rolling window of the last 4 scored jobs. If 3/4 score below 6.0 and none score above 7.0, the feature activates.
+
+**UX:**
+- Recovery banner renders **above** the sidecard, not inside it.
+- Banner is visually connected to the sidecard but structurally separate.
+- The suggested title is the clickable control — clicking navigates to a LinkedIn search for that title.
+- Compact, visually calm (blue accent, not error-red). Feels like a helpful next move, not a warning.
+
+**Title suggestion logic:**
+- Primary: calibration primary title (the user's strongest fit direction from their calibration session).
+- Secondary: adjacent search-surface titles from calibration (cross-cluster alternatives).
+- Never: exact listing titles, employer-specific phrasing, long compound titles, or overly narrow job-specific phrases.
+- Titles must be broader market-search terms — plausible, reusable across many listings, adjacent to the user's fit zone.
+
+**Product principle separation:**
+- Navigation guidance (Better Search Title) is structurally separated from job evaluation (sidecard).
+- The sidecard evaluates the current job. The recovery banner redirects the search.
+
+**API support:** `/api/extension/fit` returns `calibration_title` (the user's calibration primary title) and `nearby_roles` (adjacent titles) to power the suggestion logic.
+
+## Beta Feedback Loop (2026-03-10)
+
+Structured feedback collection active across extension and web app.
+
+- Extension sidecard: thumbs up/down row at bottom of scored results.
+- Thumbs down expands to chip panel (Score wrong / Hiring reality wrong / Title suggestion wrong / Explanation not helpful / Other) + optional textarea.
+- Web results page: same thumbs → chips → submit flow.
+- Behavioral signals tracked per session: jobs_viewed, scores_below_6, highest_score, suggest_shown, suggest_clicked.
+- Backend: `POST /api/feedback` endpoint, JSONL append-only log at `data/feedback_events.jsonl`.
+- Session signals reset on search query change and panel deactivate.
 
 ## Known Pain Points
 
@@ -150,7 +191,7 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 - Next/previous job navigation
 - Sidebar tools (resume tailoring, interview prep)
 
-## Next Tasks (locked order, updated 2026-03-10)
+## Next Tasks (locked order, updated 2026-03-10, v0.4.7)
 
 1. **Extension compact scanline UX refinement** — tune visual/interaction details of the decision-first sidecard.
 2. **Extension decision trust / scoring clarity** — ensure scores and signals feel credible and actionable.
@@ -184,6 +225,7 @@ These fixtures verify:
 
 ## Deferred / Later
 
+- Job Board Adapter Architecture implementation (decision recorded, adapters not yet built — see kernel.md)
 - 5-title discovery expansion / adjacent titles
 - Static "How we arrived at these titles" explainer on titles page
 - Adaptive search suggestions

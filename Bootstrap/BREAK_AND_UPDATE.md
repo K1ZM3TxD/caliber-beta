@@ -71,5 +71,47 @@ When the change lands, report:
 
 ## Notes / Scope
 - This workflow is for process + enforcement + contract drift control.
-- It is not required for routine implementation that doesn’t change expectations.- Architecture shifts, release-model changes (e.g., prod/dev environment separation), and roadmap re-sequencing qualify as breaks and should use this workflow.- If unsure whether something is a “break”, treat it as a break and run the workflow.
+- It is not required for routine implementation that doesn't change expectations.
+- Architecture shifts, release-model changes (e.g., prod/dev environment separation), and roadmap re-sequencing qualify as breaks and should use this workflow.
+- If unsure whether something is a "break", treat it as a break and run the workflow.
+
+---
+
+## Recent BREAK+UPDATE Log (newest first)
+
+### 2026-03-10 — Better Search Title UX + Logic Adjustment (v0.4.7)
+**What changed:**
+- Better Search Title moved from sidecard footer to standalone recovery banner above the sidecard
+- Suggested title is now the clickable control (navigates to LinkedIn search)
+- Title suggestion logic changed: calibration primary title first, then adjacent search-surface titles; listing-specific title fallback removed
+- Product principle established: Better Search Title is a Search Surface Recovery Mechanism
+
+**What is now expected:**
+- Recovery banner renders above sidecard when weak-fit trigger fires
+- Suggestions are broader market-search titles, not listing-specific phrases
+- The feature is structurally separated from job evaluation (sidecard)
+
+**What is no longer expected:**
+- Suggestion inside sidecard footer
+- Exact job listing titles as suggestions
+- Best-scored-job-title fallback
+
+**Files touched:** extension/content_linkedin.js, app/api/extension/fit/route.ts, extension/manifest.json
+
+### 2026-03-10 — Beta Feedback Loop (v0.4.6)
+**What changed:**
+- Structured feedback collection: thumbs up/down + negative-feedback chips + optional text
+- Extension sidecard + web results page both collect feedback
+- POST /api/feedback endpoint + JSONL append-only store
+- Behavioral signals: jobs_viewed, scores_below_6, highest_score, suggest_shown/clicked
+
+**Files touched:** app/api/feedback/route.ts, lib/feedback_store.ts, extension/background.js, extension/content_linkedin.js, app/results/ResultsClient.tsx
+
+### 2026-03-10 — Job Board Adapter Architecture Decision
+**What changed:**
+- Architecture decision: site-specific adapters required before multi-board expansion
+- Adapter contract: extractJobData() → normalized job object (title, company, location, description)
+- Scoring engine must consume only normalized object, never site-specific DOM
+
+**Files touched:** Bootstrap/milestones.md, Bootstrap/kernel.md, Bootstrap/CALIBER_ISSUES_LOG.md, decisions.md
 (See <attachments> above for file contents. You may not need to search or read the file again.)

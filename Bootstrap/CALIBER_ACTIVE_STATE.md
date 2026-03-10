@@ -5,7 +5,7 @@
 ---
 
 ## Current Phase
-**Extension-first operating model — sidecard is primary product surface.** Calibration page is a polished launchpad; browser extension sidecard is the primary decision surface with job identity, Hiring Reality Check, and collapsible detail sections.
+**Extension-first operating model — sidecard is primary product surface.** Calibration page is a polished launchpad; browser extension sidecard is the primary decision surface with job identity, Hiring Reality Check, and collapsible detail sections. Better Search Title recovery banner renders above the sidecard as a search-surface recovery mechanism.
 
 ## Top Blocker
 **None blocking.** Extension handshake bug (#31) is a known friction point (may require manual tab refresh on first install) but does not block the primary user flow. No critical blockers remain.
@@ -23,7 +23,11 @@
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.4.1 built, zipped, and deployed.
+- Extension v0.4.7 built, zipped, and deployed.
+- Better Search Title promoted above sidecard as standalone recovery banner (v0.4.7).
+- Better Search Title logic adjusted: suggests calibration primary title or adjacent search-surface titles, not listing-specific titles.
+- Better Search Title is now explicitly a **Search Surface Recovery Mechanism** — answers "What title should I search to find better-fit jobs?"
+- Beta feedback loop active: thumbs up/down + structured signals + JSONL event log (v0.4.6).
 - Production/dev environment split active and verified. Production: `caliber-app.com`. Dev: `localhost:3000`. No cross-environment contact.
 - Title scoring baseline stable: 45/45 smoke tests pass (Chris, Jen, Fabio, Dingus fixtures).
 - `/extension` page serves current extension build as the primary user install path.
@@ -38,6 +42,20 @@ calibration → results page → /extension → download ZIP → install in Chro
 1. Extension compact scanline UX refinement
 2. Extension decision trust / scoring clarity
 3. No unnecessary expansion of calibration scope
+
+## Better Search Title (Search Surface Recovery)
+
+Product principle: Better Search Title is a **Search Surface Recovery Mechanism**.
+
+It answers: "What title should I search to find better-fit jobs?"
+
+Behavior:
+- Renders as a recovery banner **above** the sidecard (not inside it)
+- Appears only when weak-fit trigger fires (3/4 recent scores < 6.0, none > 7.0)
+- Suggested title is the clickable control — links directly to LinkedIn search
+- Suggests calibration primary title first, then adjacent search-surface titles
+- Never suggests exact listing titles or employer-specific phrasing
+- Visually calm, compact, does not increase sidecard height
 
 Do not re-sequence without new blocking evidence.
 
@@ -59,4 +77,4 @@ Extension compact scanline UX refinement — determine which visual/interaction 
 
 ---
 
-_Last updated: 2026-03-10_
+_Last updated: 2026-03-10 (v0.4.7)_
