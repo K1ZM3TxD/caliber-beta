@@ -263,10 +263,10 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Web app `/pipeline` page lists entries with stage badges, advance/archive controls.
   - API: GET/POST/PATCH `/api/pipeline`.
 
-37. Noise control for strong-match CTA — **OPEN** (2026-03-10)
+37. Noise control for strong-match CTA — **PARTIALLY RESOLVED** (2026-03-10, updated)
+  - Baseline suppression is live: extension suppresses the 8.0+ tailor CTA for jobs already present in the user's pipeline. This eliminates repeated CTA exposure for jobs the user has already acted on.
+  - Remaining refinement (OPEN): per-session and time-based suppression rules for jobs not yet in pipeline. Guard against CTA fatigue for first-time 8.0+ exposures across a browsing session.
   - The 8.0+ contextual card must remain low-noise and non-intrusive.
-  - Must not appear on every page load for the same job — once user acts on or dismisses it, suppress.
-  - Future work: track which jobs have been tailored and suppress re-showing the CTA for those jobs.
   - Guard against CTA fatigue: contextual action should feel like a helpful next step, not a persistent nag.
 
 ---
@@ -296,3 +296,21 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Stale v0.3.5 zip was being served due to CDN caching.
   - Bumped to v0.4.0, then v0.4.1 with new filenames to bust Vercel CDN cache.
   - Rule: always bump version AND rename zip file when rebuilding extension for deployment.
+
+---
+
+## Issues Added 2026-03-10 (Pipeline Truthfulness + Extension v0.6.0)
+
+38. Pipeline entry persisted at prepare time — **RESOLVED** (2026-03-10)
+  - Pipeline entry is now created at `/api/tailor/prepare` time in `strong_match` stage, not only after tailoring completes.
+  - Pipeline advances to `tailored` during `/api/tailor/generate`.
+  - `/tailor` confirmation banner is gated by actual pipeline existence — only shown when backed by a real entry.
+  - This corrects prior behavior where pipeline persistence began only after tailoring was complete.
+
+39. Extension bug-report feedback action — **RESOLVED** (2026-03-10)
+  - Extension feedback row now includes a separate bug-report action, distinct from thumbs-down quality feedback.
+  - Bug reporting is for extension issues (crashes, rendering errors, incorrect behavior). Thumbs-down remains for scoring/content quality feedback.
+  - Shipped in extension v0.6.0.
+
+40. Extension v0.6.0 — **RESOLVED** (2026-03-10)
+  - Extension bumped to v0.6.0 with: pipeline truthfulness (prepare-time persistence), CTA suppression for jobs already in pipeline, separate bug-report action in feedback row.

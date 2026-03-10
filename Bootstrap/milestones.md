@@ -1,5 +1,22 @@
 ---
 
+BREAK + UPDATE — 2026-03-10 (Pipeline Truthfulness + Extension v0.6.0)
+---
+DONE:
+- Pipeline entry now created at `/api/tailor/prepare` time in `strong_match` stage — persistence begins before tailoring, not after
+- Pipeline advances to `tailored` during `/api/tailor/generate`
+- `/tailor` confirmation banner gated by actual pipeline existence (truthful — only shown when backed by real entry)
+- Extension suppresses 8.0+ tailor CTA for jobs already present in user's pipeline (baseline CTA noise control)
+- Extension feedback row includes separate bug-report action, distinct from thumbs-down quality feedback
+- Extension bumped to v0.6.0
+- PM docs refreshed to reflect current shipped product truth
+
+REMAINING:
+- CTA noise-control refinement: per-session and time-based suppression for jobs not yet in pipeline
+- Pipeline is still intentionally minimal — not a CRM
+
+---
+
 BREAK + UPDATE — 2026-03-10 (Strong-Match Action + Resume Tailoring + Job Pipeline)
 ---
 DONE:

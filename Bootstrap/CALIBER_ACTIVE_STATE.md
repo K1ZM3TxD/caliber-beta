@@ -23,10 +23,15 @@
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.5.1 built, zipped, and deployed.
+- Extension v0.6.0 built, zipped, and deployed.
 - Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
+- Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
+- Pipeline advances to `tailored` stage during `/api/tailor/generate`.
+- `/tailor` confirmation banner is gated by actual pipeline existence — only shown when backed by a real pipeline entry.
+- Extension suppresses the 8.0+ tailor CTA for jobs already present in the user's pipeline (baseline CTA noise control).
 - Resume tailoring: extension POSTs job context → `/api/tailor/prepare` → web `/tailor` page generates tailored resume via OpenAI using existing Caliber resume + job context.
 - Simple job pipeline/tracker: `/pipeline` page with stages (Strong Match → Tailored → Applied → Interviewing). Intentionally minimal — not a CRM.
+- Extension feedback row now includes a separate bug-report action, distinct from thumbs-down quality feedback.
 - Better Search Title promoted above sidecard as standalone recovery banner (v0.4.7).
 - Better Search Title logic adjusted: suggests calibration primary title or adjacent search-surface titles, not listing-specific titles.
 - Better Search Title is now explicitly a **Search Surface Recovery Mechanism** — answers "What title should I search to find better-fit jobs?"
@@ -44,7 +49,7 @@ calibration → results page → /extension → download ZIP → install in Chro
 ## Locked Task Order
 1. Strong-match resume-tailoring workflow (8.0+ contextual CTA → tailor page → download)
 2. Simple job pipeline/tracker (minimal stages, anti-bloat)
-3. Noise control for repeated strong-match CTA exposure
+3. CTA noise-control refinement — baseline suppression (jobs already in pipeline) is live; remaining work is per-session / time-based refinement
 4. Extension compact scanline UX refinement (ongoing)
 5. No unnecessary expansion of calibration scope — calibration page is stable
 
@@ -84,10 +89,10 @@ Calibration page remains a launchpad, not a scoring engine. The action layer (ta
 ## Next PM Decision Needed
 1. **Strong-match tailoring workflow** — validate end-to-end flow quality; determine if text download is sufficient or PDF generation is needed.
 2. **Simple pipeline/tracker** — confirm stage model is sufficient; decide whether pipeline entries should auto-populate on 8.0+ scores or only after explicit user action.
-3. **CTA noise control** — determine suppression rules for repeated strong-match card exposure (per-job, per-session, time-based).
+3. **CTA noise-control refinement** — baseline suppression is live (CTA suppressed for jobs already in pipeline). Remaining work: per-session and time-based suppression rules for jobs not yet in pipeline.
 
 Keep the action layer low-noise and non-bloated. Pipeline must not creep toward CRM.
 
 ---
 
-_Last updated: 2026-03-10 (v0.5.1 — strong-match action + resume tailoring + job pipeline)_
+_Last updated: 2026-03-10 (v0.6.0 — pipeline truthfulness, CTA suppression baseline, extension bug-report action)_

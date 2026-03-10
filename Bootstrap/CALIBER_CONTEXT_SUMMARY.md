@@ -13,9 +13,9 @@
 - Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension. Nothing is fabricated.
 - Tailored jobs feed a simple pipeline/tracker (`/pipeline`) with intentionally minimal stages: Strong Match → Tailored → Applied → Interviewing.
 - Pipeline is NOT a CRM. No subtasks, notes, timelines, or due dates.
-- Extension v0.5.1 deployed with strong-match contextual card, tailor workflow, and pipeline integration.
+- Extension v0.6.0 deployed with strong-match contextual card, tailor workflow, pipeline integration, CTA suppression for jobs already in pipeline, and separate bug-report feedback action.
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
-- Next priorities: validate tailoring quality → noise control for CTA → pipeline refinement. No generic feature sprawl.
+- Next priorities: validate tailoring quality → CTA noise-control refinement (baseline suppression live) → pipeline refinement. No generic feature sprawl.
 
 **Real User Flow:**
 ```
@@ -86,10 +86,10 @@ The extension sidecard is the primary decision surface. Compact, decision-first 
 5. **Supports fit** — Green toggle with bullet count; expands to bullet list
 6. **Stretch factors** — Yellow toggle with bullet count; expands to bullet list
 7. **Nearby roles** — Collapsible, blue-tinted (conditional)
-8. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text
+7. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
 
 **Dimensions:** 340px wide, 460px max height.
-**Version:** v0.4.7.
+**Version:** v0.6.0.
 
 ## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
 
@@ -121,6 +121,7 @@ Structured feedback collection active across extension and web app.
 
 - Extension sidecard: thumbs up/down row at bottom of scored results.
 - Thumbs down expands to chip panel (Score wrong / Hiring reality wrong / Title suggestion wrong / Explanation not helpful / Other) + optional textarea.
+- Separate bug-report action in the feedback row for reporting extension issues — distinct from thumbs-down quality feedback.
 - Web results page: same thumbs → chips → submit flow.
 - Behavioral signals tracked per session: jobs_viewed, scores_below_6, highest_score, suggest_shown, suggest_clicked.
 - Backend: `POST /api/feedback` endpoint, JSONL append-only log at `data/feedback_events.jsonl`.
@@ -202,7 +203,7 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 
 1. **Strong-match resume-tailoring workflow** — validate end-to-end quality; determine text vs PDF download.
 2. **Simple job pipeline/tracker** — confirm stage model; decide auto-populate vs explicit user action.
-3. **Noise control for strong-match CTA** — suppress repeated exposure per-job/per-session.
+3. **CTA noise-control refinement** — baseline suppression is live (CTA suppressed for jobs already in pipeline); remaining work is per-session / time-based rules.
 4. **Extension compact scanline UX refinement** — tune visual/interaction details of the decision-first sidecard.
 5. **No unnecessary expansion of calibration scope** — calibration page is stable.
 6. **Bottom line / explanation polish** — only as needed for beta credibility.
@@ -254,10 +255,14 @@ These fixtures verify:
 - Jobs scoring 8.0+ trigger a contextual "Tailor resume for this job" card above the extension sidecard.
 - The card renders in the same position as the Better Search Title recovery banner (above the sidecard, not inside it).
 - Clicking triggers: extension POSTs job context (title, company, description, URL) to `/api/tailor/prepare` → opens `/tailor?id=...` in a new tab.
+- `/api/tailor/prepare` creates a pipeline entry in `strong_match` stage at prepare time — pipeline persistence begins before tailoring, not after.
 - The `/tailor` page loads the prepared job context, then generates a tailored resume using OpenAI.
+- Pipeline advances to `tailored` stage during `/api/tailor/generate`.
 - Tailoring input: the user's existing uploaded Caliber resume (`session.resume.rawText`) + the live job description from the extension.
 - Tailoring rules: NEVER fabricate experience, skills, or accomplishments. Only reorder, emphasize, and adjust language to align with the target role.
 - Output: tailored resume text, downloadable as `.txt`.
+- The `/tailor` confirmation banner is gated by actual pipeline existence — only shown when backed by a real pipeline entry.
+- Extension suppresses the 8.0+ tailor CTA for jobs already present in the user's pipeline (baseline CTA noise control).
 - Language: "Tailor resume for this job" — not "Apply for this job."
 
 **Simple Job Pipeline/Tracker:**
