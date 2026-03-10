@@ -966,7 +966,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     }}
                   >
                     <div className="px-10 py-14 sm:px-14 sm:py-16 text-center">
-                      <div className="text-5xl sm:text-6xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
+                      <div className="text-4xl sm:text-5xl font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
                       <div className="flex items-center justify-center gap-6 mt-9">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
