@@ -5,10 +5,10 @@
 ---
 
 ## Current Phase
-**Extension-first operating model — sidecard is primary product surface.** Calibration page is a polished launchpad; browser extension sidecard is the primary decision surface with job identity, Hiring Reality Check, and collapsible detail sections. Better Search Title recovery banner renders above the sidecard as a search-surface recovery mechanism.
+**Strong-match action workflow.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) now feed an action workflow. Calibration page is a stable launchpad. Extension sidecard evaluates jobs. Strong matches trigger a contextual "Tailor resume for this job" card above the sidecard, leading to resume tailoring and a simple job pipeline/tracker on the web app. Better Search Title recovery banner continues to render above the sidecard for weak-search recovery.
 
 ## Top Blocker
-**None blocking.** Extension handshake bug (#31) is a known friction point (may require manual tab refresh on first install) but does not block the primary user flow. No critical blockers remain.
+**None blocking.** Extension handshake bug (#31) is known friction (may require manual tab refresh on first install). Strong-match pipeline + tailoring workflow is the active product initiative.
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
@@ -23,7 +23,10 @@
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.4.7 built, zipped, and deployed.
+- Extension v0.5.1 built, zipped, and deployed.
+- Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
+- Resume tailoring: extension POSTs job context → `/api/tailor/prepare` → web `/tailor` page generates tailored resume via OpenAI using existing Caliber resume + job context.
+- Simple job pipeline/tracker: `/pipeline` page with stages (Strong Match → Tailored → Applied → Interviewing). Intentionally minimal — not a CRM.
 - Better Search Title promoted above sidecard as standalone recovery banner (v0.4.7).
 - Better Search Title logic adjusted: suggests calibration primary title or adjacent search-surface titles, not listing-specific titles.
 - Better Search Title is now explicitly a **Search Surface Recovery Mechanism** — answers "What title should I search to find better-fit jobs?"
@@ -39,9 +42,11 @@ calibration → results page → /extension → download ZIP → install in Chro
 `/extension` must always serve the current extension build — it is the user-facing install path.
 
 ## Locked Task Order
-1. Extension compact scanline UX refinement
-2. Extension decision trust / scoring clarity
-3. No unnecessary expansion of calibration scope
+1. Strong-match resume-tailoring workflow (8.0+ contextual CTA → tailor page → download)
+2. Simple job pipeline/tracker (minimal stages, anti-bloat)
+3. Noise control for repeated strong-match CTA exposure
+4. Extension compact scanline UX refinement (ongoing)
+5. No unnecessary expansion of calibration scope — calibration page is stable
 
 ## Better Search Title (Search Surface Recovery)
 
@@ -60,21 +65,29 @@ Behavior:
 Do not re-sequence without new blocking evidence.
 
 ## Product Surface Priority
-1. **Extension sidecard** — compact scanline refinement, decision trust, scoring clarity
-2. **Extension reliability** — handshake, session discovery (known friction, not blocking)
-3. **Calibration page** — stable launchpad, no further expansion planned
+1. **Extension sidecard** — primary discovery surface; strong matches (8.0+) trigger action workflow
+2. **Tailor + Pipeline (web app)** — strong-match action layer: resume tailoring and minimal job pipeline
+3. **Extension reliability** — handshake, session discovery (known friction, not blocking)
+4. **Calibration page** — stable launchpad, no further expansion planned
 
-Calibration page remains a launchpad, not a scoring engine.
+Calibration page remains a launchpad, not a scoring engine. The action layer (tailor + pipeline) is the next product surface — intentionally minimal.
 
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
+- #35 Strong-match resume-tailoring workflow (ACTIVE — current initiative)
+- #36 Simple job pipeline/tracker (ACTIVE — current initiative)
+- #37 Noise control for strong-match CTA (OPEN)
 - #31 Extension session handshake friction (OPEN, known — not top blocker)
 - #26 Market-job scores low despite high calibration title scores (OPEN)
 - #27 Search-surface / adjacent-title discovery gap (OPEN)
 - #15 Bottom line paragraph repetition (OPEN)
 
 ## Next PM Decision Needed
-Extension compact scanline UX refinement — determine which visual/interaction details need tuning for decision trust.
+1. **Strong-match tailoring workflow** — validate end-to-end flow quality; determine if text download is sufficient or PDF generation is needed.
+2. **Simple pipeline/tracker** — confirm stage model is sufficient; decide whether pipeline entries should auto-populate on 8.0+ scores or only after explicit user action.
+3. **CTA noise control** — determine suppression rules for repeated strong-match card exposure (per-job, per-session, time-based).
+
+Keep the action layer low-noise and non-bloated. Pipeline must not creep toward CRM.
 
 ---
 
-_Last updated: 2026-03-10 (v0.4.7)_
+_Last updated: 2026-03-10 (v0.5.1 — strong-match action + resume tailoring + job pipeline)_

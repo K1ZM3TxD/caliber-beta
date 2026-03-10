@@ -79,6 +79,39 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-10 — Strong-Match Action + Resume Tailoring + Job Pipeline
+**What changed:**
+- Caliber expands from evaluation-only to strong-match action workflow.
+- Jobs scoring 8.0+ trigger a contextual "Tailor resume for this job" card above the extension sidecard.
+- Resume tailoring added: uses the user's existing uploaded Caliber resume + live job context from the extension. OpenAI generates a tailored version — no fabrication, only reorder/emphasize/adjust.
+- Simple job pipeline/tracker added: minimal stages (Strong Match → Tailored → Applied → Interviewing; optional Offer / Archived).
+- Pipeline is intentionally NOT a CRM — no subtasks, notes, timelines, or due dates.
+- Extension v0.5.1: contextual card replaces in-sidecard CTA; background.js POSTs to `/api/tailor/prepare`.
+- New API routes: `/api/tailor/prepare`, `/api/tailor/generate`, `/api/pipeline`.
+- New web pages: `/tailor` (generate + download tailored resume), `/pipeline` (track strong-fit opportunities).
+- New stores: `lib/tailor_store.ts`, `lib/pipeline_store.ts`.
+- Strong-Match Action Invariant added to kernel.md.
+
+**What is now expected:**
+- Strong matches (8.0+) can be acted on — user can tailor their resume for that specific job.
+- Tailoring uses the existing Caliber resume + current job context. No new upload required.
+- Pipeline tracks strong opportunities through minimal stages.
+- CTA language is "Tailor resume for this job" — not "Apply for this job."
+- The contextual card is low-noise: renders above the sidecard, not omnipresent.
+
+**What is no longer expected:**
+- Caliber stops at scoring/explanation only — strong matches now feed an action workflow.
+- Pipeline becomes a bloated CRM/task system — anti-bloat principle is enforced.
+- Tailor CTA lives inside the sidecard — it is now a standalone contextual card above the sidecard.
+
+**Files touched:**
+- Bootstrap/milestones.md
+- Bootstrap/CALIBER_ISSUES_LOG.md
+- Bootstrap/CALIBER_ACTIVE_STATE.md
+- Bootstrap/CALIBER_CONTEXT_SUMMARY.md
+- Bootstrap/kernel.md
+- Bootstrap/BREAK_AND_UPDATE.md
+
 ### 2026-03-10 — Better Search Title UX + Logic Adjustment (v0.4.7)
 **What changed:**
 - Better Search Title moved from sidecard footer to standalone recovery banner above the sidecard

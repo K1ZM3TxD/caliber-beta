@@ -389,6 +389,17 @@ Roadmap sequencing can block feature work when credibility or stability issues r
 - Phase 2 / feature-layer work is blocked until PM explicitly unblocks.
 - This is a durable rule, not a temporary pause.
 
+## Strong-Match Action Invariant (2026-03-10)
+
+Strong-fit jobs may trigger an action workflow. This invariant constrains what actions are allowed and how they surface.
+
+- Only jobs scoring 8.0+ may trigger the "Tailor resume for this job" action. Lower scores do not get tailoring CTAs.
+- The contextual card must remain low-noise: it renders above the sidecard (like the recovery banner), not inside it, and must not feel like a persistent nag.
+- Resume tailoring must NEVER fabricate experience, skills, or accomplishments. Only reorder, emphasize, and adjust language.
+- The job pipeline must remain intentionally minimal. Stages: Strong Match → Tailored → Applied → Interviewing (+ optional Offer / Archived).
+- Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates. If it gains these, the design has failed.
+- This is the next product layer after scoring trust — not a generic feature expansion or platform play.
+
 
 
 

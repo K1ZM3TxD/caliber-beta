@@ -240,6 +240,37 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ---
 
+## Issues Added 2026-03-10 (Strong-Match Action + Resume Tailoring + Job Pipeline)
+
+35. Strong-match resume-tailoring workflow — **ACTIVE** (2026-03-10, product initiative)
+  - Jobs scoring 8.0+ should trigger a contextual "Tailor resume for this job" action.
+  - Workflow: extension detects 8.0+ → shows above-sidecard contextual card → user clicks → extension POSTs job context to `/api/tailor/prepare` → web app `/tailor` page opens → user generates tailored resume via OpenAI → downloads tailored resume text.
+  - Tailoring uses the user's existing uploaded Caliber resume (`session.resume.rawText`) plus the live job context (title, company, description) from the extension.
+  - Tailoring must NEVER fabricate experience, skills, or accomplishments. Only reorder, emphasize, and adjust language.
+  - Language: "Tailor resume for this job" — not "Apply for this job."
+  - The contextual card renders above the sidecard (like the recovery banner), not inside it.
+
+36. Simple job pipeline/tracker — **ACTIVE** (2026-03-10, product initiative)
+  - Caliber gains a minimal job pipeline/tracker for strong-fit opportunities.
+  - Pipeline stage model (intentionally minimal):
+    - Strong Match — job scored 8.0+, saved to pipeline
+    - Tailored — resume tailored for this job
+    - Applied — user self-reports application
+    - Interviewing — user self-reports interview stage
+    - (optional) Offer / Archived — non-primary stages, available but not featured
+  - Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates.
+  - Anti-bloat principle: pipeline exists to maintain clarity about strong opportunities, not to manage a job search workflow.
+  - Web app `/pipeline` page lists entries with stage badges, advance/archive controls.
+  - API: GET/POST/PATCH `/api/pipeline`.
+
+37. Noise control for strong-match CTA — **OPEN** (2026-03-10)
+  - The 8.0+ contextual card must remain low-noise and non-intrusive.
+  - Must not appear on every page load for the same job — once user acts on or dismisses it, suppress.
+  - Future work: track which jobs have been tailored and suppress re-showing the CTA for those jobs.
+  - Guard against CTA fatigue: contextual action should feel like a helpful next step, not a persistent nag.
+
+---
+
 ## Issues Added 2026-03-10 (Extension-First UX Stabilization)
 
 35. Calibration results page final polish — **RESOLVED** (2026-03-10)

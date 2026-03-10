@@ -2,20 +2,27 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-10, Extension-First UX Stabilization)
+## Project Status (2026-03-10, Strong-Match Action Workflow)
 
-**Extension sidecard is the primary product surface.** Calibration page is a polished launchpad; extension delivers all real-role evaluation.
+**Extension sidecard is the primary discovery surface. Strong-fit jobs (8.0+) now feed an action workflow.** Calibration page is a polished launchpad; extension delivers all real-role evaluation; strong matches trigger a contextual "Tailor resume for this job" card leading to resume tailoring and a simple job pipeline.
 
+- Caliber has expanded from evaluation-only to strong-match action workflow.
 - The calibration page (`/calibration`) is a launchpad. Output: one hero title direction, extension install CTA, scoring philosophy.
 - The browser extension sidecard is the primary decision surface: job identity, fit score, decision badge, Hiring Reality Check, collapsible supports/stretch/bottom line.
-- Extension v0.4.1 deployed with compact decision-first layout.
-- Calibration results page received final polish pass (2026-03-10): smaller hero title, lighter section label, green primary CTA, yellow secondary, human-language explanation dropdown.
+- Jobs scoring 8.0+ trigger a contextual card above the sidecard: "Tailor resume for this job."
+- Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension. Nothing is fabricated.
+- Tailored jobs feed a simple pipeline/tracker (`/pipeline`) with intentionally minimal stages: Strong Match → Tailored → Applied → Interviewing.
+- Pipeline is NOT a CRM. No subtasks, notes, timelines, or due dates.
+- Extension v0.5.1 deployed with strong-match contextual card, tailor workflow, and pipeline integration.
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
-- Next priorities: extension compact scanline refinement → decision trust / scoring clarity. No expansion of calibration scope.
+- Next priorities: validate tailoring quality → noise control for CTA → pipeline refinement. No generic feature sprawl.
 
 **Real User Flow:**
 ```
 calibration → results page → /extension → download ZIP → install in Chrome → navigate LinkedIn → extension scores jobs
+
+Strong-match action flow (8.0+):
+LinkedIn job scores 8.0+ → contextual card above sidecard → "Tailor resume for this job" → /tailor page → generate tailored resume → download → entry tracked in /pipeline
 ```
 `/extension` must always serve the current extension build.
 
@@ -191,13 +198,15 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 - Next/previous job navigation
 - Sidebar tools (resume tailoring, interview prep)
 
-## Next Tasks (locked order, updated 2026-03-10, v0.4.7)
+## Next Tasks (locked order, updated 2026-03-10, v0.5.1)
 
-1. **Extension compact scanline UX refinement** — tune visual/interaction details of the decision-first sidecard.
-2. **Extension decision trust / scoring clarity** — ensure scores and signals feel credible and actionable.
-3. **No unnecessary expansion of calibration scope** — calibration page is stable.
-4. **Bottom line / explanation polish** — only as needed for beta credibility.
-5. **Phase 2 overlay/list scoring** — deferred until after stable beta.
+1. **Strong-match resume-tailoring workflow** — validate end-to-end quality; determine text vs PDF download.
+2. **Simple job pipeline/tracker** — confirm stage model; decide auto-populate vs explicit user action.
+3. **Noise control for strong-match CTA** — suppress repeated exposure per-job/per-session.
+4. **Extension compact scanline UX refinement** — tune visual/interaction details of the decision-first sidecard.
+5. **No unnecessary expansion of calibration scope** — calibration page is stable.
+6. **Bottom line / explanation polish** — only as needed for beta credibility.
+7. **Phase 2 overlay/list scoring** — deferred until after stable beta.
 
 ## Scoring Baseline
 
@@ -236,3 +245,36 @@ These fixtures verify:
 - Sidebar tools (resume tailoring, interview prep)
 - Preview-text scoring (experiment only)
 - Post-score LLM dialogue mode toggle
+
+## Strong-Match Action Workflow (2026-03-10, Product Decision)
+
+**Product shift:** Caliber expands beyond evaluation-only into strong-match actionability. This is the next product layer after scoring trust — not a generic feature expansion.
+
+**8.0+ Contextual Tailoring Action:**
+- Jobs scoring 8.0+ trigger a contextual "Tailor resume for this job" card above the extension sidecard.
+- The card renders in the same position as the Better Search Title recovery banner (above the sidecard, not inside it).
+- Clicking triggers: extension POSTs job context (title, company, description, URL) to `/api/tailor/prepare` → opens `/tailor?id=...` in a new tab.
+- The `/tailor` page loads the prepared job context, then generates a tailored resume using OpenAI.
+- Tailoring input: the user's existing uploaded Caliber resume (`session.resume.rawText`) + the live job description from the extension.
+- Tailoring rules: NEVER fabricate experience, skills, or accomplishments. Only reorder, emphasize, and adjust language to align with the target role.
+- Output: tailored resume text, downloadable as `.txt`.
+- Language: "Tailor resume for this job" — not "Apply for this job."
+
+**Simple Job Pipeline/Tracker:**
+- Strong-fit opportunities are tracked in a minimal pipeline at `/pipeline`.
+- Pipeline stage model (intentionally minimal):
+  - **Strong Match** — job scored 8.0+, saved to pipeline
+  - **Tailored** — resume tailored for this job
+  - **Applied** — user self-reports application
+  - **Interviewing** — user self-reports interview stage
+  - (optional) **Offer** / **Archived** — non-primary stages, available but not featured
+- Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates.
+- Anti-bloat principle: pipeline exists to maintain clarity about strong opportunities, not to manage a job search workflow.
+
+**API Surface:**
+- `POST /api/tailor/prepare` — extension stages job context (CORS-enabled for chrome-extension origin)
+- `GET /api/tailor/prepare?id=...` — tailor page retrieves staged context
+- `POST /api/tailor/generate` — generates tailored resume, auto-creates pipeline entry
+- `GET/POST/PATCH /api/pipeline` — pipeline CRUD
+
+**Anti-bloat rationale:** The pipeline must remain intentionally minimal. The moment it gains subtasks, notes, timelines, or CRM-like features, it has failed its design goal. Caliber's pipeline is a clarity tool, not a workflow manager.

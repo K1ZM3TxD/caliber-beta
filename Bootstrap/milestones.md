@@ -1,5 +1,30 @@
 ---
 
+BREAK + UPDATE — 2026-03-10 (Strong-Match Action + Resume Tailoring + Job Pipeline)
+---
+DONE:
+- Extension-first scoring UX stabilized (sidecard, HRC, compact layout, feedback loop)
+- Contextual title recovery direction established (Better Search Title as search-surface recovery mechanism)
+- Calibration/web visual polish direction established (brand-color, green CTAs, hero simplification)
+- Product decision: Caliber expands from evaluation-only to strong-match action workflow
+
+NEXT:
+- Strong-match contextual resume-tailoring flow: 8.0+ jobs trigger "Tailor resume for this job" action
+- Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension
+- Simple job pipeline/tracker for strong-fit opportunities:
+  - Stages: Strong Match → Tailored → Applied → Interviewing (+ optional Offer / Archived)
+- Extension contextual card (above sidecard) for 8.0+ jobs replaces in-sidecard CTA
+- Tailor page + pipeline page on web app
+
+BLOCKED / GUARDRAILS:
+- Avoid CRM-style pipeline expansion — pipeline must remain intentionally minimal
+- Keep pipeline stage model minimal (no subtasks, no notes, no timeline features)
+- Strong-fit action ONLY on 8.0+ jobs — lower scores do not get tailoring CTAs
+- Tailoring must never fabricate experience; only reorder, emphasize, and adjust language
+- No generic feature sprawl — this is the next focused product layer, not a platform play
+
+---
+
 Milestone: Extension-First UX Stabilization (2026-03-10)
 ---
 
