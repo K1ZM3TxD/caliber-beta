@@ -23,7 +23,9 @@ SHARED_FILES=(
   popup.js
 )
 
-echo "=== Caliber extension build ==="
+# ── Read version from source manifest ──
+EXT_VERSION=$(grep '"version"' extension/manifest.json | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+echo "=== Caliber extension build (v${EXT_VERSION}) ==="
 
 # ── Clean ──
 rm -rf "$PROD_DIR" "$DEV_DIR"
@@ -60,11 +62,11 @@ const CALIBER_ENV = Object.freeze({
 ENVDEV
 
 # ── Generate manifest.json — PRODUCTION ──
-cat > "$PROD_DIR/manifest.json" <<'MPROD'
+cat > "$PROD_DIR/manifest.json" <<MPROD
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score",
-  "version": "0.4.5",
+  "version": "${EXT_VERSION}",
   "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
@@ -116,11 +118,11 @@ cat > "$PROD_DIR/manifest.json" <<'MPROD'
 MPROD
 
 # ── Generate manifest.json — DEV ──
-cat > "$DEV_DIR/manifest.json" <<'MDEV'
+cat > "$DEV_DIR/manifest.json" <<MDEV
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score [DEV]",
-  "version": "0.4.5",
+  "version": "${EXT_VERSION}",
   "description": "DEV BUILD — localhost only. Get a fit score on LinkedIn or Indeed job posts.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": [
