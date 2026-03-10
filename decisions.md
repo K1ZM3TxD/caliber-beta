@@ -17,4 +17,5 @@ YYYY-MM-DD — Decision — Rationale (1 line)
 2026-02-13 — Severe flag must surface in interpretation regardless of numeric score. — Illumination rule.
 
 2026-02-13 — Architecture separated into Kernel / Milestones / State / Overlays. — Prevents drift.
+2026-03-10 — Job Board Adapter Architecture required before multi-board expansion. — Isolates DOM extraction from scoring; enables adding boards without rewriting the scoring engine.
 

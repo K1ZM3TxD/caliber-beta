@@ -90,6 +90,31 @@ Extension is the primary job-evaluation surface.
 - No manual job paste or inline job scoring on this page.
 - "How we score this" philosophy section sits below the hero card.
 
+## Job Board Adapter Invariant
+
+New job boards MUST be added via a site-specific adapter, never by embedding site-specific DOM logic into the scoring engine.
+
+Adapter contract:
+- Each adapter exports `extractJobData()` → normalized job object
+- Normalized fields: `title`, `company`, `location`, `description`
+- The scoring engine consumes ONLY the normalized job object
+- Site-specific DOM extraction is isolated inside the adapter
+
+Defined adapters:
+- `linkedinAdapter` (active — extraction currently inline in content_linkedin.js, to be refactored)
+- `indeedAdapter` (planned)
+- `glassdoorAdapter` (planned)
+- `ziprecruiterAdapter` (planned)
+- `monsterAdapter` (planned)
+
+Benefits:
+- Isolates DOM extraction from scoring logic
+- Simplifies adding new job boards
+- Reduces maintenance when job sites change markup
+- Enables faster expansion to additional platforms
+
+This architecture is the required foundation before implementing Indeed and other job board integrations (Phase 1 multi-board coverage).
+
 ## Scoring Regression Invariant
 
 - Canonical fixture profiles (Chris, Jen, Fabio, Dingus) are regression anchors and must remain stable across scoring updates.

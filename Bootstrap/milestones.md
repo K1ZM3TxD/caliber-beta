@@ -39,6 +39,29 @@ calibration → results page → /extension → download ZIP → install in Chro
 
 ---
 
+BREAK + UPDATE — 2026-03-10 (Job Board Adapter Architecture)
+---
+DONE:
+- Decision recorded: Job Board Adapter Architecture is the required foundation before expanding to additional job boards
+- Architecture contract: site-specific adapters call extractJobData() → normalized job object (title, company, location, description)
+- Adapter roster defined: linkedinAdapter, indeedAdapter, glassdoorAdapter, ziprecruiterAdapter, monsterAdapter
+- Scoring engine contract: MUST consume only the normalized job object, NEVER site-specific DOM logic
+- This is the required approach for Phase 1 multi-board coverage
+- kernel.md updated with Job Board Adapter Invariant
+- CALIBER_ISSUES_LOG updated with tracking issue
+- decisions.md updated
+
+BLOCKED:
+- Implementation not yet started — architecture decision documented first
+
+NEXT:
+1. Implement adapter interface + linkedinAdapter extraction refactor
+2. Implement indeedAdapter (first expansion target)
+3. Scoring engine refactor to consume normalized job object only
+4. Adapter smoke tests per board
+
+---
+
 BREAK + UPDATE — 2026-03-10 (Extension-First UX Stabilization)
 ---
 DONE:

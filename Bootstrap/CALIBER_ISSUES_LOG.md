@@ -3,6 +3,14 @@
 
 ## Current Open Issues
 
+25. Job Board Adapter Architecture — **OPEN** (2026-03-10)
+  - Decision: site-specific adapters required before expanding to additional job boards.
+  - Each adapter exports extractJobData() → normalized job object (title, company, location, description).
+  - Scoring engine must consume only the normalized object, never site-specific DOM logic.
+  - Adapters: linkedinAdapter (refactor from inline), indeedAdapter, glassdoorAdapter, ziprecruiterAdapter, monsterAdapter.
+  - This is the required foundation for Phase 1 multi-board coverage.
+  - Implementation not yet started — architecture decision documented first.
+
 21. Extension session handshake requires refresh after installation — **OPEN** (2026-03-08)
   - Fresh install or refresh causes "no active session" on LinkedIn until manual page refreshes of both Caliber and LinkedIn tabs.
   - Top blocker for extension-first flow.
