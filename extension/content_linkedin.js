@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.4.3";
+  const PANEL_VERSION = "0.4.4";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -439,21 +439,29 @@
   // ─── Rolling Weak-Search Detection ─────────────────────
 
   function checkWeakSearchPattern() {
-    if (recentScores.length < 3) return null;
-    var window = recentScores.slice(-4);
+    if (recentScores.length < 3) {
+      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 3+");
+      return null;
+    }
+    var win = recentScores.slice(-4);
     var weakCount = 0;
     var hasStrong = false;
-    for (var i = 0; i < window.length; i++) {
-      if (window[i].score < 6.0) weakCount++;
-      if (window[i].score > 7.0) hasStrong = true;
+    for (var i = 0; i < win.length; i++) {
+      if (win[i].score < 6.0) weakCount++;
+      if (win[i].score > 7.0) hasStrong = true;
     }
+    console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {
       // Pick best nearby role from most recent result that has them
-      for (var j = window.length - 1; j >= 0; j--) {
-        if (window[j].nearbyRoles && window[j].nearbyRoles.length > 0) {
-          return window[j].nearbyRoles[0].title;
+      for (var j = win.length - 1; j >= 0; j--) {
+        if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
+          console.debug("[Caliber] weak-search triggered, suggesting: " + win[j].nearbyRoles[0].title);
+          return win[j].nearbyRoles[0].title;
         }
       }
+      // Pattern detected but no nearby roles available — signal with empty string
+      console.debug("[Caliber] weak-search triggered, no nearby roles for suggestion");
+      return "";
     }
     return null;
   }
@@ -486,14 +494,26 @@
     var hrcSection = shadow.getElementById("cb-hrc-section");
     var hrcBand = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
+    var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
     var hrc = data.hiring_reality_check;
     if (hrc && hrc.band) {
       hrcSection.style.display = "";
       hrcBand.textContent = hrc.band;
       hrcBand.className = "cb-hrc-badge";
-      if (hrc.band === "High") hrcBand.classList.add("cb-hrc-high");
-      else if (hrc.band === "Possible") hrcBand.classList.add("cb-hrc-possible");
-      else hrcBand.classList.add("cb-hrc-unlikely");
+      hrcToggle.className = "cb-collapse-toggle";
+      if (hrc.band === "High") {
+        hrcBand.classList.add("cb-hrc-high");
+        hrcToggle.classList.add("cb-toggle-green");
+        hrcReason.style.color = "#6EE7A0";
+      } else if (hrc.band === "Possible") {
+        hrcBand.classList.add("cb-hrc-possible");
+        hrcToggle.classList.add("cb-toggle-yellow");
+        hrcReason.style.color = "#D4A017";
+      } else {
+        hrcBand.classList.add("cb-hrc-unlikely");
+        hrcToggle.classList.add("cb-toggle-red");
+        hrcReason.style.color = "#F87171";
+      }
       hrcReason.textContent = hrc.reason || "";
     } else {
       hrcSection.style.display = "none";
@@ -542,13 +562,22 @@
     // Rolling weak-search detection
     recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [] });
     if (recentScores.length > 4) recentScores.shift();
+    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
     var suggestedTitle = checkWeakSearchPattern();
     var sugSection = shadow.getElementById("cb-search-suggest");
-    if (suggestedTitle) {
+    var sugLabel = shadow.getElementById("cb-suggest-label");
+    var sugLink = shadow.getElementById("cb-suggest-link");
+    if (suggestedTitle !== null) {
       sugSection.style.display = "";
-      var sugLink = shadow.getElementById("cb-suggest-link");
-      sugLink.textContent = suggestedTitle;
-      sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+      if (suggestedTitle) {
+        sugLabel.textContent = "\uD83D\uDD0D Try a better search title";
+        sugLink.textContent = suggestedTitle;
+        sugLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+        sugLink.style.display = "";
+      } else {
+        sugLabel.textContent = "\uD83D\uDD0D Most jobs here are a weak fit \u2014 try a different search";
+        sugLink.style.display = "none";
+      }
     } else {
       sugSection.style.display = "none";
     }
@@ -837,7 +866,7 @@
     '      </div>',
     '    </div>',
     '    <div id="cb-search-suggest" class="cb-suggest-banner" style="display:none">',
-    '      <div class="cb-suggest-label">\uD83D\uDD0D Try a better search title</div>',
+    '      <div id="cb-suggest-label" class="cb-suggest-label">\uD83D\uDD0D Try a better search title</div>',
     '      <a id="cb-suggest-link" class="cb-suggest-link" target="_self"></a>',
     '    </div>',
     '  </div>',
@@ -847,7 +876,7 @@
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     ".cb-panel {",
-    "  width: 300px; max-height: 380px; overflow-y: auto;",
+    "  width: 320px; max-height: 420px; overflow-y: auto;",
     "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -864,7 +893,7 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -878,7 +907,7 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 8px 10px; position: relative; }",
+    ".cb-body { padding: 10px 12px; position: relative; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -929,11 +958,11 @@
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
     ".cb-toprow-right { flex: 1; min-width: 0; text-align: right; }",
     ".cb-company-name {",
-    "  font-size: 10px; font-weight: 600; color: #777;",
+    "  font-size: 11px; font-weight: 600; color: #777;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     ".cb-job-title {",
-    "  font-size: 11px; font-weight: 700; color: #F2F2F2;",
+    "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     // Hiring Reality Check badge
@@ -952,13 +981,15 @@
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 6px 0; text-align: left;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
     ".cb-toggle-green { color: #4ADE80; }",
     ".cb-toggle-green:hover { color: #6EE7A0; }",
     ".cb-toggle-yellow { color: #FBBF24; }",
     ".cb-toggle-yellow:hover { color: #FCD34D; }",
+    ".cb-toggle-red { color: #EF4444; }",
+    ".cb-toggle-red:hover { color: #F87171; }",
     ".cb-collapse-icon {",
     "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
@@ -973,7 +1004,7 @@
     ".cb-bullets { list-style: none; padding-bottom: 3px; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 10px;",
-    "  font-size: 10px; color: #CFCFCF; margin-bottom: 1px; line-height: 1.4;",
+    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
