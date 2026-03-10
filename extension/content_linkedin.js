@@ -537,6 +537,20 @@
 
   // ─── Rolling Weak-Search Detection ─────────────────────
 
+  // Returns true if two titles are semantically equivalent for search purposes.
+  // Catches exact matches, case/whitespace differences, and containment overlap.
+  function titlesEquivalent(a, b) {
+    if (!a || !b) return false;
+    var na = a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    var nb = b.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (na === nb) return true;
+    // One contains the other ("product manager" ≈ "senior product manager")
+    if (na.length >= 4 && nb.length >= 4) {
+      if (nb.indexOf(na) !== -1 || na.indexOf(nb) !== -1) return true;
+    }
+    return false;
+  }
+
   function checkWeakSearchPattern() {
     if (recentScores.length < 3) {
       console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 3+");
@@ -551,9 +565,10 @@
     }
     console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {
+      var currentQuery = getSearchKeywords();
       // Primary: calibration primary title (the user's strongest fit direction)
       for (var j = win.length - 1; j >= 0; j--) {
-        if (win[j].calibrationTitle) {
+        if (win[j].calibrationTitle && !titlesEquivalent(win[j].calibrationTitle, currentQuery)) {
           console.debug("[Caliber] weak-search triggered, suggesting calibration title: " + win[j].calibrationTitle);
           return win[j].calibrationTitle;
         }
@@ -561,12 +576,18 @@
       // Secondary: adjacent search-surface titles from calibration
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
-          console.debug("[Caliber] weak-search triggered, suggesting adjacent title: " + win[j].nearbyRoles[0].title);
-          return win[j].nearbyRoles[0].title;
+          // Find first non-redundant adjacent title
+          for (var k = 0; k < win[j].nearbyRoles.length; k++) {
+            var role = win[j].nearbyRoles[k];
+            if (role.title && !titlesEquivalent(role.title, currentQuery)) {
+              console.debug("[Caliber] weak-search triggered, suggesting adjacent title: " + role.title);
+              return role.title;
+            }
+          }
         }
       }
-      // No calibration data available — suppress banner
-      console.debug("[Caliber] weak-search triggered, no calibration title available");
+      // All available titles match current query — suppress banner
+      console.debug("[Caliber] weak-search triggered, all suggestions match current query — suppressed");
       return "";
     }
     return null;
@@ -1037,8 +1058,9 @@
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
-    "  width: 340px; background: rgba(96,165,250,0.08);",
-    "  border: 1px solid rgba(96,165,250,0.18); border-radius: 10px;",
+    "  width: 340px; background: #161B2E;",
+    "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out;",
@@ -1059,11 +1081,11 @@
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
     "  width: 340px; max-height: 460px; overflow-y: auto;",
-    "  background: #0B0B0B; color: #F2F2F2; border-radius: 12px;",
-    "  box-shadow: 0 8px 32px rgba(0,0,0,0.45);",
+    "  background: #111114; color: #F2F2F2; border-radius: 12px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  font-size: 13px; line-height: 1.45;",
-    "  border: 1px solid rgba(255,255,255,0.08);",
+    "  border: 1px solid rgba(255,255,255,0.12);",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
     "@keyframes cb-enter {",
@@ -1075,7 +1097,7 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -1114,7 +1136,7 @@
     "}",
     ".cb-overlay {",
     "  position: absolute; inset: 0; z-index: 10;",
-    "  background: rgba(11,11,11,0.75); border-radius: 12px;",
+    "  background: rgba(17,17,20,0.85); border-radius: 12px;",
     "  display: flex; align-items: center; justify-content: center; gap: 6px;",
     "}",
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
@@ -1122,7 +1144,7 @@
     ".cb-toprow {",
     "  display: flex; align-items: center; gap: 12px;",
     "  padding-bottom: 8px; margin-bottom: 4px;",
-    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-toprow-left {",
     "  flex-shrink: 0;",
@@ -1158,7 +1180,7 @@
     // Bottom line text
     ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
     // Collapsible sections
-    ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.04); }",
+    ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-collapse-toggle {",
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
@@ -1194,7 +1216,7 @@
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles
     ".cb-nearby-section {",
-    "  background: rgba(255,255,255,0.03); border-radius: 6px;",
+    "  background: rgba(255,255,255,0.04); border-radius: 6px;",
     "  padding: 0 8px; margin-top: 2px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
