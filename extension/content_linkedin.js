@@ -322,7 +322,6 @@
   let scoring = false;
   let lastScoredText = "";
   let lastJobMeta = { title: "", company: "", logoUrl: "" };
-  let lastJobIdentityKey = "";
   let watchInterval = null;
   let lastWatchedUrl = location.href;
   let detailObserver = null;
@@ -389,29 +388,6 @@
     }
   }
 
-  /** Update the persistent job-identity header from lastJobMeta. */
-  function updateIdentityHeader() {
-    if (!shadow) return;
-    var identEl = shadow.getElementById("cb-identity");
-    var logoEl = shadow.getElementById("cb-logo-img");
-    var companyEl = shadow.getElementById("cb-company");
-    var titleEl = shadow.getElementById("cb-jobtitle");
-    if (!identEl) return;
-    if (lastJobMeta.company || lastJobMeta.title) {
-      identEl.style.display = "";
-      companyEl.textContent = lastJobMeta.company || "";
-      titleEl.textContent = lastJobMeta.title || "";
-      if (lastJobMeta.logoUrl) {
-        logoEl.src = lastJobMeta.logoUrl;
-        logoEl.style.display = "";
-      } else {
-        logoEl.style.display = "none";
-      }
-    } else {
-      identEl.style.display = "none";
-    }
-  }
-
   function showIdle() {
     getOrCreatePanel();
     setPanelState("cb-idle");
@@ -460,8 +436,24 @@
     var score = Number(data.score_0_to_10) || 0;
     var decision = getDecision(score);
 
-    // Ensure identity header is current
-    updateIdentityHeader();
+    // Company identity
+    var identEl = shadow.getElementById("cb-identity");
+    var logoEl = shadow.getElementById("cb-logo-img");
+    var companyEl = shadow.getElementById("cb-company");
+    var titleEl = shadow.getElementById("cb-jobtitle");
+    if (lastJobMeta.company || lastJobMeta.title) {
+      identEl.style.display = "";
+      companyEl.textContent = lastJobMeta.company || "";
+      titleEl.textContent = lastJobMeta.title || "";
+      if (lastJobMeta.logoUrl) {
+        logoEl.src = lastJobMeta.logoUrl;
+        logoEl.style.display = "";
+      } else {
+        logoEl.style.display = "none";
+      }
+    } else {
+      identEl.style.display = "none";
+    }
 
     // Score + decision label
     var scoreEl = shadow.getElementById("cb-score");
@@ -579,8 +571,6 @@
 
       // Capture job metadata from the page for the card header
       lastJobMeta = extractJobMeta();
-      lastJobIdentityKey = (lastJobMeta.title || "") + "|" + (lastJobMeta.company || "");
-      updateIdentityHeader();
 
       const text = await waitForJobDescription(8000);
       if (!text || text.length < MIN_SCORE_CHARS) {
@@ -630,33 +620,13 @@
     // Poll: text changes + LinkedIn SPA URL changes (currentJobId param)
     watchInterval = setInterval(function () {
       if (!active || scoring) return;
-
-      // Detect job identity change via meta (catches SPA list-click without URL change)
-      var currentMeta = extractJobMeta();
-      var currentIdentityKey = (currentMeta.title || "") + "|" + (currentMeta.company || "");
-      var identityChanged = currentIdentityKey !== lastJobIdentityKey && currentIdentityKey !== "|";
-
       if (location.href !== lastWatchedUrl) {
         lastWatchedUrl = location.href;
-        lastScoredText = "";
-        lastJobIdentityKey = "";
+        lastScoredText = ""; // force re-score on navigation
         console.debug("[Caliber] URL changed, re-scoring");
         scoreCurrentJob(true);
         return;
       }
-
-      if (identityChanged) {
-        console.debug("[Caliber] job identity changed:", lastJobIdentityKey, "\u2192", currentIdentityKey);
-        lastJobMeta = currentMeta;
-        lastJobIdentityKey = currentIdentityKey;
-        lastScoredText = "";
-        updateIdentityHeader();
-        // Clear stale results — show loading with new identity
-        showLoading("Scoring new job\u2026");
-        scoreCurrentJob(true);
-        return;
-      }
-
       var text = extractJobText();
       if (text && text.length >= MIN_SCORE_CHARS && text !== lastScoredText) {
         scoreCurrentJob(false);
@@ -682,19 +652,6 @@
       if (!active || scoring) return;
       clearTimeout(detailDebounce);
       detailDebounce = setTimeout(function () {
-        // Check identity change first (faster than full text extraction)
-        var currentMeta = extractJobMeta();
-        var currentIdentityKey = (currentMeta.title || "") + "|" + (currentMeta.company || "");
-        if (currentIdentityKey !== lastJobIdentityKey && currentIdentityKey !== "|") {
-          console.debug("[Caliber] detail pane identity changed, re-scoring");
-          lastJobMeta = currentMeta;
-          lastJobIdentityKey = currentIdentityKey;
-          lastScoredText = "";
-          updateIdentityHeader();
-          showLoading("Scoring new job\u2026");
-          scoreCurrentJob(true);
-          return;
-        }
         var text = extractJobText();
         if (text && text.length >= MIN_SCORE_CHARS && text !== lastScoredText) {
           console.debug("[Caliber] detail pane mutation detected, re-scoring");
@@ -733,8 +690,6 @@
     stopWatching();
     removePanel();
     lastScoredText = "";
-    lastJobIdentityKey = "";
-    lastJobMeta = { title: "", company: "", logoUrl: "" };
   }
 
   // Auto-activate unless user explicitly dismissed
@@ -764,13 +719,6 @@
     '    <span class="cb-logo">Caliber</span>',
     '    <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '  </div>',
-    '  <div id="cb-identity" class="cb-identity" style="display:none">',
-    '    <img id="cb-logo-img" class="cb-company-logo" src="" alt="" style="display:none">',
-    '    <div class="cb-identity-text">',
-    '      <div id="cb-company" class="cb-company-name"></div>',
-    '      <div id="cb-jobtitle" class="cb-job-title"></div>',
-    '    </div>',
-    '  </div>',
     '  <div id="cb-idle" class="cb-body" style="display:none">',
     '    <div class="cb-idle-icon">\u25CE</div>',
     '    <p class="cb-status">Select a job to analyze</p>',
@@ -788,6 +736,13 @@
     '    <div id="cb-rescore-overlay" class="cb-overlay" style="display:none">',
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
+    '    </div>',
+    '    <div id="cb-identity" class="cb-identity" style="display:none">',
+    '      <img id="cb-logo-img" class="cb-company-logo" src="" alt="" style="display:none">',
+    '      <div class="cb-identity-text">',
+    '        <div id="cb-company" class="cb-company-name"></div>',
+    '        <div id="cb-jobtitle" class="cb-job-title"></div>',
+    '      </div>',
     '    </div>',
     '    <div class="cb-hero">',
     '      <div class="cb-score-row">',
@@ -906,7 +861,8 @@
     // Company identity
     ".cb-identity {",
     "  display: flex; align-items: center; gap: 10px;",
-    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "  margin-bottom: 10px; padding-bottom: 8px;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
     ".cb-company-logo {",
     "  width: 32px; height: 32px; border-radius: 6px;",
