@@ -1048,6 +1048,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     ) : null}
                   </div>
                 </div>
+
+                {/* Recalibrate */}
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{ backgroundColor: "rgba(242,242,242,0.06)", color: "#777", border: "1px solid rgba(242,242,242,0.08)", cursor: "pointer" }}
+                  >
+                    <span style={{ fontSize: "0.85em" }}>{"\u21BB"}</span>
+                    Recalibrate
+                  </button>
+                </div>
               </div>
               );
             })() : null}
