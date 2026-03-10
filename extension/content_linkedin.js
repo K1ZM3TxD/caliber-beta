@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.5.0";
+  const PANEL_VERSION = "0.5.2";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -440,6 +440,19 @@
     return { label: "Skip", cls: "cb-decision-skip" };
   }
 
+  // ─── Domain-Mismatch Score Guardrail ─────────────────────
+  // Prevents trust-breaking contradictions where an obviously wrong-domain
+  // job receives a "Strong Fit" score while Hiring Reality is "Unlikely".
+  // Caps the score to the top of the Stretch band so partial overlap can
+  // still be acknowledged without producing a false strong-fit signal.
+  function applyDomainMismatchGuardrail(score, hrcBand) {
+    if (hrcBand === "Unlikely" && score >= 7.5) {
+      console.debug("[Caliber] domain-mismatch guardrail: capping score from " + score + " to 6.9 (HRC=Unlikely)");
+      return 6.9;
+    }
+    return score;
+  }
+
   // ─── Panel State Rendering ────────────────────────────────
 
   function setPanelState(stateId) {
@@ -617,13 +630,16 @@
 
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
-    var score = Number(data.score_0_to_10) || 0;
+    var rawScore = Number(data.score_0_to_10) || 0;
+    var hrc = data.hiring_reality_check;
+    var hrcBand = (hrc && hrc.band) ? hrc.band : null;
+    var score = applyDomainMismatchGuardrail(rawScore, hrcBand);
     lastScoredScore = score;
     var decision = getDecision(score);
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = data.score_0_to_10;
+    scoreEl.textContent = score;
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
@@ -638,25 +654,24 @@
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
-    var hrcBand = shadow.getElementById("cb-hrc-band");
+    var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
-    var hrc = data.hiring_reality_check;
     if (hrc && hrc.band) {
       hrcSection.style.display = "";
-      hrcBand.textContent = hrc.band;
-      hrcBand.className = "cb-hrc-badge";
+      hrcBandEl.textContent = hrc.band;
+      hrcBandEl.className = "cb-hrc-badge";
       hrcToggle.className = "cb-collapse-toggle";
       if (hrc.band === "High") {
-        hrcBand.classList.add("cb-hrc-high");
+        hrcBandEl.classList.add("cb-hrc-high");
         hrcToggle.classList.add("cb-toggle-green");
         hrcReason.style.color = "#6EE7A0";
       } else if (hrc.band === "Possible") {
-        hrcBand.classList.add("cb-hrc-possible");
+        hrcBandEl.classList.add("cb-hrc-possible");
         hrcToggle.classList.add("cb-toggle-yellow");
         hrcReason.style.color = "#D4A017";
       } else {
-        hrcBand.classList.add("cb-hrc-unlikely");
+        hrcBandEl.classList.add("cb-hrc-unlikely");
         hrcToggle.classList.add("cb-toggle-red");
         hrcReason.style.color = "#F87171";
       }
@@ -738,13 +753,12 @@
     if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
 
     // Snapshot context for feedback
-    var hrc = data.hiring_reality_check;
     lastFeedbackData = {
       score: score,
       decision: decision.label,
       company: lastJobMeta.company || null,
       jobTitle: lastJobMeta.title || null,
-      hrcBand: (hrc && hrc.band) ? hrc.band : null,
+      hrcBand: hrcBand,
       suggestedTitle: suggestedTitle || null,
     };
 
@@ -1116,7 +1130,7 @@
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
-    "  width: 340px; background: #161B2E;",
+    "  width: 380px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
@@ -1138,7 +1152,7 @@
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
-    "  width: 340px; max-height: 460px; overflow-y: auto;",
+    "  width: 380px; max-height: 520px; overflow-y: auto;",
     "  background: #111114; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -1244,6 +1258,7 @@
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
     "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "  flex-wrap: nowrap;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
     ".cb-toggle-green { color: #4ADE80; }",
@@ -1255,9 +1270,9 @@
     ".cb-collapse-icon {",
     "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
-    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; }",
+    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; flex-shrink: 0; }",
     // Dot indicators (collapsed row signal strength)
-    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }",
+    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; flex-shrink: 0; white-space: nowrap; }",
     ".cb-dot {",
     "  width: 5px; height: 5px; border-radius: 50%; display: inline-block;",
     "  flex-shrink: 0;",
@@ -1276,7 +1291,7 @@
     "  transition: max-height 0.2s ease-out;",
     "}",
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
-    ".cb-open .cb-collapse-body { max-height: 500px; }",
+    ".cb-open .cb-collapse-body { max-height: 600px; }",
     // Bullet lists
     ".cb-bullets { list-style: none; padding-bottom: 3px; }",
     ".cb-bullets li {",
@@ -1303,7 +1318,7 @@
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
-    "  width: 340px; background: #0F2318;",
+    "  width: 380px; background: #0F2318;",
     "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
