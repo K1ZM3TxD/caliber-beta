@@ -715,11 +715,13 @@
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
 
-    // Nearby roles (only for stretch/skip)
+    // Nearby roles banner (below sidecard, stretch/skip only)
     var nearbySection = shadow.getElementById("cb-nearby-section");
+    var nearbyBanner = shadow.getElementById("cb-nearby-banner");
     var nearbyList = shadow.getElementById("cb-nearby");
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
       nearbySection.style.display = "";
+      nearbyBanner.style.display = "none"; // hidden until trigger clicked
       nearbyList.innerHTML = "";
       for (var i = 0; i < data.nearby_roles.length; i++) {
         var role = data.nearby_roles[i];
@@ -732,8 +734,20 @@
         li.appendChild(link);
         nearbyList.appendChild(li);
       }
+      // Wire trigger to show/hide nearby banner
+      var trigger = shadow.getElementById("cb-nearby-trigger");
+      if (trigger) {
+        trigger.onclick = function () {
+          nearbyBanner.style.display = nearbyBanner.style.display === "none" ? "" : "none";
+        };
+      }
+      var closeBtn = shadow.getElementById("cb-nearby-close");
+      if (closeBtn) {
+        closeBtn.onclick = function () { nearbyBanner.style.display = "none"; };
+      }
     } else {
       nearbySection.style.display = "none";
+      if (nearbyBanner) nearbyBanner.style.display = "none";
     }
 
     // Tailor Resume banner (above sidecard, 8.0+ only)
@@ -1122,14 +1136,8 @@
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
-    '      <button class="cb-collapse-toggle" type="button">',
-    '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span>\u2192 Better nearby roles</span>',
-    '      </button>',
-    '      <div class="cb-collapse-body">',
-    '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
-    '      </div>',
+    '    <div id="cb-nearby-section" class="cb-nearby-section" style="display:none">',
+    '      <button id="cb-nearby-trigger" class="cb-nearby-trigger" type="button">→ Better nearby roles</button>',
     '    </div>',
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
@@ -1155,6 +1163,14 @@
     '      </div>',
     '    </div>',
     '  </div>',
+    '</div>',
+    '<div id="cb-nearby-banner" class="cb-nearby-banner" style="display:none">',
+    '  <div class="cb-nearby-header">',
+    '    <span class="cb-nearby-icon">\uD83D\uDD0E</span>',
+    '    <span class="cb-nearby-title">Better nearby roles</span>',
+    '    <button id="cb-nearby-close" class="cb-nearby-close" aria-label="Close">\u00d7</button>',
+    '  </div>',
+    '  <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '</div>',
     '</div>'
   ].join("\n");
@@ -1340,12 +1356,38 @@
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles
     ".cb-nearby-section {",
-    "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 0 8px; margin-top: 2px;",
+    "  padding: 2px 0 0; margin-top: 2px;",
     "}",
-    ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
+    ".cb-nearby-trigger {",
+    "  background: none; border: none; cursor: pointer;",
+    "  font-size: 10.5px; font-weight: 600; color: #60A5FA;",
+    "  padding: 6px 0; text-align: left; transition: color 0.15s;",
+    "}",
+    ".cb-nearby-trigger:hover { color: #93C5FD; }",
+    // Nearby banner (below-sidecard popup)
+    ".cb-nearby-banner {",
+    "  width: 357px; background: #111827;",
+    "  border: 1px solid rgba(96,165,250,0.20); border-radius: 10px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
+    "  padding: 10px 14px;",
+    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+    "  animation: cb-enter 0.2s ease-out;",
+    "}",
+    ".cb-nearby-header {",
+    "  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;",
+    "}",
+    ".cb-nearby-icon { font-size: 13px; flex-shrink: 0; line-height: 1; }",
+    ".cb-nearby-title {",
+    "  flex: 1; font-size: 10px; font-weight: 600; color: #60A5FA;",
+    "  letter-spacing: 0.03em; text-transform: uppercase;",
+    "}",
+    ".cb-nearby-close {",
+    "  background: none; border: none; color: #555; font-size: 15px;",
+    "  cursor: pointer; padding: 0 2px; line-height: 1;",
+    "}",
+    ".cb-nearby-close:hover { color: #F2F2F2; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
-    ".cb-nearby-list li { padding: 1px 0; font-size: 10.5px; }",
+    ".cb-nearby-list li { padding: 2px 0; font-size: 11px; }",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
     "  border-bottom: 1px solid rgba(147,197,253,0.25);",
