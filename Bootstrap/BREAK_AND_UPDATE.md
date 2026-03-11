@@ -79,6 +79,39 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-11 — Stabilization Phase: Debug/Polish Before Action-Layer Expansion
+
+**What changed:**
+- Project entering a stabilization/debugging phase before the next product-layer additions.
+- Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes. These fixes must be validated stable before any new action-layer work begins.
+- Roadmap for the next action-layer tasks is now explicitly sequenced and soft-locked: each main step is treated as blocked by the previous step until that previous step is validated complete.
+- Small, narrow UI bug squashes may still be handled along the way without breaking sequencing — this is the documented exception to the soft-lock rule.
+
+**What is now expected:**
+- Active current fix: Extension sidecard collapsed height stability — collapsed card height should remain fixed across scored jobs; card should only expand when collapsible sections are opened.
+- Queued next tasks are soft-locked in this order:
+  1. Fix extension scorecard collapsed sizing stability (ACTIVE — in flight)
+  2. Restore / verify Better Search Title trigger behavior (QUEUED)
+  3. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe (QUEUED)
+  4. Add post-save confirmation / action state in sidecard (QUEUED)
+  5. Add account prompt for durable pipeline saving (QUEUED)
+  6. Continue pipeline/action-layer refinement only after the above are stable (QUEUED)
+- Each main step is blocked by the previous main step until validated complete.
+- Exception: small UI bug squashes (narrow, local, do not break sequencing) may be handled at any time.
+
+**What is no longer expected:**
+- Free parallel movement across the action-layer roadmap.
+- Starting auto-save, account prompt, or pipeline expansion work before sidecard sizing and BST trigger are validated.
+
+**Risk / regressions noted:**
+- Extension sidecard collapsed height is currently unstable between scored jobs (different score states / label lengths cause visual jumping).
+- Better Search Title trigger behavior was recently fixed (ec32fe6) but not yet verified in a real extension flow.
+- Auto-save and account prompt are queued — not active implementation.
+
+**Proof:** Documentation pass only. No code changes in this entry.
+
+---
+
 ### 2026-03-11 — Shell Baseline Correction + Documentation Truth Pass
 
 **What changed:**

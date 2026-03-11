@@ -1,5 +1,41 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (Stabilization Phase: Debug/Polish Before Action-Layer Expansion)
+---
+DONE:
+- Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)
+- Extension tailor banner state logic fixed: no premature "Opened ✓", pipeline routing (6fad8b7)
+- Calibration results hero spacing improved: button centered in lower half of hero card (5d3c91a)
+- Calibration explanation copy replaced with structured summary template (5d3c91a, 25c7752)
+- Signal normalization layer added for explanation copy (25c7752)
+- Better Search Title rolling window fixed to documented spec: window=4, diagnostic logging (ec32fe6)
+- Extension ZIP rebuilt with all fixes
+- Soft-locked task sequencing documented across all Bootstrap docs
+
+ACTIVE (in flight):
+- Extension sidecard collapsed height stability — card should remain fixed height when all sections closed; only expand on dropdown open
+
+BLOCKED:
+- All subsequent action-layer tasks are soft-locked behind current fix + BST verification:
+  - Auto-save strong matches (>= 8.5) into pipeline — blocked by BST verification
+  - Post-save confirmation in sidecard — blocked by auto-save
+  - Account prompt for durable pipeline saving — blocked by post-save confirmation
+  - Pipeline/action-layer refinement — blocked by account prompt
+
+NEXT (soft-locked in order):
+1. Fix extension scorecard collapsed sizing stability (ACTIVE)
+2. Restore / verify Better Search Title trigger behavior (rolling window fix shipped; needs real-flow verification)
+3. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
+4. Add post-save confirmation / action state in sidecard
+5. Add account prompt for durable pipeline saving
+6. Continue pipeline/action-layer refinement only after the above are stable
+
+SEQUENCING RULE:
+- Each main step is treated as blocked by the previous main step until validated complete.
+- Exception: small UI bug squashes may be handled at any time if narrow, local, and do not break sequencing.
+
+---
+
 BREAK + UPDATE — 2026-03-11 (Shell Baseline Correction + Documentation Truth Pass)
 ---
 DONE:

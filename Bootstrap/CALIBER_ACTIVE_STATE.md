@@ -5,10 +5,13 @@
 ---
 
 ## Current Phase
-**Action layer launch-ready; shell visual baseline anchored to a211182.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) feed the tailor/pipeline action workflow. Tailor page is complete with copy action, retry-on-error, and polished result area. Pipeline board has DnD card movement, fit score display, and visibility reload on tab focus. Upload page simplified. A shared/reusable shell framework is not yet locked — pages use page-local gradient and spacing ownership with the a211182 visual baseline (lowered header + lowered ambient gradient, centered at 50% 12%). Product validation of the 4-column board model is the primary remaining decision.
+**Stabilization / debug-before-expansion phase.** Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes that must be validated stable before new action-layer work begins. The project is in a validation-driven sequenced pipeline — each main step is soft-locked behind completion of the previous step. Small, narrow UI bug squashes may proceed at any time without breaking the sequence.
+
+## Active Current Fix
+**Extension sidecard collapsed height stability.** The sidecard currently changes height between scored jobs even when all collapsible sections are closed. Collapsed card height should remain fixed; the card should only expand when a collapsible section is opened. Different score states, label lengths, or optional rows (e.g., Stretch Factors absent) should not change the collapsed height. This is in flight — not yet complete.
 
 ## Top Blocker
-**Shell framework not yet locked.** The three-zone shell framing was attempted this season but introduced documentation/implementation drift and has been rolled back. Visual baseline is stable (a211182), but the broader shared-shell architecture — who owns gradient, hero offset, and content width — is an open design decision. Extension handshake (#31) remains known friction (may require manual tab refresh on first install).
+**Sidecard sizing instability blocks further action-layer work.** Until the collapsed sidecard height is locked, the extension UX feels unstable during job browsing. This must be resolved before auto-save, account prompt, or pipeline expansion work begins.
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
@@ -73,15 +76,34 @@ calibration → results page → /extension → download ZIP → install in Chro
 ```
 `/extension` must always serve the current extension build — it is the user-facing install path.
 
-## Locked Task Order
-1. ~~Recompose global Caliber shell from approved visual primitives~~ — ATTEMPTED (three-zone framing tried, rolled back to a211182 baseline; shared framework not locked)
-2. ~~Fix main/upload/ingest/tailor page hierarchy and spacing drift~~ — DONE (upload simplified, header lowered, tailor completed)
-3. Decide shared shell architecture or continue page-local ownership (OPEN — next shell decision)
-4. Validate pipeline 4-column board product model (product-level decision — code is complete)
-5. Clarify extension debug/report affordance (text label shipped; UX may need further refinement)
-6. Verify/restore Better Search Title trigger behavior if regressed
-7. CTA noise-control refinement (per-session and time-based suppression)
-8. No unnecessary expansion of calibration scope — calibration page is stable
+## Locked Task Order (Stabilization Phase — 2026-03-11)
+
+These steps are soft-locked in order. Each main step is treated as blocked by the previous main step until that previous step is validated complete.
+
+**Exception:** Small UI bug squashes may be handled at any time if they are narrow, local, and do not break sequencing.
+
+1. **Fix extension scorecard collapsed sizing stability** — ACTIVE (in flight)
+   - Collapsed sidecard height must remain fixed across all score states
+   - Card should only expand when a collapsible section is opened
+2. **Restore / verify Better Search Title trigger behavior** — QUEUED
+   - Rolling window fix shipped (ec32fe6); needs real-flow verification
+   - Blocked by: step 1 validated complete
+3. **Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe** — QUEUED
+   - Blocked by: step 2 validated complete
+4. **Add post-save confirmation / action state in sidecard** — QUEUED
+   - Blocked by: step 3 validated complete
+5. **Add account prompt for durable pipeline saving** — QUEUED
+   - Blocked by: step 4 validated complete
+6. **Continue pipeline/action-layer refinement** — QUEUED
+   - Only after steps 1–5 are stable
+   - Includes: CTA noise control, pipeline board validation, shared shell decision
+
+### Previous task order (historical)
+- ~~Recompose global Caliber shell from approved visual primitives~~ — ATTEMPTED (three-zone framing tried, rolled back to a211182 baseline)
+- ~~Fix main/upload/ingest/tailor page hierarchy and spacing drift~~ — DONE
+- Decide shared shell architecture or continue page-local ownership (OPEN — deferred to step 6)
+- Validate pipeline 4-column board product model (OPEN — deferred to step 6)
+- No unnecessary expansion of calibration scope — calibration page is stable
 
 ## Product Layer Separation
 - **Calibration = Direction:** determine job-search direction, display single hero title direction, prompt extension install.
@@ -113,26 +135,31 @@ Do not re-sequence without new blocking evidence.
 4. **Calibration page** — stable launchpad, no further expansion planned
 
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
-- #41 Visual shell drift / inconsistent composition — **REOPENED** (three-zone stabilization was rolled back; visual baseline is a211182 but shared shell framework not locked)
-- #42 Tailor page hierarchy mismatch — **SHIPPED** (tailor page now complete with copy/retry/polish)
+- #48 Extension sidecard collapsed height instability — **ACTIVE** (in flight; current fix target)
+- #44 Better Search Title trigger verification needed — **QUEUED** (rolling window fix shipped ec32fe6; needs real-flow verification; blocked by #48)
+- #49 Auto-save strong-match jobs into pipeline — **QUEUED** (blocked by #44)
+- #50 Post-save confirmation / action state in sidecard — **QUEUED** (blocked by #49)
+- #51 Account prompt for durable pipeline saving — **QUEUED** (blocked by #50)
+- #41 Visual shell drift / inconsistent composition — **REOPENED** (deferred to step 6)
+- #42 Tailor page hierarchy mismatch — **SHIPPED**
 - #43 Extension debug/report affordance clarity (PARTIALLY RESOLVED — text label added)
-- #44 Better Search Title trigger verification needed (OPEN)
-- #45 Pipeline board product validation (OPEN — code complete incl. DnD/fit score, product validation next)
-- #46 Upload/ingest page shell alignment — **PARTIALLY RESOLVED** (heading removed, header lowered; shared shell framework not locked)
-- #47 Shared shell framework decision (NEW — page-local ownership vs reusable shared shell)
-- #37 Noise control for strong-match CTA (PARTIALLY RESOLVED)
+- #45 Pipeline board product validation (OPEN — deferred to step 6)
+- #46 Upload/ingest page shell alignment — **PARTIALLY RESOLVED**
+- #47 Shared shell framework decision (OPEN — deferred to step 6)
+- #37 Noise control for strong-match CTA (PARTIALLY RESOLVED — deferred to step 6)
 - #31 Extension session handshake friction (OPEN, known — not top blocker)
 - #26 Market-job scores low despite high calibration title scores (OPEN)
 - #27 Search-surface / adjacent-title discovery gap (OPEN)
 - #15 Bottom line paragraph repetition (OPEN)
 
 ## Next PM Decision Needed
-1. **Shared shell framework** — decide whether to build a true shared shell component (single owner for gradient, hero offset, content width) or continue page-local ownership with the a211182 baseline. This is the top open design question.
-2. **Pipeline board model** — validate 4-column board (Resume Prep / Submitted / Interview Prep / Interview). Is this the right stage decomposition? Are the column names correct? Code is complete including DnD and fit score display.
-3. **Better Search Title** — verify trigger behavior with current thresholds (< 6.5 weak, >= 7.5 strong). If regressed, prioritize fix.
-4. **CTA noise-control** — decide on per-session / time-based suppression rules for first-time 8.0+ exposures.
-5. **Tailor page quality** — tailor page is launch-ready; validate tailoring output quality and determine text vs PDF download.
+1. **Sidecard collapsed sizing** — validate the fix once it lands; confirm no visual jumping between scored jobs in collapsed state.
+2. **Better Search Title verification** — test trigger with 4 low-scoring jobs in a real extension flow after sidecard sizing is stable.
+3. **Auto-save threshold** — confirm score >= 8.5 as the auto-save threshold for pipeline entry (distinct from the 8.0 tailor CTA threshold).
+4. **Account prompt design** — decide account/auth requirements for durable pipeline saving before implementing.
+5. **Shared shell framework** — deferred to step 6; decide after action-layer stabilization.
+6. **Pipeline board model** — deferred to step 6; validate 4-column board after action-layer basics are stable.
 
 ---
 
-_Last updated: 2026-03-11 (shell baseline correction — three-zone framing rolled back, a211182 visual baseline restored, documentation truth pass)_
+_Last updated: 2026-03-11 (stabilization phase — debug/polish before action-layer expansion, soft-locked task sequencing)_

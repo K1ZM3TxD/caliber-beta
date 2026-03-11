@@ -2,25 +2,43 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-11, Action Layer Launch-Ready + Shell Baseline Anchored)
+## Project Status (2026-03-11, Stabilization Phase — Debug/Polish Before Action-Layer Expansion)
 
-**Action layer is launch-ready. Shell visual baseline anchored to commit a211182.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) feed the tailor/pipeline action workflow. The three-zone shell framing was attempted this season but introduced documentation and implementation drift — it has been rolled back and is not the current canonical shell architecture. Visual baseline is from commit a211182 (lowered header + lowered ambient gradient, centered at 50% 12%). A shared/reusable shell framework is not yet locked; pages use page-local gradient and spacing ownership.
+**Entering stabilization/debugging phase.** Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes. These must be validated stable before any new action-layer work (auto-save, account prompt, pipeline expansion) begins. The roadmap is now explicitly sequenced and soft-locked — each main step is blocked by the previous step until validated complete. Small UI bug squashes are the documented exception.
 
+**Active fix:** Extension sidecard collapsed height stability — collapsed card height should remain fixed across scored jobs; should only expand when collapsible sections are opened.
+
+**Queued next (soft-locked in order):**
+1. Fix extension scorecard collapsed sizing stability (ACTIVE)
+2. Restore / verify Better Search Title trigger behavior
+3. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
+4. Add post-save confirmation / action state in sidecard
+5. Add account prompt for durable pipeline saving
+6. Continue pipeline/action-layer refinement only after the above are stable
+
+**Recent completed fixes (this session):**
+- Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)
+- Extension tailor banner state logic fixed: no premature "Opened ✓", pipeline routing (6fad8b7)
+- Calibration results hero spacing improved: button centered in lower half of hero card (5d3c91a)
+- Calibration explanation copy replaced with structured summary template (5d3c91a, 25c7752)
+- Signal normalization layer added for explanation copy (25c7752)
+- Better Search Title rolling window fixed to documented spec: window=4, diagnostic logging (ec32fe6)
+
+**Unchanged foundations:**
 - Caliber has expanded from evaluation-only to strong-match action workflow.
 - The calibration page (`/calibration`) is a launchpad. Output: one hero title direction, extension install CTA, scoring philosophy.
 - The browser extension sidecard is the primary decision surface: job identity, fit score, decision badge, Hiring Reality Check, collapsible supports/stretch/bottom line.
 - Jobs scoring 8.0+ trigger a contextual card above the sidecard: "Tailor resume for this job."
 - Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension. Nothing is fabricated.
 - Pipeline entry is created at `/api/tailor/prepare` time — pipeline persistence begins before tailoring, not after. Pipeline dedupe is based on canonical/normalized job URL.
-- Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions. CaliberHeader removed; "Tailor Resume" is the primary heading; job title/company card first; pipeline confirmation secondary.
-- Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Legacy stages auto-map to board columns. Code is complete; product validation ongoing.
-- Three-zone shell design was attempted (2026-03-11) but rolled back — see Session Decisions below. Visual baseline restored to commit a211182. Shared shell framework not yet locked.
-- Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
+- Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions.
+- Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Code is complete; product validation deferred to step 6.
+- Shell visual baseline anchored to commit a211182. Shared shell framework not yet locked; deferred to step 6.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
-- Extension v0.6.0 deployed (ZIP rebuilt with latest source — label fix, BST thresholds, LinkedIn updates).
+- Extension v0.6.0 deployed (ZIP rebuilt with latest source).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: decide shared shell framework vs page-local ownership → validate pipeline board model → verify Better Search Title trigger → CTA noise-control refinement → tailor quality validation. No generic feature sprawl.
+- Next priorities: validate sidecard collapsed sizing → verify BST trigger → auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
 
 **Real User Flow:**
 ```
@@ -146,6 +164,15 @@ Structured feedback collection active across extension and web app.
 - Calibration titles are initial search terms / starting hypothesis, not the full search surface. Real market discovery may require adjacent/expanded titles later.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
+
+## Session Decisions (2026-03-11, Stabilization Phase — Soft-Locked Task Sequencing)
+
+- **Stabilization before expansion.** The project is entering a debug/polish phase before any new action-layer additions. Extension sidecard sizing, BST trigger verification, and recent copy/feedback fixes must be validated stable first.
+- **Soft-locked task order established.** The next 6 steps are explicitly sequenced: sidecard sizing → BST verification → auto-save strong matches → post-save confirmation → account prompt → pipeline refinement. Each main step is blocked by the previous step until validated complete.
+- **Small UI bug squash exception.** Narrow, local UI fixes may be handled at any time without breaking the sequencing — provided they do not introduce new regressions or expand scope.
+- **Active fix: sidecard collapsed height.** The extension sidecard currently changes height between scored jobs when all sections are collapsed. This is being fixed to use a fixed collapsed height. Not yet complete.
+- **Recent fixes validated and shipped:** Extension feedback controls restored (6fad8b7), tailor banner state logic fixed (6fad8b7), calibration hero spacing improved (5d3c91a), structured explanation summary (5d3c91a, 25c7752), signal normalization layer (25c7752), BST rolling window fixed (ec32fe6).
+- **Auto-save, account prompt, and pipeline expansion are queued — not active.** These are the next product-layer additions but are explicitly blocked until sidecard sizing and BST trigger are validated.
 
 ## Session Decisions (2026-03-11, Shell Baseline Correction + Documentation Truth Pass)
 

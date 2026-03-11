@@ -3,6 +3,35 @@
 
 ## Current Open Issues
 
+48. Extension sidecard collapsed height instability — **ACTIVE** (2026-03-11)
+  - The sidecard changes height between scored jobs even when all collapsible sections are closed.
+  - Different score states, label lengths, or optional rows (e.g., Stretch Factors absent) cause visual jumping.
+  - Collapsed card height should remain fixed; card should only expand when a collapsible section is opened.
+  - This is the current active fix — in flight, not yet complete.
+  - Soft-lock: blocks all subsequent action-layer work until validated.
+
+44. Better Search Title trigger verification — **QUEUED** (2026-03-11, updated)
+  - Rolling window fix shipped in ec32fe6: minimum entries changed from 3 to 4, diagnostic logging added for empty calibration_title/nearby_roles.
+  - Needs real-flow verification: 4 low-scoring jobs in sequence should trigger the recovery banner.
+  - Soft-lock: blocked by #48 (sidecard sizing) validated complete.
+
+49. Auto-save strong-match jobs into pipeline — **QUEUED** (2026-03-11)
+  - Jobs scoring >= 8.5 should be auto-saved into the pipeline with canonical URL dedupe.
+  - Distinct from the 8.0+ tailor CTA threshold.
+  - Not active implementation — queued behind #44.
+  - Soft-lock: blocked by #44 validated complete.
+
+50. Post-save confirmation / action state in sidecard — **QUEUED** (2026-03-11)
+  - After auto-save, the sidecard should show a confirmation / action state (e.g., "Saved to pipeline").
+  - Not active implementation — queued behind #49.
+  - Soft-lock: blocked by #49 validated complete.
+
+51. Account prompt for durable pipeline saving — **QUEUED** (2026-03-11)
+  - Pipeline data currently requires no authentication — ephemeral.
+  - Need account/auth prompt so pipeline saving persists across sessions.
+  - Not active implementation — queued behind #50.
+  - Soft-lock: blocked by #50 validated complete.
+
 25. Job Board Adapter Architecture — **OPEN** (2026-03-10)
   - Decision: site-specific adapters required before expanding to additional job boards.
   - Each adapter exports extractJobData() → normalized job object (title, company, location, description).
