@@ -33,9 +33,10 @@ export default function BuildResumePage() {
         href="/calibration"
         className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-semibold transition-all"
         style={{
-          backgroundColor: "#4ADE80",
-          color: "#0B0B0B",
-          boxShadow: "0 4px 20px rgba(74,222,128,0.15)",
+          backgroundColor: "rgba(74,222,128,0.06)",
+          color: "#4ADE80",
+          border: "1px solid rgba(74,222,128,0.45)",
+          boxShadow: "none",
         }}
       >
         Back to Upload

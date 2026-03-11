@@ -156,10 +156,12 @@ function TailorInner() {
 
           <button
             onClick={generate}
-            className="w-full py-3 rounded-lg font-semibold text-black text-base transition-all"
+            className="w-full py-3 rounded-lg font-semibold text-base transition-all"
             style={{
-              background: "#4ADE80",
-              boxShadow: "0 0 24px rgba(74,222,128,0.18)",
+              background: "rgba(74,222,128,0.06)",
+              color: "#4ADE80",
+              border: "1px solid rgba(74,222,128,0.45)",
+              boxShadow: "none",
             }}
           >
             Generate Tailored Resume
@@ -210,10 +212,12 @@ function TailorInner() {
 
           <button
             onClick={download}
-            className="w-full py-3 rounded-lg font-semibold text-black text-base transition-all"
+            className="w-full py-3 rounded-lg font-semibold text-base transition-all"
             style={{
-              background: "#4ADE80",
-              boxShadow: "0 0 24px rgba(74,222,128,0.18)",
+              background: "rgba(74,222,128,0.06)",
+              color: "#4ADE80",
+              border: "1px solid rgba(74,222,128,0.45)",
+              boxShadow: "none",
             }}
           >
             Download Tailored Resume

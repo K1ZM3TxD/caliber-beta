@@ -742,11 +742,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: canContinueResume ? "#4ADE80" : "rgba(74,222,128,0.25)",
-                      color: "#0B0B0B",
+                      backgroundColor: canContinueResume ? "rgba(74,222,128,0.06)" : "rgba(74,222,128,0.03)",
+                      color: canContinueResume ? "#4ADE80" : "rgba(74,222,128,0.45)",
+                      border: canContinueResume ? "1px solid rgba(74,222,128,0.45)" : "1px solid rgba(74,222,128,0.20)",
                       cursor: canContinueResume ? "pointer" : "not-allowed",
-                      boxShadow: canContinueResume ? "0 4px 20px rgba(74,222,128,0.15)" : "none",
-                      transform: canContinueResume ? "translateY(-1px)" : "translateY(0px)",
+                      boxShadow: "none",
                       minWidth: 140
                     }}
                   >
@@ -817,11 +817,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.25)" : "#4ADE80",
-                      color: "#0B0B0B",
+                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
+                      color: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
+                      border: promptIndex == null || !hasAnswer || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
                       cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
-                      boxShadow: promptIndex == null || !hasAnswer || busy ? "none" : "0 4px 20px rgba(74,222,128,0.15)",
-                      transform: promptIndex == null || !hasAnswer || busy ? "translateY(0px)" : "translateY(-1px)",
+                      boxShadow: "none",
                     }}
                   >
                     Submit
@@ -938,12 +938,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       rel="noopener noreferrer"
                       className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                       style={{
-                        background: "#4ADE80",
-                        color: "#0B0B0B",
+                        background: "rgba(74,222,128,0.06)",
+                        color: "#4ADE80",
                         cursor: "pointer",
                         minWidth: 200,
-                        border: "1px solid #4ADE80",
-                        boxShadow: "0 4px 20px rgba(74,222,128,0.12)",
+                        border: "1px solid rgba(74,222,128,0.45)",
+                        boxShadow: "none",
                       }}
                     >
                       <span>Get the Extension</span>
