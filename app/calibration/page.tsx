@@ -610,7 +610,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Static header area */}
-            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ minHeight: step === "TITLES" ? "auto" : "7em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               {step === "TITLES" ? (
                 <div className="flex items-center gap-2 mb-1">
                   <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>

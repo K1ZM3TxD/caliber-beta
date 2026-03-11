@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import CaliberHeader from "../../components/caliber_header";
 
 export default function BuildResumePage() {
   return (
@@ -12,14 +13,7 @@ export default function BuildResumePage() {
           "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      <div className="mb-8">
-        <span
-          className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-500"
-          style={{ textShadow: "0 0 60px rgba(74,222,128,0.06)" }}
-        >
-          Caliber
-        </span>
-      </div>
+      <CaliberHeader className="mb-8" />
 
       <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white mb-4">
         Resume Builder
