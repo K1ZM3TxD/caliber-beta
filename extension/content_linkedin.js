@@ -852,7 +852,7 @@
         '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
         '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
         '<span class="cb-fb-sep"></span>' +
-        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B</button>';
+        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B Report</button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
       shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
@@ -1185,7 +1185,7 @@
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
     '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
     '      <span class="cb-fb-sep"></span>',
-    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B</button>',
+    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B Report</button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1470,7 +1470,7 @@
     ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
     ".cb-bug-btn {",
     "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
-    "  cursor: pointer; font-size: 11px; padding: 2px 6px; line-height: 1;",
+    "  cursor: pointer; font-size: 11px; padding: 2px 8px; line-height: 1; gap: 3px;",
     "  transition: background 0.15s, border-color 0.15s;",
     "}",
     ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",

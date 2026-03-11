@@ -6,7 +6,7 @@ import CaliberHeader from "../../components/caliber_header";
 export default function BuildResumePage() {
   return (
     <div
-      className="w-full py-16 text-center flex flex-col items-center justify-center"
+      className="w-full max-w-[600px] mx-auto py-16 text-center flex flex-col items-center justify-center"
       style={{
         minHeight: "60vh",
         background:

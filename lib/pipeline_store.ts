@@ -9,6 +9,10 @@ export type PipelineStage =
   | "applied"
   | "interviewing"
   | "offer"
+  | "resume_prep"
+  | "submitted"
+  | "interview_prep"
+  | "interview"
   | "archived";
 
 export interface PipelineEntry {

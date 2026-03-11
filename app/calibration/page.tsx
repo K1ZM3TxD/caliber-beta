@@ -611,7 +611,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Static header area */}
-            <div style={{ minHeight: step === "TITLES" ? "auto" : "8.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               {step === "TITLES" ? (
                 <div className="flex items-center gap-2 mb-1">
                   <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
@@ -634,10 +634,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
-                <div style={{ minHeight: "1.5em" }} className="mt-14">
+                <div style={{ minHeight: "1.5em" }} className="mt-8">
                   <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
-                <div className="mt-12">
+                <div className="mt-8">
                   <button
                     type="button"
                     onClick={begin}
@@ -731,7 +731,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           </button>
                         </div>
                       )}
-                      <span className="absolute bottom-2 left-2 text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>
+                      <span className="absolute bottom-2 left-0 right-0 text-center text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>
                     </div>
                   </div>
                 </div>
@@ -954,13 +954,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className="mb-5 flex items-center gap-4">
-                  <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
-                </div>
 
-                {/* Broad section break */}
-                <div className="w-full h-px mb-8" style={{ background: "linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent 95%)" }} />
 
                 {/* Section heading */}
                 <div className="mb-6 flex flex-col items-center">

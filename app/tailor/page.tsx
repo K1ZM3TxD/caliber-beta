@@ -3,7 +3,6 @@
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
-import CaliberHeader from "../components/caliber_header";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
 
@@ -91,21 +90,18 @@ function TailorInner() {
 
   return (
     <div
-      className="w-full py-12"
+      className="w-full max-w-[600px] mx-auto py-12"
       style={{
         background:
           "radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      {/* Pipeline confirmation banner — only if entry actually exists */}
-      <PipelineConfirmationBanner
-        jobTitle={prep?.jobTitle ?? ""}
-        company={prep?.company ?? ""}
-        visible={!!pipelineId && status !== "done"}
-      />
-
-      {/* Wordmark */}
-      <CaliberHeader className="mb-10" />
+      {/* Page title — primary focus */}
+      <h1
+        className="text-2xl sm:text-3xl font-semibold tracking-tight text-white text-center mb-8"
+      >
+        Tailor Resume
+      </h1>
 
       {/* Status: Loading */}
       {status === "loading" && (
@@ -120,7 +116,7 @@ function TailorInner() {
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <a
-            href="/"
+            href="/calibration"
             className="text-zinc-400 underline underline-offset-2 text-sm hover:text-white"
           >
             Back to Caliber
@@ -131,10 +127,8 @@ function TailorInner() {
       {/* Status: Ready — show job context + generate button */}
       {status === "ready" && prep && (
         <div className="space-y-6">
+          {/* Job context card */}
           <div className="border border-zinc-800 rounded-lg p-5 bg-zinc-900/50">
-            <div className="text-zinc-400 text-xs uppercase tracking-wider mb-2">
-              Tailoring For
-            </div>
             <div className="text-white font-medium text-lg leading-snug">
               {prep.jobTitle}
             </div>
@@ -147,6 +141,13 @@ function TailorInner() {
               </div>
             )}
           </div>
+
+          {/* Pipeline confirmation — secondary */}
+          <PipelineConfirmationBanner
+            jobTitle={prep.jobTitle}
+            company={prep.company}
+            visible={!!pipelineId}
+          />
 
           <p className="text-zinc-400 text-sm leading-relaxed">
             Caliber will rewrite your resume to foreground experience most
@@ -231,7 +232,7 @@ function TailorInner() {
               View pipeline →
             </a>
             <a
-              href="/"
+              href="/calibration"
               className="text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
             >
               Back to Caliber

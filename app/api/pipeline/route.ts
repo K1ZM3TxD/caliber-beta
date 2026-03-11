@@ -38,6 +38,10 @@ const VALID_STAGES: PipelineStage[] = [
   "applied",
   "interviewing",
   "offer",
+  "resume_prep",
+  "submitted",
+  "interview_prep",
+  "interview",
   "archived",
 ];
 
