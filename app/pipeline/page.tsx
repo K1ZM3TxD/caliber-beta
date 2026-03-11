@@ -154,18 +154,6 @@ export default function PipelinePage() {
       ),
   }));
 
-  const nextColumn = (currentColKey: string): string | null => {
-    const idx = BOARD_COLUMNS.findIndex((c) => c.key === currentColKey);
-    if (idx === -1 || idx >= BOARD_COLUMNS.length - 1) return null;
-    return BOARD_COLUMNS[idx + 1].key;
-  };
-
-  const prevColumn = (currentColKey: string): string | null => {
-    const idx = BOARD_COLUMNS.findIndex((c) => c.key === currentColKey);
-    if (idx <= 0) return null;
-    return BOARD_COLUMNS[idx - 1].key;
-  };
-
   return (
     <div
       className="w-full pt-[10vh] pb-10"
@@ -240,16 +228,6 @@ export default function PipelinePage() {
                 }}
               >
                 {col.entries.map((entry) => {
-                  const colKey = mapStageToColumn(entry.stage);
-                  const next = nextColumn(colKey);
-                  const prev = prevColumn(colKey);
-                  const nextLabel = next
-                    ? BOARD_COLUMNS.find((c) => c.key === next)?.label
-                    : null;
-                  const prevLabel = prev
-                    ? BOARD_COLUMNS.find((c) => c.key === prev)?.label
-                    : null;
-
                   return (
                     <div
                       key={entry.id}
@@ -265,7 +243,7 @@ export default function PipelinePage() {
                         </div>
                         {entry.score > 0 && (
                           <span
-                            className="text-sm font-semibold tabular-nums flex-shrink-0"
+                            className="text-sm font-bold tabular-nums flex-shrink-0"
                             style={{ color: scoreColor(entry.score) }}
                           >
                             {entry.score.toFixed(1)}
@@ -277,7 +255,7 @@ export default function PipelinePage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <div className="flex items-center gap-2 mt-3">
                         {entry.jobUrl && (
                           <a
                             href={entry.jobUrl}
@@ -288,27 +266,9 @@ export default function PipelinePage() {
                             Open job
                           </a>
                         )}
-                        {prev && (
-                          <button
-                            onClick={() => moveToStage(entry.id, prev)}
-                            className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors"
-                            title={`Move to ${prevLabel}`}
-                          >
-                            ← {prevLabel}
-                          </button>
-                        )}
-                        {next && (
-                          <button
-                            onClick={() => moveToStage(entry.id, next)}
-                            className="text-[11px] text-zinc-500 hover:text-white transition-colors ml-auto"
-                            title={`Move to ${nextLabel}`}
-                          >
-                            {nextLabel} →
-                          </button>
-                        )}
                         <button
                           onClick={() => archive(entry.id)}
-                          className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
+                          className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors ml-auto"
                           title="Archive"
                         >
                           ✕
