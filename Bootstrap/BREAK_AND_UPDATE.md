@@ -79,6 +79,55 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-11 — Visual Shell Re-Lock + Pipeline Board + Tailor Recompose + Docs Re-Anchor
+
+**What changed:**
+- Visual shell re-lock: stopped local-patching approach ("match pipeline page") and re-anchored the design system to explicit approved primitives.
+- Approved shell traits now codified: wide subtle ambient gradient band, calm dark premium surface (#050505), outlined green buttons, no small sharp centered line motif.
+- Global layout: top padding reduced (pt-16→pt-10), max-width widened to 960px to support pipeline board (individual pages self-constrain to 600px where needed).
+- Calibration page: header area reduced (8.5em→5.5em), LANDING spacing tightened (mt-14/mt-12→mt-8), dropzone "PDF, DOCX, or TXT" text centered, redundant dividers removed from TITLES step.
+- Tailor page recomposed: "Tailor Resume" is now the primary heading, job title/company card appears first, pipeline confirmation banner demoted below job context, CaliberHeader removed from tailor page entirely.
+- Pipeline rebuilt from vertical list to 4-column board layout: Resume Prep → Submitted → Interview Prep → Interview. NOTE: this is the code implementation — product-level validation of the board is still active/current-next work.
+- Pipeline API and store updated with new stage types (resume_prep, submitted, interview_prep, interview) alongside legacy stages, with automatic mapping from old stages to new board columns.
+- Extension bug-report button now shows "🐛 Report" text label (previously icon-only emoji).
+- All "Back to Caliber" links now route to /calibration (not /).
+
+**What is now expected:**
+- Design changes reference approved visual primitives, not a single live page.
+- Tailor page hierarchy: Tailor Resume (focal) → job context card → pipeline confirmation (secondary) → action buttons.
+- Pipeline renders as a 4-column board with moveable cards between columns.
+- Extension bug-report action has explicit text label for clarity.
+- All navigation "Back to Caliber" routes to the resume/calibration page.
+
+**What is no longer expected:**
+- "Match the pipeline page" as a design instruction — design is now primitive-based.
+- Single-list pipeline view — replaced by board layout.
+- CaliberHeader as the dominant element on the tailor page.
+- Icon-only bug-report affordance in the extension.
+- "Back to Caliber" routing to "/" (now always /calibration).
+
+**Risk / regressions noted:**
+- Visual drift occurred from repeated incremental local UI tweaks across sessions.
+- Shell composition is still inconsistent across main, ingest, results, tailor, and pipeline pages — further tightening needed.
+- Upload page CALIBER mark may sit too high; prompt/question pages need shell alignment.
+- Pipeline board is code-implemented but product validation of the 4-column model is ongoing.
+- Better Search Title trigger behavior may have regressed — needs verification.
+
+**Files touched:**
+- app/layout.tsx
+- app/calibration/page.tsx
+- app/calibration/build-resume/page.tsx
+- app/tailor/page.tsx
+- app/pipeline/page.tsx
+- app/api/pipeline/route.ts
+- lib/pipeline_store.ts
+- extension/content_linkedin.js
+- Bootstrap/BREAK_AND_UPDATE.md
+- Bootstrap/CALIBER_ACTIVE_STATE.md
+- Bootstrap/CALIBER_CONTEXT_SUMMARY.md
+- Bootstrap/CALIBER_ISSUES_LOG.md
+- Bootstrap/milestones.md
+
 ### 2026-03-10 — Strong-Match Action + Resume Tailoring + Job Pipeline
 **What changed:**
 - Caliber expands from evaluation-only to strong-match action workflow.

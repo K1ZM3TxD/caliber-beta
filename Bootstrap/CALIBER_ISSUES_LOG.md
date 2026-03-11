@@ -314,3 +314,65 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 40. Extension v0.6.0 — **RESOLVED** (2026-03-10)
   - Extension bumped to v0.6.0 with: pipeline truthfulness (prepare-time persistence), CTA suppression for jobs already in pipeline, separate bug-report action in feedback row.
+
+---
+
+## Issues Added 2026-03-11 (Visual Shell Re-Lock + Pipeline Board + Tailor Recompose)
+
+### Resolved / Annotated (this session)
+
+35 (action). Strong-match resume-tailoring workflow — **SHIPPED** (2026-03-10, updated 2026-03-11)
+  - Workflow is end-to-end functional: extension 8.0+ CTA → tailor/prepare → /tailor page → generate → download.
+  - Pipeline persistence at prepare-time is live. CTA suppression for pipeline-existing jobs is live.
+  - Remaining: validate tailoring quality, determine text vs PDF download.
+
+36 (action). Simple job pipeline/tracker — **SHIPPED → EVOLVING** (2026-03-10, updated 2026-03-11)
+  - Original list view shipped 2026-03-10.
+  - Rebuilt as 4-column board (2026-03-11): Resume Prep → Submitted → Interview Prep → Interview.
+  - Legacy stages auto-map to new board columns. Cards moveable between columns.
+  - Code is implemented. Product-level board model validation is active/next. See #45.
+
+38 (pipeline). Pipeline entry persisted at prepare time — **RESOLVED** (2026-03-10, confirmed 2026-03-11)
+  - Pipeline entry created at prepare time. Pipeline dedupe based on canonical/normalized job URL.
+  - `/tailor` confirmation banner truthfully gated by actual pipeline existence.
+  - CTA suppression prevents repeat Tailor CTA for jobs already in pipeline.
+  - These are all shipped and confirmed as current behavior.
+
+### New Issues
+
+41. Visual shell drift / inconsistent composition — **OPEN** (2026-03-11, active concern)
+  - Shell composition is inconsistent across calibration main page, upload/ingest steps, results/TITLES step, tailor page, and pipeline page.
+  - Visual drift accumulated from repeated incremental UI tweaks across sessions.
+  - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives.
+  - Approved primitives: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
+  - Regressions noted: excessive empty space on some pages, cropped/mispositioned header sections during iterations, weak grounding for title/result sections.
+  - Next step: focused shell-convergence pass referencing approved primitives.
+
+42. Tailor page hierarchy mismatch — **SHIPPED** (2026-03-11)
+  - Prior state: CaliberHeader dominated the tailor page, job context secondary, pipeline banner at top.
+  - Fixed: "Tailor Resume" is now the primary heading, CaliberHeader removed, job title/company card first, pipeline confirmation banner demoted.
+  - Verify in production that hierarchy feels correct.
+
+43. Extension debug/report affordance clarity — **PARTIALLY RESOLVED** (2026-03-11)
+  - Prior state: bug-report button was icon-only (🐛) — unclear affordance.
+  - Fixed: button now shows "🐛 Report" with explicit text label.
+  - Bug reporting remains distinct from thumbs-down quality feedback.
+  - May need further UX refinement if the combined icon+text is still not clear enough in the compact feedback row.
+
+44. Better Search Title trigger verification — **OPEN** (2026-03-11)
+  - Better Search Title thresholds were widened: weak < 6.5 (was < 6.0), strong >= 7.5 (was > 7.0).
+  - Need to verify the feature still triggers correctly with these thresholds.
+  - If regressed, this is a priority fix — the recovery banner is an important product surface.
+
+45. Pipeline board product validation — **OPEN** (2026-03-11, active/next)
+  - Pipeline rebuilt from list to 4-column board: Resume Prep → Submitted → Interview Prep → Interview.
+  - Code is implemented with legacy stage auto-mapping and new API stages.
+  - Product validation needed: Are these the right columns? Are the names correct? Is the board the right metaphor?
+  - Board must remain lightweight and anti-CRM in spirit — no subtasks, notes, timelines, due dates.
+  - This is a product-level decision, not just a code task.
+
+46. Upload/ingest page shell alignment — **OPEN** (2026-03-11)
+  - Upload page and ingest/question pages need shell alignment with the approved Caliber visual direction.
+  - CALIBER mark was observed too high on these pages (header minHeight reduced from 8.5em to 5.5em, may need further adjustment).
+  - Upload support text ("PDF, DOCX, or TXT") alignment corrected (centered) but overall dropzone positioning needs review.
+  - Interactive surfaces (textareas, file inputs) must remain clearly visible and usable — dark-shell styling must not reduce field clarity.

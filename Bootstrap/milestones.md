@@ -1,5 +1,28 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (Visual Shell Re-Lock + Pipeline Board + Tailor Recompose)
+---
+DONE:
+- Visual shell re-lock: abandoned "match the pipeline page" approach, anchored design to explicit approved primitives
+- Approved primitives codified: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium shell
+- Global layout: top padding pt-16→pt-10, max-width widened to 960px for board (pages self-constrain to 600px)
+- Calibration page: header area 8.5em→5.5em, LANDING spacing mt-14/mt-12→mt-8, dropzone text centered, redundant dividers removed
+- Tailor page recomposed: "Tailor Resume" as primary heading, job context first, CaliberHeader removed, pipeline banner demoted
+- Pipeline rebuilt from list to 4-column board: Resume Prep → Submitted → Interview Prep → Interview
+- Pipeline API + store updated with new stages (resume_prep, submitted, interview_prep, interview) with legacy auto-mapping
+- Extension bug-report button: icon-only → "🐛 Report" text label
+- All "Back to Caliber" links → /calibration
+- PM docs refreshed to reflect current shipped state vs planned-next behavior
+
+REMAINING / ACTIVE NEXT:
+- Tighten remaining visual shell drift across all pages (reference approved primitives)
+- Product validation of pipeline 4-column board model (column names, stage decomposition)
+- Verify Better Search Title trigger behavior with widened thresholds
+- CTA noise-control refinement (per-session, time-based)
+- Upload/ingest page shell alignment
+
+---
+
 BREAK + UPDATE — 2026-03-10 (Pipeline Truthfulness + Extension v0.6.0)
 ---
 DONE:

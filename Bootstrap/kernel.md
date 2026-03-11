@@ -396,8 +396,23 @@ Strong-fit jobs may trigger an action workflow. This invariant constrains what a
 - Only jobs scoring 8.0+ may trigger the "Tailor resume for this job" action. Lower scores do not get tailoring CTAs.
 - The contextual card must remain low-noise: it renders above the sidecard (like the recovery banner), not inside it, and must not feel like a persistent nag.
 - Resume tailoring must NEVER fabricate experience, skills, or accomplishments. Only reorder, emphasize, and adjust language.
-- The job pipeline must remain intentionally minimal. Stages: Strong Match → Tailored → Applied → Interviewing (+ optional Offer / Archived).
+- The job pipeline must remain intentionally minimal. Anti-CRM by design.
 - Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates. If it gains these, the design has failed.
+
+## Visual Shell Invariant (2026-03-11)
+
+Design changes must reference approved visual primitives, not copy from a single live page.
+
+Approved shell traits:
+- Wide subtle ambient gradient band over #050505 dark surface
+- Outlined green primary buttons (rgba(74,222,128,0.06) bg, #4ADE80 text, rgba(74,222,128,0.45) border). No solid green fills.
+- No small sharp centered line motif
+- Form fields must remain clearly visible and usable against dark backgrounds
+- Shell feel: calm, cinematic, premium
+
+"Match the pipeline page" (or any single-page reference) is NOT a valid design instruction.
+
+Each page composes from the above primitives. Visual drift from incremental local tweaks is a regression — the fix is to re-anchor to primitives, not to add more local patches.
 - This is the next product layer after scoring trust — not a generic feature expansion or platform play.
 
 
