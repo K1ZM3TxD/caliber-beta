@@ -664,11 +664,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
-                <div className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: '#E6E6E6' }}>Upload Resume</div>
                 <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
-                  <div className="mt-3 text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
+                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
-                <div className="mt-8 flex justify-center">
+                <div className="mt-6 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
@@ -735,7 +734,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     </div>
                   </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-5">
                   <button
                     type="button"
                     onClick={submitResume}
@@ -754,7 +753,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {resumeUploading ? (<><Spinner /><span className="ml-2">Uploading…</span></>) : "Continue"}
                   </button>
                 </div>
-                <div className="mt-10 text-center" style={{ opacity: resumeDone ? 1 : 0, transition: "opacity 0.6s 0.3s" }}>
+                <div className="mt-6 text-center" style={{ opacity: resumeDone ? 1 : 0, transition: "opacity 0.6s 0.3s" }}>
                   <Link
                     href="/calibration/build-resume"
                     className="text-xs transition-colors duration-200"
