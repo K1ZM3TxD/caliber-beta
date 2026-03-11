@@ -627,7 +627,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
               </div>
             ) : (
-              <CaliberHeader />
+              <CaliberHeader compact />
             )}
             {/* Error area */}
             {step !== "TITLES" && (
@@ -639,7 +639,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
               </div>
             )}
-            </div>
 
 
             {/* LANDING */}
@@ -745,7 +744,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     </div>
                   </div>
                 </div>
-                <div className="mt-5">
+                <div className="mt-5 flex justify-center">
                   <button
                     type="button"
                     onClick={submitResume}
@@ -1092,7 +1091,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               );
             })() : null}
 
-
+          </div>
         </div>
       </div>
     </div>
