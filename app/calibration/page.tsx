@@ -5,27 +5,28 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 
-const TYPE_MS = 55;
-const START_DELAY_MS = 200;
+const TYPE_MS = 38;
+const START_DELAY_MS = 350;
 function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, boolean] {
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
     setTyped("");
     if (!text) return;
-    let started = false;
-    let interval: any;
     const timeout = setTimeout(() => {
-      started = true;
-      interval = setInterval(() => {
-        setTyped(text.slice(0, ++i));
-        if (i >= text.length) clearInterval(interval);
-      }, msPerChar);
+      const step = () => {
+        i++;
+        setTyped(text.slice(0, i));
+        if (i < text.length) {
+          // Slightly eased pacing: brief pause after punctuation
+          const ch = text[i - 1];
+          const next = (ch === "." || ch === "," || ch === "\u2014") ? msPerChar * 3 : msPerChar + Math.random() * 12;
+          setTimeout(step, next);
+        }
+      };
+      step();
     }, START_DELAY_MS);
-    return () => {
-      clearTimeout(timeout);
-      if (interval) clearInterval(interval);
-    };
+    return () => { clearTimeout(timeout); };
   }, [text, msPerChar]);
   return [typed, typed === text];
 }
@@ -594,8 +595,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 bg-[#080808] flex justify-center items-start pt-[10vh] sm:pt-[14vh] overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.055) 0%, transparent 100%) #080808' }}>
-      <div className="w-full max-w-[760px] px-6">
+    <div className="fixed inset-0 bg-[#080808] flex justify-center items-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.045) 0%, transparent 100%) #080808' }}>
+      <div className="w-full max-w-[760px] px-6 py-12">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -632,7 +633,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
-                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{tagline}</p>
+                  <p className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{tagline}</p>
                 </div>
                 <div className="mt-10">
                   <button
@@ -659,7 +660,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Upload Resume</div>
                 <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
-                  <div className="mt-3 text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>{resumeSubtext}</div>
+                  <div className="mt-3 text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
                 <div className="mt-8 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>

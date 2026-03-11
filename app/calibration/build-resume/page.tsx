@@ -5,10 +5,11 @@ import Link from "next/link";
 export default function BuildResumePage() {
   return (
     <div
-      className="w-full py-16 text-center"
+      className="w-full py-16 text-center flex flex-col items-center justify-center"
       style={{
+        minHeight: "60vh",
         background:
-          "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.055), transparent)",
+          "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
       <div className="mb-8">
