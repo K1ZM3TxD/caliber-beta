@@ -1,18 +1,20 @@
 "use client";
 
+import Link from "next/link";
+
 export default function BuildResumePage() {
   return (
     <div
       className="w-full py-16 text-center"
       style={{
         background:
-          "radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045), transparent)",
+          "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.055), transparent)",
       }}
     >
       <div className="mb-8">
         <span
-          className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-400"
-          style={{ textShadow: "0 0 40px rgba(74,222,128,0.08)" }}
+          className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-500"
+          style={{ textShadow: "0 0 60px rgba(74,222,128,0.06)" }}
         >
           Caliber
         </span>
@@ -26,7 +28,7 @@ export default function BuildResumePage() {
         of your resume to get started — even rough drafts work.
       </p>
 
-      <a
+      <Link
         href="/calibration"
         className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-semibold transition-all"
         style={{
@@ -36,7 +38,7 @@ export default function BuildResumePage() {
         }}
       >
         Back to Upload
-      </a>
+      </Link>
     </div>
   );
 }

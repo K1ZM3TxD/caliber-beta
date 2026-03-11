@@ -2,6 +2,7 @@
 // app/calibration/page.tsx
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
+import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 
 const TYPE_MS = 55;
@@ -440,7 +441,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   const [expanded, setExpanded] = useState(true);
   useEffect(() => { setExpanded(true); }, [jobResult]); // expand by default on new result
   return (
-    <div className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors" style={{ backgroundColor: expanded ? "#1A1A1A" : "#141414", border: expanded ? "1px solid rgba(242,242,242,0.18)" : "1px solid rgba(242,242,242,0.08)" }}>
+    <div className="flex flex-col rounded-md px-4 py-2.5 cursor-pointer select-none transition-colors" style={{ backgroundColor: expanded ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.025)", border: expanded ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(255,255,255,0.05)" }}>
       <span className="flex items-center justify-between" onClick={() => setExpanded(!expanded)}>
         <span className="flex items-center gap-2 min-w-0">
           <span className="text-xs flex-shrink-0" style={{ color: "#777", width: 14 }}>{expanded ? "▼" : "▶"}</span>
@@ -593,15 +594,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[8vh] sm:pt-[10vh] overflow-y-auto" style={{ background: 'radial-gradient(ellipse 60% 35% at 50% 0%, rgba(74,222,128,0.045) 0%, transparent 100%) #0B0B0B' }}>
+    <div className="fixed inset-0 bg-[#080808] flex justify-center items-start pt-[10vh] sm:pt-[14vh] overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.055) 0%, transparent 100%) #080808' }}>
       <div className="w-full max-w-[760px] px-6">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          .cb-title-card:hover { border-color: rgba(242,242,242,0.16) !important; background-color: #161616 !important; }
+          .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
-          .cb-dropzone:hover { border-color: rgba(74,222,128,0.4) !important; background-color: rgba(74,222,128,0.03) !important; }
+          .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.45) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.15) !important; }
         `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -614,7 +615,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <div className="font-semibold tracking-tight text-5xl sm:text-6xl" style={{ textShadow: '0 0 40px rgba(74,222,128,0.08)' }}>Caliber</div>
+                <div className="font-light tracking-[0.18em] uppercase text-[1.6rem] sm:text-[2rem]" style={{ color: 'rgba(255,255,255,0.35)', textShadow: '0 0 60px rgba(74,222,128,0.06)' }}>Caliber</div>
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
@@ -665,8 +666,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(74,222,128,0.25)",
-                        backgroundColor: selectedFile ? "#121212" : "#0F0F0F",
+                        border: "1px dashed rgba(255,255,255,0.08)",
+                        backgroundColor: selectedFile ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
                         pointerEvents: resumeDone ? "auto" : "none",
@@ -694,9 +695,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             disabled={busy}
                             className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                             style={{
-                              backgroundColor: "rgba(242,242,242,0.14)",
+                              backgroundColor: "rgba(255,255,255,0.08)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(242,242,242,0.18)",
+                              border: "1px solid rgba(255,255,255,0.12)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -713,9 +714,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             disabled={busy}
                             className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 mt-2"
                             style={{
-                              backgroundColor: "rgba(242,242,242,0.10)",
+                              backgroundColor: "rgba(255,255,255,0.06)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(242,242,242,0.16)",
+                              border: "1px solid rgba(255,255,255,0.10)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -747,7 +748,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </button>
                 </div>
                 <div className="mt-10 text-center" style={{ opacity: resumeDone ? 1 : 0, transition: "opacity 0.6s 0.3s" }}>
-                  <a
+                  <Link
                     href="/calibration/build-resume"
                     className="text-xs transition-colors duration-200"
                     style={{ color: "rgba(207,207,207,0.5)", textDecoration: "none", borderBottom: "1px solid rgba(207,207,207,0.18)" }}
@@ -755,7 +756,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     onMouseLeave={e => { e.currentTarget.style.color = "rgba(207,207,207,0.5)"; e.currentTarget.style.borderBottomColor = "rgba(207,207,207,0.18)"; }}
                   >
                     Don&apos;t have a resume? Build a great one.
-                  </a>
+                  </Link>
                 </div>
               </div>
             ) : null}
@@ -788,9 +789,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       rows={6}
                       className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
                       style={{
-                        backgroundColor: "#141414",
+                        backgroundColor: "rgba(255,255,255,0.03)",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(242,242,242,0.10)",
+                        border: "1px solid rgba(255,255,255,0.07)",
                         boxShadow: "none",
                         opacity: 1,
                         fontSize: "1em",
@@ -861,7 +862,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(242,242,242,0.10)", color: "#F2F2F2", border: "1px solid rgba(242,242,242,0.16)" }}
+                    style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#F2F2F2", border: "1px solid rgba(255,255,255,0.10)" }}
                   >
                     Restart
                   </button>
@@ -919,8 +920,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div
                     className="rounded-xl px-5 py-5 sm:px-7 sm:py-6 flex flex-col items-center text-center"
                     style={{
-                      background: "linear-gradient(180deg, rgba(74,222,128,0.04) 0%, transparent 100%)",
-                      border: "1px solid rgba(74,222,128,0.12)",
+                      background: "linear-gradient(180deg, rgba(74,222,128,0.035) 0%, transparent 100%)",
+                      border: "1px solid rgba(74,222,128,0.07)",
                     }}
                   >
                     <h3 className="text-base sm:text-lg font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
@@ -962,7 +963,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Fallback: no title available */}
                 {!heroTitle ? (
-                  <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "#141414", color: "#AFAFAF", border: "1px solid rgba(242,242,242,0.08)" }}>
+                  <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "rgba(255,255,255,0.025)", color: "#AFAFAF", border: "1px solid rgba(255,255,255,0.05)" }}>
                     Your title recommendation is still being generated.
                   </div>
                 ) : null}
@@ -973,8 +974,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: heroExpanded ? "#1A1A1A" : "#111",
-                      border: heroExpanded ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
+                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.02)",
+                      border: heroExpanded ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(255,255,255,0.04)",
                     }}
                     onClick={() => {
                       if (!heroCanExpand) return;
@@ -1008,7 +1009,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {/* Expanded content */}
                     {heroExpanded && heroCanExpand ? (
                       <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(242,242,242,0.07)" }}>
+                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                           <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>Your pattern matches on 4 core signals.</p>
                           {heroHasBullets ? (
                             <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
@@ -1026,14 +1027,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
                           >Search on LinkedIn</a>
                           <a
                             href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(242,242,242,0.06)", color: "#AAA", border: "1px solid rgba(242,242,242,0.08)", textDecoration: "none" }}
+                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
                           >Search on Indeed</a>
                         </div>
                       </div>
@@ -1046,8 +1047,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
-                      backgroundColor: expandedTitleIdx === -1 ? "#1A1A1A" : "#111",
-                      border: expandedTitleIdx === -1 ? "1px solid rgba(242,242,242,0.14)" : "1px solid rgba(242,242,242,0.06)",
+                      backgroundColor: expandedTitleIdx === -1 ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.02)",
+                      border: expandedTitleIdx === -1 ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(255,255,255,0.04)",
                     }}
                     onClick={() => setExpandedTitleIdx(expandedTitleIdx === -1 ? null : -1)}
                   >
@@ -1071,7 +1072,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(242,242,242,0.06)", color: "#777", border: "1px solid rgba(242,242,242,0.08)", cursor: "pointer" }}
+                    style={{ backgroundColor: "rgba(255,255,255,0.03)", color: "#666", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
                   >
                     <span style={{ fontSize: "0.85em" }}>{"\u21BB"}</span>
                     Recalibrate
