@@ -1017,27 +1017,39 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       As you browse LinkedIn, Caliber evaluates each job against your pattern and shows which roles actually fit.
                     </p>
 
-                    {/* Compact preview mock */}
+                    {/* LinkedIn-style in-context preview */}
                     <div
-                      className="w-full max-w-xs rounded-lg px-4 py-3 mb-4 text-left"
+                      className="w-full max-w-sm rounded-lg mb-4 overflow-hidden text-left"
                       style={{
-                        backgroundColor: "rgba(255,255,255,0.03)",
+                        backgroundColor: "rgba(255,255,255,0.025)",
                         border: "1px solid rgba(255,255,255,0.06)",
                       }}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-medium truncate" style={{ color: "#AFAFAF" }}>Acme Corp</div>
-                          <div className="text-xs font-medium truncate mt-0.5" style={{ color: "#D4D4D4" }}>{heroTitle ? heroTitle.title : "Product Designer"}</div>
+                      {/* LinkedIn listing header bar */}
+                      <div className="px-3.5 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <span className="text-[10px] font-semibold tracking-wide" style={{ color: "#0A66C2" }}>in</span>
+                        <span className="text-[10px]" style={{ color: "#666" }}>Jobs</span>
+                        <span className="text-[10px] ml-auto" style={{ color: "#555" }}>{"\u2026"}</span>
+                      </div>
+                      {/* Job listing row */}
+                      <div className="px-3.5 py-3 flex items-start gap-3">
+                        {/* Company logo placeholder */}
+                        <div className="shrink-0 w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#777" }}>A</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold truncate" style={{ color: "#D4D4D4" }}>{heroTitle ? heroTitle.title : "Product Designer"}</div>
+                          <div className="text-[11px] truncate mt-0.5" style={{ color: "#999" }}>Acme Corp {"\u00b7"} San Francisco, CA</div>
+                          <div className="text-[10px] mt-1" style={{ color: "#666" }}>2 days ago {"\u00b7"} 47 applicants</div>
                         </div>
-                        <div className="flex flex-col items-center shrink-0">
-                          <span className="text-sm font-bold" style={{ color: "#4ADE80" }}>8.4</span>
-                          <span className="text-[9px] font-medium uppercase tracking-wider mt-0.5" style={{ color: "#4ADE80" }}>Strong</span>
+                        {/* Caliber overlay badge */}
+                        <div className="shrink-0 flex flex-col items-center rounded-md px-2 py-1.5" style={{ backgroundColor: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}>
+                          <span className="text-xs font-bold leading-none" style={{ color: "#4ADE80" }}>8.4</span>
+                          <span className="text-[8px] font-semibold uppercase tracking-wider mt-0.5 leading-none" style={{ color: "#4ADE80" }}>Fit</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#4ADE80" }} />
-                        <span className="text-[10px]" style={{ color: "#777" }}>Pattern match on 4 signals</span>
+                      {/* Caliber evaluation strip */}
+                      <div className="px-3.5 py-2 flex items-center gap-2" style={{ backgroundColor: "rgba(74,222,128,0.02)", borderTop: "1px solid rgba(74,222,128,0.06)" }}>
+                        <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#4ADE80" }}>Caliber</span>
+                        <span className="text-[10px]" style={{ color: "#777" }}>Strong pattern match {"\u00b7"} 4 signals aligned</span>
                       </div>
                     </div>
 
