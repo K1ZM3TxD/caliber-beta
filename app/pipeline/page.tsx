@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 
 interface PipelineEntry {
   id: string;
@@ -44,9 +44,17 @@ function mapStageToColumn(stage: string): string {
   }
 }
 
+function scoreColor(score: number): string {
+  if (score >= 7.5) return "#4ADE80";
+  if (score >= 5) return "#FBBF24";
+  return "#EF4444";
+}
+
 export default function PipelinePage() {
   const [entries, setEntries] = useState<PipelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/pipeline")
@@ -65,6 +73,11 @@ export default function PipelinePage() {
 
   useEffect(() => {
     load();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
 
   const moveToStage = useCallback(
@@ -89,6 +102,45 @@ export default function PipelinePage() {
       load();
     },
     [load]
+  );
+
+  // Drag handlers
+  const onDragStart = useCallback((e: React.DragEvent, entryId: string) => {
+    dragIdRef.current = entryId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", entryId);
+    (e.currentTarget as HTMLElement).style.opacity = "0.5";
+  }, []);
+
+  const onDragEnd = useCallback((e: React.DragEvent) => {
+    (e.currentTarget as HTMLElement).style.opacity = "1";
+    dragIdRef.current = null;
+    setDragOverCol(null);
+  }, []);
+
+  const onDragOver = useCallback((e: React.DragEvent, colKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverCol(colKey);
+  }, []);
+
+  const onDragLeave = useCallback(() => {
+    setDragOverCol(null);
+  }, []);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent, colKey: string) => {
+      e.preventDefault();
+      setDragOverCol(null);
+      const entryId = e.dataTransfer.getData("text/plain") || dragIdRef.current;
+      if (!entryId) return;
+      const entry = entries.find((en) => en.id === entryId);
+      if (!entry) return;
+      if (mapStageToColumn(entry.stage) !== colKey) {
+        moveToStage(entryId, colKey);
+      }
+    },
+    [entries, moveToStage]
   );
 
   // Group entries by board column
@@ -122,7 +174,7 @@ export default function PipelinePage() {
           "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      <h1 className="text-xl font-semibold text-white text-center mb-8 tracking-tight">
+      <h1 className="text-xl font-semibold text-zinc-300 text-center mb-8 tracking-tight">
         Your Pipeline
       </h1>
 
@@ -152,11 +204,15 @@ export default function PipelinePage() {
           }}
         >
           {columns.map((col) => (
-            <div key={col.key} className="flex flex-col min-w-0">
+            <div
+              key={col.key}
+              className="flex flex-col min-w-0"
+              onDragOver={(e) => onDragOver(e, col.key)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, col.key)}
+            >
               {/* Column header */}
-              <div
-                className="flex items-center gap-2 mb-3 px-1"
-              >
+              <div className="flex items-center gap-2 mb-3 px-1">
                 <div
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: col.color }}
@@ -169,8 +225,20 @@ export default function PipelinePage() {
                 </span>
               </div>
 
-              {/* Cards */}
-              <div className="space-y-2 flex-1">
+              {/* Drop zone */}
+              <div
+                className="space-y-2.5 flex-1 rounded-lg p-1 transition-colors"
+                style={{
+                  backgroundColor:
+                    dragOverCol === col.key
+                      ? "rgba(74,222,128,0.06)"
+                      : "transparent",
+                  border:
+                    dragOverCol === col.key
+                      ? "1px dashed rgba(74,222,128,0.25)"
+                      : "1px dashed transparent",
+                }}
+              >
                 {col.entries.map((entry) => {
                   const colKey = mapStageToColumn(entry.stage);
                   const next = nextColumn(colKey);
@@ -185,36 +253,45 @@ export default function PipelinePage() {
                   return (
                     <div
                       key={entry.id}
-                      className="border border-zinc-800 rounded-lg p-3 bg-zinc-900/50 hover:border-zinc-700 transition-colors"
+                      draggable
+                      onDragStart={(e) => onDragStart(e, entry.id)}
+                      onDragEnd={onDragEnd}
+                      className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing"
                     >
-                      <div className="text-white text-sm font-medium leading-snug truncate">
-                        {entry.jobTitle}
-                      </div>
-                      <div className="text-zinc-500 text-[11px] mt-0.5 truncate">
-                        {entry.company}
-                      </div>
-                      {entry.score > 0 && (
-                        <div className="mt-1.5">
-                          <span className="text-emerald-400 text-[11px] font-medium tabular-nums">
+                      {/* Top row: title + fit score */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-white text-sm font-medium leading-snug min-w-0 truncate">
+                          {entry.jobTitle}
+                        </div>
+                        {entry.score > 0 && (
+                          <span
+                            className="text-sm font-semibold tabular-nums flex-shrink-0"
+                            style={{ color: scoreColor(entry.score) }}
+                          >
                             {entry.score.toFixed(1)}
                           </span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        )}
+                      </div>
+                      <div className="text-zinc-500 text-xs mt-0.5 truncate">
+                        {entry.company}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
                         {entry.jobUrl && (
                           <a
                             href={entry.jobUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[10px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
+                            className="text-[11px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
                           >
-                            View
+                            Open job
                           </a>
                         )}
                         {prev && (
                           <button
                             onClick={() => moveToStage(entry.id, prev)}
-                            className="text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors"
+                            className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors"
                             title={`Move to ${prevLabel}`}
                           >
                             ← {prevLabel}
@@ -223,7 +300,7 @@ export default function PipelinePage() {
                         {next && (
                           <button
                             onClick={() => moveToStage(entry.id, next)}
-                            className="text-[10px] text-zinc-500 hover:text-white transition-colors ml-auto"
+                            className="text-[11px] text-zinc-500 hover:text-white transition-colors ml-auto"
                             title={`Move to ${nextLabel}`}
                           >
                             {nextLabel} →
@@ -231,7 +308,7 @@ export default function PipelinePage() {
                         )}
                         <button
                           onClick={() => archive(entry.id)}
-                          className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+                          className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors"
                           title="Archive"
                         >
                           ✕
@@ -241,7 +318,7 @@ export default function PipelinePage() {
                   );
                 })}
                 {col.entries.length === 0 && (
-                  <div className="text-[11px] text-zinc-700 text-center py-6 border border-dashed border-zinc-800/50 rounded-lg">
+                  <div className="text-xs text-zinc-700 text-center py-8 border border-dashed border-zinc-800/50 rounded-lg">
                     No jobs
                   </div>
                 )}

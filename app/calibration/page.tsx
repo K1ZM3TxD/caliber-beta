@@ -621,7 +621,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <CaliberHeader />
               )}
               {/* Fixed-height error area */}
-              <div style={{ minHeight: "2.2em" }}>
+              <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
                 {error ? (
                   <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
                     {error}
@@ -664,7 +664,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
-                <div className="text-2xl sm:text-3xl font-semibold tracking-tight">Upload Resume</div>
+                <div className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{ color: '#E6E6E6' }}>Upload Resume</div>
                 <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
                   <div className="mt-3 text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
@@ -719,11 +719,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             type="button"
                             onClick={openFilePicker}
                             disabled={busy}
-                            className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 mt-2"
+                            className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none mt-2"
                             style={{
                               backgroundColor: "rgba(255,255,255,0.06)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(255,255,255,0.10)",
+                              border: "1.5px solid rgba(255,255,255,0.18)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -921,44 +921,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
-              <div className="w-full max-w-3xl pb-14">
-                {/* Extension install — primary action, before titles */}
-                <div className="mb-6" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
-                  <div
-                    className="rounded-xl px-5 py-5 sm:px-7 sm:py-6 flex flex-col items-center text-center"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(74,222,128,0.035) 0%, transparent 100%)",
-                      border: "1px solid rgba(74,222,128,0.07)",
-                    }}
-                  >
-                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-4" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
-
-                    <a
-                      href="/extension"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{
-                        background: "rgba(74,222,128,0.06)",
-                        color: "#4ADE80",
-                        cursor: "pointer",
-                        minWidth: 200,
-                        border: "1px solid rgba(74,222,128,0.45)",
-                        boxShadow: "none",
-                      }}
-                    >
-                      <span>Get the Extension</span>
-                      <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
-                    </a>
-                    <p className="mt-2.5 text-xs" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
-                  </div>
-                </div>
-
-
-
+              <div className="w-full max-w-3xl pb-8">
                 {/* Section heading */}
-                <div className="mb-6 flex flex-col items-center">
-                  <h2 className="text-lg sm:text-xl font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
+                <div className="mb-3 flex flex-col items-center">
+                  <h2 className="text-base sm:text-lg font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title suggestion for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -985,9 +951,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       setExpandedTitleIdx(heroExpanded ? null : 0);
                     }}
                   >
-                    <div className="px-10 py-16 sm:px-14 sm:py-20 text-center">
-                      <div className="text-[1.7rem] sm:text-[2.4rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-6 mt-10">
+                    <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
+                      <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-4 mt-5">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
@@ -1045,8 +1011,39 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
+                {/* Extension CTA — supporting section */}
+                <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
+                  <div
+                    className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(74,222,128,0.025) 0%, transparent 100%)",
+                      border: "1px solid rgba(74,222,128,0.06)",
+                    }}
+                  >
+                    <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                    <a
+                      href="/extension"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      style={{
+                        background: "rgba(74,222,128,0.06)",
+                        color: "#4ADE80",
+                        cursor: "pointer",
+                        minWidth: 180,
+                        border: "1px solid rgba(74,222,128,0.45)",
+                        boxShadow: "none",
+                      }}
+                    >
+                      <span>Get the Extension</span>
+                      <span style={{ fontSize: "1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
+                    </a>
+                    <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
+                  </div>
+                </div>
+
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-2">
+                <div className="mt-3">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
@@ -1070,12 +1067,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* Recalibrate */}
-                <div className="mt-6 flex justify-center">
+                <div className="mt-4 flex justify-center">
                   <button
                     type="button"
                     onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{ backgroundColor: "rgba(255,255,255,0.03)", color: "#666", border: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
+                    className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-normal transition-colors duration-200 focus:outline-none"
+                    style={{ backgroundColor: "transparent", color: "#555", border: "none", cursor: "pointer" }}
                   >
                     <span style={{ fontSize: "0.85em" }}>{"\u21BB"}</span>
                     Recalibrate
