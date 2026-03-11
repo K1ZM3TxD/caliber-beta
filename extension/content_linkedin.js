@@ -657,8 +657,8 @@
     var weakCount = 0;
     var hasStrong = false;
     for (var i = 0; i < win.length; i++) {
-      if (win[i].score < 6.0) weakCount++;
-      if (win[i].score > 7.0) hasStrong = true;
+      if (win[i].score < 6.5) weakCount++;
+      if (win[i].score >= 7.5) hasStrong = true;
     }
     console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {

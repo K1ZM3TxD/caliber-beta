@@ -596,8 +596,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center items-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 65% 40% at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
-      <div className="w-full max-w-[760px] px-6 py-12">
+    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: 'radial-gradient(ellipse 65% 40% at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
+      <div className="w-full max-w-[760px] px-6 py-16">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -959,6 +959,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
                 </div>
 
+                {/* Title direction container */}
+                <div className="rounded-2xl px-6 py-8 sm:px-8 sm:py-10" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+
                 {/* Section heading */}
                 <div className="mb-4 flex flex-col items-center">
                   <h2 className="text-lg sm:text-xl font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
@@ -980,8 +983,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.02)",
-                      border: heroExpanded ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(255,255,255,0.04)",
                     }}
                     onClick={() => {
                       if (!heroCanExpand) return;
@@ -1047,6 +1048,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     ) : null}
                   </div>
                 ) : null}
+
+                </div>{/* end title direction container */}
 
                 {/* How we score this — integrated philosophy */}
                 <div className="mt-2">
