@@ -25,9 +25,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased text-white`}
+        style={{ background: "radial-gradient(ellipse 80% 45% at 50% 0%, rgba(74,222,128,0.05), transparent 70%) no-repeat, #050505" }}
       >
-        <div className="min-h-screen flex justify-center px-6 pt-12 pb-12">
+        <div className="min-h-screen flex justify-center px-6 pt-16 pb-12">
           <div className="w-full max-w-[600px]">
             {children}
           </div>

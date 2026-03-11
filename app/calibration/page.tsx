@@ -959,11 +959,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(242,242,242,0.06), transparent)" }} />
                 </div>
 
-                {/* Title direction container */}
-                <div className="rounded-2xl px-6 py-8 sm:px-8 sm:py-10" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                {/* Broad section break */}
+                <div className="w-full h-px mb-8" style={{ background: "linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent 95%)" }} />
 
                 {/* Section heading */}
-                <div className="mb-4 flex flex-col items-center">
+                <div className="mb-6 flex flex-col items-center">
                   <h2 className="text-lg sm:text-xl font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title direction for your pattern</h2>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
@@ -983,6 +983,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
+                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
+                      border: heroExpanded ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)",
                     }}
                     onClick={() => {
                       if (!heroCanExpand) return;
@@ -1048,8 +1050,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     ) : null}
                   </div>
                 ) : null}
-
-                </div>{/* end title direction container */}
 
                 {/* How we score this — integrated philosophy */}
                 <div className="mt-2">
