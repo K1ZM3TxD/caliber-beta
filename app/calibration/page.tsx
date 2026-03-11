@@ -1003,7 +1003,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Extension CTA — supporting section */}
+                {/* Extension CTA — continuation of calibration value */}
                 <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                   <div
                     className="rounded-xl px-6 py-5 sm:px-8 sm:py-7 flex flex-col items-center text-center"
@@ -1012,7 +1012,35 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       border: "1px solid rgba(74,222,128,0.08)",
                     }}
                   >
-                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-3" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-1.5" style={{ color: "#F2F2F2" }}>Test this direction on real jobs</h3>
+                    <p className="text-xs sm:text-sm leading-relaxed mb-4 max-w-md" style={{ color: "#999" }}>
+                      As you browse LinkedIn, Caliber evaluates each job against your pattern and shows which roles actually fit.
+                    </p>
+
+                    {/* Compact preview mock */}
+                    <div
+                      className="w-full max-w-xs rounded-lg px-4 py-3 mb-4 text-left"
+                      style={{
+                        backgroundColor: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-medium truncate" style={{ color: "#AFAFAF" }}>Acme Corp</div>
+                          <div className="text-xs font-medium truncate mt-0.5" style={{ color: "#D4D4D4" }}>{heroTitle ? heroTitle.title : "Product Designer"}</div>
+                        </div>
+                        <div className="flex flex-col items-center shrink-0">
+                          <span className="text-sm font-bold" style={{ color: "#4ADE80" }}>8.4</span>
+                          <span className="text-[9px] font-medium uppercase tracking-wider mt-0.5" style={{ color: "#4ADE80" }}>Strong</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#4ADE80" }} />
+                        <span className="text-[10px]" style={{ color: "#777" }}>Pattern match on 4 signals</span>
+                      </div>
+                    </div>
+
                     <a
                       href="/extension"
                       target="_blank"
@@ -1027,10 +1055,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         boxShadow: "none",
                       }}
                     >
-                      <span>Get the Extension</span>
+                      <span>Start evaluating jobs</span>
                       <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
                     </a>
-                    <p className="mt-2 text-xs" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
+                    <p className="mt-2 text-[10px]" style={{ color: "#555" }}>Installs the Caliber browser extension</p>
                   </div>
                 </div>
 
