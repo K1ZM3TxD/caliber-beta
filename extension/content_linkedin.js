@@ -394,6 +394,7 @@
     // Wire feedback controls
     shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
     shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
+    shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
     shadow.getElementById("cb-fb-submit").addEventListener("click", handleFeedbackSubmit);
     shadow.getElementById("cb-fb-cancel").addEventListener("click", handleFeedbackCancel);
     shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
@@ -402,19 +403,14 @@
       });
     });
 
-    // Wire bug report controls
-    shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
-    shadow.getElementById("cb-bug-submit").addEventListener("click", handleBugSubmit);
-    shadow.getElementById("cb-bug-cancel").addEventListener("click", handleBugCancel);
-    shadow.querySelectorAll(".cb-bug-chip").forEach(function (chip) {
-      chip.addEventListener("click", function () {
-        chip.classList.toggle("cb-fb-chip-selected");
-      });
-    });
-
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
       var btn = shadow.getElementById("cb-tailor-btn");
+      // If already in opened state, clicking opens pipeline
+      if (btn && btn.dataset.opened === "1") {
+        chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+        return;
+      }
       if (btn) { btn.textContent = "Preparing\u2026"; btn.disabled = true; }
       chrome.runtime.sendMessage({
         type: "CALIBER_TAILOR_PREPARE",
@@ -422,10 +418,9 @@
         company: lastJobMeta.company || "",
         jobUrl: location.href,
         jobText: lastScoredText || "",
-        score: lastScoredScore || 0,
       }, function (resp) {
         if (resp && resp.ok) {
-          if (btn) btn.textContent = "Opened \u2713";
+          setTailorBtnOpened(shadow);
         } else {
           if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
@@ -434,6 +429,20 @@
     });
 
     return shadow;
+  }
+
+  /**
+   * Transition the tailor banner button to "Opened \u2713" state.
+   * In this state, clicking opens the pipeline page.
+   */
+  function setTailorBtnOpened(shadowRoot) {
+    var btn = shadowRoot.getElementById("cb-tailor-btn");
+    if (!btn) return;
+    btn.textContent = "Opened \u2713";
+    btn.disabled = false;
+    btn.dataset.opened = "1";
+    btn.style.cursor = "pointer";
+    btn.setAttribute("aria-label", "View pipeline");
   }
 
   function removePanel() {
@@ -546,60 +555,17 @@
     if (row) row.style.display = "";
   }
 
-  function handleBugOpen() {
-    var panel = shadow.getElementById("cb-bug-panel");
-    if (panel) panel.style.display = "";
-    var row = shadow.getElementById("cb-fb-row");
-    if (row) row.style.display = "none";
-    // Also hide thumbs-down panel if open
-    var fbPanel = shadow.getElementById("cb-fb-panel");
-    if (fbPanel) fbPanel.style.display = "none";
-  }
-
-  function handleBugSubmit() {
-    var selected = shadow.querySelectorAll(".cb-bug-chip.cb-fb-chip-selected");
-    var category = null;
-    if (selected.length > 0) category = selected[0].getAttribute("data-bug");
-    var comment = (shadow.getElementById("cb-bug-text").value || "").trim();
-    sendBugReport(category, comment || null);
-    shadow.getElementById("cb-bug-panel").style.display = "none";
-    showFeedbackConfirm();
-  }
-
-  function handleBugCancel() {
-    shadow.getElementById("cb-bug-panel").style.display = "none";
-    var row = shadow.getElementById("cb-fb-row");
-    if (row) row.style.display = "";
-  }
-
-  function sendBugReport(category, comment) {
+  function handleBugReport() {
     var d = lastFeedbackData || {};
-    var payload = {
-      surface: "extension",
-      site: "linkedin",
-      company_name: d.company || null,
-      job_title: d.jobTitle || null,
-      search_title: getSearchKeywords() || null,
-      calibration_title_direction: null,
-      fit_score: d.score != null ? d.score : null,
-      decision_label: d.decision || null,
-      hiring_reality_band: d.hrcBand || null,
-      better_search_title_suggestion: d.suggestedTitle || null,
-      feedback_type: "bug_report",
-      feedback_reason: null,
-      bug_category: category,
-      optional_comment: comment,
-      behavioral_signals: {
-        jobs_viewed_in_session: sessionSignals.jobs_viewed,
-        scores_below_6_count: sessionSignals.scores_below_6,
-        highest_score_seen: sessionSignals.highest_score,
-        better_title_suggestion_shown: sessionSignals.suggest_shown,
-        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
-      },
-    };
-    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
-      console.debug("[Caliber] bug report sent:", category)
-    });
+    var body = "**Score shown:** " + (d.score != null ? d.score : "n/a") +
+      "\n**Job:** " + (d.jobTitle || "n/a") + " @ " + (d.company || "n/a") +
+      "\n**Decision:** " + (d.decision || "n/a") +
+      "\n**Panel version:** " + PANEL_VERSION +
+      "\n\n**What went wrong?**\n";
+    var url = "https://github.com/K1ZM3TxD/caliber-beta/issues/new?" +
+      "labels=bug&title=" + encodeURIComponent("[Extension Bug] ") +
+      "&body=" + encodeURIComponent(body);
+    window.open(url, "_blank", "noopener");
   }
 
   function showFeedbackConfirm() {
@@ -786,23 +752,26 @@
       nearbySection.style.display = "none";
     }
 
-    // Tailor Resume banner (above sidecard, 8.0+ only, suppressed if already in pipeline)
+    // Tailor Resume banner (above sidecard, 8.0+ only)
+    // Show opened-state only when pipeline entry confirmed; otherwise show tailor CTA.
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
-        // Check pipeline membership before showing CTA
-        tailorBanner.style.display = "none";
-        chrome.runtime.sendMessage(
-          { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
-          function (resp) {
-            if (resp && resp.exists) {
-              console.debug("[Caliber] job already in pipeline, suppressing tailor CTA");
-              tailorBanner.style.display = "none";
-            } else {
-              tailorBanner.style.display = "";
-            }
+        tailorBanner.style.display = "";
+        var btn = shadow.getElementById("cb-tailor-btn");
+        // Default to tailor CTA while pipeline check is in flight
+        if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; btn.dataset.opened = ""; }
+        // Check pipeline membership asynchronously
+        chrome.runtime.sendMessage({
+          type: "CALIBER_PIPELINE_CHECK",
+          jobUrl: location.href,
+        }, function (resp) {
+          if (resp && resp.ok && resp.exists) {
+            // Job is already in pipeline — show opened state
+            setTailorBtnOpened(shadow);
           }
-        );
+          // If not in pipeline or check failed, keep the default tailor CTA
+        });
       } else {
         tailorBanner.style.display = "none";
       }
@@ -843,19 +812,17 @@
     // Reset feedback UI for new result (unless already given in this session)
     var fbRow = shadow.getElementById("cb-fb-row");
     var fbPanel = shadow.getElementById("cb-fb-panel");
-    var bugPanel = shadow.getElementById("cb-bug-panel");
     if (fbPanel) fbPanel.style.display = "none";
-    if (bugPanel) bugPanel.style.display = "none";
     if (fbRow && !feedbackGiven) {
       fbRow.style.display = "";
       fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
-        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
-        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
-        '<span class="cb-fb-sep"></span>' +
-        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B Report</button>';
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>' +
+        '<span class="cb-fb-spacer"></span>' +
+        '<button id="cb-fb-bug" class="cb-fb-bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
-      shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
+      shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
     }
 
     setPanelState("cb-results");
@@ -1182,10 +1149,10 @@
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
-    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
-    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
-    '      <span class="cb-fb-sep"></span>',
-    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B Report</button>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>',
+    '      <span class="cb-fb-spacer"></span>',
+    '      <button id="cb-fb-bug" class="cb-fb-bug" aria-label="Report a bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1200,22 +1167,6 @@
     '      <div class="cb-fb-actions">',
     '        <button id="cb-fb-submit" class="cb-fb-submit">Submit</button>',
     '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
-    '      </div>',
-    '    </div>',
-    '    <div id="cb-bug-panel" class="cb-fb-panel" style="display:none">',
-    '      <div class="cb-fb-panel-title">What went wrong?</div>',
-    '      <div class="cb-fb-chips">',
-    '        <button class="cb-bug-chip" data-bug="wrong_job_detected">Wrong job detected</button>',
-    '        <button class="cb-bug-chip" data-bug="score_failed_to_load">Score failed to load</button>',
-    '        <button class="cb-bug-chip" data-bug="panel_not_opening">Panel not opening correctly</button>',
-    '        <button class="cb-bug-chip" data-bug="content_missing">Content missing or cut off</button>',
-    '        <button class="cb-bug-chip" data-bug="action_not_working">Button/action not working</button>',
-    '        <button class="cb-bug-chip" data-bug="other">Other</button>',
-    '      </div>',
-    '      <textarea id="cb-bug-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
-    '      <div class="cb-fb-actions">',
-    '        <button id="cb-bug-submit" class="cb-fb-submit">Submit</button>',
-    '        <button id="cb-bug-cancel" class="cb-fb-cancel">Cancel</button>',
     '      </div>',
     '    </div>',
     '  </div>',
@@ -1457,33 +1408,34 @@
     // Feedback row
     ".cb-fb-row {",
     "  display: flex; align-items: center; gap: 6px;",
-    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  padding: 7px 0 3px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
+    ".cb-fb-prompt { font-size: 10.5px; color: #555; font-weight: 600; }",
+    ".cb-fb-spacer { flex: 1; }",
     ".cb-fb-btn {",
-    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
-    "  cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;",
-    "  transition: background 0.15s, border-color 0.15s;",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 5px;",
+    "  cursor: pointer; padding: 4px 6px; line-height: 1; color: #777;",
+    "  display: inline-flex; align-items: center; justify-content: center;",
+    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
-    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
-    ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
-    ".cb-bug-btn {",
-    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
-    "  cursor: pointer; font-size: 11px; padding: 2px 8px; line-height: 1; gap: 3px;",
-    "  transition: background 0.15s, border-color 0.15s;",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #CFCFCF; }",
+    ".cb-fb-bug {",
+    "  background: none; border: none; cursor: pointer; padding: 3px 4px;",
+    "  color: #444; line-height: 1; display: inline-flex; align-items: center;",
+    "  transition: color 0.15s;",
     "}",
-    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-fb-bug:hover { color: #888; }",
     // Feedback detail panel
     ".cb-fb-panel {",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-panel-title { font-size: 10px; font-weight: 600; color: #888; margin-bottom: 5px; }",
+    ".cb-fb-panel-title { font-size: 10.5px; font-weight: 600; color: #888; margin-bottom: 5px; }",
     ".cb-fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }",
     ".cb-fb-chip {",
     "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
-    "  border-radius: 10px; padding: 2px 8px; font-size: 10px; color: #AFAFAF;",
+    "  border-radius: 10px; padding: 2px 8px; font-size: 10.5px; color: #AFAFAF;",
     "  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
     ".cb-fb-chip:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
@@ -1492,7 +1444,7 @@
     "}",
     ".cb-fb-text {",
     "  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 5px; padding: 4px 6px; font-size: 10px; color: #CFCFCF;",
+    "  border-radius: 5px; padding: 5px 7px; font-size: 10.5px; color: #CFCFCF;",
     "  resize: none; font-family: inherit; outline: none;",
     "}",
     ".cb-fb-text::placeholder { color: #555; }",
@@ -1500,19 +1452,19 @@
     ".cb-fb-actions { display: flex; gap: 6px; margin-top: 5px; }",
     ".cb-fb-submit {",
     "  background: rgba(74,222,128,0.15); color: #4ADE80; border: none;",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
     "  cursor: pointer; transition: opacity 0.15s;",
     "}",
     ".cb-fb-submit:hover { opacity: 0.85; }",
     ".cb-fb-cancel {",
     "  background: none; color: #666; border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
     "  cursor: pointer; transition: color 0.15s;",
     "}",
     ".cb-fb-cancel:hover { color: #AFAFAF; }",
     // Feedback thanks
     ".cb-fb-thanks {",
-    "  font-size: 10px; color: #4ADE80; font-weight: 600;",
+    "  font-size: 10.5px; color: #4ADE80; font-weight: 600;",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "  text-align: center;",
