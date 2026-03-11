@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.5.0";
+  const PANEL_VERSION = "0.6.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -394,7 +394,6 @@
     // Wire feedback controls
     shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
     shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
-    shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
     shadow.getElementById("cb-fb-submit").addEventListener("click", handleFeedbackSubmit);
     shadow.getElementById("cb-fb-cancel").addEventListener("click", handleFeedbackCancel);
     shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
@@ -403,14 +402,19 @@
       });
     });
 
+    // Wire bug report controls
+    shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
+    shadow.getElementById("cb-bug-submit").addEventListener("click", handleBugSubmit);
+    shadow.getElementById("cb-bug-cancel").addEventListener("click", handleBugCancel);
+    shadow.querySelectorAll(".cb-bug-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("cb-fb-chip-selected");
+      });
+    });
+
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
       var btn = shadow.getElementById("cb-tailor-btn");
-      // If already in opened state, clicking opens pipeline
-      if (btn && btn.dataset.opened === "1") {
-        chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
-        return;
-      }
       if (btn) { btn.textContent = "Preparing\u2026"; btn.disabled = true; }
       chrome.runtime.sendMessage({
         type: "CALIBER_TAILOR_PREPARE",
@@ -418,9 +422,10 @@
         company: lastJobMeta.company || "",
         jobUrl: location.href,
         jobText: lastScoredText || "",
+        score: lastScoredScore || 0,
       }, function (resp) {
         if (resp && resp.ok) {
-          setTailorBtnOpened(shadow);
+          if (btn) btn.textContent = "Opened \u2713";
         } else {
           if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
@@ -429,20 +434,6 @@
     });
 
     return shadow;
-  }
-
-  /**
-   * Transition the tailor banner button to "Opened ✓" state.
-   * In this state, clicking opens the pipeline page.
-   */
-  function setTailorBtnOpened(shadowRoot) {
-    var btn = shadowRoot.getElementById("cb-tailor-btn");
-    if (!btn) return;
-    btn.textContent = "Opened \u2713";
-    btn.disabled = false;
-    btn.dataset.opened = "1";
-    btn.style.cursor = "pointer";
-    btn.setAttribute("aria-label", "View pipeline");
   }
 
   function removePanel() {
@@ -457,6 +448,19 @@
     if (score >= 7.5) return { label: "Strong Fit", cls: "cb-decision-strong" };
     if (score >= 5) return { label: "Stretch", cls: "cb-decision-stretch" };
     return { label: "Skip", cls: "cb-decision-skip" };
+  }
+
+  // ─── Domain-Mismatch Score Guardrail ─────────────────────
+  // Prevents trust-breaking contradictions where an obviously wrong-domain
+  // job receives a "Strong Fit" score while Hiring Reality is "Unlikely".
+  // Caps the score to the top of the Stretch band so partial overlap can
+  // still be acknowledged without producing a false strong-fit signal.
+  function applyDomainMismatchGuardrail(score, hrcBand) {
+    if (hrcBand === "Unlikely" && score >= 7.5) {
+      console.debug("[Caliber] domain-mismatch guardrail: capping score from " + score + " to 6.9 (HRC=Unlikely)");
+      return 6.9;
+    }
+    return score;
   }
 
   // ─── Panel State Rendering ────────────────────────────────
@@ -542,22 +546,65 @@
     if (row) row.style.display = "";
   }
 
+  function handleBugOpen() {
+    var panel = shadow.getElementById("cb-bug-panel");
+    if (panel) panel.style.display = "";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "none";
+    // Also hide thumbs-down panel if open
+    var fbPanel = shadow.getElementById("cb-fb-panel");
+    if (fbPanel) fbPanel.style.display = "none";
+  }
+
+  function handleBugSubmit() {
+    var selected = shadow.querySelectorAll(".cb-bug-chip.cb-fb-chip-selected");
+    var category = null;
+    if (selected.length > 0) category = selected[0].getAttribute("data-bug");
+    var comment = (shadow.getElementById("cb-bug-text").value || "").trim();
+    sendBugReport(category, comment || null);
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    showFeedbackConfirm();
+  }
+
+  function handleBugCancel() {
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "";
+  }
+
+  function sendBugReport(category, comment) {
+    var d = lastFeedbackData || {};
+    var payload = {
+      surface: "extension",
+      site: "linkedin",
+      company_name: d.company || null,
+      job_title: d.jobTitle || null,
+      search_title: getSearchKeywords() || null,
+      calibration_title_direction: null,
+      fit_score: d.score != null ? d.score : null,
+      decision_label: d.decision || null,
+      hiring_reality_band: d.hrcBand || null,
+      better_search_title_suggestion: d.suggestedTitle || null,
+      feedback_type: "bug_report",
+      feedback_reason: null,
+      bug_category: category,
+      optional_comment: comment,
+      behavioral_signals: {
+        jobs_viewed_in_session: sessionSignals.jobs_viewed,
+        scores_below_6_count: sessionSignals.scores_below_6,
+        highest_score_seen: sessionSignals.highest_score,
+        better_title_suggestion_shown: sessionSignals.suggest_shown,
+        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
+      },
+    };
+    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
+      console.debug("[Caliber] bug report sent:", category)
+    });
+  }
+
   function showFeedbackConfirm() {
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.innerHTML = '<span class="cb-fb-thanks">Thanks for the feedback</span>';
-  }
-
-  function handleBugReport() {
-    var d = lastFeedbackData || {};
-    var body = "**Score shown:** " + (d.score != null ? d.score : "n/a") +
-      "\n**Job:** " + (d.jobTitle || "n/a") + " @ " + (d.company || "n/a") +
-      "\n**Decision:** " + (d.decision || "n/a") +
-      "\n**Panel version:** " + PANEL_VERSION +
-      "\n\n**What went wrong?**\n";
-    var url = "https://github.com/K1ZM3TxD/caliber-beta/issues/new?" +
-      "labels=bug&title=" + encodeURIComponent("[Extension Bug] ") +
-      "&body=" + encodeURIComponent(body);
-    window.open(url, "_blank", "noopener");
   }
 
   function sendFeedback(type, reason, comment) {
@@ -649,12 +696,16 @@
 
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
-    var score = Number(data.score_0_to_10) || 0;
+    var rawScore = Number(data.score_0_to_10) || 0;
+    var hrc = data.hiring_reality_check;
+    var hrcBand = (hrc && hrc.band) ? hrc.band : null;
+    var score = applyDomainMismatchGuardrail(rawScore, hrcBand);
+    lastScoredScore = score;
     var decision = getDecision(score);
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = data.score_0_to_10;
+    scoreEl.textContent = score;
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
@@ -669,25 +720,24 @@
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
-    var hrcBand = shadow.getElementById("cb-hrc-band");
+    var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
-    var hrc = data.hiring_reality_check;
     if (hrc && hrc.band) {
       hrcSection.style.display = "";
-      hrcBand.textContent = hrc.band;
-      hrcBand.className = "cb-hrc-badge";
+      hrcBandEl.textContent = hrc.band;
+      hrcBandEl.className = "cb-hrc-badge";
       hrcToggle.className = "cb-collapse-toggle";
       if (hrc.band === "High") {
-        hrcBand.classList.add("cb-hrc-high");
+        hrcBandEl.classList.add("cb-hrc-high");
         hrcToggle.classList.add("cb-toggle-green");
         hrcReason.style.color = "#6EE7A0";
       } else if (hrc.band === "Possible") {
-        hrcBand.classList.add("cb-hrc-possible");
+        hrcBandEl.classList.add("cb-hrc-possible");
         hrcToggle.classList.add("cb-toggle-yellow");
         hrcReason.style.color = "#D4A017";
       } else {
-        hrcBand.classList.add("cb-hrc-unlikely");
+        hrcBandEl.classList.add("cb-hrc-unlikely");
         hrcToggle.classList.add("cb-toggle-red");
         hrcReason.style.color = "#F87171";
       }
@@ -715,13 +765,11 @@
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
 
-    // Nearby roles banner (below sidecard, stretch/skip only)
+    // Nearby roles (only for stretch/skip)
     var nearbySection = shadow.getElementById("cb-nearby-section");
-    var nearbyBanner = shadow.getElementById("cb-nearby-banner");
     var nearbyList = shadow.getElementById("cb-nearby");
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
       nearbySection.style.display = "";
-      nearbyBanner.style.display = "none"; // hidden until trigger clicked
       nearbyList.innerHTML = "";
       for (var i = 0; i < data.nearby_roles.length; i++) {
         var role = data.nearby_roles[i];
@@ -734,42 +782,27 @@
         li.appendChild(link);
         nearbyList.appendChild(li);
       }
-      // Wire trigger to show/hide nearby banner
-      var trigger = shadow.getElementById("cb-nearby-trigger");
-      if (trigger) {
-        trigger.onclick = function () {
-          nearbyBanner.style.display = nearbyBanner.style.display === "none" ? "" : "none";
-        };
-      }
-      var closeBtn = shadow.getElementById("cb-nearby-close");
-      if (closeBtn) {
-        closeBtn.onclick = function () { nearbyBanner.style.display = "none"; };
-      }
     } else {
       nearbySection.style.display = "none";
-      if (nearbyBanner) nearbyBanner.style.display = "none";
     }
 
-    // Tailor Resume banner (above sidecard, 8.0+ only)
-    // Show opened-state only when pipeline entry confirmed; otherwise show tailor CTA.
+    // Tailor Resume banner (above sidecard, 8.0+ only, suppressed if already in pipeline)
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
-        tailorBanner.style.display = "";
-        var btn = shadow.getElementById("cb-tailor-btn");
-        // Default to tailor CTA while pipeline check is in flight
-        if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; btn.dataset.opened = ""; }
-        // Check pipeline membership asynchronously
-        chrome.runtime.sendMessage({
-          type: "CALIBER_PIPELINE_CHECK",
-          jobUrl: location.href,
-        }, function (resp) {
-          if (resp && resp.ok && resp.exists) {
-            // Job is already in pipeline — show opened state
-            setTailorBtnOpened(shadow);
+        // Check pipeline membership before showing CTA
+        tailorBanner.style.display = "none";
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
+          function (resp) {
+            if (resp && resp.exists) {
+              console.debug("[Caliber] job already in pipeline, suppressing tailor CTA");
+              tailorBanner.style.display = "none";
+            } else {
+              tailorBanner.style.display = "";
+            }
           }
-          // If not in pipeline or check failed, keep the default tailor CTA
-        });
+        );
       } else {
         tailorBanner.style.display = "none";
       }
@@ -798,30 +831,31 @@
     if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
 
     // Snapshot context for feedback
-    var hrc = data.hiring_reality_check;
     lastFeedbackData = {
       score: score,
       decision: decision.label,
       company: lastJobMeta.company || null,
       jobTitle: lastJobMeta.title || null,
-      hrcBand: (hrc && hrc.band) ? hrc.band : null,
+      hrcBand: hrcBand,
       suggestedTitle: suggestedTitle || null,
     };
 
     // Reset feedback UI for new result (unless already given in this session)
     var fbRow = shadow.getElementById("cb-fb-row");
     var fbPanel = shadow.getElementById("cb-fb-panel");
+    var bugPanel = shadow.getElementById("cb-bug-panel");
     if (fbPanel) fbPanel.style.display = "none";
+    if (bugPanel) bugPanel.style.display = "none";
     if (fbRow && !feedbackGiven) {
       fbRow.style.display = "";
       fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
-        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>' +
-        '<button id="cb-fb-down" class="cb-fb-btn" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>' +
-        '<span class="cb-fb-spacer"></span>' +
-        '<button id="cb-fb-bug" class="cb-fb-bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>';
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
+        '<span class="cb-fb-sep"></span>' +
+        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B</button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
-      shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
+      shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
     }
 
     setPanelState("cb-results");
@@ -1136,16 +1170,22 @@
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-nearby-section" style="display:none">',
-    '      <button id="cb-nearby-trigger" class="cb-nearby-trigger" type="button">→ Better nearby roles</button>',
+    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>\u2192 Better nearby roles</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
+    '      </div>',
     '    </div>',
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
-    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>',
-    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>',
-    '      <span class="cb-fb-spacer"></span>',
-    '      <button id="cb-fb-bug" class="cb-fb-bug" aria-label="Report a bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
+    '      <span class="cb-fb-sep"></span>',
+    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B</button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1162,15 +1202,23 @@
     '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
     '      </div>',
     '    </div>',
+    '    <div id="cb-bug-panel" class="cb-fb-panel" style="display:none">',
+    '      <div class="cb-fb-panel-title">What went wrong?</div>',
+    '      <div class="cb-fb-chips">',
+    '        <button class="cb-bug-chip" data-bug="wrong_job_detected">Wrong job detected</button>',
+    '        <button class="cb-bug-chip" data-bug="score_failed_to_load">Score failed to load</button>',
+    '        <button class="cb-bug-chip" data-bug="panel_not_opening">Panel not opening correctly</button>',
+    '        <button class="cb-bug-chip" data-bug="content_missing">Content missing or cut off</button>',
+    '        <button class="cb-bug-chip" data-bug="action_not_working">Button/action not working</button>',
+    '        <button class="cb-bug-chip" data-bug="other">Other</button>',
+    '      </div>',
+    '      <textarea id="cb-bug-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
+    '      <div class="cb-fb-actions">',
+    '        <button id="cb-bug-submit" class="cb-fb-submit">Submit</button>',
+    '        <button id="cb-bug-cancel" class="cb-fb-cancel">Cancel</button>',
+    '      </div>',
+    '    </div>',
     '  </div>',
-    '</div>',
-    '<div id="cb-nearby-banner" class="cb-nearby-banner" style="display:none">',
-    '  <div class="cb-nearby-header">',
-    '    <span class="cb-nearby-icon">\uD83D\uDD0E</span>',
-    '    <span class="cb-nearby-title">Better nearby roles</span>',
-    '    <button id="cb-nearby-close" class="cb-nearby-close" aria-label="Close">\u00d7</button>',
-    '  </div>',
-    '  <ul id="cb-nearby" class="cb-nearby-list"></ul>',
     '</div>',
     '</div>'
   ].join("\n");
@@ -1183,21 +1231,21 @@
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
-    "  width: 357px; background: #161B2E;",
+    "  width: 380px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
-    ".cb-recovery-icon { font-size: 16px; flex-shrink: 0; line-height: 1; }",
+    ".cb-recovery-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-recovery-body { flex: 1; min-width: 0; }",
     ".cb-recovery-label {",
-    "  font-size: 9.5px; font-weight: 600; color: #60A5FA;",
+    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
     "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
     "}",
     ".cb-recovery-link {",
-    "  font-size: 12.5px; font-weight: 700; color: #93C5FD;",
+    "  font-size: 12px; font-weight: 700; color: #93C5FD;",
     "  text-decoration: none; display: block;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "  border-bottom: 1px solid rgba(147,197,253,0.3);",
@@ -1205,11 +1253,11 @@
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
-    "  width: 357px; max-height: 483px; overflow-y: auto;",
+    "  width: 380px; max-height: 520px; overflow-y: auto;",
     "  background: #111114; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  font-size: 13.5px; line-height: 1.45;",
+    "  font-size: 13px; line-height: 1.45;",
     "  border: 1px solid rgba(255,255,255,0.12);",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
@@ -1222,21 +1270,21 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 9px 15px; border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
-    ".cb-logo { font-size: 10.5px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
+    ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
     ".cb-refresh-btn {",
-    "  background: none; border: none; color: #555; font-size: 15px;",
+    "  background: none; border: none; color: #555; font-size: 14px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-refresh-btn:hover { color: #AFAFAF; }",
     ".cb-close-btn {",
-    "  background: none; border: none; color: #555; font-size: 16px;",
+    "  background: none; border: none; color: #555; font-size: 15px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 13px 15px; position: relative; }",
+    ".cb-body { padding: 12px 14px; position: relative; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1246,7 +1294,7 @@
     "}",
     ".cb-spinner-sm { width: 14px; height: 14px; border-width: 2px; margin: 0; }",
     "@keyframes cb-spin { to { transform: rotate(360deg); } }",
-    ".cb-status { text-align: center; color: #AFAFAF; font-size: 11.5px; }",
+    ".cb-status { text-align: center; color: #AFAFAF; font-size: 11px; }",
     ".cb-idle-icon {",
     "  width: 28px; height: 28px; border-radius: 50%;",
     "  background: rgba(242,242,242,0.06); color: #666;",
@@ -1267,8 +1315,8 @@
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
     // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
-    "  display: flex; align-items: center; gap: 13px;",
-    "  padding-bottom: 9px; margin-bottom: 4px;",
+    "  display: flex; align-items: center; gap: 12px;",
+    "  padding-bottom: 8px; margin-bottom: 4px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-toprow-left {",
@@ -1276,10 +1324,10 @@
     "  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
-    ".cb-score-num { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: rgba(242,242,242,0.90); }",
-    ".cb-score-of { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.28); }",
+    ".cb-score-num { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
-    "  font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 3px;",
+    "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
     "  letter-spacing: 0.01em;",
     "}",
     ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
@@ -1287,30 +1335,31 @@
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
     ".cb-toprow-right { flex: 1; min-width: 0; text-align: right; }",
     ".cb-company-name {",
-    "  font-size: 11.5px; font-weight: 600; color: #777;",
+    "  font-size: 11px; font-weight: 600; color: #777;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     ".cb-job-title {",
-    "  font-size: 12.5px; font-weight: 700; color: #F2F2F2;",
+    "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     // Hiring Reality Check badge
     ".cb-hrc-badge {",
-    "  font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 3px; margin-left: auto;",
+    "  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: auto;",
     "}",
     ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-hrc-reason { font-size: 10.5px; color: #999; padding: 2px 0 4px; line-height: 1.4; }",
+    ".cb-hrc-reason { font-size: 10px; color: #999; padding: 2px 0 4px; line-height: 1.4; }",
     // Bottom line text
-    ".cb-bltext { font-size: 11.5px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
+    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
     // Collapsible sections
     ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-collapse-toggle {",
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
-    "  font-size: 10.5px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 8px 0; text-align: left;",
+    "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
+    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "  flex-wrap: nowrap;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
     ".cb-toggle-green { color: #4ADE80; }",
@@ -1322,11 +1371,11 @@
     ".cb-collapse-icon {",
     "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
-    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: 6px; }",
+    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; flex-shrink: 0; }",
     // Dot indicators (collapsed row signal strength)
-    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }",
+    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; flex-shrink: 0; white-space: nowrap; }",
     ".cb-dot {",
-    "  width: 5.5px; height: 5.5px; border-radius: 50%; display: inline-block;",
+    "  width: 5px; height: 5px; border-radius: 50%; display: inline-block;",
     "  flex-shrink: 0;",
     "}",
     ".cb-dot-on-green  { background: #4ADE80; }",
@@ -1343,12 +1392,12 @@
     "  transition: max-height 0.2s ease-out;",
     "}",
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
-    ".cb-open .cb-collapse-body { max-height: 500px; }",
+    ".cb-open .cb-collapse-body { max-height: 600px; }",
     // Bullet lists
     ".cb-bullets { list-style: none; padding-bottom: 3px; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 10px;",
-    "  font-size: 11.5px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
+    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
@@ -1356,38 +1405,12 @@
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles
     ".cb-nearby-section {",
-    "  padding: 2px 0 0; margin-top: 2px;",
+    "  background: rgba(255,255,255,0.04); border-radius: 6px;",
+    "  padding: 0 8px; margin-top: 2px;",
     "}",
-    ".cb-nearby-trigger {",
-    "  background: none; border: none; cursor: pointer;",
-    "  font-size: 10.5px; font-weight: 600; color: #60A5FA;",
-    "  padding: 6px 0; text-align: left; transition: color 0.15s;",
-    "}",
-    ".cb-nearby-trigger:hover { color: #93C5FD; }",
-    // Nearby banner (below-sidecard popup)
-    ".cb-nearby-banner {",
-    "  width: 357px; background: #111827;",
-    "  border: 1px solid rgba(96,165,250,0.20); border-radius: 10px;",
-    "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
-    "  padding: 10px 14px;",
-    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  animation: cb-enter 0.2s ease-out;",
-    "}",
-    ".cb-nearby-header {",
-    "  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;",
-    "}",
-    ".cb-nearby-icon { font-size: 13px; flex-shrink: 0; line-height: 1; }",
-    ".cb-nearby-title {",
-    "  flex: 1; font-size: 10px; font-weight: 600; color: #60A5FA;",
-    "  letter-spacing: 0.03em; text-transform: uppercase;",
-    "}",
-    ".cb-nearby-close {",
-    "  background: none; border: none; color: #555; font-size: 15px;",
-    "  cursor: pointer; padding: 0 2px; line-height: 1;",
-    "}",
-    ".cb-nearby-close:hover { color: #F2F2F2; }",
+    ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
-    ".cb-nearby-list li { padding: 2px 0; font-size: 11px; }",
+    ".cb-nearby-list li { padding: 1px 0; font-size: 10px; }",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
     "  border-bottom: 1px solid rgba(147,197,253,0.25);",
@@ -1396,21 +1419,21 @@
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
-    "  width: 357px; background: #0F2318;",
+    "  width: 380px; background: #0F2318;",
     "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
     "}",
-    ".cb-tailor-icon { font-size: 16px; flex-shrink: 0; line-height: 1; }",
+    ".cb-tailor-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-tailor-body { flex: 1; min-width: 0; }",
     ".cb-tailor-label {",
-    "  font-size: 9.5px; font-weight: 600; color: #4ADE80;",
+    "  font-size: 9px; font-weight: 600; color: #4ADE80;",
     "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
     "}",
     ".cb-tailor-link {",
-    "  font-size: 12.5px; font-weight: 700; color: #86EFAC;",
+    "  font-size: 12px; font-weight: 700; color: #86EFAC;",
     "  text-decoration: none; display: block; cursor: pointer;",
     "  background: none; border: none; padding: 0; text-align: left;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
@@ -1422,7 +1445,7 @@
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
-    "  font-size: 10.5px; font-weight: 600; cursor: pointer;",
+    "  font-size: 10px; font-weight: 600; cursor: pointer;",
     "  text-align: center; display: inline-flex; align-items: center; justify-content: center;",
     "  transition: opacity 0.15s; margin-top: 6px;",
     "}",
@@ -1434,34 +1457,33 @@
     // Feedback row
     ".cb-fb-row {",
     "  display: flex; align-items: center; gap: 6px;",
-    "  padding: 7px 0 3px; margin-top: 4px;",
+    "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-prompt { font-size: 10.5px; color: #555; font-weight: 600; }",
-    ".cb-fb-spacer { flex: 1; }",
+    ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
     ".cb-fb-btn {",
-    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 5px;",
-    "  cursor: pointer; padding: 4px 6px; line-height: 1; color: #777;",
-    "  display: inline-flex; align-items: center; justify-content: center;",
-    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;",
+    "  transition: background 0.15s, border-color 0.15s;",
     "}",
-    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #CFCFCF; }",
-    ".cb-fb-bug {",
-    "  background: none; border: none; cursor: pointer; padding: 3px 4px;",
-    "  color: #444; line-height: 1; display: inline-flex; align-items: center;",
-    "  transition: color 0.15s;",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
+    ".cb-bug-btn {",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 11px; padding: 2px 6px; line-height: 1;",
+    "  transition: background 0.15s, border-color 0.15s;",
     "}",
-    ".cb-fb-bug:hover { color: #888; }",
+    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
     // Feedback detail panel
     ".cb-fb-panel {",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-panel-title { font-size: 10.5px; font-weight: 600; color: #888; margin-bottom: 5px; }",
+    ".cb-fb-panel-title { font-size: 10px; font-weight: 600; color: #888; margin-bottom: 5px; }",
     ".cb-fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }",
     ".cb-fb-chip {",
     "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
-    "  border-radius: 10px; padding: 2px 8px; font-size: 10.5px; color: #AFAFAF;",
+    "  border-radius: 10px; padding: 2px 8px; font-size: 10px; color: #AFAFAF;",
     "  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
     ".cb-fb-chip:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
@@ -1470,7 +1492,7 @@
     "}",
     ".cb-fb-text {",
     "  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 5px; padding: 5px 7px; font-size: 10.5px; color: #CFCFCF;",
+    "  border-radius: 5px; padding: 4px 6px; font-size: 10px; color: #CFCFCF;",
     "  resize: none; font-family: inherit; outline: none;",
     "}",
     ".cb-fb-text::placeholder { color: #555; }",
@@ -1478,19 +1500,19 @@
     ".cb-fb-actions { display: flex; gap: 6px; margin-top: 5px; }",
     ".cb-fb-submit {",
     "  background: rgba(74,222,128,0.15); color: #4ADE80; border: none;",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
     "  cursor: pointer; transition: opacity 0.15s;",
     "}",
     ".cb-fb-submit:hover { opacity: 0.85; }",
     ".cb-fb-cancel {",
     "  background: none; color: #666; border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
     "  cursor: pointer; transition: color 0.15s;",
     "}",
     ".cb-fb-cancel:hover { color: #AFAFAF; }",
     // Feedback thanks
     ".cb-fb-thanks {",
-    "  font-size: 10.5px; color: #4ADE80; font-weight: 600;",
+    "  font-size: 10px; color: #4ADE80; font-weight: 600;",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "  text-align: center;",
