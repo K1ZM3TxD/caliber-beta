@@ -1,4 +1,6 @@
 "use client";
+// Fallback route — primary install flow is now inline on the calibration results page.
+// This page remains available as a direct-link destination.
 
 import { useEffect, useState } from "react";
 import {

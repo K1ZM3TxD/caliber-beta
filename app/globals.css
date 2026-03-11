@@ -27,3 +27,23 @@ body {
   40%  { color: #4ADE80; text-shadow: 0 0 6px rgba(74,222,128,0.6); }
   100% { color: #777; text-shadow: none; }
 }
+
+/* Calibration page: section reveal (fade-in + upward slide) */
+@keyframes cb-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cb-reveal {
+  animation: cb-reveal 0.45s ease-out both;
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .cb-reveal,
+  .cb-title-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

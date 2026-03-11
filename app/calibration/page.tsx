@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { generateCalibrationResultCopyFromSession } from "@/lib/calibration_result_copy";
 import CaliberHeader from "../components/caliber_header";
+import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -932,7 +933,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
 
                 {/* Two-sentence context → market translation */}
-                <div className="mb-6 text-center" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
+                <div className="cb-reveal mb-6 text-center">
                   <p className="text-base sm:text-lg leading-relaxed mb-4" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
                     {resultCopy.contextSentence}
                   </p>
@@ -944,33 +945,26 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Hero title card */}
                 {heroTitle ? (
                   <div
-                    className="cb-title-card rounded-2xl transition-all duration-150"
+                    className="cb-title-card cb-reveal rounded-2xl transition-all duration-150"
                     style={{
-                      animation: "cb-title-enter 0.35s ease-out 0.15s both",
+                      animationDelay: "0.15s",
                       backgroundColor: "rgba(255,255,255,0.015)",
                       border: "1px solid rgba(255,255,255,0.04)",
                     }}
                   >
-                    <div className="px-6 pt-8 pb-10 sm:px-8 sm:pt-10 sm:pb-12 text-center flex flex-col items-center">
+                    <div className="px-6 pt-8 pb-6 sm:px-8 sm:pt-10 sm:pb-8 text-center flex flex-col items-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center mt-8 sm:mt-10">
-                        <a
-                          href="/extension"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
-                          style={{ background: "rgba(74,222,128,0.06)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", whiteSpace: "nowrap", cursor: "pointer" }}
-                        >
-                          <span>Start evaluating jobs</span>
-                          <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
-                        </a>
-                      </div>
                     </div>
                   </div>
                 ) : null}
 
+                {/* Inline extension install block */}
+                <div className="cb-reveal mt-6" style={{ animationDelay: "0.35s" }}>
+                  <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} />
+                </div>
+
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-3">
+                <div className="cb-reveal mt-3" style={{ animationDelay: "0.5s" }}>
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
