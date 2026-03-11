@@ -92,9 +92,9 @@ What is **not** on this page:
 
 Job-fit evaluation lives exclusively in the browser extension sidecard.
 
-## Current Extension Sidecard (2026-03-10, canonical)
+## Current Extension Sidecard (2026-03-11, canonical)
 
-The extension sidecard is the primary decision surface. Compact, decision-first layout.
+The extension sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content.
 
 **Structure (top to bottom):**
 
@@ -103,16 +103,17 @@ The extension sidecard is the primary decision surface. Compact, decision-first 
 
 *Inside the sidecard:*
 1. **Header bar** — Caliber logo + refresh + close button
-2. **Top row** — Two-column: company name + job title (right), fit score (28px) + decision badge (left)
-3. **Hiring Reality Check** — Collapsible row with band badge (High/Possible/Unlikely); reason text color-matched to band
-4. **Bottom line** — Collapsible, collapsed by default
-5. **Supports fit** — Green toggle with bullet count; expands to bullet list
-6. **Stretch factors** — Yellow toggle with bullet count; expands to bullet list
-7. **Nearby roles** — Collapsible, blue-tinted (conditional)
-7. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
+2. **"Saved to pipeline" row** — Appears at top of results for strong matches (score >= 8.5). Shows checkmark + "Saved to pipeline" + Tailor resume / View pipeline actions.
+3. **Top row** — Two-column: company name + job title (right), fit score (28px) + decision badge (left)
+4. **Hiring Reality Check** — Always rendered; collapsible row with band badge (High/Possible/Unlikely or “—” fallback); reason text color-matched to band
+5. **Supports fit** — Green toggle with dot indicators; expands to bullet list
+6. **Stretch factors** — Yellow toggle with dot indicators; always rendered (0 dots when empty); expands to bullet list
+7. **Bottom line** — Collapsible; always rendered (“—” fallback when empty)
+8. **Nearby roles** — Collapsible, blue-tinted (conditional, score < 7.5 only)
+9. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
 
-**Dimensions:** 340px wide, 460px max height.
-**Version:** v0.6.0.
+**Dimensions:** 380px wide, 520px max height, 240px min height (results body).
+**Version:** v0.6.1.
 
 ## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
 

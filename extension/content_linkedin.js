@@ -743,8 +743,8 @@
     var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
+    hrcSection.style.display = "";
     if (hrc && hrc.band) {
-      hrcSection.style.display = "";
       hrcBandEl.textContent = hrc.band;
       hrcBandEl.className = "cb-hrc-badge";
       hrcToggle.className = "cb-collapse-toggle";
@@ -763,7 +763,10 @@
       }
       hrcReason.textContent = hrc.reason || "";
     } else {
-      hrcSection.style.display = "none";
+      hrcBandEl.textContent = "\u2014";
+      hrcBandEl.className = "cb-hrc-badge";
+      hrcToggle.className = "cb-collapse-toggle";
+      hrcReason.textContent = "";
     }
 
     // Supports (collapsible — dot indicators in toggle)
@@ -778,12 +781,12 @@
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
     var stretchSection = shadow.getElementById("cb-stretch-section");
-    if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
+    if (stretchSection) stretchSection.style.display = "";
 
     // Bottom line (collapsible)
-    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
+    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "\u2014";
     var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
+    if (blSection) blSection.style.display = "";
 
     // Nearby roles (only for stretch/skip)
     var nearbySection = shadow.getElementById("cb-nearby-section");
@@ -1141,6 +1144,14 @@
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
+    '    <div id="cb-autosave-row" class="cb-autosave-row" style="display:none">',
+    '      <span class="cb-autosave-check">✓</span>',
+    '      <span class="cb-autosave-label">Saved to pipeline</span>',
+    '      <div class="cb-autosave-actions">',
+    '        <button id="cb-autosave-tailor" class="cb-autosave-action">Tailor resume</button>',
+    '        <button id="cb-autosave-pipeline" class="cb-autosave-action">View pipeline</button>',
+    '      </div>',
+    '    </div>',
     '    <div class="cb-toprow">',
     '      <div class="cb-toprow-left">',
     '        <div class="cb-score-row">',
@@ -1152,14 +1163,6 @@
     '      <div class="cb-toprow-right">',
     '        <div id="cb-company" class="cb-company-name"></div>',
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
-    '      </div>',
-    '    </div>',
-    '    <div id="cb-autosave-row" class="cb-autosave-row" style="display:none">',
-    '      <span class="cb-autosave-check">✓</span>',
-    '      <span class="cb-autosave-label">Saved to pipeline</span>',
-    '      <div class="cb-autosave-actions">',
-    '        <button id="cb-autosave-tailor" class="cb-autosave-action">Tailor resume</button>',
-    '        <button id="cb-autosave-pipeline" class="cb-autosave-action">View pipeline</button>',
     '      </div>',
     '    </div>',
     '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
@@ -1305,6 +1308,7 @@
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
     ".cb-body { padding: 12px 14px; position: relative; }",
+    "#cb-results { min-height: 240px; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1420,7 +1424,7 @@
     "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
     "}",
     ".cb-bullets li::before {",
-    "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
+    "  content: '\\2022'; position: absolute; left: 0; top: 0; color: #4ADE80; font-weight: 700;",
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles

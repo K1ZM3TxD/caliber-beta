@@ -3,12 +3,12 @@
 
 ## Current Open Issues
 
-48. Extension sidecard collapsed height instability — **ACTIVE** (2026-03-11)
-  - The sidecard changes height between scored jobs even when all collapsible sections are closed.
-  - Different score states, label lengths, or optional rows (e.g., Stretch Factors absent) cause visual jumping.
-  - Collapsed card height should remain fixed; card should only expand when a collapsible section is opened.
-  - This is the current active fix — in flight, not yet complete.
-  - Soft-lock: blocks all subsequent action-layer work until validated.
+48. Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
+  - The sidecard previously changed height between scored jobs when optional sections (stretch, bottom line, HRC) were conditionally hidden.
+  - Fix: all collapsible section toggles are now always rendered regardless of content. Empty sections show fallback text (“—”). Results body has min-height: 240px.
+  - "Saved to pipeline" row moved to top of results (before score row) for strong matches.
+  - Bullet circles aligned with explicit top: 0 positioning.
+  - Collapsed card height is now stable across all score states.
 
 44. Better Search Title trigger verification — **QUEUED** (2026-03-11, updated)
   - Rolling window fix shipped in ec32fe6: minimum entries changed from 3 to 4, diagnostic logging added for empty calibration_title/nearby_roles.
