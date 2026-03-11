@@ -945,8 +945,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      {heroCanExpand ? (
-                        <div className="flex items-center justify-center mt-5">
+                      <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
+                        {heroCanExpand ? (
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
@@ -955,8 +955,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
                           </button>
-                        </div>
-                      ) : null}
+                        ) : null}
+                        <a
+                          href="/extension"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
+                          style={{ background: "rgba(74,222,128,0.06)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", whiteSpace: "nowrap", cursor: "pointer" }}
+                        >
+                          <span>Start evaluating jobs</span>
+                          <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
+                        </a>
+                      </div>
                     </div>
 
                     {/* Expanded content */}
@@ -978,28 +989,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     ) : null}
                   </div>
                 ) : null}
-
-                {/* Extension CTA — simple action below title */}
-                <div className="mt-6 flex flex-col items-center" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
-                    <a
-                      href="/extension"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center justify-center gap-2.5 rounded-lg px-8 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{
-                        background: "rgba(74,222,128,0.06)",
-                        color: "#4ADE80",
-                        cursor: "pointer",
-                        minWidth: 240,
-                        border: "1px solid rgba(74,222,128,0.45)",
-                        boxShadow: "none",
-                      }}
-                    >
-                      <span>Start evaluating jobs</span>
-                      <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
-                    </a>
-                    <p className="mt-2 text-[10px]" style={{ color: "#555" }}>Installs the Caliber browser extension</p>
-                </div>
 
                 {/* How we score this — integrated philosophy */}
                 <div className="mt-3">

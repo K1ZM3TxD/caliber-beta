@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import {
   CHROME_STORE_URL,
   EXTENSION_ZIP_PATH,
@@ -5,12 +8,31 @@ import {
   BETA_FEEDBACK_EMAIL,
 } from "@/lib/extension_config";
 
+function getCalibratedTitle(): string | null {
+  try {
+    const raw = localStorage.getItem("caliber_session_backup");
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    const titles = session?.synthesis?.enrichedTitles ?? session?.synthesis?.titleCandidates ?? [];
+    if (titles.length > 0) {
+      const sorted = [...titles].sort((a: any, b: any) => (b.fit_0_to_10 ?? b.score ?? 0) - (a.fit_0_to_10 ?? a.score ?? 0));
+      return sorted[0]?.title ?? null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export default function ExtensionPage() {
   const hasStoreUrl = Boolean(CHROME_STORE_URL);
+  const [calibratedTitle, setCalibratedTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCalibratedTitle(getCalibratedTitle());
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[10vh] overflow-y-auto">
-      <div className="w-full max-w-[640px] px-6 pb-16" style={{ color: "#F2F2F2" }}>
+      <div className="w-full max-w-[760px] px-6 pb-16" style={{ color: "#F2F2F2" }}>
         {/* Status bubble + Download CTA */}
         <div className="text-center mb-10">
           <div
@@ -36,8 +58,8 @@ export default function ExtensionPage() {
               href={CHROME_STORE_URL!}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-md px-8 py-4 text-lg font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-              style={{ backgroundColor: "#F2F2F2", color: "#0B0B0B", cursor: "pointer", minWidth: 220 }}
+              className="inline-flex items-center justify-center rounded-lg px-8 py-3.5 text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+              style={{ background: "rgba(74,222,128,0.06)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", cursor: "pointer", minWidth: 260 }}
             >
               Add to Chrome
             </a>
@@ -45,8 +67,8 @@ export default function ExtensionPage() {
             <a
               href={EXTENSION_ZIP_PATH}
               download
-              className="inline-flex items-center justify-center rounded-md px-8 py-4 text-lg font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-              style={{ backgroundColor: "#F2F2F2", color: "#0B0B0B", cursor: "pointer", minWidth: 260 }}
+              className="inline-flex items-center justify-center rounded-lg px-8 py-3.5 text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+              style={{ background: "rgba(74,222,128,0.06)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", cursor: "pointer", minWidth: 260 }}
             >
               Download Caliber Extension (Beta)
             </a>
@@ -54,6 +76,21 @@ export default function ExtensionPage() {
           <div className="mt-2 text-xs" style={{ color: "#777" }}>
             v{EXTENSION_BETA_VERSION} &middot; Chrome &middot; ZIP download
           </div>
+
+          {/* LinkedIn search CTA */}
+          {calibratedTitle ? (
+            <div className="mt-5">
+              <a
+                href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(calibratedTitle)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-lg px-6 py-2.5 text-sm font-medium transition-colors duration-200"
+                style={{ backgroundColor: "rgba(242,242,242,0.06)", color: "#CFCFCF", border: "1px solid rgba(242,242,242,0.12)", cursor: "pointer" }}
+              >
+                Search this title on LinkedIn
+              </a>
+            </div>
+          ) : null}
         </div>
 
         {/* Installation instructions */}
