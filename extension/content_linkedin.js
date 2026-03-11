@@ -615,8 +615,10 @@
   }
 
   function checkWeakSearchPattern() {
-    if (recentScores.length < 3) {
-      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 3+");
+    // Documented: rolling window of last 4 scored jobs.
+    // Trigger when 3 of 4 scores are below 6.5 and none are >= 7.5.
+    if (recentScores.length < 4) {
+      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 4");
       return null;
     }
     var win = recentScores.slice(-4);
@@ -629,17 +631,31 @@
     console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {
       var currentQuery = getSearchKeywords();
-      // Primary: calibration primary title (the user's strongest fit direction)
+
+      // Check if ANY entry has suggestion data
+      var hasAnyCalibrationTitle = false;
+      var hasAnyNearbyRole = false;
+      for (var c = 0; c < win.length; c++) {
+        if (win[c].calibrationTitle) hasAnyCalibrationTitle = true;
+        if (win[c].nearbyRoles && win[c].nearbyRoles.length > 0) hasAnyNearbyRole = true;
+      }
+
+      if (!hasAnyCalibrationTitle && !hasAnyNearbyRole) {
+        // Neither calibration_title nor nearby_roles available — cannot suggest
+        console.warn("[Caliber] weak-search triggered but no suggestion data: calibration_title and nearby_roles are both empty. Check that the calibration session has titleRecommendation populated.");
+        return "";
+      }
+
+      // Source 1: calibration primary title (the user's strongest fit direction)
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].calibrationTitle && !titlesEquivalent(win[j].calibrationTitle, currentQuery)) {
           console.debug("[Caliber] weak-search triggered, suggesting calibration title: " + win[j].calibrationTitle);
           return win[j].calibrationTitle;
         }
       }
-      // Secondary: adjacent search-surface titles from calibration
+      // Source 2: adjacent search-surface titles from calibration
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
-          // Find first non-redundant adjacent title
           for (var k = 0; k < win[j].nearbyRoles.length; k++) {
             var role = win[j].nearbyRoles[k];
             if (role.title && !titlesEquivalent(role.title, currentQuery)) {
@@ -649,8 +665,8 @@
           }
         }
       }
-      // All available titles match current query — suppress banner
-      console.debug("[Caliber] weak-search triggered, all suggestions match current query — suppressed");
+      // All available titles match current search query — suppress banner
+      console.debug("[Caliber] weak-search triggered but all suggestions match current query (" + currentQuery + ") — suppressed");
       return "";
     }
     return null;
@@ -778,9 +794,11 @@
     }
 
     // Rolling weak-search detection
-    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" });
+    var _calTitle = data.calibration_title || "";
+    var _nearbyLen = (data.nearby_roles || []).length;
+    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: _calTitle });
     if (recentScores.length > 4) recentScores.shift();
-    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
+    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score + ", calibration_title=" + (_calTitle || "(empty)") + ", nearby_roles=" + _nearbyLen);
     var suggestedTitle = checkWeakSearchPattern();
     var recoveryBanner = shadow.getElementById("cb-recovery-banner");
     var recoveryLink = shadow.getElementById("cb-recovery-link");
