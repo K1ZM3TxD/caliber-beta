@@ -546,30 +546,30 @@ export function generateTitleRecommendation(
     const summaryParts: string[] = [];
     if (c._matchedReq.length > 0) {
       const signalNames = c._matchedReq.slice(0, 4).join(", ");
-      summaryParts.push(`Your background lines up on ${c._matchedReq.length} key area${c._matchedReq.length > 1 ? "s" : ""}: ${signalNames}.`);
+      summaryParts.push(`From what you shared, the strongest signals in your background point to ${signalNames}.`);
     }
     if (c._matchedPairs.length > 0) {
-      const pairNames = c._matchedPairs.map(p => p.replace("+", " with ")).join(", ");
-      summaryParts.push(`We see direct experience in ${pairNames}.`);
+      const pairNames = c._matchedPairs.map(p => p.replace("+", " and ")).join(", ");
+      summaryParts.push(`Your experience with ${pairNames} shows up consistently.`);
     } else if (c._reqCov >= 0.7) {
-      summaryParts.push(`Strong overlap across what this role typically requires.`);
+      summaryParts.push(`There's broad overlap between your background and what this kind of role typically involves.`);
     }
     if (summaryParts.length === 0) {
-      summaryParts.push(`Solid overall alignment based on your experience.`);
+      summaryParts.push(`Your answers and resume together suggest a strong fit for this direction.`);
     }
     const summary_2s = summaryParts.join(" ");
 
     const rawBullets: string[] = [];
     if (c._matchedReq.length > 0) {
-      rawBullets.push(`Strongest signals: ${c._matchedReq.join(", ")}`);
+      rawBullets.push(`Your calibration answers revealed clear strengths in ${c._matchedReq.join(", ")}`);
     }
     if (c._matchedPairs.length > 0) {
-      rawBullets.push(`Hands-on experience: ${c._matchedPairs.map(p => p.replace("+", " → ")).join(", ")}`);
+      rawBullets.push(`We recognized hands-on depth in ${c._matchedPairs.map(p => p.replace("+", " and ")).join(", ")}`);
     }
     if (c._missing.length > 0) {
-      rawBullets.push(`Areas to grow: ${c._missing.join(", ")}`);
+      rawBullets.push(`Room to build toward: ${c._missing.join(", ")}`);
     } else if (rawBullets.length < 3 && c._reqCov > 0) {
-      rawBullets.push(`${Math.round(c._reqCov * 100)}% alignment with typical requirements`);
+      rawBullets.push(`Your background covers most of what roles like this typically ask for`);
     }
     // Pad to exactly 3 or truncate
     while (rawBullets.length < 3) rawBullets.push("");

@@ -963,14 +963,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {heroExpanded && heroCanExpand ? (
                       <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
                         <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                          <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>Your pattern matches on 4 core signals.</p>
+                          <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>Based on your calibration answers, our AI identified recurring patterns across your experience that point toward this direction.</p>
                           {heroHasBullets ? (
-                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                            <ul className="text-sm leading-relaxed pl-4 space-y-1.5 mb-3" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
                               {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
                             </ul>
                           ) : null}
                           {heroHasSummary ? (
-                            <p className="text-[13px] leading-relaxed" style={{ color: "#999" }}>{heroSummaryText}</p>
+                            <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{heroSummaryText}</p>
                           ) : null}
                         </div>
 
