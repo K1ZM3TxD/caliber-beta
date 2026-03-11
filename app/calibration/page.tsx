@@ -921,13 +921,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
               return (
               <div className="w-full max-w-3xl pb-8">
-                {/* Section heading */}
-                <div className="mb-3 flex flex-col items-center">
-                  <h2 className="text-base sm:text-lg font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title suggestion for your pattern</h2>
-                  {archetypeLabel ? (
-                    <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
-                  ) : null}
-                </div>
 
                 {/* Fallback: no title available */}
                 {!heroTitle ? (
@@ -1013,31 +1006,31 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Extension CTA — supporting section */}
                 <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                   <div
-                    className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
+                    className="rounded-xl px-6 py-5 sm:px-8 sm:py-7 flex flex-col items-center text-center"
                     style={{
-                      background: "linear-gradient(180deg, rgba(74,222,128,0.025) 0%, transparent 100%)",
-                      border: "1px solid rgba(74,222,128,0.06)",
+                      background: "linear-gradient(180deg, rgba(74,222,128,0.035) 0%, transparent 100%)",
+                      border: "1px solid rgba(74,222,128,0.08)",
                     }}
                   >
-                    <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-3" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
                     <a
                       href="/extension"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      className="group inline-flex items-center justify-center gap-2.5 rounded-lg px-8 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                       style={{
                         background: "rgba(74,222,128,0.06)",
                         color: "#4ADE80",
                         cursor: "pointer",
-                        minWidth: 180,
+                        minWidth: 240,
                         border: "1px solid rgba(74,222,128,0.45)",
                         boxShadow: "none",
                       }}
                     >
                       <span>Get the Extension</span>
-                      <span style={{ fontSize: "1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
+                      <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
                     </a>
-                    <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
+                    <p className="mt-2 text-xs" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
                   </div>
                 </div>
 
