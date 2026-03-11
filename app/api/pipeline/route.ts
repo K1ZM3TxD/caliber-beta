@@ -73,10 +73,12 @@ export async function POST(req: NextRequest) {
     const { sessionId, jobTitle, company, jobUrl, score, stage } = body ?? {};
 
     if (!sessionId || !jobTitle || !company) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { ok: false, error: "Missing required fields (sessionId, jobTitle, company)" },
         { status: 400 }
       );
+      for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+      return res;
     }
 
     const entry = pipelineCreate({
@@ -88,12 +90,16 @@ export async function POST(req: NextRequest) {
       stage: VALID_STAGES.includes(stage) ? stage : "strong_match",
     });
 
-    return NextResponse.json({ ok: true, entry }, { status: 201 });
+    const res = NextResponse.json({ ok: true, entry }, { status: 201 });
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+    return res;
   } catch {
-    return NextResponse.json(
+    const res = NextResponse.json(
       { ok: false, error: "Invalid request body" },
       { status: 400 }
     );
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+    return res;
   }
 }
 

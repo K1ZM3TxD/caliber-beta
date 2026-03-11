@@ -129,6 +129,33 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "CALIBER_PIPELINE_SAVE") {
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberSessionId"]);
+        const sessionId = store.caliberSessionId;
+        if (!sessionId) { sendResponse({ ok: false, error: "No session" }); return; }
+        const resp = await fetch(API_BASE + "/api/pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            jobTitle: String(msg.jobTitle || "").slice(0, 200),
+            company: String(msg.company || "").slice(0, 200),
+            jobUrl: String(msg.jobUrl || "").slice(0, 2000),
+            score: typeof msg.score === "number" ? msg.score : 0,
+            stage: "strong_match",
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+        const data = await resp.json();
+        sendResponse({ ok: !!data.ok, entry: data.entry || null, alreadyExists: !!data.entry && !!data.entry.createdAt });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
   if (msg.type === "CALIBER_OPEN_PIPELINE") {
     chrome.tabs.create({ url: API_BASE + "/pipeline" });
     sendResponse({ ok: true });

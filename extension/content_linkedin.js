@@ -383,6 +383,20 @@
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
 
+    // Wire auto-save action buttons
+    shadow.getElementById("cb-autosave-tailor").addEventListener("click", function () {
+      chrome.runtime.sendMessage({
+        type: "CALIBER_TAILOR_PREPARE",
+        jobTitle: lastJobMeta.title || "",
+        company: lastJobMeta.company || "",
+        jobUrl: location.href,
+        jobText: lastScoredText || "",
+      });
+    });
+    shadow.getElementById("cb-autosave-pipeline").addEventListener("click", function () {
+      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+    });
+
     // Wire collapsible section toggles
     shadow.querySelectorAll(".cb-collapse-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -699,6 +713,30 @@
     var titleEl = shadow.getElementById("cb-jobtitle");
     companyEl.textContent = lastJobMeta.company || "";
     titleEl.textContent = lastJobMeta.title || "";
+
+    // Auto-save to pipeline for strong matches (score >= 8.5)
+    var autosaveRow = shadow.getElementById("cb-autosave-row");
+    if (autosaveRow) {
+      if (score >= 8.5) {
+        autosaveRow.style.display = "none"; // hidden until save confirms
+        chrome.runtime.sendMessage({
+          type: "CALIBER_PIPELINE_SAVE",
+          jobTitle: lastJobMeta.title || "",
+          company: lastJobMeta.company || "",
+          jobUrl: location.href,
+          score: score,
+        }, function (resp) {
+          if (resp && resp.ok) {
+            autosaveRow.style.display = "";
+            console.debug("[Caliber] auto-saved to pipeline: " + (lastJobMeta.title || "untitled"));
+          } else {
+            console.warn("[Caliber] auto-save failed:", resp && resp.error);
+          }
+        });
+      } else {
+        autosaveRow.style.display = "none";
+      }
+    }
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
@@ -1116,6 +1154,14 @@
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
     '    </div>',
+    '    <div id="cb-autosave-row" class="cb-autosave-row" style="display:none">',
+    '      <span class="cb-autosave-check">✓</span>',
+    '      <span class="cb-autosave-label">Saved to pipeline</span>',
+    '      <div class="cb-autosave-actions">',
+    '        <button id="cb-autosave-tailor" class="cb-autosave-action">Tailor resume</button>',
+    '        <button id="cb-autosave-pipeline" class="cb-autosave-action">View pipeline</button>',
+    '      </div>',
+    '    </div>',
     '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
@@ -1386,6 +1432,27 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    // Auto-save pipeline row
+    ".cb-autosave-row {",
+    "  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;",
+    "  padding: 6px 0 4px; margin-bottom: 2px;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
+    "}",
+    ".cb-autosave-check {",
+    "  font-size: 12px; font-weight: 700; color: #4ADE80; line-height: 1;",
+    "}",
+    ".cb-autosave-label {",
+    "  font-size: 11px; font-weight: 600; color: #4ADE80;",
+    "}",
+    ".cb-autosave-actions {",
+    "  display: flex; gap: 6px; margin-left: auto;",
+    "}",
+    ".cb-autosave-action {",
+    "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
+    "  border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600;",
+    "  color: #AFAFAF; cursor: pointer; transition: background 0.15s, color 0.15s;",
+    "}",
+    ".cb-autosave-action:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
     "  width: 380px; background: #0F2318;",
