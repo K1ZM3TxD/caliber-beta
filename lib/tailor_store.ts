@@ -2,6 +2,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { normalizeJobUrl } from "./pipeline_store";
 
 export interface TailorPrep {
   id: string;
@@ -155,4 +156,37 @@ Produce the tailored resume now.`;
   if (!content) throw new Error("OpenAI returned empty tailored resume");
 
   return content;
+}
+
+/**
+ * Find a prep context by sessionId + jobUrl (normalized match).
+ * Returns the most recent matching prep if multiple exist.
+ */
+export function tailorPrepFindByJob(
+  sessionId: string,
+  jobUrl: string
+): TailorPrep | null {
+  ensureDir();
+  const canonical = normalizeJobUrl(jobUrl);
+  if (!canonical) return null;
+  let best: TailorPrep | null = null;
+  const files = fs.readdirSync(DATA_DIR).filter(
+    (f) => f.startsWith("prep_") && f.endsWith(".json")
+  );
+  for (const file of files) {
+    try {
+      const prep: TailorPrep = JSON.parse(
+        fs.readFileSync(path.join(DATA_DIR, file), "utf-8")
+      );
+      if (
+        prep.sessionId === sessionId &&
+        normalizeJobUrl(prep.jobUrl) === canonical
+      ) {
+        if (!best || prep.createdAt > best.createdAt) best = prep;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return best;
 }

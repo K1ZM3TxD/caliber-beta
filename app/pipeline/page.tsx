@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import TailorPanel from "../components/TailorPanel";
 
 interface PipelineEntry {
   id: string;
@@ -54,6 +55,7 @@ export default function PipelinePage() {
   const [entries, setEntries] = useState<PipelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [tailorOpenId, setTailorOpenId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
 
   const load = useCallback(() => {
@@ -231,7 +233,7 @@ export default function PipelinePage() {
                   return (
                     <div
                       key={entry.id}
-                      draggable
+                      draggable={tailorOpenId !== entry.id}
                       onDragStart={(e) => onDragStart(e, entry.id)}
                       onDragEnd={onDragEnd}
                       className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing"
@@ -267,13 +269,47 @@ export default function PipelinePage() {
                           </a>
                         )}
                         <button
-                          onClick={() => archive(entry.id)}
-                          className="text-[11px] text-zinc-600 hover:text-red-400 transition-colors ml-auto"
-                          title="Archive"
+                          onClick={() =>
+                            setTailorOpenId(
+                              tailorOpenId === entry.id ? null : entry.id
+                            )
+                          }
+                          className="text-[11px] font-medium transition-colors underline underline-offset-2"
+                          style={{ color: "#4ADE80" }}
                         >
-                          ✕
+                          Tailor resume
+                        </button>
+                        <button
+                          onClick={() => archive(entry.id)}
+                          className="ml-auto flex-shrink-0 w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400 transition-colors"
+                          title="Archive"
+                          aria-label={`Archive ${entry.jobTitle}`}
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
                         </button>
                       </div>
+
+                      {/* Inline tailor panel */}
+                      {tailorOpenId === entry.id && (
+                        <TailorPanel
+                          entryId={entry.id}
+                          jobTitle={entry.jobTitle}
+                          company={entry.company}
+                          onClose={() => setTailorOpenId(null)}
+                        />
+                      )}
                     </div>
                   );
                 })}

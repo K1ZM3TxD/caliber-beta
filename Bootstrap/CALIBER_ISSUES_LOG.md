@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+52. Pipeline dashboard lacked direct action workflow — **RESOLVED** (2026-03-11)
+  - Users were forced to leave the pipeline dashboard to tailor resumes (redirected to /tailor).
+  - Archive (X) control was too small for reliable click/touch targeting.
+  - Resolved by adding inline TailorPanel component that opens within pipeline cards.
+  - Archive control enlarged to 28×28px hit area with SVG icon and aria-label.
+  - Generate route extended to accept pipelineId for pipeline-initiated tailoring.
+
 48. Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
   - The sidecard previously changed height between scored jobs when optional sections (stretch, bottom line, HRC) were conditionally hidden.
   - Fix: all collapsible section toggles are now always rendered regardless of content. Empty sections show fallback text (“—”). Results body has min-height: 240px.
