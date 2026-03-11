@@ -642,15 +642,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     type="button"
                     onClick={begin}
                     disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md transition-all duration-200 focus:outline-none"
                     style={{
                       fontSize: '15px',
                       fontWeight: 600,
-                      padding: '14px 22px',
-                      backgroundColor: busy ? "rgba(58,180,100,0.35)" : "#3AB464",
-                      color: "#080808",
+                      padding: '14px 28px',
+                      backgroundColor: busy ? "rgba(58,180,100,0.08)" : "rgba(74,222,128,0.06)",
+                      color: busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
+                      border: busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
                       cursor: busy ? "not-allowed" : "pointer",
-                      boxShadow: busy ? "none" : "0 2px 12px rgba(58,180,100,0.10)",
+                      boxShadow: "none",
                     }}
                   >
                     {busy ? "Processing…" : "Begin Calibration"}
