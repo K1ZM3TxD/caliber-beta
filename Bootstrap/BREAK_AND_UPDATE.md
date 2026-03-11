@@ -79,11 +79,43 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
-### 2026-03-11 — Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification
+### 2026-03-11 — Shell Baseline Correction + Documentation Truth Pass
 
 **What changed:**
-- Three-zone shell design stabilized and applied consistently across ALL pages: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context (page heading/description), Zone 3 = Interaction (forms, cards, actions).
-- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding.
+- The three-zone shell framing (Zone 1 = Brand 20vh / Zone 2 = Context / Zone 3 = Interaction) was attempted this season as a shell organization model but introduced documentation and implementation drift. PM direction: that framing is not trusted as a stable product framework.
+- All 6 shell-related files restored to the last stable visual baseline from commit a211182 ("Shell alignment: lower CALIBER header and ambient gradient ~12% across all pages"). Zone 1 wrappers, fixed gradient overlays, and CaliberHeader compact/noGradient props removed.
+- Documentation corrected across all core Bootstrap files: references to "three-zone shell stabilized" / "canonical" / "applied consistently" superseded or amended to reflect the actual current state.
+- The a211182 baseline defines current visual truth: lowered header, lowered ambient gradient (centered at 50% 12%), page-local gradient ownership, simple CaliberHeader with pt-4.
+- The broader question of a shared/reusable shell framework remains open — not yet locked.
+
+**What is now expected:**
+- Shell visual alignment anchored to commit a211182 baseline values.
+- Each page owns its own shell (gradient, hero offset, content width) locally — no shared shell framework enforced.
+- Documentation accurately separates historical season work from current approved product truth.
+- Three-zone shell is documented as a season attempt, not a current canonical framework.
+
+**What is no longer expected:**
+- Three-zone shell treated as the canonical/finalized shell architecture.
+- Documentation claiming shell structural inconsistency is "resolved" or "stabilized" via the three-zone model.
+- Zone 1 20vh wrappers, CaliberHeader compact/noGradient props, or fixed gradient overlays in page implementations.
+
+**Risk / regressions noted:**
+- Shell is page-local, meaning per-page visual consistency must be maintained manually until a shared framework is designed and locked.
+- Tailor, pipeline, and extension pages each carry their own gradient/spacing — changes must be coordinated.
+
+**Proof:** All 6 shell files match a211182 baseline (`git diff a211182 -- <file>` returns empty for all). Build clean. Commit 7b03a18.
+
+**Commits:** 7b03a18
+
+---
+
+### 2026-03-11 — Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification _(SUPERSEDED — shell framing corrected in 2026-03-11 Shell Baseline Correction above)_
+
+> **NOTE (2026-03-11):** The three-zone shell framing described in this entry was an attempted organization model during this season. It has been superseded — the visual baseline was restored to commit a211182 and the three-zone framework is not the current canonical shell architecture. The non-shell work in this entry (tailor completion, upload simplification, pipeline DnD, extension rebuild) remains current and shipped.
+
+**What changed:**
+- Three-zone shell design attempted across all pages: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context (page heading/description), Zone 3 = Interaction (forms, cards, actions). _(Superseded — see correction above.)_
+- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding. _(This alignment from a211182 remains the current visual baseline.)_
 - Upload page simplified: redundant heading removed, layout spacing tightened.
 - Tailor page completed as launch-ready flow: copy-to-clipboard action added, retry-on-error for failed generation, polished result area with copy/download actions, tightened spacing throughout.
 - Pipeline board enhanced: drag-and-drop card movement between columns, fit score displayed on cards, visibility reload on tab focus.
@@ -92,23 +124,23 @@ When the change lands, report:
 - Extension ZIP v0.6.0 rebuilt with latest source (bug-report label fix, BST threshold widening, LinkedIn content script updates).
 
 **What is now expected:**
-- Every page follows the three-zone shell structure: Brand (20vh) → Context → Interaction.
+- ~~Every page follows the three-zone shell structure: Brand (20vh) → Context → Interaction.~~ _(Superseded — pages use a211182 baseline shell, not three-zone wrappers.)_
 - Tailor page is end-to-end functional with copy action: generate → copy or download → pipeline tracked.
 - Pipeline board cards show fit score and are moveable via DnD.
-- Shell is visually consistent across calibration, upload, results, tailor, and pipeline pages.
+- ~~Shell is visually consistent across calibration, upload, results, tailor, and pipeline pages.~~ _(Visual baseline from a211182 is consistent; shared shell framework is not yet locked.)_
 
 **What is no longer expected:**
-- Per-page ad-hoc shell composition — all pages use three-zone structure.
+- ~~Per-page ad-hoc shell composition — all pages use three-zone structure.~~ _(Correction: pages use page-local shell ownership with a211182 baseline values.)_
 - Tailor page without copy action or error retry.
 - Pipeline board without fit score or DnD.
-- CALIBER header at the prior higher position.
+- CALIBER header at the prior higher position. _(Still true — a211182 lowered it.)_
 - Upload page with redundant heading text.
 
 **Risk / regressions noted:**
-- Three-zone shell is a stabilization pass, not a final lock — minor per-page tweaks may still be needed.
+- ~~Three-zone shell is a stabilization pass, not a final lock — minor per-page tweaks may still be needed.~~ _(Superseded — three-zone shell was rolled back to a211182 baseline.)_
 - Extension ZIP was rebuilt but extension functionality is unchanged from v0.6.0; this was a packaging refresh only.
 
-**Proof:** All pages render with consistent three-zone layout. Tailor page copy action functional. Pipeline board DnD moves cards between columns.
+**Proof:** ~~All pages render with consistent three-zone layout.~~ Tailor page copy action functional. Pipeline board DnD moves cards between columns.
 
 **Commits:** 189032e, eac1a1b, 3651ac1, a211182, e408b64
 

@@ -399,6 +399,15 @@ Strong-fit jobs may trigger an action workflow. This invariant constrains what a
 - The job pipeline must remain intentionally minimal. Anti-CRM by design.
 - Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates. If it gains these, the design has failed.
 
+## Shell Framework Invariant (2026-03-11)
+
+Do not declare a layout framework canonical until a single owner exists for gradient placement, hero offset, and content width.
+
+- The three-zone shell framing was attempted and rolled back because no single owner controlled these properties — each page implemented them independently, causing documentation/implementation drift.
+- Until a shared shell component is designed and locked, shell ownership remains page-local. Each page defines its own gradient, hero offset, and content width.
+- The visual baseline is commit a211182 (lowered header + lowered ambient gradient, 50% 12%). New shell work should reference this baseline.
+- Do not introduce Zone 1 wrappers, CaliberHeader compact/noGradient props, or fixed gradient overlays without a locked shared-shell design.
+
 ## Visual Shell Invariant (2026-03-11, updated)
 
 Design changes must reference approved visual primitives and three-zone shell structure, not copy from a single live page.

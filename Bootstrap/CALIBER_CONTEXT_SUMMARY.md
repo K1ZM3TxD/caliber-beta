@@ -2,9 +2,9 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-11, Three-Zone Shell Stabilization + Action Layer Launch-Ready)
+## Project Status (2026-03-11, Action Layer Launch-Ready + Shell Baseline Anchored)
 
-**Three-zone shell stabilized across all pages. Tailor page is launch-ready. Pipeline board has DnD and fit score display.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) feed the tailor/pipeline action workflow. Visual shell drift is largely resolved — every page now follows the three-zone structure (Brand 20vh → Context → Interaction).
+**Action layer is launch-ready. Shell visual baseline anchored to commit a211182.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) feed the tailor/pipeline action workflow. The three-zone shell framing was attempted this season but introduced documentation and implementation drift — it has been rolled back and is not the current canonical shell architecture. Visual baseline is from commit a211182 (lowered header + lowered ambient gradient, centered at 50% 12%). A shared/reusable shell framework is not yet locked; pages use page-local gradient and spacing ownership.
 
 - Caliber has expanded from evaluation-only to strong-match action workflow.
 - The calibration page (`/calibration`) is a launchpad. Output: one hero title direction, extension install CTA, scoring philosophy.
@@ -14,13 +14,13 @@
 - Pipeline entry is created at `/api/tailor/prepare` time — pipeline persistence begins before tailoring, not after. Pipeline dedupe is based on canonical/normalized job URL.
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions. CaliberHeader removed; "Tailor Resume" is the primary heading; job title/company card first; pipeline confirmation secondary.
 - Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Legacy stages auto-map to board columns. Code is complete; product validation ongoing.
-- Three-zone shell design stabilized (2026-03-11): Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction. Applied consistently across all pages. CALIBER header and gradient lowered ~12%.
+- Three-zone shell design was attempted (2026-03-11) but rolled back — see Session Decisions below. Visual baseline restored to commit a211182. Shared shell framework not yet locked.
 - Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
 - Extension v0.6.0 deployed (ZIP rebuilt with latest source — label fix, BST thresholds, LinkedIn updates).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: validate pipeline board model → verify Better Search Title trigger → CTA noise-control refinement → tailor quality validation. No generic feature sprawl.
+- Next priorities: decide shared shell framework vs page-local ownership → validate pipeline board model → verify Better Search Title trigger → CTA noise-control refinement → tailor quality validation. No generic feature sprawl.
 
 **Real User Flow:**
 ```
@@ -147,16 +147,26 @@ Structured feedback collection active across extension and web app.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 
-## Session Decisions (2026-03-11, Three-Zone Shell Stabilization + Tailor Completion)
+## Session Decisions (2026-03-11, Shell Baseline Correction + Documentation Truth Pass)
 
-- **Three-zone shell stabilized.** Every page now follows a consistent three-zone structure: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context (page heading/description), Zone 3 = Interaction (forms, cards, actions). This resolves the visual drift that accumulated from incremental local tweaks.
-- **Shell alignment lowered.** CALIBER header and ambient gradient lowered ~12% across all pages for better visual grounding and reduced empty space at top.
-- **Upload page simplified.** Redundant heading removed, layout spacing tightened. This completes the upload page shell alignment (#46 resolved).
-- **Tailor page launch-ready.** Copy-to-clipboard action added for generated resume. Retry-on-error flow for failed generation. Polished result area with copy/download actions. Spacing tightened throughout. The tailor page is now end-to-end functional.
-- **Pipeline board enhanced.** Cards now moveable via DnD between columns. Fit score displayed on each card. Board reloads visible data on tab focus. Code is fully implemented.
-- **Extension ZIP rebuilt.** v0.6.0 packaging refreshed with latest source — includes bug-report label fix, widened BST thresholds, and LinkedIn content script updates. No functional changes.
-- **Visual shell drift largely resolved.** Issue #41 addressed by three-zone stabilization. Issue #46 resolved by upload simplification. Remaining visual work is minor per-page refinement, not structural.
-- **Product validation is next.** With the code layer complete (shell, tailor, pipeline, extension), the next priority is product-level validation of the pipeline board model and tailor output quality.
+- **Three-zone shell rolled back.** The three-zone framing (Zone 1 = Brand 20vh / Zone 2 = Context / Zone 3 = Interaction) was attempted this season as a shell organization model. It introduced documentation and implementation drift — docs overstated it as "stabilized / canonical / applied consistently" while the underlying implementation was fragmented across 5+ page-specific inline patterns. PM direction: roll back to the last stable visual baseline and stop treating the three-zone model as the canonical framework.
+- **Visual baseline anchored to a211182.** All 6 shell files (CaliberHeader, calibration, build-resume, extension, pipeline, tailor) restored to exact commit a211182 values. That commit's pattern: lowered CALIBER header + lowered ambient radial gradient (centered at 50% 12%), simple CaliberHeader with pt-4, page-local gradient ownership. Commit 7b03a18.
+- **Shell ownership is page-local.** Each page carries its own gradient (size, intensity), hero offset (pt-[10vh] typical), and content width. No shared shell component is enforced. This is accepted as current state; whether to build a shared framework is the next open shell decision.
+- **Documentation corrected.** All core Bootstrap files updated to remove or amend claims that the three-zone shell is canonical/stabilized/finalized. Historical references preserved with _(Superseded)_ annotations. Issues #41 and #46 reopened to reflect actual state. New issue #47 tracks the shared-shell-framework decision.
+- **Product layer truths unchanged.** Calibration = direction, Extension = evaluation, Tailor + Pipeline = action. These were never affected by the shell experiment and remain locked.
+
+## Session Decisions (2026-03-11, Three-Zone Shell Stabilization + Tailor Completion) _(SUPERSEDED — see Shell Baseline Correction above)_
+
+> **NOTE (2026-03-11):** The three-zone shell decisions in this block have been superseded. The three-zone framing was rolled back to the a211182 visual baseline. The non-shell decisions (tailor completion, pipeline enhancement, upload simplification) remain current.
+
+- **Three-zone shell attempted.** ~~Every page now follows a consistent three-zone structure.~~ _(Superseded — rolled back to a211182 baseline.)_
+- **Shell alignment lowered.** CALIBER header and ambient gradient lowered ~12% across all pages. _(This alignment from a211182 remains the current visual baseline.)_
+- **Upload page simplified.** Redundant heading removed, layout spacing tightened. _(Still current.)_
+- **Tailor page launch-ready.** Copy-to-clipboard action added. Retry-on-error flow. Polished result area. _(Still current.)_
+- **Pipeline board enhanced.** Cards moveable via DnD. Fit score displayed on each card. Board reloads on tab focus. _(Still current.)_
+- **Extension ZIP rebuilt.** v0.6.0 packaging refreshed. _(Still current.)_
+- **~~Visual shell drift largely resolved.~~** _(Superseded — drift was resolved for the a211182 visual baseline but the broader shared-shell architecture is not locked.)_
+- **Product validation is next.** Pipeline board model and tailor output quality. _(Still current.)_
 
 ## Session Decisions (2026-03-11, Visual Shell Re-Lock + Action-Layer Refinement)
 
@@ -230,17 +240,18 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 
 ## Next Tasks (locked order, updated 2026-03-11)
 
-1. ~~Recompose global Caliber shell from approved visual primitives~~ — DONE (three-zone shell stabilized)
-2. ~~Fix main/upload/ingest/tailor page hierarchy and spacing drift~~ — DONE (upload simplified, shell lowered, tailor completed)
-3. **Validate pipeline 4-column board model** — product-level approval of column names and stage decomposition. Code is complete with DnD and fit score.
-4. **Validate tailor page output quality** — tailor page is launch-ready; determine text vs PDF download, review tailoring quality.
-5. **Verify/restore Better Search Title trigger behavior** — thresholds changed to <6.5 weak, >=7.5 strong. Verify feature still activates correctly.
-6. **CTA noise-control refinement** — per-session and time-based suppression for first-time 8.0+ exposures.
-7. **Clarify extension debug/report affordance** — text label ("🐛 Report") shipped; may need further UX refinement.
-8. **No unnecessary expansion of calibration scope** — calibration page is stable.
-9. **Continue keeping role separation** — calibration as direction, extension as evaluation, tailor/pipeline as action layer.
-10. **Bottom line / explanation polish** — only as needed for beta credibility.
-11. **Phase 2 overlay/list scoring** — deferred until after stable beta.
+1. ~~Recompose global Caliber shell from approved visual primitives~~ — ATTEMPTED (three-zone framing tried, rolled back to a211182 baseline; shared framework not locked)
+2. ~~Fix main/upload/ingest/tailor page hierarchy and spacing drift~~ — DONE (upload simplified, header lowered, tailor completed)
+3. **Decide shared shell architecture** — page-local ownership (current) vs reusable shared shell. This is the next shell decision.
+4. **Validate pipeline 4-column board model** — product-level approval of column names and stage decomposition. Code is complete with DnD and fit score.
+5. **Validate tailor page output quality** — tailor page is launch-ready; determine text vs PDF download, review tailoring quality.
+6. **Verify/restore Better Search Title trigger behavior** — thresholds changed to <6.5 weak, >=7.5 strong. Verify feature still activates correctly.
+7. **CTA noise-control refinement** — per-session and time-based suppression for first-time 8.0+ exposures.
+8. **Clarify extension debug/report affordance** — text label ("🐛 Report") shipped; may need further UX refinement.
+9. **No unnecessary expansion of calibration scope** — calibration page is stable.
+10. **Continue keeping role separation** — calibration as direction, extension as evaluation, tailor/pipeline as action layer.
+11. **Bottom line / explanation polish** — only as needed for beta credibility.
+12. **Phase 2 overlay/list scoring** — deferred until after stable beta.
 
 ## Scoring Baseline
 

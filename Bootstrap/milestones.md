@@ -1,17 +1,41 @@
 ---
 
-BREAK + UPDATE — 2026-03-11 (Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification)
+BREAK + UPDATE — 2026-03-11 (Shell Baseline Correction + Documentation Truth Pass)
 ---
 DONE:
-- Three-zone shell design stabilized across ALL pages: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction
-- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding
+- Three-zone shell framing rolled back — all 6 shell files restored to commit a211182 visual baseline (7b03a18)
+- Visual baseline documented: lowered header + lowered ambient gradient (50% 12%), page-local gradient ownership, simple CaliberHeader with pt-4
+- All core Bootstrap docs corrected: three-zone references amended/superseded, a211182 established as named shell baseline
+- Issues #41 and #46 reopened to reflect actual state; new issue #47 tracks shared shell framework decision
+- Historical season work preserved with _(Superseded)_ annotations — not deleted
+
+BLOCKED:
+- Shared shell architecture lock — the broader question of a reusable shared shell vs page-local ownership is an open design decision
+- No code changes in this pass (DOCS_ONLY)
+
+NEXT:
+- Decide shared shell framework vs page-local ownership (new #47)
+- Validate pipeline board model (product-level decision — code complete)
+- Verify Better Search Title trigger behavior
+- CTA noise-control refinement
+
+---
+
+BREAK + UPDATE — 2026-03-11 (Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification) _(SUPERSEDED — shell framing corrected above)_
+---
+
+> **NOTE (2026-03-11):** The three-zone shell claims in this block have been superseded. Visual baseline was restored to a211182. Non-shell work (tailor, pipeline, upload, extension) remains current.
+
+DONE:
+- ~~Three-zone shell design stabilized across ALL pages~~ _(Superseded — rolled back to a211182 baseline)_
+- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding _(a211182 — still current baseline)_
 - Upload page simplified: redundant heading removed, layout spacing tightened
 - Tailor page completed as launch-ready flow: copy-to-clipboard action, retry-on-error, polished result area with copy/download, tightened spacing
 - Pipeline board enhanced: DnD card movement between columns, fit score on cards, visibility reload on tab focus
 - Calibration results page rhythm polished, upload contrast adjusted
 - Extension ZIP v0.6.0 rebuilt with latest source (packaging refresh — label fix, BST thresholds, LinkedIn updates)
-- Visual shell drift (#41) resolved via three-zone stabilization
-- Upload/ingest shell alignment (#46) resolved
+- ~~Visual shell drift (#41) resolved via three-zone stabilization~~ _(Superseded — #41 reopened)_
+- Upload/ingest shell alignment (#46) partially resolved (heading removed, header lowered)
 - PM docs refreshed to reflect all shipped work and updated issue states
 
 REMAINING / ACTIVE NEXT:

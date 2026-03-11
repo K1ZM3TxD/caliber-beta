@@ -340,13 +340,15 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ### New Issues
 
-41. Visual shell drift / inconsistent composition — **RESOLVED** (2026-03-11, updated)
+41. Visual shell drift / inconsistent composition — **REOPENED** (2026-03-11, corrected)
   - Shell composition was inconsistent across calibration main page, upload/ingest steps, results/TITLES step, tailor page, and pipeline pages.
   - Visual drift accumulated from repeated incremental UI tweaks across sessions.
-  - Resolved by three-zone shell stabilization (e408b64): Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction. Applied consistently across all pages.
-  - CALIBER header and ambient gradient lowered ~12% for grounding.
-  - Approved primitives codified: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
-  - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives and three-zone structure.
+  - Three-zone shell stabilization was attempted (e408b64) but introduced further documentation/implementation drift. That framing has been superseded.
+  - Visual baseline restored to commit a211182 (7b03a18): lowered header + lowered ambient gradient across all pages. This is the current stable visual baseline.
+  - Broader shared-shell framework (single owner for gradient, hero offset, content width) is NOT yet locked. Pages use page-local shell ownership.
+  - Approved primitives still apply: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
+  - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives and a211182 baseline values.
+  - **Remaining:** Shared shell framework decision (see #47).
 
 42. Tailor page hierarchy mismatch — **SHIPPED** (2026-03-11, complete)
   - Prior state: CaliberHeader dominated the tailor page, job context secondary, pipeline banner at top.
@@ -371,9 +373,18 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Board must remain lightweight and anti-CRM in spirit — no subtasks, notes, timelines, due dates.
   - This is a product-level decision, not just a code task.
 
-46. Upload/ingest page shell alignment — **RESOLVED** (2026-03-11, updated)
+46. Upload/ingest page shell alignment — **PARTIALLY RESOLVED** (2026-03-11, corrected)
   - Upload page redundant heading removed (3651ac1), layout spacing tightened.
   - CALIBER header and gradient lowered ~12% across all pages (a211182).
-  - Three-zone shell applied consistently including upload/ingest pages (e408b64).
+  - ~~Three-zone shell applied consistently including upload/ingest pages (e408b64).~~ _(Superseded — three-zone framing rolled back.)_
   - Upload support text ("PDF, DOCX, or TXT") alignment corrected (centered).
   - Interactive surfaces remain clearly visible and usable against dark shell.
+  - Visual baseline from a211182 applies; shared shell framework not yet locked (see #47).
+
+47. Shared shell framework decision — **OPEN** (2026-03-11, new)
+  - Current state: each page owns its own shell locally (gradient, hero offset, content width). No shared shell component.
+  - The three-zone shell framing was attempted this season as a shared organization model but introduced drift; rolled back to a211182 baseline.
+  - Decision needed: build a true shared shell component (single owner for gradient, hero offset, content width) OR continue with page-local ownership and the a211182 baseline as the visual anchor.
+  - If shared: define who owns it, what it controls, and how pages opt in.
+  - If page-local: accept that per-page visual consistency must be maintained manually and document the a211182 baseline values as the coordination reference.
+  - This is a product/architecture decision, not just a code task.
