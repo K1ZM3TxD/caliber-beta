@@ -616,7 +616,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : step === "LANDING" ? (
-                <div className="tracking-[0.28em] uppercase text-[0.7rem] sm:text-[0.75rem]" style={{ color: 'rgba(255,255,255,0.22)', fontWeight: 500, letterSpacing: '0.28em' }}>Caliber</div>
+                <div className="uppercase" style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '0.32em', color: 'rgba(255,255,255,0.55)' }}>Caliber</div>
               ) : (
                 <div className="font-light tracking-[0.18em] uppercase text-[1.6rem] sm:text-[2rem]" style={{ color: 'rgba(255,255,255,0.35)', textShadow: '0 0 60px rgba(58,180,100,0.04)' }}>Caliber</div>
               )}
@@ -633,17 +633,20 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* LANDING */}
             {step === "LANDING" ? (
-              <div className="w-full max-w-[480px]">
-                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }} className="mt-6">
-                  <p className="text-lg sm:text-xl leading-relaxed" style={{ color: 'rgba(237,237,237,0.85)', fontWeight: 400, letterSpacing: '-0.01em' }}>{tagline}</p>
+              <div className="w-full" style={{ maxWidth: 640 }}>
+                <div style={{ minHeight: "1.5em" }} className="mt-8">
+                  <p style={{ fontSize: '26px', fontWeight: 500, lineHeight: 1.45, letterSpacing: '-0.01em', color: 'rgba(237,237,237,0.88)' }}>{tagline}</p>
                 </div>
-                <div className="mt-10">
+                <div className="mt-9">
                   <button
                     type="button"
                     onClick={begin}
                     disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      padding: '14px 22px',
                       backgroundColor: busy ? "rgba(58,180,100,0.35)" : "#3AB464",
                       color: "#080808",
                       cursor: busy ? "not-allowed" : "pointer",
