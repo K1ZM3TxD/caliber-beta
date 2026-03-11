@@ -979,56 +979,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Extension CTA — continuation of calibration value */}
-                <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
-                  <div
-                    className="rounded-xl px-6 py-5 sm:px-8 sm:py-7 flex flex-col items-center text-center"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(74,222,128,0.035) 0%, transparent 100%)",
-                      border: "1px solid rgba(74,222,128,0.08)",
-                    }}
-                  >
-                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-1.5" style={{ color: "#F2F2F2" }}>Test this direction on real jobs</h3>
-                    <p className="text-xs sm:text-sm leading-relaxed mb-4 max-w-md" style={{ color: "#999" }}>
-                      As you browse LinkedIn, Caliber evaluates each job against your pattern and shows which roles actually fit.
-                    </p>
-
-                    {/* LinkedIn-style in-context preview */}
-                    <div
-                      className="w-full max-w-sm rounded-lg mb-4 overflow-hidden text-left"
-                      style={{
-                        backgroundColor: "rgba(255,255,255,0.025)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                      }}
-                    >
-                      {/* LinkedIn listing header bar */}
-                      <div className="px-3.5 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <span className="text-[10px] font-semibold tracking-wide" style={{ color: "#0A66C2" }}>in</span>
-                        <span className="text-[10px]" style={{ color: "#666" }}>Jobs</span>
-                        <span className="text-[10px] ml-auto" style={{ color: "#555" }}>{"\u2026"}</span>
-                      </div>
-                      {/* Job listing row */}
-                      <div className="px-3.5 py-3 flex items-start gap-3">
-                        {/* Company logo placeholder */}
-                        <div className="shrink-0 w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#777" }}>A</div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold truncate" style={{ color: "#D4D4D4" }}>{heroTitle ? heroTitle.title : "Product Designer"}</div>
-                          <div className="text-[11px] truncate mt-0.5" style={{ color: "#999" }}>Acme Corp {"\u00b7"} San Francisco, CA</div>
-                          <div className="text-[10px] mt-1" style={{ color: "#666" }}>2 days ago {"\u00b7"} 47 applicants</div>
-                        </div>
-                        {/* Caliber overlay badge */}
-                        <div className="shrink-0 flex flex-col items-center rounded-md px-2 py-1.5" style={{ backgroundColor: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}>
-                          <span className="text-xs font-bold leading-none" style={{ color: "#4ADE80" }}>8.4</span>
-                          <span className="text-[8px] font-semibold uppercase tracking-wider mt-0.5 leading-none" style={{ color: "#4ADE80" }}>Fit</span>
-                        </div>
-                      </div>
-                      {/* Caliber evaluation strip */}
-                      <div className="px-3.5 py-2 flex items-center gap-2" style={{ backgroundColor: "rgba(74,222,128,0.02)", borderTop: "1px solid rgba(74,222,128,0.06)" }}>
-                        <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#4ADE80" }}>Caliber</span>
-                        <span className="text-[10px]" style={{ color: "#777" }}>Strong pattern match {"\u00b7"} 4 signals aligned</span>
-                      </div>
-                    </div>
-
+                {/* Extension CTA — simple action below title */}
+                <div className="mt-6 flex flex-col items-center" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                     <a
                       href="/extension"
                       target="_blank"
@@ -1047,7 +999,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       <span style={{ fontSize: "1.1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
                     </a>
                     <p className="mt-2 text-[10px]" style={{ color: "#555" }}>Installs the Caliber browser extension</p>
-                  </div>
                 </div>
 
                 {/* How we score this — integrated philosophy */}
