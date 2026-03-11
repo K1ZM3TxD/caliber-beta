@@ -605,7 +605,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
           .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
-          .cb-textarea:focus { border-color: rgba(74,222,128,0.45) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.15) !important; }
+          .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
+          .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
@@ -795,9 +796,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       rows={6}
                       className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
                       style={{
-                        backgroundColor: "rgba(255,255,255,0.03)",
+                        backgroundColor: "rgba(255,255,255,0.06)",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(255,255,255,0.07)",
+                        border: "1px solid rgba(255,255,255,0.13)",
                         boxShadow: "none",
                         opacity: 1,
                         fontSize: "1em",
