@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.1";
+  const PANEL_VERSION = "0.6.2";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -354,6 +354,275 @@
   function getSearchKeywords() {
     try { return new URL(location.href).searchParams.get("keywords") || ""; }
     catch (e) { return ""; }
+  }
+
+  // ─── Visible-Job Surface Scoring State ─────────────────────
+
+  var visibleScoreCache = {};       // jobId -> { score, decision }
+  var visibleScoringActive = false; // prevents concurrent scoring passes
+  var lastVisibleBatchKey = "";     // concatenated jobIds to detect unchanged list
+  var visibleBadgeStyleInjected = false;
+  var surfaceRescanTimer = null;
+  var visibleListObserver = null;
+
+  // ─── Visible Job Card Extraction ──────────────────────────
+
+  var JOB_LIST_CONTAINER_SELECTORS = [
+    '.scaffold-layout__list-container',
+    '.jobs-search-results-list',
+    '.jobs-search__results-list',
+    '[class*="jobs-search-results"]',
+  ];
+
+  function extractJobIdFromCard(el) {
+    var id = el.getAttribute('data-occludable-job-id') || el.getAttribute('data-job-id');
+    if (id) return id;
+    var parent = el.closest('[data-occludable-job-id]');
+    if (parent) return parent.getAttribute('data-occludable-job-id');
+    parent = el.closest('[data-job-id]');
+    if (parent) return parent.getAttribute('data-job-id');
+    var link = el.querySelector('a[href*="/jobs/view/"]');
+    if (link) {
+      var m = link.href.match(/\/jobs\/view\/(\d+)/);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  function getVisibleJobCards() {
+    var listEl = null;
+    for (var s = 0; s < JOB_LIST_CONTAINER_SELECTORS.length; s++) {
+      listEl = document.querySelector(JOB_LIST_CONTAINER_SELECTORS[s]);
+      if (listEl) break;
+    }
+    if (!listEl) {
+      console.debug('[Caliber] visible-surface: no list container found');
+      return [];
+    }
+    var items = listEl.querySelectorAll('li');
+    var cards = [];
+    for (var i = 0; i < items.length && cards.length < 12; i++) {
+      var li = items[i];
+      var jobId = extractJobIdFromCard(li);
+      if (!jobId) continue;
+      var text = (li.innerText || '').trim();
+      if (text.length < 20) continue;
+      cards.push({ el: li, jobId: jobId, text: text });
+    }
+    console.debug('[Caliber] visible-surface: found ' + cards.length + ' cards');
+    return cards;
+  }
+
+  // ─── Badge Overlay (injected into page DOM) ───────────────
+
+  function injectBadgeStyles() {
+    if (visibleBadgeStyleInjected) return;
+    visibleBadgeStyleInjected = true;
+    var style = document.createElement('style');
+    style.setAttribute('data-caliber-surface', '1');
+    style.textContent =
+      '.cb-vis-badge{position:absolute;top:8px;right:8px;z-index:100;' +
+      'background:#111114;border:1px solid rgba(255,255,255,0.15);border-radius:6px;' +
+      'padding:2px 7px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+      'font-size:11px;font-weight:700;line-height:1.3;display:flex;align-items:center;gap:4px;' +
+      'pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,0.4)}' +
+      '.cb-vis-badge-logo{font-size:8px;color:#555;font-weight:600;letter-spacing:-0.02em}' +
+      '.cb-vis-score-strong{color:#4ADE80}' +
+      '.cb-vis-score-stretch{color:#FBBF24}' +
+      '.cb-vis-score-skip{color:#EF4444}';
+    document.head.appendChild(style);
+  }
+
+  function renderBadgeOnCard(cardEl, score) {
+    var existing = cardEl.querySelector('.cb-vis-badge');
+    if (existing) existing.remove();
+    var cs = getComputedStyle(cardEl);
+    if (cs.position === 'static') cardEl.style.position = 'relative';
+    var badge = document.createElement('div');
+    badge.className = 'cb-vis-badge';
+    badge.innerHTML = '<span class="cb-vis-badge-logo">C</span>' +
+      '<span class="' + (score >= 7.5 ? 'cb-vis-score-strong' : score >= 5 ? 'cb-vis-score-stretch' : 'cb-vis-score-skip') + '">' +
+      score + '</span>';
+    cardEl.appendChild(badge);
+  }
+
+  function removeAllBadges() {
+    var badges = document.querySelectorAll('.cb-vis-badge');
+    for (var i = 0; i < badges.length; i++) badges[i].remove();
+  }
+
+  // ─── Surface Summary (sidecard shadow DOM) ────────────────
+
+  function computeSurfaceStats(cards) {
+    var scores = [];
+    for (var i = 0; i < cards.length; i++) {
+      var c = visibleScoreCache[cards[i].jobId];
+      if (c) scores.push(c.score);
+    }
+    if (scores.length === 0) return null;
+    scores.sort(function (a, b) { return a - b; });
+    var mid = Math.floor(scores.length / 2);
+    var median = scores.length % 2 !== 0
+      ? scores[mid]
+      : Math.round(((scores[mid - 1] + scores[mid]) / 2) * 10) / 10;
+    return {
+      median: median,
+      top: scores[scores.length - 1],
+      strongCount: scores.filter(function (s) { return s >= 7.5; }).length,
+      total: scores.length,
+    };
+  }
+
+  function updateSurfaceSummary(cards) {
+    if (!shadow) return;
+    var el = shadow.getElementById('cb-surface-summary');
+    if (!el) return;
+    var stats = computeSurfaceStats(cards);
+    if (!stats || stats.total === 0) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    var medianEl = shadow.getElementById('cb-surface-median');
+    var topEl = shadow.getElementById('cb-surface-top');
+    var strongEl = shadow.getElementById('cb-surface-strong');
+    var countEl = shadow.getElementById('cb-surface-count');
+    medianEl.textContent = stats.median.toFixed(1);
+    medianEl.style.color = stats.median >= 7.5 ? '#4ADE80' : stats.median >= 5 ? '#FBBF24' : '#EF4444';
+    topEl.textContent = stats.top.toFixed(1);
+    topEl.style.color = stats.top >= 7.5 ? '#4ADE80' : stats.top >= 5 ? '#FBBF24' : '#EF4444';
+    strongEl.textContent = stats.strongCount;
+    strongEl.style.color = stats.strongCount > 0 ? '#4ADE80' : '#777';
+    if (countEl) countEl.textContent = stats.total + ' scored';
+  }
+
+  function showSurfaceScoringState(remaining) {
+    if (!shadow) return;
+    var el = shadow.getElementById('cb-surface-summary');
+    if (!el) return;
+    el.style.display = '';
+    shadow.getElementById('cb-surface-median').textContent = '\u2026';
+    shadow.getElementById('cb-surface-median').style.color = '#555';
+    shadow.getElementById('cb-surface-top').textContent = '\u2026';
+    shadow.getElementById('cb-surface-top').style.color = '#555';
+    shadow.getElementById('cb-surface-strong').textContent = '\u2026';
+    shadow.getElementById('cb-surface-strong').style.color = '#555';
+    var countEl = shadow.getElementById('cb-surface-count');
+    if (countEl) countEl.textContent = 'scoring ' + remaining + ' jobs\u2026';
+  }
+
+  // ─── Visible Surface Scoring Pass ─────────────────────────
+
+  function scoreCardViaAPI(cardText) {
+    return new Promise(function (resolve, reject) {
+      chrome.runtime.sendMessage(
+        { type: 'CALIBER_FIT_API', jobText: cardText },
+        function (response) {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!response || !response.ok) {
+            reject(new Error((response && response.error) || 'Score failed'));
+          } else {
+            resolve(response.data);
+          }
+        }
+      );
+    });
+  }
+
+  async function scoreVisibleSurface() {
+    if (visibleScoringActive || !active) return;
+    var cards = getVisibleJobCards();
+    if (cards.length === 0) return;
+    var batchKey = cards.map(function (c) { return c.jobId; }).join(',');
+    if (batchKey === lastVisibleBatchKey) {
+      renderCachedBadges(cards);
+      updateSurfaceSummary(cards);
+      return;
+    }
+    var uncached = cards.filter(function (c) { return !visibleScoreCache[c.jobId]; });
+    if (uncached.length === 0) {
+      lastVisibleBatchKey = batchKey;
+      renderCachedBadges(cards);
+      updateSurfaceSummary(cards);
+      return;
+    }
+    visibleScoringActive = true;
+    lastVisibleBatchKey = batchKey;
+    injectBadgeStyles();
+    renderCachedBadges(cards);
+    showSurfaceScoringState(uncached.length);
+    console.debug('[Caliber] visible-surface: scoring ' + uncached.length + ' uncached cards');
+    for (var i = 0; i < cards.length; i++) {
+      if (!active) break;
+      var card = cards[i];
+      if (visibleScoreCache[card.jobId]) continue;
+      try {
+        var result = await scoreCardViaAPI(card.text);
+        var rawScore = Number(result.score_0_to_10) || 0;
+        var hrc = result.hiring_reality_check;
+        var hrcBand = (hrc && hrc.band) ? hrc.band : null;
+        var score = applyDomainMismatchGuardrail(rawScore, hrcBand);
+        visibleScoreCache[card.jobId] = { score: score, decision: getDecision(score).label };
+        renderBadgeOnCard(card.el, score);
+      } catch (err) {
+        console.warn('[Caliber] visible-surface: card ' + card.jobId + ' failed:', err.message);
+      }
+      updateSurfaceSummary(cards);
+    }
+    visibleScoringActive = false;
+    console.debug('[Caliber] visible-surface: pass complete');
+  }
+
+  function renderCachedBadges(cards) {
+    injectBadgeStyles();
+    for (var i = 0; i < cards.length; i++) {
+      var cached = visibleScoreCache[cards[i].jobId];
+      if (cached) renderBadgeOnCard(cards[i].el, cached.score);
+    }
+  }
+
+  function resetVisibleSurface() {
+    visibleScoreCache = {};
+    lastVisibleBatchKey = '';
+    visibleScoringActive = false;
+    if (surfaceRescanTimer) { clearTimeout(surfaceRescanTimer); surfaceRescanTimer = null; }
+    removeAllBadges();
+    if (shadow) {
+      var el = shadow.getElementById('cb-surface-summary');
+      if (el) el.style.display = 'none';
+    }
+  }
+
+  function scheduleVisibleRescan() {
+    if (surfaceRescanTimer) clearTimeout(surfaceRescanTimer);
+    surfaceRescanTimer = setTimeout(function () { scoreVisibleSurface(); }, 2000);
+  }
+
+  function startVisibleSurfaceWatchers() {
+    var listEl = null;
+    for (var s = 0; s < JOB_LIST_CONTAINER_SELECTORS.length; s++) {
+      listEl = document.querySelector(JOB_LIST_CONTAINER_SELECTORS[s]);
+      if (listEl) break;
+    }
+    if (!listEl) {
+      setTimeout(startVisibleSurfaceWatchers, 3000);
+      return;
+    }
+    var scrollTarget = listEl.closest('.scaffold-layout__list') ||
+                       listEl.closest('[class*="jobs-search"]') ||
+                       listEl;
+    scrollTarget.addEventListener('scroll', function () {
+      scheduleVisibleRescan();
+    }, { passive: true });
+    if (visibleListObserver) visibleListObserver.disconnect();
+    visibleListObserver = new MutationObserver(function () {
+      scheduleVisibleRescan();
+    });
+    visibleListObserver.observe(listEl, { childList: true, subtree: false });
+    console.debug('[Caliber] visible-surface: watchers attached');
+  }
+
+  function stopVisibleSurfaceWatchers() {
+    if (visibleListObserver) { visibleListObserver.disconnect(); visibleListObserver = null; }
+    if (surfaceRescanTimer) { clearTimeout(surfaceRescanTimer); surfaceRescanTimer = null; }
   }
 
   // ─── Panel Creation ───────────────────────────────────────
@@ -1008,10 +1277,12 @@
           recentScores = [];
           lastSearchQuery = currentQuery;
           resetSessionSignals();
-          console.debug("[Caliber] search query changed, reset rolling window + session signals");
+          resetVisibleSurface();
+          console.debug("[Caliber] search query changed, reset rolling window + session signals + visible surface");
         }
         console.debug("[Caliber] URL changed, re-scoring");
         scoreCurrentJob(true);
+        scheduleVisibleRescan();
         return;
       }
       var text = extractJobText();
@@ -1064,18 +1335,23 @@
     chrome.storage.local.set({ caliberPanelEnabled: true });
     showIdle();
     startWatching();
+    startVisibleSurfaceWatchers();
     // If a job description is already visible, score immediately
     var text = extractJobText();
     if (text && text.length >= MIN_SCORE_CHARS) {
       scoreCurrentJob(true);
     }
+    // Kick off visible-surface scoring after a short delay
+    setTimeout(function () { scoreVisibleSurface(); }, 2500);
   }
 
   function deactivatePanel() {
     active = false;
     chrome.storage.local.set({ caliberPanelEnabled: false });
     stopWatching();
+    stopVisibleSurfaceWatchers();
     removePanel();
+    resetVisibleSurface();
     lastScoredText = "";
     recentScores = [];
     resetSessionSignals();
@@ -1125,6 +1401,15 @@
     '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '    </div>',
+    '  </div>',
+    '  <div id="cb-surface-summary" class="cb-surface-summary" style="display:none">',
+    '    <div class="cb-surface-header">Search Surface</div>',
+    '    <div class="cb-surface-stats">',
+    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Median Fit</span><span id="cb-surface-median" class="cb-surface-stat-value">\u2014</span></div>',
+    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Top Fit</span><span id="cb-surface-top" class="cb-surface-stat-value">\u2014</span></div>',
+    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Strong</span><span id="cb-surface-strong" class="cb-surface-stat-value">\u2014</span></div>',
+    '    </div>',
+    '    <div id="cb-surface-count" class="cb-surface-count"></div>',
     '  </div>',
     '  <div id="cb-idle" class="cb-body" style="display:none">',
     '    <div class="cb-idle-icon">\u25CE</div>',
@@ -1563,6 +1848,31 @@
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "  text-align: center;",
+    "}",
+    // Surface summary (visible-job stats)
+    ".cb-surface-summary {",
+    "  border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  padding: 8px 14px;",
+    "}",
+    ".cb-surface-header {",
+    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
+    "  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;",
+    "}",
+    ".cb-surface-stats {",
+    "  display: flex; gap: 16px;",
+    "}",
+    ".cb-surface-stat {",
+    "  display: flex; flex-direction: column; align-items: center;",
+    "}",
+    ".cb-surface-stat-label {",
+    "  font-size: 9px; color: #555; font-weight: 500; text-transform: uppercase;",
+    "  letter-spacing: 0.03em;",
+    "}",
+    ".cb-surface-stat-value {",
+    "  font-size: 18px; font-weight: 700; color: #F2F2F2;",
+    "}",
+    ".cb-surface-count {",
+    "  font-size: 9px; color: #444; margin-top: 4px; text-align: center;",
     "}"
   ].join("\n");
 })();
