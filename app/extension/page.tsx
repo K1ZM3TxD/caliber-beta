@@ -9,12 +9,12 @@ export default function ExtensionPage() {
   const hasStoreUrl = Boolean(CHROME_STORE_URL);
 
   return (
-    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: 'radial-gradient(ellipse 120% 70% at 50% 10vh, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 25%, rgba(34,197,94,0.02) 45%, transparent 60%), #0B0B0B' }}>
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[10vh] overflow-y-auto">
       <div className="w-full max-w-[640px] px-6 pb-16" style={{ color: "#F2F2F2" }}>
-        {/* Zone 1 — Brand field */}
-        <div className="flex flex-col items-center justify-center text-center" style={{ height: "20vh", minHeight: 140 }}>
+        {/* Status bubble + Download CTA */}
+        <div className="text-center mb-10">
           <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium mb-5"
             style={{
               backgroundColor: "rgba(74,222,128,0.08)",
               border: "1px solid rgba(74,222,128,0.22)",

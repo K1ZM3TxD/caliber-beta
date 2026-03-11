@@ -168,18 +168,15 @@ export default function PipelinePage() {
 
   return (
     <div
-      className="w-full pb-10"
+      className="w-full pt-[10vh] pb-10"
       style={{
         background:
-          "radial-gradient(ellipse 120% 70% at 50% 0%, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 30%, rgba(34,197,94,0.02) 50%, transparent 65%)",
+          "radial-gradient(ellipse 80% 40% at 50% 12%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      <div
-        className="relative w-full flex flex-col items-center justify-center text-center"
-        style={{ height: "20vh", minHeight: 140 }}
-      >
-        <h1 className="text-xl font-semibold text-zinc-300 tracking-tight">Your Pipeline</h1>
-      </div>
+      <h1 className="text-xl font-semibold text-zinc-300 text-center mb-8 tracking-tight">
+        Your Pipeline
+      </h1>
 
       {loading && (
         <div className="text-center text-zinc-500">
