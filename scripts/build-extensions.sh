@@ -184,4 +184,13 @@ echo "    name:     \"Caliber — Job Fit Score [DEV]\""
 echo "    API_BASE: http://localhost:3000"
 echo "    hosts:    localhost:3000, linkedin.com, indeed.com"
 echo ""
+
+# ── Package production ZIP for /extension download page ──
+ZIP_NAME="caliber-extension-beta-v${EXT_VERSION}.zip"
+ZIP_PATH="public/${ZIP_NAME}"
+echo "=== Packaging $ZIP_PATH ==="
+rm -f "$ZIP_PATH"
+(cd "$PROD_DIR" && zip -r "../../$ZIP_PATH" . -x '.*') > /dev/null
+echo "  -> $ZIP_PATH ($(du -h "$ZIP_PATH" | cut -f1))"
+echo ""
 echo "=== Done ==="
