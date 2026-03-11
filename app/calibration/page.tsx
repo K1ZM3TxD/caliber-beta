@@ -585,8 +585,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         display: "inline-block",
         width: 24,
         height: 24,
-        border: "3px solid rgba(74,222,128,0.15)",
-        borderTop: "3px solid #4ADE80",
+        border: "3px solid rgba(58,180,100,0.15)",
+        borderTop: "3px solid #3AB464",
         borderRadius: "50%",
         animation: "spin 0.8s linear infinite",
         marginLeft: 8,
@@ -595,7 +595,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 bg-[#080808] flex justify-center items-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(74,222,128,0.045) 0%, transparent 100%) #080808' }}>
+    <div className="fixed inset-0 bg-[#080808] flex justify-center items-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(58,180,100,0.035) 0%, transparent 100%) #080808' }}>
       <div className="w-full max-w-[760px] px-6 py-12">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -612,11 +612,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               {step === "TITLES" ? (
                 <div className="flex items-center gap-2 mb-1">
-                  <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>
+                  <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
+              ) : step === "LANDING" ? (
+                <div className="tracking-[0.28em] uppercase text-[0.7rem] sm:text-[0.75rem]" style={{ color: 'rgba(255,255,255,0.22)', fontWeight: 500, letterSpacing: '0.28em' }}>Caliber</div>
               ) : (
-                <div className="font-light tracking-[0.18em] uppercase text-[1.6rem] sm:text-[2rem]" style={{ color: 'rgba(255,255,255,0.35)', textShadow: '0 0 60px rgba(74,222,128,0.06)' }}>Caliber</div>
+                <div className="font-light tracking-[0.18em] uppercase text-[1.6rem] sm:text-[2rem]" style={{ color: 'rgba(255,255,255,0.35)', textShadow: '0 0 60px rgba(58,180,100,0.04)' }}>Caliber</div>
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
@@ -631,21 +633,21 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* LANDING */}
             {step === "LANDING" ? (
-              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
-                  <p className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{tagline}</p>
+              <div className="w-full max-w-[480px]">
+                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }} className="mt-6">
+                  <p className="text-lg sm:text-xl leading-relaxed" style={{ color: 'rgba(237,237,237,0.85)', fontWeight: 400, letterSpacing: '-0.01em' }}>{tagline}</p>
                 </div>
                 <div className="mt-10">
                   <button
                     type="button"
                     onClick={begin}
                     disabled={busy}
-                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
-                      backgroundColor: busy ? "rgba(74,222,128,0.35)" : "#4ADE80",
-                      color: "#0B0B0B",
+                      backgroundColor: busy ? "rgba(58,180,100,0.35)" : "#3AB464",
+                      color: "#080808",
                       cursor: busy ? "not-allowed" : "pointer",
-                      boxShadow: busy ? "none" : "0 4px 20px rgba(74,222,128,0.15)",
+                      boxShadow: busy ? "none" : "0 2px 12px rgba(58,180,100,0.10)",
                     }}
                   >
                     {busy ? "Processing…" : "Begin Calibration"}
