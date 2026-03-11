@@ -911,13 +911,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 1);
 
               const heroTitle = titlesToRender[0] ?? null;
-              const heroExpanded = expandedTitleIdx === 0;
               const heroRawBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3 : [];
               const heroValidBullets = heroRawBullets.filter((b: string) => b && b.trim());
               const heroHasBullets = heroValidBullets.length > 0;
               const heroSummaryText: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
               const heroHasSummary = heroSummaryText.length > 0;
-              const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
               <div className="w-full max-w-3xl pb-8">
@@ -932,35 +930,20 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Hero title card */}
                 {heroTitle ? (
                   <div
-                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
+                    className="cb-title-card rounded-2xl transition-all duration-150"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
-                      border: heroExpanded ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)",
-                    }}
-                    onClick={() => {
-                      if (!heroCanExpand) return;
-                      setExpandedTitleIdx(heroExpanded ? null : 0);
+                      backgroundColor: "rgba(255,255,255,0.015)",
+                      border: "1px solid rgba(255,255,255,0.04)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-                        {heroCanExpand ? (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
-                            className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
-                            style={{ background: "rgba(251,191,36,0.08)", color: heroExpanded ? "#999" : "#FBBF24", border: "1px solid rgba(251,191,36,0.18)", whiteSpace: "nowrap", cursor: "pointer" }}
-                          >
-                            {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
-                          </button>
-                        ) : null}
+                      <div className="flex items-center justify-center mt-5">
                         <a
                           href="/extension"
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
                           className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
                           style={{ background: "rgba(74,222,128,0.06)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", whiteSpace: "nowrap", cursor: "pointer" }}
                         >
@@ -969,23 +952,20 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         </a>
                       </div>
                     </div>
+                  </div>
+                ) : null}
 
-                    {/* Expanded content */}
-                    {heroExpanded && heroCanExpand ? (
-                      <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                          <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>Based on your calibration answers, our AI identified recurring patterns across your experience that point toward this direction.</p>
-                          {heroHasBullets ? (
-                            <ul className="text-sm leading-relaxed pl-4 space-y-1.5 mb-3" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                              {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
-                            </ul>
-                          ) : null}
-                          {heroHasSummary ? (
-                            <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{heroSummaryText}</p>
-                          ) : null}
-                        </div>
-
-                      </div>
+                {/* Explanation — always visible */}
+                {heroTitle && (heroHasBullets || heroHasSummary) ? (
+                  <div className="mt-8 px-6 sm:px-8 text-left">
+                    <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>Based on your calibration answers, our AI identified recurring patterns across your experience that point toward this direction.</p>
+                    {heroHasBullets ? (
+                      <ul className="text-sm leading-relaxed pl-4 space-y-1.5 mb-3" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                        {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
+                      </ul>
+                    ) : null}
+                    {heroHasSummary ? (
+                      <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{heroSummaryText}</p>
                     ) : null}
                   </div>
                 ) : null}
