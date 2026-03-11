@@ -5,6 +5,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
+import { buildExplanationSummary } from "@/lib/explanation_summary";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -937,9 +938,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       border: "1px solid rgba(255,255,255,0.04)",
                     }}
                   >
-                    <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
+                    <div className="px-6 pt-8 pb-10 sm:px-8 sm:pt-10 sm:pb-12 text-center flex flex-col items-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center mt-5">
+                      <div className="flex items-center justify-center mt-8 sm:mt-10">
                         <a
                           href="/extension"
                           target="_blank"
@@ -955,20 +956,20 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Explanation — always visible */}
-                {heroTitle && (heroHasBullets || heroHasSummary) ? (
-                  <div className="mt-8 px-6 sm:px-8 text-left">
-                    <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>Based on your calibration answers, our AI identified recurring patterns across your experience that point toward this direction.</p>
-                    {heroHasBullets ? (
+                {/* Explanation — structured summary */}
+                {heroTitle ? (() => {
+                  const expl = buildExplanationSummary();
+                  return (
+                    <div className="mt-8 px-6 sm:px-8 text-left">
+                      <p className="text-sm font-medium mb-2" style={{ color: "#D4D4D4" }}>{expl.headline}</p>
+                      <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>{expl.intro}</p>
                       <ul className="text-sm leading-relaxed pl-4 space-y-1.5 mb-3" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                        {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
+                        {expl.bullets.map((b, bi) => <li key={bi}>{b}</li>)}
                       </ul>
-                    ) : null}
-                    {heroHasSummary ? (
-                      <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{heroSummaryText}</p>
-                    ) : null}
-                  </div>
-                ) : null}
+                      <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{expl.closing}</p>
+                    </div>
+                  );
+                })() : null}
 
                 {/* How we score this — integrated philosophy */}
                 <div className="mt-3">
