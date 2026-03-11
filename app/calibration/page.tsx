@@ -945,16 +945,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-4 mt-5">
-                        <a
-                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:brightness-110"
-                          style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.22)", textDecoration: "none", whiteSpace: "nowrap" }}
-                        >Search on LinkedIn</a>
-                        {heroCanExpand ? (
+                      {heroCanExpand ? (
+                        <div className="flex items-center justify-center mt-5">
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
@@ -963,8 +955,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           >
                             {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
                           </button>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Expanded content */}
@@ -981,23 +973,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             <p className="text-[13px] leading-relaxed" style={{ color: "#999" }}>{heroSummaryText}</p>
                           ) : null}
                         </div>
-                        {/* Search actions */}
-                        <div className="flex items-center gap-2 mt-3">
-                          <a
-                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
-                          >Search on LinkedIn</a>
-                          <a
-                            href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
-                          >Search on Indeed</a>
-                        </div>
+
                       </div>
                     ) : null}
                   </div>
