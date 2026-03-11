@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.0";
+  const PANEL_VERSION = "0.6.1";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1240,18 +1240,19 @@
 
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
-    // Container: stacks recovery banner above sidecard
+    // Container: sidecard in normal flow; banners absolutely positioned above
     ".cb-container {",
-    "  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;",
+    "  position: relative;",
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
+    "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  animation: cb-enter 0.2s ease-out;",
+    "  animation: cb-banner-fade 0.15s ease-out;",
     "}",
     ".cb-recovery-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-recovery-body { flex: 1; min-width: 0; }",
@@ -1279,6 +1280,10 @@
     "@keyframes cb-enter {",
     "  from { opacity: 0; transform: translateY(12px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
+    "}",
+    "@keyframes cb-banner-fade {",
+    "  from { opacity: 0; }",
+    "  to   { opacity: 1; }",
     "}",
     ".cb-panel::-webkit-scrollbar { width: 4px; }",
     ".cb-panel::-webkit-scrollbar-track { background: transparent; }",
@@ -1455,12 +1460,13 @@
     ".cb-autosave-action:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
+    "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #0F2318;",
     "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
+    "  animation: cb-banner-fade 0.15s ease-out;",
     "}",
     ".cb-tailor-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-tailor-body { flex: 1; min-width: 0; }",

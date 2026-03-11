@@ -79,6 +79,27 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-11 — Calibration Result Copy Structure
+
+**What changed:**
+- Calibration results page now uses a two-sentence structure before the hero title card.
+- Sentence 1: human alignment context derived from synthesis patternSummary (first sentence of the pattern synthesis).
+- Sentence 2 (exact): "The closest market label for the kind of work you're naturally aligned with is:"
+- The recommended title renders as the visual conclusion to that sentence.
+- The previous explanation section (headline + intro + bullets + closing from `buildExplanationSummary()`) has been removed and replaced by this two-sentence flow.
+
+**What is now expected:**
+- Calibration results page renders: two-sentence context → hero title card → "How we score this" → Recalibrate.
+- First sentence is dynamic per user (from `session.synthesis.patternSummary`), with a generic fallback.
+- Second sentence is fixed copy.
+- Title scoring and recommendation ranking are unchanged.
+
+**What is explicitly no longer expected:**
+- The structured explanation section (headline, intro, bullets, closing) no longer renders on the calibration results page.
+- `buildExplanationSummary()` is no longer imported or called from the calibration page.
+
+**Files touched:** app/calibration/page.tsx, Bootstrap/milestones.md, Bootstrap/CALIBER_CONTEXT_SUMMARY.md, Bootstrap/CALIBER_ACTIVE_STATE.md, Bootstrap/BREAK_AND_UPDATE.md
+
 ### 2026-03-11 — Stabilization Phase: Debug/Polish Before Action-Layer Expansion
 
 **What changed:**

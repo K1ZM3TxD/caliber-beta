@@ -66,21 +66,21 @@ Calibration flow runs end-to-end: resume upload → prompt answers → title rec
 
 **Extension Phase 1 MVP: VERIFIED WORKING (2026-03-06).** The Chrome extension extracts job descriptions from LinkedIn job detail pages and calls the production API at `https://www.caliber-app.com/api/extension/fit`. The popup renders a fit score (confirmed live: 4.3/10 screenshot), supports-fit bullets, stretch factors, bottom line, and Recalculate / Open in Caliber actions.
 
-## Current Calibration Page Layout (2026-03-10, canonical)
+## Current Calibration Page Layout (2026-03-11, canonical)
 
 The `/calibration` page is an extension-first launchpad. It answers "What direction should I search?" — not "Is this specific job a fit?"
 
 Layout from top to bottom:
 
 1. **"Calibration Complete"** — confirmation that calibration is done.
-2. **Extension install CTA** — primary next action, positioned above the title result.
-3. **Title section heading** — "Top title direction for your pattern" (font-light, directional).
-4. **Hero title card** — single title recommendation:
-   - Centered title text (text-[1.7rem] / sm:text-[2.4rem])
-   - Primary "Search on LinkedIn" (green CTA)
-   - Secondary "See why it fits" (scoring-yellow)
-   - Expandable explanation: opens with "Your pattern matches on 4 core signals.", bullets first, summary below
-5. **"How we score this"** — scoring philosophy section.
+2. **Two-sentence context → market translation:**
+   - Sentence 1: Human alignment context derived from synthesis patternSummary (first sentence).
+   - Sentence 2: "The closest market label for the kind of work you're naturally aligned with is:"
+3. **Hero title card** — single title recommendation rendered as the conclusion to the two-sentence context:
+   - Centered title text (text-[1.3rem] / sm:text-[1.7rem])
+   - "Start evaluating jobs" CTA (green outlined)
+4. **"How we score this"** — scoring philosophy section.
+5. **Recalibrate** — restart option.
 
 What is **not** on this page:
 - Multiple title suggestions

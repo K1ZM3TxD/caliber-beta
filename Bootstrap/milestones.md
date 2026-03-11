@@ -1,5 +1,18 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (Calibration Result Copy Structure)
+---
+DONE:
+- Calibration results now use two-sentence structure:
+  1. Human alignment context (derived from synthesis patternSummary)
+  2. Market translation introducing title reveal: "The closest market label for the kind of work you're naturally aligned with is:"
+- Explanation section replaced by two-sentence context → market label flow
+- Hero title card styling preserved
+- Title scoring logic unchanged
+- Fixture validation confirmed: Chris → Product Development Lead, Jen → Creative Operations Lead, Fabio → Technical Security Consultant
+
+---
+
 BREAK + UPDATE — 2026-03-11 (Stabilization Phase: Debug/Polish Before Action-Layer Expansion)
 ---
 DONE:

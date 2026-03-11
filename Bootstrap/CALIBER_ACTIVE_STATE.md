@@ -15,11 +15,12 @@
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
-- Calibration results page received final polish pass (2026-03-10):
-  - Smaller hero title (text-[1.7rem] / text-[2.4rem])
-  - Lighter section label (font-light)
-  - Green primary CTA ("Search on LinkedIn"), scoring-yellow secondary ("See why it fits")
-  - Explanation dropdown rewritten: human-friendly language, no internal scoring terminology
+- Calibration results page received final polish pass (2026-03-10), then two-sentence copy structure (2026-03-11):
+  - Two-sentence context → market translation structure replaces explanation section
+  - Sentence 1: human alignment context from synthesis patternSummary
+  - Sentence 2: "The closest market label for the kind of work you're naturally aligned with is:"
+  - Hero title rendered as the visual conclusion to the two-sentence context
+  - Hero title card styling preserved (text-[1.3rem] / text-[1.7rem])
 - Calibration page spacing tightened (2026-03-11): header area 8.5em→5.5em, LANDING mt-14/mt-12→mt-8, dropzone text centered, redundant dividers removed from TITLES step.
 - Three-zone shell design attempted (2026-03-11): Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction. This was rolled back — the framing introduced documentation/implementation drift and is not the current canonical shell. Visual baseline restored to commit a211182.
 - CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding (a211182 — this remains the current visual baseline).

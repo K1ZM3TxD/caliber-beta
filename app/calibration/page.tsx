@@ -5,7 +5,6 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
-import { buildExplanationSummary } from "@/lib/explanation_summary";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -918,6 +917,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               const heroSummaryText: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
               const heroHasSummary = heroSummaryText.length > 0;
 
+              // Extract alignment context from synthesis patternSummary (first sentence)
+              const rawPattern: string = session?.synthesis?.patternSummary ?? "";
+              const firstSentence = rawPattern.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim().length > 10)[0]?.trim() ?? "";
+              const alignmentContext = firstSentence || "You\u2019re most energized when your work aligns with your natural pattern.";
+
               return (
               <div className="w-full max-w-3xl pb-8">
 
@@ -925,6 +929,18 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {!heroTitle ? (
                   <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "rgba(255,255,255,0.025)", color: "#AFAFAF", border: "1px solid rgba(255,255,255,0.05)" }}>
                     Your title recommendation is still being generated.
+                  </div>
+                ) : null}
+
+                {/* Two-sentence context → market translation */}
+                {heroTitle ? (
+                  <div className="mb-6 text-center" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
+                    <p className="text-base sm:text-lg leading-relaxed mb-4" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
+                      {alignmentContext}
+                    </p>
+                    <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
+                      The closest market label for the kind of work you{"\u2019"}re naturally aligned with is:
+                    </p>
                   </div>
                 ) : null}
 
@@ -955,21 +971,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     </div>
                   </div>
                 ) : null}
-
-                {/* Explanation — structured summary */}
-                {heroTitle ? (() => {
-                  const expl = buildExplanationSummary();
-                  return (
-                    <div className="mt-8 px-6 sm:px-8 text-left">
-                      <p className="text-sm font-medium mb-2" style={{ color: "#D4D4D4" }}>{expl.headline}</p>
-                      <p className="text-sm leading-relaxed mb-3" style={{ color: "#CFCFCF" }}>{expl.intro}</p>
-                      <ul className="text-sm leading-relaxed pl-4 space-y-1.5 mb-3" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                        {expl.bullets.map((b, bi) => <li key={bi}>{b}</li>)}
-                      </ul>
-                      <p className="text-[13px] leading-relaxed" style={{ color: "#888" }}>{expl.closing}</p>
-                    </div>
-                  );
-                })() : null}
 
                 {/* How we score this — integrated philosophy */}
                 <div className="mt-3">
