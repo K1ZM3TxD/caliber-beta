@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.2";
+  const PANEL_VERSION = "0.6.3";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -671,6 +671,13 @@
       btn.addEventListener("click", function () {
         var section = btn.closest(".cb-collapsible");
         if (section) section.classList.toggle("cb-open");
+        // Expand results container when any section is open
+        var results = shadow.getElementById("cb-results");
+        var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+        if (results) {
+          if (anyOpen) results.classList.add("cb-results-expanded");
+          else results.classList.remove("cb-results-expanded");
+        }
       });
     });
 
@@ -819,6 +826,8 @@
     if (panel) panel.style.display = "";
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.style.display = "none";
+    var res = shadow.getElementById("cb-results");
+    if (res) res.classList.add("cb-results-expanded");
   }
 
   function handleFeedbackSubmit() {
@@ -829,6 +838,10 @@
     var comment = (shadow.getElementById("cb-fb-text").value || "").trim();
     sendFeedback("thumbs_down", reason, comment || null);
     shadow.getElementById("cb-fb-panel").style.display = "none";
+    // Collapse results if no collapsible sections are open
+    var res = shadow.getElementById("cb-results");
+    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
     showFeedbackConfirm();
   }
 
@@ -836,6 +849,10 @@
     shadow.getElementById("cb-fb-panel").style.display = "none";
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.style.display = "";
+    // Collapse results if no collapsible sections are open
+    var res = shadow.getElementById("cb-results");
+    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
   }
 
   function handleBugReport() {
@@ -959,6 +976,11 @@
     getOrCreatePanel();
     hideOverlay();
 
+    // Reset collapsible sections and fixed-height lock for fresh results
+    shadow.querySelectorAll(".cb-collapsible.cb-open").forEach(function (s) { s.classList.remove("cb-open"); });
+    var cbResults = shadow.getElementById("cb-results");
+    if (cbResults) cbResults.classList.remove("cb-results-expanded");
+
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
     var rawScore = Number(data.score_0_to_10) || 0;
@@ -984,10 +1006,11 @@
     titleEl.textContent = lastJobMeta.title || "";
 
     // Auto-save to pipeline for strong matches (score >= 8.5)
+    // Row always occupies space; content shown/hidden via visibility
     var autosaveRow = shadow.getElementById("cb-autosave-row");
     if (autosaveRow) {
       if (score >= 8.5) {
-        autosaveRow.style.display = "none"; // hidden until save confirms
+        autosaveRow.style.visibility = "hidden"; // reserve space, hidden until save confirms
         chrome.runtime.sendMessage({
           type: "CALIBER_PIPELINE_SAVE",
           jobTitle: lastJobMeta.title || "",
@@ -996,14 +1019,15 @@
           score: score,
         }, function (resp) {
           if (resp && resp.ok) {
-            autosaveRow.style.display = "";
+            autosaveRow.style.visibility = "visible";
             console.debug("[Caliber] auto-saved to pipeline: " + (lastJobMeta.title || "untitled"));
           } else {
+            autosaveRow.style.visibility = "hidden";
             console.warn("[Caliber] auto-save failed:", resp && resp.error);
           }
         });
       } else {
-        autosaveRow.style.display = "none";
+        autosaveRow.style.visibility = "hidden";
       }
     }
 
@@ -1012,7 +1036,6 @@
     var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
-    hrcSection.style.display = "";
     if (hrc && hrc.band) {
       hrcBandEl.textContent = hrc.band;
       hrcBandEl.className = "cb-hrc-badge";
@@ -1049,19 +1072,18 @@
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
-    var stretchSection = shadow.getElementById("cb-stretch-section");
-    if (stretchSection) stretchSection.style.display = "";
+    // stretch section always visible — no display toggle needed
 
     // Bottom line (collapsible)
     shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "\u2014";
-    var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = "";
+    // bottom-line section always visible — no display toggle needed
 
     // Nearby roles (only for stretch/skip)
+    // Section always occupies space; content shown/hidden via visibility
     var nearbySection = shadow.getElementById("cb-nearby-section");
     var nearbyList = shadow.getElementById("cb-nearby");
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
-      nearbySection.style.display = "";
+      nearbySection.style.visibility = "visible";
       nearbyList.innerHTML = "";
       for (var i = 0; i < data.nearby_roles.length; i++) {
         var role = data.nearby_roles[i];
@@ -1075,7 +1097,8 @@
         nearbyList.appendChild(li);
       }
     } else {
-      nearbySection.style.display = "none";
+      nearbySection.style.visibility = "hidden";
+      nearbyList.innerHTML = "";
     }
 
     // Tailor Resume banner (above sidecard, 8.0+ only)
@@ -1429,7 +1452,7 @@
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
-    '    <div id="cb-autosave-row" class="cb-autosave-row" style="display:none">',
+    '    <div id="cb-autosave-row" class="cb-autosave-row" style="visibility:hidden">',
     '      <span class="cb-autosave-check">✓</span>',
     '      <span class="cb-autosave-label">Saved to pipeline</span>',
     '      <div class="cb-autosave-actions">',
@@ -1450,7 +1473,7 @@
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
+    '    <div id="cb-hrc-section" class="cb-collapsible">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>Hiring Reality</span>',
@@ -1489,7 +1512,7 @@
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
+    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="visibility:hidden">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>\u2192 Better nearby roles</span>',
@@ -1593,7 +1616,8 @@
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
     ".cb-body { padding: 12px 14px; position: relative; }",
-    "#cb-results { min-height: 240px; }",
+    "#cb-results { min-height: 340px; height: 340px; overflow: hidden; }",
+    "#cb-results.cb-results-expanded { height: auto; min-height: 340px; overflow: visible; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1716,6 +1740,7 @@
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.04); border-radius: 6px;",
     "  padding: 0 8px; margin-top: 2px;",
+    "  min-height: 26px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
