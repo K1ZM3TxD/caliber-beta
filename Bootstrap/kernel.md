@@ -399,12 +399,20 @@ Strong-fit jobs may trigger an action workflow. This invariant constrains what a
 - The job pipeline must remain intentionally minimal. Anti-CRM by design.
 - Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates. If it gains these, the design has failed.
 
-## Visual Shell Invariant (2026-03-11)
+## Visual Shell Invariant (2026-03-11, updated)
 
-Design changes must reference approved visual primitives, not copy from a single live page.
+Design changes must reference approved visual primitives and three-zone shell structure, not copy from a single live page.
+
+**Three-zone shell structure (mandatory for all pages):**
+- **Zone 1 — Brand field (20vh):** CALIBER wordmark + ambient gradient. Fixed proportional height. This establishes the brand identity at the top of every page.
+- **Zone 2 — Context:** Page heading, description, or status information. Variable height per page.
+- **Zone 3 — Interaction:** Forms, cards, action buttons, content. The primary user-interaction area.
+
+Every page must follow this three-zone structure. Per-page ad-hoc shell composition is a regression.
 
 Approved shell traits:
 - Wide subtle ambient gradient band over #050505 dark surface
+- CALIBER header and gradient positioned ~12% lower than original iterations for grounding
 - Outlined green primary buttons (rgba(74,222,128,0.06) bg, #4ADE80 text, rgba(74,222,128,0.45) border). No solid green fills.
 - No small sharp centered line motif
 - Form fields must remain clearly visible and usable against dark backgrounds
@@ -412,7 +420,7 @@ Approved shell traits:
 
 "Match the pipeline page" (or any single-page reference) is NOT a valid design instruction.
 
-Each page composes from the above primitives. Visual drift from incremental local tweaks is a regression — the fix is to re-anchor to primitives, not to add more local patches.
+Each page composes from the above primitives and three-zone structure. Visual drift from incremental local tweaks is a regression — the fix is to re-anchor to primitives, not to add more local patches.
 - This is the next product layer after scoring trust — not a generic feature expansion or platform play.
 
 

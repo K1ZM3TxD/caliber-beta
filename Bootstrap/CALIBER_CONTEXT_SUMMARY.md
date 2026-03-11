@@ -2,9 +2,9 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-11, Visual Shell Re-Lock + Action-Layer Refinement)
+## Project Status (2026-03-11, Three-Zone Shell Stabilization + Action Layer Launch-Ready)
 
-**Extension sidecard is the primary discovery surface. Strong-fit jobs (8.0+) feed an action workflow. Visual shell re-lock is in progress — design-system now anchored to explicit primitives.** Calibration page is a polished launchpad; extension delivers all real-role evaluation; strong matches trigger a contextual "Tailor resume for this job" card leading to resume tailoring and a job pipeline board.
+**Three-zone shell stabilized across all pages. Tailor page is launch-ready. Pipeline board has DnD and fit score display.** Extension remains the primary discovery surface; strong-fit jobs (8.0+) feed the tailor/pipeline action workflow. Visual shell drift is largely resolved — every page now follows the three-zone structure (Brand 20vh → Context → Interaction).
 
 - Caliber has expanded from evaluation-only to strong-match action workflow.
 - The calibration page (`/calibration`) is a launchpad. Output: one hero title direction, extension install CTA, scoring philosophy.
@@ -12,14 +12,15 @@
 - Jobs scoring 8.0+ trigger a contextual card above the sidecard: "Tailor resume for this job."
 - Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension. Nothing is fabricated.
 - Pipeline entry is created at `/api/tailor/prepare` time — pipeline persistence begins before tailoring, not after. Pipeline dedupe is based on canonical/normalized job URL.
-- Tailor page recomposed (2026-03-11): "Tailor Resume" is the primary heading, job context card first, pipeline confirmation secondary. CaliberHeader removed from tailor page.
-- Pipeline rebuilt as 4-column board (2026-03-11): Resume Prep → Submitted → Interview Prep → Interview. Legacy stages auto-map to board columns. Code is implemented; product validation ongoing.
+- Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions. CaliberHeader removed; "Tailor Resume" is the primary heading; job title/company card first; pipeline confirmation secondary.
+- Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Legacy stages auto-map to board columns. Code is complete; product validation ongoing.
+- Three-zone shell design stabilized (2026-03-11): Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction. Applied consistently across all pages. CALIBER header and gradient lowered ~12%.
+- Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
-- Visual shell re-lock (2026-03-11): design system re-anchored to explicit approved primitives — wide ambient gradient, #050505 surface, outlined green buttons, no sharp centered line motif. Prior "match the pipeline page" approach abandoned.
-- Extension v0.6.0 deployed with strong-match contextual card, tailor workflow, pipeline integration, CTA suppression for jobs already in pipeline, and bug-report action with explicit text label.
+- Extension v0.6.0 deployed (ZIP rebuilt with latest source — label fix, BST thresholds, LinkedIn updates).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: tighten remaining visual shell drift → validate pipeline board model → verify Better Search Title trigger → CTA noise-control refinement. No generic feature sprawl.
+- Next priorities: validate pipeline board model → verify Better Search Title trigger → CTA noise-control refinement → tailor quality validation. No generic feature sprawl.
 
 **Real User Flow:**
 ```
@@ -146,6 +147,17 @@ Structured feedback collection active across extension and web app.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 
+## Session Decisions (2026-03-11, Three-Zone Shell Stabilization + Tailor Completion)
+
+- **Three-zone shell stabilized.** Every page now follows a consistent three-zone structure: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context (page heading/description), Zone 3 = Interaction (forms, cards, actions). This resolves the visual drift that accumulated from incremental local tweaks.
+- **Shell alignment lowered.** CALIBER header and ambient gradient lowered ~12% across all pages for better visual grounding and reduced empty space at top.
+- **Upload page simplified.** Redundant heading removed, layout spacing tightened. This completes the upload page shell alignment (#46 resolved).
+- **Tailor page launch-ready.** Copy-to-clipboard action added for generated resume. Retry-on-error flow for failed generation. Polished result area with copy/download actions. Spacing tightened throughout. The tailor page is now end-to-end functional.
+- **Pipeline board enhanced.** Cards now moveable via DnD between columns. Fit score displayed on each card. Board reloads visible data on tab focus. Code is fully implemented.
+- **Extension ZIP rebuilt.** v0.6.0 packaging refreshed with latest source — includes bug-report label fix, widened BST thresholds, and LinkedIn content script updates. No functional changes.
+- **Visual shell drift largely resolved.** Issue #41 addressed by three-zone stabilization. Issue #46 resolved by upload simplification. Remaining visual work is minor per-page refinement, not structural.
+- **Product validation is next.** With the code layer complete (shell, tailor, pipeline, extension), the next priority is product-level validation of the pipeline board model and tailor output quality.
+
 ## Session Decisions (2026-03-11, Visual Shell Re-Lock + Action-Layer Refinement)
 
 - **Design-system re-lock.** Stopped iterating via "match the pipeline page" approach after repeated local UI tweaks caused visual drift. Design system is now anchored to explicit approved primitives documented in CALIBER_ACTIVE_STATE.md.
@@ -218,16 +230,17 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 
 ## Next Tasks (locked order, updated 2026-03-11)
 
-1. **Recompose global Caliber shell from approved visual primitives** — tighten remaining inconsistencies across pages. Reference approved primitives (see CALIBER_ACTIVE_STATE.md), not a single live page.
-2. **Fix main/upload/ingest/tailor page hierarchy and spacing drift** — CALIBER mark positioning, field clarity, upload support text alignment.
-3. **Validate pipeline 4-column board model** — product-level approval of column names and stage decomposition. Code is implemented.
-4. **Clarify extension debug/report affordance** — text label ("🐛 Report") shipped; may need further UX refinement if still unclear.
+1. ~~Recompose global Caliber shell from approved visual primitives~~ — DONE (three-zone shell stabilized)
+2. ~~Fix main/upload/ingest/tailor page hierarchy and spacing drift~~ — DONE (upload simplified, shell lowered, tailor completed)
+3. **Validate pipeline 4-column board model** — product-level approval of column names and stage decomposition. Code is complete with DnD and fit score.
+4. **Validate tailor page output quality** — tailor page is launch-ready; determine text vs PDF download, review tailoring quality.
 5. **Verify/restore Better Search Title trigger behavior** — thresholds changed to <6.5 weak, >=7.5 strong. Verify feature still activates correctly.
 6. **CTA noise-control refinement** — per-session and time-based suppression for first-time 8.0+ exposures.
-7. **No unnecessary expansion of calibration scope** — calibration page is stable.
-8. **Continue keeping role separation** — calibration as direction, extension as evaluation, tailor/pipeline as action layer.
-9. **Bottom line / explanation polish** — only as needed for beta credibility.
-10. **Phase 2 overlay/list scoring** — deferred until after stable beta.
+7. **Clarify extension debug/report affordance** — text label ("🐛 Report") shipped; may need further UX refinement.
+8. **No unnecessary expansion of calibration scope** — calibration page is stable.
+9. **Continue keeping role separation** — calibration as direction, extension as evaluation, tailor/pipeline as action layer.
+10. **Bottom line / explanation polish** — only as needed for beta credibility.
+11. **Phase 2 overlay/list scoring** — deferred until after stable beta.
 
 ## Scoring Baseline
 
@@ -290,7 +303,8 @@ These fixtures verify:
 - Pipeline was originally a single-list view with linear stages: Strong Match → Tailored → Applied → Interviewing (+ optional Offer / Archived).
 - Pipeline rebuilt (2026-03-11) as a 4-column board: **Resume Prep** → **Submitted** → **Interview Prep** → **Interview**.
 - Legacy stages auto-map to new board columns (strong_match/tailored→resume_prep, applied→submitted, interviewing→interview).
-- Cards are moveable between columns via forward/back buttons.
+- Cards are moveable between columns via DnD (forward/back buttons + drag). Fit score displayed on each card.
+- Board reloads visible data on tab focus.
 - Board is intentionally anti-CRM: no subtasks, no notes, no timelines, no due dates.
 - Code is implemented; product-level validation of the board model is active/next work.
 - Pipeline entry is created at prepare-time (not after tailoring). Pipeline dedupe based on canonical/normalized job URL.

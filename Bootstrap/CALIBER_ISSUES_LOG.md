@@ -340,18 +340,18 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 ### New Issues
 
-41. Visual shell drift / inconsistent composition — **OPEN** (2026-03-11, active concern)
-  - Shell composition is inconsistent across calibration main page, upload/ingest steps, results/TITLES step, tailor page, and pipeline page.
+41. Visual shell drift / inconsistent composition — **RESOLVED** (2026-03-11, updated)
+  - Shell composition was inconsistent across calibration main page, upload/ingest steps, results/TITLES step, tailor page, and pipeline pages.
   - Visual drift accumulated from repeated incremental UI tweaks across sessions.
-  - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives.
-  - Approved primitives: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
-  - Regressions noted: excessive empty space on some pages, cropped/mispositioned header sections during iterations, weak grounding for title/result sections.
-  - Next step: focused shell-convergence pass referencing approved primitives.
+  - Resolved by three-zone shell stabilization (e408b64): Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction. Applied consistently across all pages.
+  - CALIBER header and ambient gradient lowered ~12% for grounding.
+  - Approved primitives codified: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
+  - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives and three-zone structure.
 
-42. Tailor page hierarchy mismatch — **SHIPPED** (2026-03-11)
+42. Tailor page hierarchy mismatch — **SHIPPED** (2026-03-11, complete)
   - Prior state: CaliberHeader dominated the tailor page, job context secondary, pipeline banner at top.
   - Fixed: "Tailor Resume" is now the primary heading, CaliberHeader removed, job title/company card first, pipeline confirmation banner demoted.
-  - Verify in production that hierarchy feels correct.
+  - Additionally completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions, tightened spacing. Tailor page is launch-ready.
 
 43. Extension debug/report affordance clarity — **PARTIALLY RESOLVED** (2026-03-11)
   - Prior state: bug-report button was icon-only (🐛) — unclear affordance.
@@ -366,13 +366,14 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
 
 45. Pipeline board product validation — **OPEN** (2026-03-11, active/next)
   - Pipeline rebuilt from list to 4-column board: Resume Prep → Submitted → Interview Prep → Interview.
-  - Code is implemented with legacy stage auto-mapping and new API stages.
+  - Code is fully implemented with legacy stage auto-mapping, new API stages, DnD card movement between columns, fit score display on cards, and visibility reload on tab focus.
   - Product validation needed: Are these the right columns? Are the names correct? Is the board the right metaphor?
   - Board must remain lightweight and anti-CRM in spirit — no subtasks, notes, timelines, due dates.
   - This is a product-level decision, not just a code task.
 
-46. Upload/ingest page shell alignment — **OPEN** (2026-03-11)
-  - Upload page and ingest/question pages need shell alignment with the approved Caliber visual direction.
-  - CALIBER mark was observed too high on these pages (header minHeight reduced from 8.5em to 5.5em, may need further adjustment).
-  - Upload support text ("PDF, DOCX, or TXT") alignment corrected (centered) but overall dropzone positioning needs review.
-  - Interactive surfaces (textareas, file inputs) must remain clearly visible and usable — dark-shell styling must not reduce field clarity.
+46. Upload/ingest page shell alignment — **RESOLVED** (2026-03-11, updated)
+  - Upload page redundant heading removed (3651ac1), layout spacing tightened.
+  - CALIBER header and gradient lowered ~12% across all pages (a211182).
+  - Three-zone shell applied consistently including upload/ingest pages (e408b64).
+  - Upload support text ("PDF, DOCX, or TXT") alignment corrected (centered).
+  - Interactive surfaces remain clearly visible and usable against dark shell.

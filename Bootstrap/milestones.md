@@ -1,5 +1,27 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification)
+---
+DONE:
+- Three-zone shell design stabilized across ALL pages: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context, Zone 3 = Interaction
+- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding
+- Upload page simplified: redundant heading removed, layout spacing tightened
+- Tailor page completed as launch-ready flow: copy-to-clipboard action, retry-on-error, polished result area with copy/download, tightened spacing
+- Pipeline board enhanced: DnD card movement between columns, fit score on cards, visibility reload on tab focus
+- Calibration results page rhythm polished, upload contrast adjusted
+- Extension ZIP v0.6.0 rebuilt with latest source (packaging refresh — label fix, BST thresholds, LinkedIn updates)
+- Visual shell drift (#41) resolved via three-zone stabilization
+- Upload/ingest shell alignment (#46) resolved
+- PM docs refreshed to reflect all shipped work and updated issue states
+
+REMAINING / ACTIVE NEXT:
+- Product validation of pipeline 4-column board model (column names, stage decomposition) — code is complete
+- Validate tailor page output quality (text vs PDF download decision)
+- Verify Better Search Title trigger behavior with widened thresholds
+- CTA noise-control refinement (per-session, time-based)
+
+---
+
 BREAK + UPDATE — 2026-03-11 (Visual Shell Re-Lock + Pipeline Board + Tailor Recompose)
 ---
 DONE:
@@ -15,11 +37,11 @@ DONE:
 - PM docs refreshed to reflect current shipped state vs planned-next behavior
 
 REMAINING / ACTIVE NEXT:
-- Tighten remaining visual shell drift across all pages (reference approved primitives)
+- ~~Tighten remaining visual shell drift across all pages~~ — DONE (three-zone shell stabilization)
 - Product validation of pipeline 4-column board model (column names, stage decomposition)
 - Verify Better Search Title trigger behavior with widened thresholds
 - CTA noise-control refinement (per-session, time-based)
-- Upload/ingest page shell alignment
+- ~~Upload/ingest page shell alignment~~ — DONE (heading removed, shell lowered, three-zone applied)
 
 ---
 

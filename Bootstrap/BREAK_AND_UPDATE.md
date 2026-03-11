@@ -79,6 +79,41 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-11 — Three-Zone Shell Stabilization + Tailor Completion + Upload Simplification
+
+**What changed:**
+- Three-zone shell design stabilized and applied consistently across ALL pages: Zone 1 = Brand field (20vh, CALIBER wordmark + ambient gradient), Zone 2 = Context (page heading/description), Zone 3 = Interaction (forms, cards, actions).
+- CALIBER header and ambient gradient lowered ~12% across all pages for visual grounding.
+- Upload page simplified: redundant heading removed, layout spacing tightened.
+- Tailor page completed as launch-ready flow: copy-to-clipboard action added, retry-on-error for failed generation, polished result area with copy/download actions, tightened spacing throughout.
+- Pipeline board enhanced: drag-and-drop card movement between columns, fit score displayed on cards, visibility reload on tab focus.
+- Calibration results page rhythm polished (spacing, visual weight).
+- Upload page contrast adjusted for usability.
+- Extension ZIP v0.6.0 rebuilt with latest source (bug-report label fix, BST threshold widening, LinkedIn content script updates).
+
+**What is now expected:**
+- Every page follows the three-zone shell structure: Brand (20vh) → Context → Interaction.
+- Tailor page is end-to-end functional with copy action: generate → copy or download → pipeline tracked.
+- Pipeline board cards show fit score and are moveable via DnD.
+- Shell is visually consistent across calibration, upload, results, tailor, and pipeline pages.
+
+**What is no longer expected:**
+- Per-page ad-hoc shell composition — all pages use three-zone structure.
+- Tailor page without copy action or error retry.
+- Pipeline board without fit score or DnD.
+- CALIBER header at the prior higher position.
+- Upload page with redundant heading text.
+
+**Risk / regressions noted:**
+- Three-zone shell is a stabilization pass, not a final lock — minor per-page tweaks may still be needed.
+- Extension ZIP was rebuilt but extension functionality is unchanged from v0.6.0; this was a packaging refresh only.
+
+**Proof:** All pages render with consistent three-zone layout. Tailor page copy action functional. Pipeline board DnD moves cards between columns.
+
+**Commits:** 189032e, eac1a1b, 3651ac1, a211182, e408b64
+
+---
+
 ### 2026-03-11 — Visual Shell Re-Lock + Pipeline Board + Tailor Recompose + Docs Re-Anchor
 
 **What changed:**
