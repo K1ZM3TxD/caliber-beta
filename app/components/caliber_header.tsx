@@ -9,17 +9,17 @@ export default function CaliberHeader({ className = "" }: CaliberHeaderProps) {
     <div className={`flex flex-col items-center text-center ${className}`}>
       {/* Faded horizontal line */}
       <div
-        className="w-12 h-px mb-4"
+        className="w-16 h-px mb-4"
         style={{
           background:
-            "linear-gradient(90deg, transparent, rgba(161,161,170,0.45), transparent)",
+            "linear-gradient(90deg, transparent 0%, rgba(161,161,170,0.35) 30%, rgba(161,161,170,0.35) 70%, transparent 100%)",
         }}
       />
       {/* Wordmark */}
       <span
         className="font-medium tracking-[0.22em] uppercase text-zinc-400"
         style={{
-          fontSize: "1.3125rem",
+          fontSize: "1.7rem",
           textShadow: "0 0 40px rgba(74,222,128,0.08)",
         }}
       >
