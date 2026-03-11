@@ -1371,6 +1371,10 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         const seam = runIntegrationSeam({
           jobText: job.rawText,
           experienceVector: session.personVector.values as any,
+          resumeText: typeof session.resume?.rawText === "string" ? session.resume.rawText : undefined,
+          promptAnswers: [1, 2, 3, 4, 5]
+            .map(i => session.prompts[i]?.answer)
+            .filter((a): a is string => typeof a === "string" && a.length > 0),
         })
 
         if (!seam.ok) {

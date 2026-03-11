@@ -4,6 +4,7 @@ import { ingestJob, isJobIngestError, type JobIngestObject, type JobIngestDimens
 import { computeAlignmentScore } from "@/lib/alignment_score"
 import { computeSkillMatch, type SkillMatchResult } from "@/lib/skill_match"
 import { computeStretchLoad, type StretchLoadResult } from "@/lib/stretch_load"
+import { checkRealmGuard, REALM_CAP } from "@/lib/realm_guard"
 
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
 import type { CalibrationEvent, CalibrationSession } from "@/lib/calibration_types"
@@ -25,6 +26,8 @@ export type IntegrationError = {
 export type IntegrationInput = {
   jobText: string
   experienceVector: number[]
+  resumeText?: string
+  promptAnswers?: string[]
 }
 
 export type AlignmentOutput = {
@@ -173,11 +176,23 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
       }
     }
 
+    // ---- Realm guardrail: cap score for out-of-realm jobs ----
+    const realmCheck = checkRealmGuard({
+      jobText,
+      resumeText: input.resumeText,
+      promptAnswers: input.promptAnswers,
+    })
+    if (realmCheck.capped) {
+      alignmentResult.score = Math.min(alignmentResult.score, REALM_CAP)
+    }
+
     // ---- Bottom line (coherent with supports/stretch balance) ----
     const severeCount = alignmentResult.signals.severeContradictions
     const mildCount = alignmentResult.signals.mildTensions
     let bottom_line_2s: string
-    if (severeCount > 0 && supports_fit.length === 0) {
+    if (realmCheck.capped) {
+      bottom_line_2s = `This role falls outside your calibrated realm. Some transferable traits may apply, but it is not a direct pattern match.`
+    } else if (severeCount > 0 && supports_fit.length === 0) {
       bottom_line_2s = `Structural mismatch in ${severeCount} dimension(s). This role demands capabilities beyond your demonstrated pattern.`
     } else if (severeCount > 0) {
       bottom_line_2s = `${supports_fit.length} area(s) of alignment, but ${severeCount} significant gap(s) require growth beyond your current pattern.`
