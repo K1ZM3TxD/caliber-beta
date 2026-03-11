@@ -260,9 +260,51 @@ async function discoverSession() {
     return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
   }
 
-  // No endpoint had a session — if we have a stored id, use it optimistically
+  // Server doesn't have the session — try restoring from local backup
   if (storedId) {
+    const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
+    const backup = backupStore.caliberSessionBackup;
+    if (backup && backup.sessionId === storedId) {
+      try {
+        const restoreResp = await fetch(API_BASE + "/api/calibration", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session: backup }),
+          signal: AbortSignal.timeout(3000),
+        });
+        if (restoreResp.ok) {
+          // Retry session endpoint now that we've restored
+          const retry = await trySessionEndpoint(storedId);
+          if (retry.ok) {
+            return { sessionId: retry.sessionId, profileComplete: retry.profileComplete, state: retry.state };
+          }
+        }
+      } catch { /* restore failed — fall through to optimistic */ }
+    }
+    // Optimistic fallback — session may still work via inline backup in callFitAPI
     return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
+  }
+
+  // Last resort: probe Caliber tabs one more time (handles race with fresh install)
+  const lateProbe = await probeCaliberTabsForSession();
+  if (lateProbe && lateProbe.sessionId) {
+    const toStore = { caliberSessionId: lateProbe.sessionId };
+    if (lateProbe.sessionBackup && typeof lateProbe.sessionBackup === "object" && lateProbe.sessionBackup.sessionId === lateProbe.sessionId) {
+      toStore.caliberSessionBackup = lateProbe.sessionBackup;
+    }
+    await chrome.storage.local.set(toStore);
+    // Restore to server
+    if (lateProbe.sessionBackup) {
+      try {
+        await fetch(API_BASE + "/api/calibration", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session: lateProbe.sessionBackup }),
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch { /* best-effort */ }
+    }
+    return { sessionId: lateProbe.sessionId, profileComplete: true, state: "UNKNOWN" };
   }
 
   throw new Error("No active Caliber session. Complete your profile on Caliber first.");
@@ -309,14 +351,21 @@ async function callFitAPI(jobText, sessionId) {
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
 
+  // Include session backup inline for serverless resilience — avoids
+  // multi-Lambda mismatch where restore PUT and fit POST hit different instances.
+  const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
+  if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
+    body.sessionBackup = backupStore.caliberSessionBackup;
+  }
+
   let resp = await fetch(API_BASE + "/api/extension/fit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  // If session not found (401), try restoring from backup and retry once
-  if (resp.status === 401 && sessionId) {
+  // If session not found (401) and we didn't have inline backup, try restoring separately
+  if (resp.status === 401 && sessionId && !body.sessionBackup) {
     const restored = await tryRestoreSession(sessionId);
     if (restored) {
       resp = await fetch(API_BASE + "/api/extension/fit", {

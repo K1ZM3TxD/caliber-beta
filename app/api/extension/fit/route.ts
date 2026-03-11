@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storeGet, storeLatest } from "@/lib/calibration_store";
+import { storeGet, storeLatest, storeImport } from "@/lib/calibration_store";
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 
@@ -41,7 +41,15 @@ export async function POST(req: NextRequest) {
       sessionId = latest.sessionId;
     }
 
-    const session = storeGet(sessionId);
+    let session = storeGet(sessionId);
+
+    // Serverless resilience: if session not in local store, try importing
+    // the inline backup sent by the extension (avoids multi-Lambda mismatch).
+    if (!session && body.sessionBackup && typeof body.sessionBackup === "object") {
+      storeImport(body.sessionBackup);
+      session = storeGet(sessionId);
+    }
+
     if (!session) {
       return NextResponse.json(
         { error: "Session not found. Log into Caliber and complete your profile first." },
