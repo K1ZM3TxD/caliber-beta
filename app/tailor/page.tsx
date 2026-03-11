@@ -3,6 +3,7 @@
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
+import CaliberHeader from "../components/caliber_header";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
 
@@ -104,14 +105,7 @@ function TailorInner() {
       />
 
       {/* Wordmark */}
-      <div className="text-center mb-10">
-        <span
-          className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-400"
-          style={{ textShadow: "0 0 40px rgba(74,222,128,0.08)" }}
-        >
-          Caliber
-        </span>
-      </div>
+      <CaliberHeader className="mb-10" />
 
       {/* Status: Loading */}
       {status === "loading" && (

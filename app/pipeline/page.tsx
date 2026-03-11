@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import CaliberHeader from "../components/caliber_header";
 
 interface PipelineEntry {
   id: string;
@@ -94,14 +95,7 @@ export default function PipelinePage() {
       }}
     >
       {/* Wordmark */}
-      <div className="text-center mb-8">
-        <span
-          className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-400"
-          style={{ textShadow: "0 0 40px rgba(74,222,128,0.08)" }}
-        >
-          Caliber
-        </span>
-      </div>
+      <CaliberHeader className="mb-8" />
 
       <h1 className="text-lg font-semibold text-white text-center mb-6">
         Your Pipeline

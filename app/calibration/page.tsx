@@ -4,6 +4,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
+import CaliberHeader from "../components/caliber_header";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -616,15 +617,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <>
-                  <div className="w-8 h-px bg-zinc-700 mb-4" />
-                  <span
-                    className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-400"
-                    style={{ textShadow: "0 0 40px rgba(74,222,128,0.08)" }}
-                  >
-                    Caliber
-                  </span>
-                </>
+                <CaliberHeader />
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
@@ -937,8 +930,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       border: "1px solid rgba(74,222,128,0.07)",
                     }}
                   >
-                    <h3 className="text-base sm:text-lg font-semibold tracking-tight" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
-                    <p className="text-sm mt-1 mb-4" style={{ color: "#777", maxWidth: 340 }}>Install the Caliber extension to score LinkedIn and Indeed listings against your pattern.</p>
+                    <h3 className="text-base sm:text-lg font-semibold tracking-tight mb-4" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
 
                     <a
                       href="/extension"
@@ -995,9 +987,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       setExpandedTitleIdx(heroExpanded ? null : 0);
                     }}
                   >
-                    <div className="px-10 py-14 sm:px-14 sm:py-16 text-center">
-                      <div className="text-[1.7rem] sm:text-[2.4rem] font-bold tracking-tight" style={{ color: "#F2F2F2", lineHeight: 1.1 }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-6 mt-9">
+                    <div className="px-10 py-16 sm:px-14 sm:py-20 text-center">
+                      <div className="text-[1.7rem] sm:text-[2.4rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-6 mt-10">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
