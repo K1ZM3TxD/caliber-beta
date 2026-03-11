@@ -1093,7 +1093,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             })() : null}
 
 
-          </div>
         </div>
       </div>
     </div>
