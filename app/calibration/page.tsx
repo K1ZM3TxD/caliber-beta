@@ -597,7 +597,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
   return (
     <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: '#050505' }}>
-      <div className="w-full max-w-[760px] px-6 pb-16">
+      {/* Full-bleed ambient gradient band — visible behind hero on entry pages */}
+      {step !== "TITLES" && (
+        <div
+          className="pointer-events-none fixed inset-x-0"
+          style={{
+            top: 0,
+            height: "50vh",
+            background: "radial-gradient(ellipse 130% 80% at 50% 35%, rgba(34,197,94,0.16) 0%, rgba(34,197,94,0.08) 30%, rgba(34,197,94,0.025) 55%, transparent 75%)",
+            zIndex: 0,
+          }}
+        />
+      )}
+      <div className="relative z-10 w-full max-w-[760px] px-6 pb-16">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -627,7 +639,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
               </div>
             ) : (
-              <CaliberHeader compact />
+              <CaliberHeader compact noGradient />
             )}
             {/* Error area */}
             {step !== "TITLES" && (
