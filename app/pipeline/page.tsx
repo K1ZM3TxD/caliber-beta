@@ -168,10 +168,10 @@ export default function PipelinePage() {
 
   return (
     <div
-      className="w-full py-10"
+      className="w-full pt-[10vh] pb-10"
       style={{
         background:
-          "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(74,222,128,0.045), transparent)",
+          "radial-gradient(ellipse 80% 40% at 50% 12%, rgba(74,222,128,0.045), transparent)",
       }}
     >
       <h1 className="text-xl font-semibold text-zinc-300 text-center mb-8 tracking-tight">

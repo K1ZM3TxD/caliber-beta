@@ -9,7 +9,7 @@ export default function ExtensionPage() {
   const hasStoreUrl = Boolean(CHROME_STORE_URL);
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[6vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[#0B0B0B] flex justify-center items-start pt-[10vh] overflow-y-auto">
       <div className="w-full max-w-[640px] px-6 pb-16" style={{ color: "#F2F2F2" }}>
         {/* Status bubble + Download CTA */}
         <div className="text-center mb-10">

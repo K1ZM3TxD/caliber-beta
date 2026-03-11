@@ -6,7 +6,7 @@ interface CaliberHeaderProps {
 
 export default function CaliberHeader({ className = "" }: CaliberHeaderProps) {
   return (
-    <div className={`flex flex-col items-center text-center ${className}`}>
+    <div className={`flex flex-col items-center text-center pt-4 ${className}`}>
       <span
         className="font-medium tracking-[0.25em] uppercase"
         style={{
