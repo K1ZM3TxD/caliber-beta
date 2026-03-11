@@ -615,10 +615,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
-              ) : step === "LANDING" ? (
-                <div className="uppercase" style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '0.32em', color: 'rgba(255,255,255,0.55)' }}>Caliber</div>
               ) : (
-                <div className="uppercase" style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '0.32em', color: 'rgba(255,255,255,0.55)' }}>Caliber</div>
+                <>
+                  <div className="w-8 h-px bg-zinc-700 mb-4" />
+                  <span
+                    className="text-sm font-medium tracking-[0.22em] uppercase text-zinc-400"
+                    style={{ textShadow: "0 0 40px rgba(74,222,128,0.08)" }}
+                  >
+                    Caliber
+                  </span>
+                </>
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: "2.2em" }}>
