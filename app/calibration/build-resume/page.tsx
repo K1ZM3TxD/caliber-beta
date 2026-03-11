@@ -6,11 +6,9 @@ import CaliberHeader from "../../components/caliber_header";
 export default function BuildResumePage() {
   return (
     <div
-      className="w-full max-w-[600px] mx-auto pt-[10vh] pb-16 text-center flex flex-col items-center justify-center"
+      className="w-full max-w-[600px] mx-auto pb-16 text-center flex flex-col items-center"
       style={{
         minHeight: "60vh",
-        background:
-          "radial-gradient(ellipse 70% 45% at 50% 12%, rgba(74,222,128,0.045), transparent)",
       }}
     >
       <CaliberHeader className="mb-8" />

@@ -596,8 +596,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: 'radial-gradient(ellipse 65% 40% at 50% 12%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
-      <div className="w-full max-w-[760px] px-6 pt-[10vh] pb-16">
+    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: '#050505' }}>
+      <div className="w-full max-w-[760px] px-6 pb-16">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -610,24 +610,35 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
-            {/* Static header area */}
-            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step === "TITLES" ? (
-                <div className="flex items-center gap-2 mb-1">
+            {/* Zone 1 — Brand / Status field */}
+            {step === "TITLES" ? (
+              <div
+                className="relative w-full flex flex-col items-center justify-center text-center"
+                style={{
+                  height: "20vh",
+                  minHeight: 140,
+                  background:
+                    "radial-gradient(ellipse 120% 70% at 50% 50%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.09) 35%, rgba(34,197,94,0.03) 60%, transparent 80%)",
+                }}
+              >
+                <div className="flex items-center gap-2">
                   <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
-              ) : (
-                <CaliberHeader />
-              )}
-              {/* Fixed-height error area */}
-              <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
+              </div>
+            ) : (
+              <CaliberHeader />
+            )}
+            {/* Error area */}
+            {step !== "TITLES" && (
+              <div style={{ minHeight: "2.2em" }}>
                 {error ? (
                   <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
                     {error}
                   </div>
                 ) : null}
               </div>
+            )}
             </div>
 
 

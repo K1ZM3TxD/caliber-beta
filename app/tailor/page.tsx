@@ -127,15 +127,15 @@ function TailorInner() {
 
   return (
     <div
-      className="w-full max-w-[600px] mx-auto pt-[8vh] pb-8 px-4"
+      className="w-full max-w-[600px] mx-auto pb-8 px-4"
       style={{
         background:
-          "radial-gradient(ellipse 60% 35% at 50% 12%, rgba(74,222,128,0.045), transparent)",
+          "radial-gradient(ellipse 120% 70% at 50% 0%, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 30%, rgba(34,197,94,0.02) 50%, transparent 65%)",
       }}
     >
       {/* ─── Loading ─── */}
       {status === "loading" && (
-        <div className="text-center text-zinc-500 pt-6">
+        <div className="text-center text-zinc-500" style={{ paddingTop: "20vh" }}>
           <div className="cb-spinner mx-auto mb-3" />
           Loading job context…
         </div>
@@ -143,7 +143,7 @@ function TailorInner() {
 
       {/* ─── Error ─── */}
       {status === "error" && (
-        <div className="text-center space-y-4 pt-6">
+        <div className="text-center space-y-4" style={{ paddingTop: "20vh" }}>
           <div className="inline-flex items-center gap-2 text-red-400 text-sm">
             <svg
               className="w-4 h-4 flex-shrink-0"
@@ -184,7 +184,7 @@ function TailorInner() {
 
       {/* ─── Ready — job context + generate ─── */}
       {status === "ready" && prep && (
-        <div className="space-y-4">
+        <div className="space-y-4" style={{ paddingTop: "20vh" }}>
           {jobHeader}
 
           <h2 className="text-lg font-semibold text-zinc-300 tracking-tight pt-1">
@@ -228,7 +228,7 @@ function TailorInner() {
 
       {/* ─── Generating ─── */}
       {status === "generating" && (
-        <div className="text-center space-y-3 pt-6">
+        <div className="text-center space-y-3" style={{ paddingTop: "20vh" }}>
           <div className="cb-spinner mx-auto" />
           <p className="text-zinc-400 text-sm">
             Tailoring your resume for{" "}
@@ -243,7 +243,7 @@ function TailorInner() {
 
       {/* ─── Done — result + actions ─── */}
       {status === "done" && prep && (
-        <div className="space-y-4">
+        <div className="space-y-4" style={{ paddingTop: "20vh" }}>
           {/* Keep job context visible */}
           {jobHeader}
 
