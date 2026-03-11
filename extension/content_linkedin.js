@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.3";
+  const PANEL_VERSION = "0.6.4";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -442,7 +442,7 @@
     badge.className = 'cb-vis-badge';
     badge.innerHTML = '<span class="cb-vis-badge-logo">C</span>' +
       '<span class="' + (score >= 7.5 ? 'cb-vis-score-strong' : score >= 5 ? 'cb-vis-score-stretch' : 'cb-vis-score-skip') + '">' +
-      score + '</span>';
+      Math.round(score) + '</span>';
     cardEl.appendChild(badge);
   }
 
@@ -484,9 +484,9 @@
     var topEl = shadow.getElementById('cb-surface-top');
     var strongEl = shadow.getElementById('cb-surface-strong');
     var countEl = shadow.getElementById('cb-surface-count');
-    medianEl.textContent = stats.median.toFixed(1);
+    medianEl.textContent = Math.round(stats.median);
     medianEl.style.color = stats.median >= 7.5 ? '#4ADE80' : stats.median >= 5 ? '#FBBF24' : '#EF4444';
-    topEl.textContent = stats.top.toFixed(1);
+    topEl.textContent = Math.round(stats.top);
     topEl.style.color = stats.top >= 7.5 ? '#4ADE80' : stats.top >= 5 ? '#FBBF24' : '#EF4444';
     strongEl.textContent = stats.strongCount;
     strongEl.style.color = stats.strongCount > 0 ? '#4ADE80' : '#777';
@@ -992,7 +992,7 @@
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = score;
+    scoreEl.textContent = Math.round(score);
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
