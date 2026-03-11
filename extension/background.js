@@ -189,11 +189,46 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
  * Returns { sessionId, profileComplete, state } or throws.
  */
 /**
- * Try to fetch a session from a specific base URL.
- * Returns { ok, sessionId, profileComplete, state, base } or { ok: false }.
+ * Read the caliber_sessionId cookie directly via the cookies API.
+ * Works even when no Caliber tab is open.
  */
-async function trySessionEndpoint(storedId) {
-  // Try stored sessionId first
+async function readSessionCookie() {
+  try {
+    const cookie = await chrome.cookies.get({
+      url: CALIBER_ORIGIN + "/",
+      name: "caliber_sessionId",
+    });
+    return cookie && cookie.value ? cookie.value : null;
+  } catch { return null; }
+}
+
+/**
+ * Try to fetch a session from the server.
+ * When a session backup is provided and the server doesn't have the session,
+ * sends it inline via POST so the Lambda can import it on the spot (avoids
+ * the Vercel multi-Lambda race where PUT and GET hit different instances).
+ * Returns { ok, sessionId, profileComplete, state } or { ok: false }.
+ */
+async function trySessionEndpoint(storedId, sessionBackup) {
+  // Stage 1: POST with inline backup — lets the server import if needed
+  if (storedId && sessionBackup) {
+    try {
+      const resp = await fetch(API_BASE + "/api/extension/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: storedId, sessionBackup }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.ok && data.sessionId) {
+          return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
+        }
+      }
+    } catch { /* endpoint unreachable or timeout */ }
+  }
+
+  // Stage 2: GET with stored sessionId
   if (storedId) {
     try {
       const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(3000) });
@@ -206,7 +241,7 @@ async function trySessionEndpoint(storedId) {
     } catch { /* endpoint unreachable or timeout */ }
   }
 
-  // Try latest session
+  // Stage 3: GET latest session
   try {
     const resp = await fetch(API_BASE + "/api/extension/session", { signal: AbortSignal.timeout(3000) });
     if (resp.ok) {
@@ -221,8 +256,9 @@ async function trySessionEndpoint(storedId) {
 }
 
 async function discoverSession() {
-  const store = await chrome.storage.local.get(["caliberSessionId"]);
+  const store = await chrome.storage.local.get(["caliberSessionId", "caliberSessionBackup"]);
   let storedId = store.caliberSessionId;
+  let sessionBackup = store.caliberSessionBackup || null;
 
   // If no stored session, probe open Caliber tabs FIRST (before server discovery).
   // This handles the fresh-install race: extension installed while Caliber tab is
@@ -233,6 +269,7 @@ async function discoverSession() {
       const toStore = { caliberSessionId: probed.sessionId };
       if (probed.sessionBackup && typeof probed.sessionBackup === "object" && probed.sessionBackup.sessionId === probed.sessionId) {
         toStore.caliberSessionBackup = probed.sessionBackup;
+        sessionBackup = probed.sessionBackup;
       }
       await chrome.storage.local.set(toStore);
       storedId = probed.sessionId;
@@ -251,8 +288,9 @@ async function discoverSession() {
     }
   }
 
-  // Single locked endpoint — no fallback between prod/dev
-  const result = await trySessionEndpoint(storedId);
+  // Single locked endpoint — sends backup inline via POST so the Vercel Lambda
+  // can import it without a separate PUT (avoids multi-Lambda mismatch).
+  const result = await trySessionEndpoint(storedId, sessionBackup);
   if (result.ok) {
     if (result.sessionId) {
       await chrome.storage.local.set({ caliberSessionId: result.sessionId });
@@ -262,8 +300,7 @@ async function discoverSession() {
 
   // Server doesn't have the session — try restoring from local backup
   if (storedId) {
-    const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
-    const backup = backupStore.caliberSessionBackup;
+    const backup = sessionBackup;
     if (backup && backup.sessionId === storedId) {
       try {
         const restoreResp = await fetch(API_BASE + "/api/calibration", {
@@ -274,7 +311,7 @@ async function discoverSession() {
         });
         if (restoreResp.ok) {
           // Retry session endpoint now that we've restored
-          const retry = await trySessionEndpoint(storedId);
+          const retry = await trySessionEndpoint(storedId, backup);
           if (retry.ok) {
             return { sessionId: retry.sessionId, profileComplete: retry.profileComplete, state: retry.state };
           }
@@ -305,6 +342,29 @@ async function discoverSession() {
       } catch { /* best-effort */ }
     }
     return { sessionId: lateProbe.sessionId, profileComplete: true, state: "UNKNOWN" };
+  }
+
+  // Final fallback: read session cookie directly (works without any open tab).
+  // Requires the "cookies" permission in manifest.json.
+  const cookieId = await readSessionCookie();
+  if (cookieId) {
+    await chrome.storage.local.set({ caliberSessionId: cookieId });
+
+    // Best-effort: try to fetch the full session from the server to cache as backup
+    try {
+      const fetchResp = await fetch(API_BASE + "/api/calibration?sessionId=" + encodeURIComponent(cookieId), {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (fetchResp.ok) {
+        const fetchData = await fetchResp.json();
+        if (fetchData.ok && fetchData.session) {
+          await chrome.storage.local.set({ caliberSessionBackup: fetchData.session });
+        }
+      }
+    } catch { /* best-effort — server may not have the session on this Lambda */ }
+
+    // Return optimistic — callFitAPI will send inline backup if available
+    return { sessionId: cookieId, profileComplete: true, state: "UNKNOWN" };
   }
 
   throw new Error("No active Caliber session. Complete your profile on Caliber first.");

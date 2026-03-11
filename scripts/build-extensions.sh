@@ -68,7 +68,7 @@ cat > "$PROD_DIR/manifest.json" <<MPROD
   "name": "Caliber — Job Fit Score",
   "version": "${EXT_VERSION}",
   "description": "Get a fit score on LinkedIn or Indeed job posts — no copy/paste.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
     "https://www.caliber-app.com/*",
     "https://www.linkedin.com/*",
@@ -124,7 +124,7 @@ cat > "$DEV_DIR/manifest.json" <<MDEV
   "name": "Caliber — Job Fit Score [DEV]",
   "version": "${EXT_VERSION}",
   "description": "DEV BUILD — localhost only. Get a fit score on LinkedIn or Indeed job posts.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
     "http://localhost:3000/*",
     "https://www.linkedin.com/*",
