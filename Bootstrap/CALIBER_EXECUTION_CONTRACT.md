@@ -125,3 +125,50 @@ Locked task order for current phase:
 5. Phase 2 overlay/list scoring — deferred until PM explicitly unblocks
 
 Do not skip ahead in this sequence. If a later task is attempted before earlier tasks are resolved, flag it and stop.
+
+## Extension Development Rules (2026-03-11)
+
+The following rules apply to **any coder task that modifies the browser extension** (`extension/` scope). These are PM contract requirements — every extension task must satisfy them before it can be marked complete.
+
+### Rule 1 — Extension Build Sync
+
+If a coder task modifies the browser extension in any way, the task is **not complete** until:
+
+1. The extension is rebuilt/packaged from the latest source.
+2. The downloadable extension hosted on the website is updated to that new build.
+3. The coder verifies the website is serving the current extension artifact, not a stale build.
+
+**Return requirements** for any extension task must include:
+
+- Confirmation that the downloadable extension was updated.
+- Path/location of the served extension artifact.
+- Confirmation that it matches the latest source commit.
+
+### Rule 2 — Extension Session Handshake Validation
+
+Any change touching extension session, storage, or messaging logic must verify the following flows before the task is considered complete:
+
+- Extension installed **after** calibration is complete.
+- Extension installed **with** a Caliber tab already open.
+- Extension installed **with no** Caliber tab open.
+- Extension reconnect **after browser restart**.
+
+The coder must confirm the extension can discover or restore the active session in all four scenarios.
+
+### Rule 3 — Side-Card Stability Requirement
+
+Any task modifying the extension UI must verify:
+
+- Collapsed sidecard height remains stable.
+- Card expansion occurs only when dropdown sections open.
+- Layout does not resize unexpectedly across different job scores.
+- Strong / Stretch / Weak (Skip) states render consistently.
+
+### Rule 4 — Extension Task Completion Standard
+
+Tasks touching extension code are **not complete** until all of the following are confirmed:
+
+- Extension builds cleanly.
+- Website download artifact is updated.
+- Session handshake verified (per Rule 2).
+- UI stability verified (per Rule 3).
