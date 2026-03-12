@@ -1,16 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
+  --background: #050505;
   --foreground: #ededed;
 
   /* ── Shared background tokens ── */
-  --bg-base: #000000;
-  --bg-framing-line: linear-gradient(to right, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.18) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.18) 65%, rgba(74,222,128,0.06) 100%);
+  --bg-base: #050505;
+  --bg-framing-line: linear-gradient(to right, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.20) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.20) 65%, rgba(74,222,128,0.10) 100%);
 }
 
 body {
-  background: var(--bg-base);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
