@@ -9,11 +9,11 @@ export default function BuildResumePage() {
       className="fixed inset-0 flex justify-center overflow-y-auto"
       style={{
         background:
-          "radial-gradient(ellipse 70% 35% at 50% 45%, rgba(74,222,128,0.045), transparent), #050505",
+          "radial-gradient(ellipse 70% 30% at 50% 55%, rgba(74,222,128,0.045), transparent), #050505",
       }}
     >
     <div
-      className="w-full max-w-[600px] px-6 my-auto pt-[10vh] text-center flex flex-col items-center"
+      className="w-full max-w-[600px] px-6 pt-[20vh] pb-16 text-center flex flex-col items-center"
     >
       <CaliberHeader className="mb-8" />
 
