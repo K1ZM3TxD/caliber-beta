@@ -3,13 +3,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { CalibrationEvent, CalibrationSession, CalibrationState } from '@/lib/calibration_types';
+import HeroSurface from '../components/HeroSurface';
 
 type NormalizedError = { code: string; message: string };
 
 function Stage({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
-      <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
+      <HeroSurface variant="elevated">
+        <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
+      </HeroSurface>
     </div>
   );
 }
