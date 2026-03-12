@@ -49,7 +49,7 @@ export default function IngestLayout({
         style={{
           top: "calc(22vh - 0.5rem)",
           height: "1px",
-          background: "linear-gradient(to right, transparent 15%, rgba(74,222,128,0.18) 40%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.18) 60%, transparent 85%)",
+          background: "linear-gradient(to right, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.20) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.20) 65%, rgba(74,222,128,0.10) 100%)",
         }}
       />
       {/* Scrollable content layer */}
