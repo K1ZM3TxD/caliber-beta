@@ -22,6 +22,26 @@ For execution rules → KERNEL.md
 
 ---
 
+\## BREAK + UPDATE — Deterministic UX Handoff Rules + Unresolved Atmospheric Band (2026-03-12)
+
+DONE:
+- Identified missing deterministic UX handoff structure as root cause of repeated UI drift.
+- Formalized 6-part UX task requirement: Ownership Layer, Removal Clause, Layout Tree, Acceptance Criteria, Files in Scope, Commit + Push.
+- Documented unresolved atmospheric band recreation issue in CALIBER_ISSUES_LOG.md.
+- Created PM_bootstrap.md, BREAK_AND_UPDATE.md, CALIBER_ISSUES_LOG.md, docs/ui-constitution.md, docs/layout-skeleton.md.
+- Added Background Layer Ownership invariant to kernel.md.
+
+BLOCKED:
+- Intended page-level atmospheric band/depth effect still not reliably recreated in implementation.
+- Visual result has not been confirmed to match reference target despite multiple correction passes.
+
+NEXT:
+- Use new deterministic handoff structure on next UX tasks.
+- Verify ownership-layer + removal-clause compliance on first task using new rules.
+- Reattempt atmospheric band only after shared background ownership is enforced via the new handoff contract.
+
+---
+
 \## BREAK + UPDATE — Atmospheric Band Skeleton Compliance (2026-03-12)
 
 Atmospheric band moved to page root background to enforce skeleton layout ownership.

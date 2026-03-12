@@ -63,6 +63,16 @@ Hero or section containers must not define page-level lighting effects.
 Background tokens live in globals.css as CSS custom properties.
 Layout skeleton zones are rendered in the root layout only.
 
+Page-level lighting effects (bands, atmospheric washes, ambient gradients) must live at the page root/shared background layer; hero/section components may not own page-level lighting.
+
+
+
+\# UX/UI Task Handoff Invariant
+
+UX/UI tasks must specify ownership layer and removal clause when visual behavior depends on layout hierarchy.
+Coder must reject UX/UI tasks missing the 6 required elements defined in PM_bootstrap.md:
+Ownership Layer, Removal Clause, Layout Tree, Acceptance Criteria, Files in Scope, Commit + Push.
+
 
 
 All synthesis is governed by structural pressure, not prompt rhetoric.
