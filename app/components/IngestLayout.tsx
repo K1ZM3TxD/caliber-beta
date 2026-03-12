@@ -55,18 +55,31 @@ export default function IngestLayout({
           background: "linear-gradient(to right, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.20) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.20) 65%, rgba(74,222,128,0.10) 100%)",
         }}
       />
-      {/* Hero surface band — visible wide panel behind hero content */}
+      {/* Hero surface band — soft illuminated panel emerging from atmosphere */}
       {showHeroSurface && (
         <div
           className="absolute inset-x-0 pointer-events-none"
           style={{
             top: "16vh",
             height: "52vh",
-            background: "#222226",
-            borderTop: "1.5px solid rgba(255,255,255,0.20)",
-            borderBottom: "1.5px solid rgba(255,255,255,0.20)",
+            background:
+              "linear-gradient(to bottom, #0c0c0c 0%, #151515 25%, #1a1a1a 50%, #151515 75%, #0c0c0c 100%)",
+            borderTop: "1px solid rgba(74,222,128,0.12)",
+            borderBottom: "1px solid rgba(74,222,128,0.12)",
             boxShadow:
-              "0 0 80px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(255,255,255,0.04)",
+              "0 0 60px 15px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(255,255,255,0.03)",
+          }}
+        />
+      )}
+      {/* Hero atmosphere — green glow concentrated behind the panel */}
+      {showHeroSurface && (
+        <div
+          className="absolute inset-x-0 pointer-events-none"
+          style={{
+            top: "16vh",
+            height: "52vh",
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(74,222,128,0.055) 0%, rgba(74,222,128,0.02) 60%, transparent 100%)",
           }}
         />
       )}
