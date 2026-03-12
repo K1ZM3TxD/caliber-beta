@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.7.0";
+  const PANEL_VERSION = "0.6.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -341,10 +341,13 @@
     suggest_clicked: false,
   };
 
-  let lastFeedbackData = null;  // snapshot of last scored result for bug report context
+  // Feedback session guard (one prompt per eval)
+  let feedbackGiven = false;
+  let lastFeedbackData = null;  // snapshot of last scored result for feedback context
 
   function resetSessionSignals() {
     sessionSignals = { jobs_viewed: 0, scores_below_6: 0, highest_score: 0, suggest_shown: false, suggest_clicked: false };
+    feedbackGiven = false;
     lastFeedbackData = null;
   }
 
@@ -663,11 +666,32 @@
       chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
     });
 
-    // Wire footer buttons
-    shadow.getElementById("cb-footer-pipeline").addEventListener("click", function () {
-      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+    // Wire collapsible section toggles
+    shadow.querySelectorAll(".cb-collapse-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var section = btn.closest(".cb-collapsible");
+        if (section) section.classList.toggle("cb-open");
+        // Expand results container when any section is open
+        var results = shadow.getElementById("cb-results");
+        var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+        if (results) {
+          if (anyOpen) results.classList.add("cb-results-expanded");
+          else results.classList.remove("cb-results-expanded");
+        }
+      });
     });
-    shadow.getElementById("cb-footer-bug").addEventListener("click", handleBugReport);
+
+    // Wire feedback controls
+    shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
+    shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
+    shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
+    shadow.getElementById("cb-fb-submit").addEventListener("click", handleFeedbackSubmit);
+    shadow.getElementById("cb-fb-cancel").addEventListener("click", handleFeedbackCancel);
+    shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("cb-fb-chip-selected");
+      });
+    });
 
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
@@ -786,7 +810,50 @@
     setPanelState("cb-error");
   }
 
-  // ─── Bug Report Handler ─────────────────────────────────
+  // ─── Feedback Handlers ─────────────────────────────────
+
+  function handleThumbsUp() {
+    if (feedbackGiven) return;
+    feedbackGiven = true;
+    sendFeedback("thumbs_up", null, null);
+    showFeedbackConfirm();
+  }
+
+  function handleThumbsDown() {
+    if (feedbackGiven) return;
+    // Show the negative feedback panel
+    var panel = shadow.getElementById("cb-fb-panel");
+    if (panel) panel.style.display = "";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "none";
+    var res = shadow.getElementById("cb-results");
+    if (res) res.classList.add("cb-results-expanded");
+  }
+
+  function handleFeedbackSubmit() {
+    feedbackGiven = true;
+    var selected = shadow.querySelectorAll(".cb-fb-chip-selected");
+    var reason = null;
+    if (selected.length > 0) reason = selected[0].getAttribute("data-reason");
+    var comment = (shadow.getElementById("cb-fb-text").value || "").trim();
+    sendFeedback("thumbs_down", reason, comment || null);
+    shadow.getElementById("cb-fb-panel").style.display = "none";
+    // Collapse results if no collapsible sections are open
+    var res = shadow.getElementById("cb-results");
+    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
+    showFeedbackConfirm();
+  }
+
+  function handleFeedbackCancel() {
+    shadow.getElementById("cb-fb-panel").style.display = "none";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "";
+    // Collapse results if no collapsible sections are open
+    var res = shadow.getElementById("cb-results");
+    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
+    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
+  }
 
   function handleBugReport() {
     var d = lastFeedbackData || {};
@@ -799,6 +866,40 @@
       "labels=bug&title=" + encodeURIComponent("[Extension Bug] ") +
       "&body=" + encodeURIComponent(body);
     window.open(url, "_blank", "noopener");
+  }
+
+  function showFeedbackConfirm() {
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.innerHTML = '<span class="cb-fb-thanks">Thanks for the feedback</span>';
+  }
+
+  function sendFeedback(type, reason, comment) {
+    var d = lastFeedbackData || {};
+    var payload = {
+      surface: "extension",
+      site: "linkedin",
+      company_name: d.company || null,
+      job_title: d.jobTitle || null,
+      search_title: getSearchKeywords() || null,
+      calibration_title_direction: null,
+      fit_score: d.score != null ? d.score : null,
+      decision_label: d.decision || null,
+      hiring_reality_band: d.hrcBand || null,
+      better_search_title_suggestion: d.suggestedTitle || null,
+      feedback_type: type,
+      feedback_reason: reason,
+      optional_comment: comment,
+      behavioral_signals: {
+        jobs_viewed_in_session: sessionSignals.jobs_viewed,
+        scores_below_6_count: sessionSignals.scores_below_6,
+        highest_score_seen: sessionSignals.highest_score,
+        better_title_suggestion_shown: sessionSignals.suggest_shown,
+        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
+      },
+    };
+    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
+      console.debug("[Caliber] feedback sent:", type, reason)
+    });
   }
 
   // ─── Rolling Weak-Search Detection ─────────────────────
@@ -875,6 +976,11 @@
     getOrCreatePanel();
     hideOverlay();
 
+    // Reset collapsible sections and fixed-height lock for fresh results
+    shadow.querySelectorAll(".cb-collapsible.cb-open").forEach(function (s) { s.classList.remove("cb-open"); });
+    var cbResults = shadow.getElementById("cb-results");
+    if (cbResults) cbResults.classList.remove("cb-results-expanded");
+
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
     var rawScore = Number(data.score_0_to_10) || 0;
@@ -894,14 +1000,17 @@
     decEl.className = "cb-decision " + decision.cls;
 
     // Company identity (right side of header row)
-    shadow.getElementById("cb-company").textContent = lastJobMeta.company || "";
-    shadow.getElementById("cb-jobtitle").textContent = lastJobMeta.title || "";
+    var companyEl = shadow.getElementById("cb-company");
+    var titleEl = shadow.getElementById("cb-jobtitle");
+    companyEl.textContent = lastJobMeta.company || "";
+    titleEl.textContent = lastJobMeta.title || "";
 
     // Auto-save to pipeline for strong matches (score >= 8.5)
+    // Row always occupies space; content shown/hidden via visibility
     var autosaveRow = shadow.getElementById("cb-autosave-row");
     if (autosaveRow) {
       if (score >= 8.5) {
-        autosaveRow.style.visibility = "hidden";
+        autosaveRow.style.visibility = "hidden"; // reserve space, hidden until save confirms
         chrome.runtime.sendMessage({
           type: "CALIBER_PIPELINE_SAVE",
           jobTitle: lastJobMeta.title || "",
@@ -922,45 +1031,59 @@
       }
     }
 
-    // Hiring Reality Check (compact cell)
+    // Hiring Reality Check (collapsible row)
+    var hrcSection = shadow.getElementById("cb-hrc-section");
     var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
+    var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
     if (hrc && hrc.band) {
       hrcBandEl.textContent = hrc.band;
       hrcBandEl.className = "cb-hrc-badge";
+      hrcToggle.className = "cb-collapse-toggle";
       if (hrc.band === "High") {
         hrcBandEl.classList.add("cb-hrc-high");
+        hrcToggle.classList.add("cb-toggle-green");
         hrcReason.style.color = "#6EE7A0";
       } else if (hrc.band === "Possible") {
         hrcBandEl.classList.add("cb-hrc-possible");
+        hrcToggle.classList.add("cb-toggle-yellow");
         hrcReason.style.color = "#D4A017";
       } else {
         hrcBandEl.classList.add("cb-hrc-unlikely");
+        hrcToggle.classList.add("cb-toggle-red");
         hrcReason.style.color = "#F87171";
       }
       hrcReason.textContent = hrc.reason || "";
     } else {
       hrcBandEl.textContent = "\u2014";
       hrcBandEl.className = "cb-hrc-badge";
+      hrcToggle.className = "cb-collapse-toggle";
       hrcReason.textContent = "";
     }
 
-    // Supports (compact cell — max 3 bullets)
-    var supportItems = (data.supports_fit || []).slice(0, 3);
+    // Supports (collapsible — dot indicators in toggle)
+    var supportItems = data.supports_fit || [];
     renderList(shadow.getElementById("cb-supports"), supportItems);
+    var supCount = shadow.getElementById("cb-supports-count");
+    if (supCount) supCount.innerHTML = renderDotIndicators(supportItems.length, "green");
 
-    // Stretch factors (compact cell — max 3 bullets)
-    var stretchItems = (data.stretch_factors || []).slice(0, 3);
+    // Stretch factors (collapsible — dot indicators in toggle)
+    var stretchItems = data.stretch_factors || [];
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
+    var strCount = shadow.getElementById("cb-stretch-count");
+    if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
+    // stretch section always visible — no display toggle needed
 
-    // Bottom line (compact cell)
+    // Bottom line (collapsible)
     shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "\u2014";
+    // bottom-line section always visible — no display toggle needed
 
     // Nearby roles (only for stretch/skip)
+    // Section always occupies space; content shown/hidden via visibility
     var nearbySection = shadow.getElementById("cb-nearby-section");
     var nearbyList = shadow.getElementById("cb-nearby");
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
-      nearbySection.style.display = "";
+      nearbySection.style.visibility = "visible";
       nearbyList.innerHTML = "";
       for (var i = 0; i < data.nearby_roles.length; i++) {
         var role = data.nearby_roles[i];
@@ -974,24 +1097,29 @@
         nearbyList.appendChild(li);
       }
     } else {
-      nearbySection.style.display = "none";
+      nearbySection.style.visibility = "hidden";
       nearbyList.innerHTML = "";
     }
 
     // Tailor Resume banner (above sidecard, 8.0+ only)
+    // Show opened-state only when pipeline entry confirmed; otherwise show tailor CTA.
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
         tailorBanner.style.display = "";
         var btn = shadow.getElementById("cb-tailor-btn");
+        // Default to tailor CTA while pipeline check is in flight
         if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; btn.dataset.opened = ""; }
+        // Check pipeline membership asynchronously
         chrome.runtime.sendMessage({
           type: "CALIBER_PIPELINE_CHECK",
           jobUrl: location.href,
         }, function (resp) {
           if (resp && resp.ok && resp.exists) {
+            // Job is already in pipeline — show opened state
             setTailorBtnOpened(shadow);
           }
+          // If not in pipeline or check failed, keep the default tailor CTA
         });
       } else {
         tailorBanner.style.display = "none";
@@ -1022,7 +1150,7 @@
     if (score < 6) sessionSignals.scores_below_6++;
     if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
 
-    // Snapshot context for bug report
+    // Snapshot context for feedback
     lastFeedbackData = {
       score: score,
       decision: decision.label,
@@ -1031,6 +1159,22 @@
       hrcBand: hrcBand,
       suggestedTitle: suggestedTitle || null,
     };
+
+    // Reset feedback UI for new result (unless already given in this session)
+    var fbRow = shadow.getElementById("cb-fb-row");
+    var fbPanel = shadow.getElementById("cb-fb-panel");
+    if (fbPanel) fbPanel.style.display = "none";
+    if (fbRow && !feedbackGiven) {
+      fbRow.style.display = "";
+      fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>' +
+        '<span class="cb-fb-spacer"></span>' +
+        '<button id="cb-fb-bug" class="cb-fb-bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>';
+      shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
+      shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
+      shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
+    }
 
     setPanelState("cb-results");
   }
@@ -1042,6 +1186,27 @@
       li.textContent = text;
       ul.appendChild(li);
     }
+  }
+
+  /**
+   * Build dot-indicator HTML for collapsed Supports/Stretch rows.
+   * Up to 5 filled/empty dots; a star (★) if count exceeds 5.
+   * @param {number} count  - actual item count
+   * @param {"green"|"yellow"} tone - color family
+   */
+  function renderDotIndicators(count, tone) {
+    if (count === 0) return "";
+    var maxDots = 5;
+    var filled = Math.min(count, maxDots);
+    var html = '<span class="cb-dots">';
+    for (var i = 0; i < maxDots; i++) {
+      html += '<span class="cb-dot ' + (i < filled ? "cb-dot-on-" + tone : "cb-dot-off-" + tone) + '"></span>';
+    }
+    if (count > maxDots) {
+      html += '<span class="cb-dot-star cb-dot-star-' + tone + '">\u2605</span>';
+    }
+    html += '</span>';
+    return html;
   }
 
   // ─── API Call via Background Service Worker ───────────────
@@ -1288,7 +1453,7 @@
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
     '    <div id="cb-autosave-row" class="cb-autosave-row" style="visibility:hidden">',
-    '      <span class="cb-autosave-check">\u2713</span>',
+    '      <span class="cb-autosave-check">✓</span>',
     '      <span class="cb-autosave-label">Saved to pipeline</span>',
     '      <div class="cb-autosave-actions">',
     '        <button id="cb-autosave-tailor" class="cb-autosave-action">Tailor resume</button>',
@@ -1308,40 +1473,76 @@
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
     '    </div>',
-    '    <div class="cb-grid">',
-    '      <div class="cb-cell">',
-    '        <div class="cb-cell-header">',
-    '          <span class="cb-cell-label">Hiring Reality</span>',
-    '          <span id="cb-hrc-band" class="cb-hrc-badge"></span>',
-    '        </div>',
-    '        <p id="cb-hrc-reason" class="cb-cell-text"></p>',
+    '    <div id="cb-hrc-section" class="cb-collapsible">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Hiring Reality</span>',
+    '        <span id="cb-hrc-band" class="cb-hrc-badge"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <p id="cb-hrc-reason" class="cb-hrc-reason"></p>',
     '      </div>',
-    '      <div class="cb-cell">',
-    '        <div class="cb-cell-header">',
-    '          <span class="cb-cell-label cb-cell-label-green">Supports</span>',
-    '        </div>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-supports-section">',
+    '      <button class="cb-collapse-toggle cb-toggle-green" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Supports the Fit</span>',
+    '        <span id="cb-supports-count" class="cb-collapse-count"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
     '        <ul id="cb-supports" class="cb-bullets"></ul>',
     '      </div>',
-    '      <div class="cb-cell">',
-    '        <div class="cb-cell-header">',
-    '          <span class="cb-cell-label cb-cell-label-yellow">Stretch</span>',
-    '        </div>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-stretch-section">',
+    '      <button class="cb-collapse-toggle cb-toggle-yellow" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Stretch Factors</span>',
+    '        <span id="cb-stretch-count" class="cb-collapse-count"></span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
     '        <ul id="cb-stretch" class="cb-bullets cb-stretch"></ul>',
     '      </div>',
-    '      <div class="cb-cell">',
-    '        <div class="cb-cell-header">',
-    '          <span class="cb-cell-label">Bottom Line</span>',
-    '        </div>',
-    '        <p id="cb-bottomline" class="cb-cell-text"></p>',
+    '    </div>',
+    '    <div class="cb-collapsible" id="cb-bottomline-section">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>Bottom Line</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-nearby-section" style="display:none">',
-    '      <div class="cb-cell-label cb-cell-label-blue">\u2192 Better nearby roles</div>',
-    '      <ul id="cb-nearby" class="cb-nearby-list"></ul>',
+    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="visibility:hidden">',
+    '      <button class="cb-collapse-toggle" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span>\u2192 Better nearby roles</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body">',
+    '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
+    '      </div>',
     '    </div>',
-    '    <div class="cb-footer">',
-    '      <button id="cb-footer-pipeline" class="cb-footer-btn">Go to pipeline</button>',
-    '      <button id="cb-footer-bug" class="cb-footer-link">Report a bug</button>',
+    // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
+    '    <div id="cb-fb-row" class="cb-fb-row">',
+    '      <span class="cb-fb-prompt">Helpful?</span>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>',
+    '      <span class="cb-fb-spacer"></span>',
+    '      <button id="cb-fb-bug" class="cb-fb-bug" aria-label="Report a bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>',
+    '    </div>',
+    '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
+    '      <div class="cb-fb-panel-title">What was off?</div>',
+    '      <div class="cb-fb-chips">',
+    '        <button class="cb-fb-chip" data-reason="score_wrong">Score wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="hiring_reality_wrong">Hiring reality wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="title_suggestion_wrong">Title suggestion wrong</button>',
+    '        <button class="cb-fb-chip" data-reason="explanation_not_helpful">Explanation not helpful</button>',
+    '        <button class="cb-fb-chip" data-reason="other">Other</button>',
+    '      </div>',
+    '      <textarea id="cb-fb-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
+    '      <div class="cb-fb-actions">',
+    '        <button id="cb-fb-submit" class="cb-fb-submit">Submit</button>',
+    '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
+    '      </div>',
     '    </div>',
     '  </div>',
     '</div>',
@@ -1350,9 +1551,11 @@
 
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
-    // Container
-    ".cb-container { position: relative; }",
-    // Recovery banner
+    // Container: sidecard in normal flow; banners absolutely positioned above
+    ".cb-container {",
+    "  position: relative;",
+    "}",
+    // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
     "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #161B2E;",
@@ -1376,9 +1579,8 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    // Panel
     ".cb-panel {",
-    "  width: 380px; max-height: 580px; overflow-y: auto;",
+    "  width: 380px; max-height: 520px; overflow-y: auto;",
     "  background: #111114; color: #F2F2F2; border-radius: 12px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -1390,11 +1592,13 @@
     "  from { opacity: 0; transform: translateY(12px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
-    "@keyframes cb-banner-fade { from { opacity: 0; } to { opacity: 1; } }",
+    "@keyframes cb-banner-fade {",
+    "  from { opacity: 0; }",
+    "  to   { opacity: 1; }",
+    "}",
     ".cb-panel::-webkit-scrollbar { width: 4px; }",
     ".cb-panel::-webkit-scrollbar-track { background: transparent; }",
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
-    // Header
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
     "  padding: 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
@@ -1411,8 +1615,9 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    // Body
     ".cb-body { padding: 8px 14px; position: relative; }",
+    "#cb-results { min-height: 280px; height: 280px; overflow: hidden; }",
+    "#cb-results.cb-results-expanded { height: auto; min-height: 280px; overflow: visible; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1441,7 +1646,7 @@
     "  display: flex; align-items: center; justify-content: center; gap: 6px;",
     "}",
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
-    // Toprow: score LEFT, identity RIGHT
+    // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
     "  display: flex; align-items: center; gap: 10px;",
     "  padding-bottom: 6px; margin-bottom: 2px;",
@@ -1470,44 +1675,62 @@
     "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
-    // Two-column grid
-    ".cb-grid {",
-    "  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;",
-    "  margin-top: 6px;",
-    "  border-top: 1px solid rgba(255,255,255,0.06);",
-    "}",
-    ".cb-cell {",
-    "  padding: 6px 4px 6px 0; min-height: 48px;",
-    "}",
-    ".cb-cell:nth-child(even) { padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.06); padding-right: 0; }",
-    ".cb-cell:nth-child(n+3) { border-top: 1px solid rgba(255,255,255,0.06); }",
-    ".cb-cell-header {",
-    "  display: flex; align-items: center; gap: 4px; margin-bottom: 3px;",
-    "}",
-    ".cb-cell-label {",
-    "  font-size: 9px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; color: #555;",
-    "}",
-    ".cb-cell-label-green { color: #4ADE80; }",
-    ".cb-cell-label-yellow { color: #FBBF24; }",
-    ".cb-cell-label-blue { color: #60A5FA; }",
-    ".cb-cell-text {",
-    "  font-size: 10px; color: #999; line-height: 1.4;",
-    "  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;",
-    "}",
-    // HRC badge
+    // Hiring Reality Check badge
     ".cb-hrc-badge {",
-    "  font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 3px;",
+    "  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: auto;",
     "}",
     ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    // Bullet lists (compact)
-    ".cb-bullets { list-style: none; }",
+    ".cb-hrc-reason { font-size: 10px; color: #999; padding: 2px 0 4px; line-height: 1.4; }",
+    // Bottom line text
+    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
+    // Collapsible sections
+    ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.06); }",
+    ".cb-collapse-toggle {",
+    "  display: flex; align-items: center; gap: 4px; width: 100%;",
+    "  background: none; border: none; color: #888; cursor: pointer;",
+    "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
+    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
+    "  flex-wrap: nowrap;",
+    "}",
+    ".cb-collapse-toggle:hover { color: #CFCFCF; }",
+    ".cb-toggle-green { color: #4ADE80; }",
+    ".cb-toggle-green:hover { color: #6EE7A0; }",
+    ".cb-toggle-yellow { color: #FBBF24; }",
+    ".cb-toggle-yellow:hover { color: #FCD34D; }",
+    ".cb-toggle-red { color: #EF4444; }",
+    ".cb-toggle-red:hover { color: #F87171; }",
+    ".cb-collapse-icon {",
+    "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
+    "}",
+    ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; flex-shrink: 0; }",
+    // Dot indicators (collapsed row signal strength)
+    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; flex-shrink: 0; white-space: nowrap; }",
+    ".cb-dot {",
+    "  width: 5px; height: 5px; border-radius: 50%; display: inline-block;",
+    "  flex-shrink: 0;",
+    "}",
+    ".cb-dot-on-green  { background: #4ADE80; }",
+    ".cb-dot-off-green { background: rgba(74,222,128,0.18); }",
+    ".cb-dot-on-yellow  { background: #FBBF24; }",
+    ".cb-dot-off-yellow { background: rgba(251,191,36,0.18); }",
+    ".cb-dot-star {",
+    "  font-size: 8px; line-height: 1; margin-left: 1px;",
+    "}",
+    ".cb-dot-star-green  { color: #4ADE80; }",
+    ".cb-dot-star-yellow { color: #FBBF24; }",
+    ".cb-collapse-body {",
+    "  max-height: 0; overflow: hidden;",
+    "  transition: max-height 0.2s ease-out;",
+    "}",
+    ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
+    ".cb-open .cb-collapse-body { max-height: 600px; }",
+    // Bullet lists
+    ".cb-bullets { list-style: none; padding-bottom: 3px; }",
     ".cb-bullets li {",
-    "  position: relative; padding-left: 8px;",
-    "  font-size: 10px; color: #CFCFCF; margin-bottom: 1px; line-height: 1.4;",
-    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "  position: relative; padding-left: 10px;",
+    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; top: 0; color: #4ADE80; font-weight: 700;",
@@ -1516,9 +1739,11 @@
     // Nearby roles
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 6px 8px; margin-top: 6px;",
+    "  padding: 0 8px; margin-top: 1px;",
+    "  min-height: 22px;",
     "}",
-    ".cb-nearby-list { list-style: none; padding-top: 4px; }",
+    ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
+    ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
     ".cb-nearby-list li { padding: 1px 0; font-size: 10px; }",
     ".cb-nearby-link {",
     "  color: #93C5FD; text-decoration: none; cursor: pointer;",
@@ -1532,16 +1757,22 @@
     "  padding: 4px 0 3px; margin-bottom: 1px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
-    ".cb-autosave-check { font-size: 12px; font-weight: 700; color: #4ADE80; line-height: 1; }",
-    ".cb-autosave-label { font-size: 11px; font-weight: 600; color: #4ADE80; }",
-    ".cb-autosave-actions { display: flex; gap: 6px; margin-left: auto; }",
+    ".cb-autosave-check {",
+    "  font-size: 12px; font-weight: 700; color: #4ADE80; line-height: 1;",
+    "}",
+    ".cb-autosave-label {",
+    "  font-size: 11px; font-weight: 600; color: #4ADE80;",
+    "}",
+    ".cb-autosave-actions {",
+    "  display: flex; gap: 6px; margin-left: auto;",
+    "}",
     ".cb-autosave-action {",
     "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
     "  border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600;",
     "  color: #AFAFAF; cursor: pointer; transition: background 0.15s, color 0.15s;",
     "}",
     ".cb-autosave-action:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
-    // Tailor banner
+    // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
     "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #0F2318;",
@@ -1567,7 +1798,7 @@
     "}",
     ".cb-tailor-link:hover { color: #BBF7D0; border-color: #BBF7D0; }",
     ".cb-tailor-link:disabled { opacity: 0.6; cursor: default; }",
-    // Retry button
+    // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
     "  font-size: 10px; font-weight: 600; cursor: pointer;",
@@ -1579,25 +1810,71 @@
     "  background: rgba(242,242,242,0.10); color: #F2F2F2;",
     "  border: 1px solid rgba(242,242,242,0.16);",
     "}",
-    // Footer
-    ".cb-footer {",
-    "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 6px 0 2px; margin-top: 6px;",
-    "  border-top: 1px solid rgba(255,255,255,0.06);",
+    // Feedback row
+    ".cb-fb-row {",
+    "  display: flex; align-items: center; gap: 6px;",
+    "  padding: 5px 0 2px; margin-top: 2px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-footer-btn {",
-    "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
-    "  color: #AFAFAF; cursor: pointer; transition: background 0.15s, color 0.15s;",
+    ".cb-fb-prompt { font-size: 10.5px; color: #555; font-weight: 600; }",
+    ".cb-fb-spacer { flex: 1; }",
+    ".cb-fb-btn {",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 5px;",
+    "  cursor: pointer; padding: 4px 6px; line-height: 1; color: #777;",
+    "  display: inline-flex; align-items: center; justify-content: center;",
+    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
-    ".cb-footer-btn:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
-    ".cb-footer-link {",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #CFCFCF; }",
+    ".cb-fb-bug {",
     "  background: none; border: none; cursor: pointer; padding: 3px 4px;",
-    "  color: #444; font-size: 10px; font-weight: 500;",
+    "  color: #444; line-height: 1; display: inline-flex; align-items: center;",
     "  transition: color 0.15s;",
     "}",
-    ".cb-footer-link:hover { color: #888; }",
-    // Surface summary
+    ".cb-fb-bug:hover { color: #888; }",
+    // Feedback detail panel
+    ".cb-fb-panel {",
+    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "}",
+    ".cb-fb-panel-title { font-size: 10.5px; font-weight: 600; color: #888; margin-bottom: 5px; }",
+    ".cb-fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }",
+    ".cb-fb-chip {",
+    "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
+    "  border-radius: 10px; padding: 2px 8px; font-size: 10.5px; color: #AFAFAF;",
+    "  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;",
+    "}",
+    ".cb-fb-chip:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
+    ".cb-fb-chip-selected {",
+    "  background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.4); color: #93C5FD;",
+    "}",
+    ".cb-fb-text {",
+    "  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);",
+    "  border-radius: 5px; padding: 5px 7px; font-size: 10.5px; color: #CFCFCF;",
+    "  resize: none; font-family: inherit; outline: none;",
+    "}",
+    ".cb-fb-text::placeholder { color: #555; }",
+    ".cb-fb-text:focus { border-color: rgba(96,165,250,0.4); }",
+    ".cb-fb-actions { display: flex; gap: 6px; margin-top: 5px; }",
+    ".cb-fb-submit {",
+    "  background: rgba(74,222,128,0.15); color: #4ADE80; border: none;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  cursor: pointer; transition: opacity 0.15s;",
+    "}",
+    ".cb-fb-submit:hover { opacity: 0.85; }",
+    ".cb-fb-cancel {",
+    "  background: none; color: #666; border: 1px solid rgba(255,255,255,0.08);",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  cursor: pointer; transition: color 0.15s;",
+    "}",
+    ".cb-fb-cancel:hover { color: #AFAFAF; }",
+    // Feedback thanks
+    ".cb-fb-thanks {",
+    "  font-size: 10.5px; color: #4ADE80; font-weight: 600;",
+    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "  text-align: center;",
+    "}",
+    // Surface summary (visible-job stats)
     ".cb-surface-summary {",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "  padding: 8px 14px;",
@@ -1606,7 +1883,9 @@
     "  font-size: 9px; font-weight: 600; color: #60A5FA;",
     "  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;",
     "}",
-    ".cb-surface-stats { display: flex; gap: 16px; }",
+    ".cb-surface-stats {",
+    "  display: flex; gap: 16px;",
+    "}",
     ".cb-surface-stat {",
     "  display: flex; flex-direction: column; align-items: center;",
     "}",
@@ -1614,7 +1893,11 @@
     "  font-size: 9px; color: #555; font-weight: 500; text-transform: uppercase;",
     "  letter-spacing: 0.03em;",
     "}",
-    ".cb-surface-stat-value { font-size: 18px; font-weight: 700; color: #F2F2F2; }",
-    ".cb-surface-count { font-size: 9px; color: #444; margin-top: 4px; text-align: center; }"
+    ".cb-surface-stat-value {",
+    "  font-size: 18px; font-weight: 700; color: #F2F2F2;",
+    "}",
+    ".cb-surface-count {",
+    "  font-size: 9px; color: #444; margin-top: 4px; text-align: center;",
+    "}"
   ].join("\n");
 })();
