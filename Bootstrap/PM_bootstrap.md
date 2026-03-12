@@ -101,6 +101,24 @@ NOTES / CONSTRAINTS:
 
 > **TARGET is mandatory.** See `Bootstrap/CALIBER_EXECUTION_CONTRACT.md § Build Target Declaration Rule` for allowed paths per target. Coder must reject tasks missing a TARGET line.
 
+### UX/UI Task Contract Rule (Mandatory)
+
+Any coder task that touches UX or UI must include explicit references to the governing shared visual rulesets. This is mandatory process — not a suggestion.
+
+1. **UI Constitution (always required for UX/UI tasks):**
+   - Every UX/UI coder task must attach or explicitly reference `docs/ui-constitution.md` (the shared UI Constitution).
+   - The UI Constitution defines visual primitives: text tokens, surface tokens, top-band + glow model, wordmark anchor, content width, spacing rhythm, and interaction boundary visibility.
+   - UX tasks must not be issued as local visual patches without the governing ruleset.
+
+2. **Layout Skeleton (additionally required for layout/composition tasks):**
+   - If the task touches layout, spacing, composition, hero structure, ingest flow, or page alignment, PM must also attach or explicitly reference `docs/layout-skeleton.md` (the Layout Skeleton).
+   - The Layout Skeleton defines page composition zones, reserved prompt heights, transition stability rules, content width, and vertical rhythm.
+
+3. **Enforcement:**
+   - Coder must reject any UX/UI task that does not reference the UI Constitution.
+   - Coder must reject any layout/composition task that does not reference both the UI Constitution and the Layout Skeleton.
+   - PM must not rely on local page-only styling instructions for UX tasks. Shared primitives govern.
+
 ---
 
 ## Workflow Lessons (2026-03-07)

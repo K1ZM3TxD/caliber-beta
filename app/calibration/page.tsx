@@ -598,7 +598,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'linear-gradient(to bottom, #050505 0%, #050505 12%, transparent 28%), radial-gradient(ellipse 80% 45% at 50% 50%, rgba(74,222,128,0.09) 0%, transparent 100%), #050505' }}>
+    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'linear-gradient(to bottom, #050505 0%, #050505 15%, transparent 38%), radial-gradient(ellipse 80% 45% at 50% 55%, rgba(74,222,128,0.09) 0%, transparent 100%), #050505' }}>
       <div className={`w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[30vh]" : "pt-[20vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -606,7 +606,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
-          .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
+          .cb-dropzone:hover { border-color: rgba(255,255,255,0.30) !important; background-color: rgba(255,255,255,0.03) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
@@ -674,7 +674,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(255,255,255,0.08)",
+                        border: "1px dashed rgba(255,255,255,0.18)",
                         backgroundColor: selectedFile ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
