@@ -656,7 +656,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             ) : (
               <div style={{ paddingTop: "clamp(5rem, 16vh, 9rem)" }}>
-                <CaliberHeader compact noGradient typedText={step === "LANDING" ? caliberTyped : undefined} />
+                <CaliberHeader compact noGradient typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
               </div>
             )}
             {/* Error area */}

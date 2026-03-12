@@ -3,9 +3,10 @@ import React from "react";
 interface CaliberHeaderProps {
   className?: string;
   typedText?: string;
+  showCursor?: boolean;
 }
 
-export default function CaliberHeader({ className = "", typedText }: CaliberHeaderProps) {
+export default function CaliberHeader({ className = "", typedText, showCursor }: CaliberHeaderProps) {
   const display = typedText !== undefined ? typedText : "Caliber";
   return (
     <div className={`flex flex-col items-center text-center pt-4 ${className}`}>
@@ -20,6 +21,9 @@ export default function CaliberHeader({ className = "", typedText }: CaliberHead
         }}
       >
         {display}
+        {showCursor && (
+          <span className="cb-blink-cursor" style={{ color: "inherit" }}>_</span>
+        )}
       </span>
     </div>
   );
