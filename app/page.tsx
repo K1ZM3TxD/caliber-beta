@@ -4,13 +4,13 @@ import Link from "next/link"
 export default function HomePage() {
   return (
     <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
-      {/* Layer 3: Hero surface plane — lifted dark value for depth separation */}
+      {/* Layer 3: Hero surface plane — diagnostic: intentionally visible */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 90% 50% at 50% 46%, #0f0f0f 0%, #0c0c0c 30%, #080808 55%, transparent 75%)",
+            "radial-gradient(ellipse 80% 45% at 50% 46%, #1a1a1a 0%, #141414 25%, #0d0d0d 50%, #080808 68%, transparent 85%)",
         }}
       />
       <div className="relative w-full max-w-[720px] px-6 text-center">
