@@ -1,5 +1,22 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (Pipeline Dashboard Inline Tailor)
+---
+DONE:
+- Pipeline card actions expanded: larger archive (X) control with proper hit area + accessibility
+- "Tailor resume" action visible on every pipeline card
+- Inline TailorPanel component opens inside pipeline page (no navigation to /tailor)
+- TailorPanel shows job title, company, generation state, tailored output, copy + download
+- Generate route extended to accept pipelineId (resolves prep via session+jobUrl lookup)
+- Pipeline board layout preserved: Resume Prep → Submitted → Interview Prep → Interview
+- Drag-and-drop disabled on card when tailor panel is open
+
+NEXT:
+- Evaluate dashboard expansion features
+- Pipeline card UX refinements based on usage
+
+---
+
 BREAK + UPDATE — 2026-03-11 (Calibration Result Copy Structure)
 ---
 DONE:

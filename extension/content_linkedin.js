@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.4";
+  const PANEL_VERSION = "0.6.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1601,7 +1601,7 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  padding: 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -1615,9 +1615,9 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 12px 14px; position: relative; }",
-    "#cb-results { min-height: 340px; height: 340px; overflow: hidden; }",
-    "#cb-results.cb-results-expanded { height: auto; min-height: 340px; overflow: visible; }",
+    ".cb-body { padding: 8px 14px; position: relative; }",
+    "#cb-results { min-height: 280px; height: 280px; overflow: hidden; }",
+    "#cb-results.cb-results-expanded { height: auto; min-height: 280px; overflow: visible; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1648,8 +1648,8 @@
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
     // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
-    "  display: flex; align-items: center; gap: 12px;",
-    "  padding-bottom: 8px; margin-bottom: 4px;",
+    "  display: flex; align-items: center; gap: 10px;",
+    "  padding-bottom: 6px; margin-bottom: 2px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-toprow-left {",
@@ -1657,7 +1657,7 @@
     "  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
-    ".cb-score-num { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-num { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
     ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
     "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
@@ -1691,7 +1691,7 @@
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
     "  flex-wrap: nowrap;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
@@ -1739,8 +1739,8 @@
     // Nearby roles
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 0 8px; margin-top: 2px;",
-    "  min-height: 26px;",
+    "  padding: 0 8px; margin-top: 1px;",
+    "  min-height: 22px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
@@ -1754,7 +1754,7 @@
     // Auto-save pipeline row
     ".cb-autosave-row {",
     "  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;",
-    "  padding: 6px 0 4px; margin-bottom: 2px;",
+    "  padding: 4px 0 3px; margin-bottom: 1px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.06);",
     "}",
     ".cb-autosave-check {",
@@ -1813,7 +1813,7 @@
     // Feedback row
     ".cb-fb-row {",
     "  display: flex; align-items: center; gap: 6px;",
-    "  padding: 7px 0 3px; margin-top: 4px;",
+    "  padding: 5px 0 2px; margin-top: 2px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
     ".cb-fb-prompt { font-size: 10.5px; color: #555; font-weight: 600; }",

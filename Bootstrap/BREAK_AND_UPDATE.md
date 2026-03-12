@@ -317,4 +317,25 @@ When the change lands, report:
 - Scoring engine must consume only normalized object, never site-specific DOM
 
 **Files touched:** Bootstrap/milestones.md, Bootstrap/kernel.md, Bootstrap/CALIBER_ISSUES_LOG.md, decisions.md
+
+### 2026-03-11 — Pipeline Dashboard Inline Tailor
+**What changed:**
+- Pipeline page transformed into a lightweight career dashboard with inline resume tailoring
+- "Tailor resume" action added to every pipeline card — triggers inline TailorPanel without navigation
+- Archive (X) control enlarged: 28×28px hit area, SVG icon, aria-label for accessibility
+- TailorPanel component created: shows job title, company, generation state, tailored output with copy + download
+- Generate API route extended to accept pipelineId (resolves TailorPrep via sessionId + jobUrl lookup)
+- Pipeline board layout preserved: Resume Prep → Submitted → Interview Prep → Interview volume columns
+
+**What is now expected:**
+- Users can tailor resumes directly from the pipeline page without leaving the dashboard
+- Clicking "Tailor resume" opens an inline panel below the card
+- Panel supports full generate → copy → download workflow
+- Archive button is a clearly tappable 28×28 target with proper aria-label
+
+**What is no longer expected:**
+- Users must navigate to /tailor to tailor a resume for a pipeline job
+- The small text "✕" as the only archive control
+
+**Files touched:** app/pipeline/page.tsx, app/components/TailorPanel.tsx, app/api/tailor/generate/route.ts, lib/tailor_store.ts, Bootstrap/milestones.md, Bootstrap/CALIBER_ISSUES_LOG.md, Bootstrap/BREAK_AND_UPDATE.md
 (See <attachments> above for file contents. You may not need to search or read the file again.)

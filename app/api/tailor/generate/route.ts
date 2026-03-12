@@ -3,11 +3,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   tailorPrepGet,
+  tailorPrepFindByJob,
   tailorResultSave,
   generateTailoredResume,
 } from "@/lib/tailor_store";
 import { storeGet } from "@/lib/calibration_store";
 import {
+  pipelineGet,
   pipelineFindByJob,
   pipelineCreate,
   pipelineUpdateStage,
@@ -17,17 +19,33 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const prepId = typeof body.prepId === "string" ? body.prepId.trim() : "";
-    if (!prepId) {
+    const pipelineId =
+      typeof body.pipelineId === "string" ? body.pipelineId.trim() : "";
+
+    if (!prepId && !pipelineId) {
       return NextResponse.json(
-        { ok: false, error: "Missing prepId" },
+        { ok: false, error: "Missing prepId or pipelineId" },
         { status: 400 }
       );
     }
 
-    const prep = tailorPrepGet(prepId);
+    // Resolve prep: either directly via prepId, or via pipelineId → lookup
+    let prep = prepId ? tailorPrepGet(prepId) : null;
+    let pipelineEntry = pipelineId ? pipelineGet(pipelineId) : null;
+
+    if (!prep && pipelineEntry) {
+      // Find the prep associated with this pipeline entry
+      prep = tailorPrepFindByJob(pipelineEntry.sessionId, pipelineEntry.jobUrl);
+    }
+
     if (!prep) {
       return NextResponse.json(
-        { ok: false, error: "Prepare context not found" },
+        {
+          ok: false,
+          error: pipelineId
+            ? "No tailor context found for this job. Score the job from LinkedIn first."
+            : "Prepare context not found",
+        },
         { status: 404 }
       );
     }
