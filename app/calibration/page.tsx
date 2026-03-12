@@ -631,10 +631,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div
           className="fixed top-0 left-0 right-0 pointer-events-none"
           style={{
-            height: step === "TITLES" ? "45vh" : "55vh",
+            height: step === "TITLES" ? "40vh" : "45vh",
             background: step === "TITLES"
-              ? "radial-gradient(ellipse 120% 70% at 50% 30%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.09) 35%, rgba(34,197,94,0.03) 60%, transparent 80%)"
-              : "radial-gradient(ellipse 80% 60% at 50% 12%, rgba(74,222,128,0.06), transparent 70%)",
+              ? "radial-gradient(ellipse 120% 60% at 50% 20%, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 30%, rgba(34,197,94,0.02) 55%, transparent 75%)"
+              : "radial-gradient(ellipse 90% 50% at 50% 25%, rgba(74,222,128,0.055), transparent 65%)",
             zIndex: 0,
           }}
         />
