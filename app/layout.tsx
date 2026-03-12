@@ -25,17 +25,44 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased text-white`}
+        style={{ background: "var(--bg-base)" }}
       >
-        {/* Page-level atmospheric band — single continuous glow behind all content */}
+        {/* ── Shared background skeleton (three zones + framing line) ── */}
+
+        {/* Zone 1 — Atmospheric green wash (full viewport) */}
         <div
           aria-hidden
-          className="fixed inset-0 pointer-events-none z-0"
+          className="fixed inset-0 pointer-events-none"
+          style={{ background: "var(--bg-atmospheric-wash)" }}
+        />
+
+        {/* Zone 2 — Top dark region */}
+        <div
+          aria-hidden
+          className="fixed inset-x-0 top-0 pointer-events-none"
+          style={{ height: "38vh", background: "var(--bg-top-dark)" }}
+        />
+
+        {/* Zone 3 — Bottom dark fade */}
+        <div
+          aria-hidden
+          className="fixed inset-x-0 bottom-0 pointer-events-none"
+          style={{ height: "25vh", background: "var(--bg-bottom-fade)" }}
+        />
+
+        {/* Framing line — thin architectural rule above wordmark */}
+        <div
+          aria-hidden
+          className="fixed inset-x-0 pointer-events-none"
           style={{
-            background:
-              "radial-gradient(ellipse 160% 45% at 50% 38%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.025) 40%, transparent 70%)",
+            top: "calc(50% - 5.5rem)",
+            height: "1px",
+            background: "var(--bg-framing-line)",
           }}
         />
+
+        {/* Content layer */}
         <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
           <div className="w-full max-w-[600px]">
             {children}
