@@ -27,22 +27,33 @@ export default function IngestLayout({
       className="fixed inset-0"
       style={{ backgroundColor: "#050505" }}
     >
-      {/* Dark top band — structural, darker than base surface */}
+      {/* Layer 1 — Dark top band: darker than base, no glow */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
         style={{
-          height: "14vh",
-          background: "linear-gradient(to bottom, #010101 0%, #030303 60%, #050505 100%)",
+          height: "18vh",
+          background: "linear-gradient(to bottom, #010101 0%, #020202 50%, #050505 100%)",
+          zIndex: 1,
+        }}
+      />
+      {/* Layer 2 — Ambient glow band: horizontal green band behind interaction surface */}
+      <div
+        className="absolute inset-x-0 pointer-events-none"
+        style={{
+          top: "18vh",
+          height: "55vh",
+          background:
+            "radial-gradient(ellipse 80% 55% at 50% 35%, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.04) 45%, transparent 100%)",
           zIndex: 0,
         }}
       />
-      {/* Ambient glow — begins below the dark band, centered behind interaction surface */}
+      {/* Layer 3 — Bottom fade: return to black */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-x-0 bottom-0 pointer-events-none"
         style={{
-          background:
-            "radial-gradient(ellipse 70% 40% at 50% 52%, rgba(74,222,128,0.07) 0%, transparent 100%)",
-          zIndex: 0,
+          height: "35vh",
+          background: "linear-gradient(to bottom, transparent 0%, #050505 100%)",
+          zIndex: 1,
         }}
       />
       {/* Scrollable content layer */}
