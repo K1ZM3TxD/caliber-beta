@@ -43,7 +43,18 @@ export default function IngestLayout({
           top: "16vh",
           height: "58vh",
           background:
-            "radial-gradient(ellipse 85% 50% at 50% 38%, rgba(74,222,128,0.13) 0%, rgba(74,222,128,0.05) 50%, transparent 100%)",
+            "radial-gradient(ellipse 85% 50% at 50% 38%, rgba(74,222,128,0.16) 0%, rgba(74,222,128,0.06) 50%, transparent 100%)",
+          zIndex: 0,
+        }}
+      />
+      {/* Layer 2b — Hero backlight: soft horizontal illumination behind wordmark/hero area */}
+      <div
+        className="absolute inset-x-0 pointer-events-none"
+        style={{
+          top: "18vh",
+          height: "22vh",
+          background:
+            "radial-gradient(ellipse 60% 70% at 50% 50%, rgba(74,222,128,0.08) 0%, transparent 100%)",
           zIndex: 0,
         }}
       />
