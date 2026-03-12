@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.5";
+  const PANEL_VERSION = "0.6.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -356,275 +356,6 @@
     catch (e) { return ""; }
   }
 
-  // ─── Visible-Job Surface Scoring State ─────────────────────
-
-  var visibleScoreCache = {};       // jobId -> { score, decision }
-  var visibleScoringActive = false; // prevents concurrent scoring passes
-  var lastVisibleBatchKey = "";     // concatenated jobIds to detect unchanged list
-  var visibleBadgeStyleInjected = false;
-  var surfaceRescanTimer = null;
-  var visibleListObserver = null;
-
-  // ─── Visible Job Card Extraction ──────────────────────────
-
-  var JOB_LIST_CONTAINER_SELECTORS = [
-    '.scaffold-layout__list-container',
-    '.jobs-search-results-list',
-    '.jobs-search__results-list',
-    '[class*="jobs-search-results"]',
-  ];
-
-  function extractJobIdFromCard(el) {
-    var id = el.getAttribute('data-occludable-job-id') || el.getAttribute('data-job-id');
-    if (id) return id;
-    var parent = el.closest('[data-occludable-job-id]');
-    if (parent) return parent.getAttribute('data-occludable-job-id');
-    parent = el.closest('[data-job-id]');
-    if (parent) return parent.getAttribute('data-job-id');
-    var link = el.querySelector('a[href*="/jobs/view/"]');
-    if (link) {
-      var m = link.href.match(/\/jobs\/view\/(\d+)/);
-      if (m) return m[1];
-    }
-    return null;
-  }
-
-  function getVisibleJobCards() {
-    var listEl = null;
-    for (var s = 0; s < JOB_LIST_CONTAINER_SELECTORS.length; s++) {
-      listEl = document.querySelector(JOB_LIST_CONTAINER_SELECTORS[s]);
-      if (listEl) break;
-    }
-    if (!listEl) {
-      console.debug('[Caliber] visible-surface: no list container found');
-      return [];
-    }
-    var items = listEl.querySelectorAll('li');
-    var cards = [];
-    for (var i = 0; i < items.length && cards.length < 12; i++) {
-      var li = items[i];
-      var jobId = extractJobIdFromCard(li);
-      if (!jobId) continue;
-      var text = (li.innerText || '').trim();
-      if (text.length < 20) continue;
-      cards.push({ el: li, jobId: jobId, text: text });
-    }
-    console.debug('[Caliber] visible-surface: found ' + cards.length + ' cards');
-    return cards;
-  }
-
-  // ─── Badge Overlay (injected into page DOM) ───────────────
-
-  function injectBadgeStyles() {
-    if (visibleBadgeStyleInjected) return;
-    visibleBadgeStyleInjected = true;
-    var style = document.createElement('style');
-    style.setAttribute('data-caliber-surface', '1');
-    style.textContent =
-      '.cb-vis-badge{position:absolute;top:8px;right:8px;z-index:100;' +
-      'background:#111114;border:1px solid rgba(255,255,255,0.15);border-radius:6px;' +
-      'padding:2px 7px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-      'font-size:11px;font-weight:700;line-height:1.3;display:flex;align-items:center;gap:4px;' +
-      'pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,0.4)}' +
-      '.cb-vis-badge-logo{font-size:8px;color:#555;font-weight:600;letter-spacing:-0.02em}' +
-      '.cb-vis-score-strong{color:#4ADE80}' +
-      '.cb-vis-score-stretch{color:#FBBF24}' +
-      '.cb-vis-score-skip{color:#EF4444}';
-    document.head.appendChild(style);
-  }
-
-  function renderBadgeOnCard(cardEl, score) {
-    var existing = cardEl.querySelector('.cb-vis-badge');
-    if (existing) existing.remove();
-    var cs = getComputedStyle(cardEl);
-    if (cs.position === 'static') cardEl.style.position = 'relative';
-    var badge = document.createElement('div');
-    badge.className = 'cb-vis-badge';
-    badge.innerHTML = '<span class="cb-vis-badge-logo">C</span>' +
-      '<span class="' + (score >= 7.5 ? 'cb-vis-score-strong' : score >= 5 ? 'cb-vis-score-stretch' : 'cb-vis-score-skip') + '">' +
-      Math.round(score) + '</span>';
-    cardEl.appendChild(badge);
-  }
-
-  function removeAllBadges() {
-    var badges = document.querySelectorAll('.cb-vis-badge');
-    for (var i = 0; i < badges.length; i++) badges[i].remove();
-  }
-
-  // ─── Surface Summary (sidecard shadow DOM) ────────────────
-
-  function computeSurfaceStats(cards) {
-    var scores = [];
-    for (var i = 0; i < cards.length; i++) {
-      var c = visibleScoreCache[cards[i].jobId];
-      if (c) scores.push(c.score);
-    }
-    if (scores.length === 0) return null;
-    scores.sort(function (a, b) { return a - b; });
-    var mid = Math.floor(scores.length / 2);
-    var median = scores.length % 2 !== 0
-      ? scores[mid]
-      : Math.round(((scores[mid - 1] + scores[mid]) / 2) * 10) / 10;
-    return {
-      median: median,
-      top: scores[scores.length - 1],
-      strongCount: scores.filter(function (s) { return s >= 7.5; }).length,
-      total: scores.length,
-    };
-  }
-
-  function updateSurfaceSummary(cards) {
-    if (!shadow) return;
-    var el = shadow.getElementById('cb-surface-summary');
-    if (!el) return;
-    var stats = computeSurfaceStats(cards);
-    if (!stats || stats.total === 0) { el.style.display = 'none'; return; }
-    el.style.display = '';
-    var medianEl = shadow.getElementById('cb-surface-median');
-    var topEl = shadow.getElementById('cb-surface-top');
-    var strongEl = shadow.getElementById('cb-surface-strong');
-    var countEl = shadow.getElementById('cb-surface-count');
-    medianEl.textContent = Math.round(stats.median);
-    medianEl.style.color = stats.median >= 7.5 ? '#4ADE80' : stats.median >= 5 ? '#FBBF24' : '#EF4444';
-    topEl.textContent = Math.round(stats.top);
-    topEl.style.color = stats.top >= 7.5 ? '#4ADE80' : stats.top >= 5 ? '#FBBF24' : '#EF4444';
-    strongEl.textContent = stats.strongCount;
-    strongEl.style.color = stats.strongCount > 0 ? '#4ADE80' : '#777';
-    if (countEl) countEl.textContent = stats.total + ' scored';
-  }
-
-  function showSurfaceScoringState(remaining) {
-    if (!shadow) return;
-    var el = shadow.getElementById('cb-surface-summary');
-    if (!el) return;
-    el.style.display = '';
-    shadow.getElementById('cb-surface-median').textContent = '\u2026';
-    shadow.getElementById('cb-surface-median').style.color = '#555';
-    shadow.getElementById('cb-surface-top').textContent = '\u2026';
-    shadow.getElementById('cb-surface-top').style.color = '#555';
-    shadow.getElementById('cb-surface-strong').textContent = '\u2026';
-    shadow.getElementById('cb-surface-strong').style.color = '#555';
-    var countEl = shadow.getElementById('cb-surface-count');
-    if (countEl) countEl.textContent = 'scoring ' + remaining + ' jobs\u2026';
-  }
-
-  // ─── Visible Surface Scoring Pass ─────────────────────────
-
-  function scoreCardViaAPI(cardText) {
-    return new Promise(function (resolve, reject) {
-      chrome.runtime.sendMessage(
-        { type: 'CALIBER_FIT_API', jobText: cardText },
-        function (response) {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else if (!response || !response.ok) {
-            reject(new Error((response && response.error) || 'Score failed'));
-          } else {
-            resolve(response.data);
-          }
-        }
-      );
-    });
-  }
-
-  async function scoreVisibleSurface() {
-    if (visibleScoringActive || !active) return;
-    var cards = getVisibleJobCards();
-    if (cards.length === 0) return;
-    var batchKey = cards.map(function (c) { return c.jobId; }).join(',');
-    if (batchKey === lastVisibleBatchKey) {
-      renderCachedBadges(cards);
-      updateSurfaceSummary(cards);
-      return;
-    }
-    var uncached = cards.filter(function (c) { return !visibleScoreCache[c.jobId]; });
-    if (uncached.length === 0) {
-      lastVisibleBatchKey = batchKey;
-      renderCachedBadges(cards);
-      updateSurfaceSummary(cards);
-      return;
-    }
-    visibleScoringActive = true;
-    lastVisibleBatchKey = batchKey;
-    injectBadgeStyles();
-    renderCachedBadges(cards);
-    showSurfaceScoringState(uncached.length);
-    console.debug('[Caliber] visible-surface: scoring ' + uncached.length + ' uncached cards');
-    for (var i = 0; i < cards.length; i++) {
-      if (!active) break;
-      var card = cards[i];
-      if (visibleScoreCache[card.jobId]) continue;
-      try {
-        var result = await scoreCardViaAPI(card.text);
-        var rawScore = Number(result.score_0_to_10) || 0;
-        var hrc = result.hiring_reality_check;
-        var hrcBand = (hrc && hrc.band) ? hrc.band : null;
-        var score = applyDomainMismatchGuardrail(rawScore, hrcBand);
-        visibleScoreCache[card.jobId] = { score: score, decision: getDecision(score).label };
-        renderBadgeOnCard(card.el, score);
-      } catch (err) {
-        console.warn('[Caliber] visible-surface: card ' + card.jobId + ' failed:', err.message);
-      }
-      updateSurfaceSummary(cards);
-    }
-    visibleScoringActive = false;
-    console.debug('[Caliber] visible-surface: pass complete');
-  }
-
-  function renderCachedBadges(cards) {
-    injectBadgeStyles();
-    for (var i = 0; i < cards.length; i++) {
-      var cached = visibleScoreCache[cards[i].jobId];
-      if (cached) renderBadgeOnCard(cards[i].el, cached.score);
-    }
-  }
-
-  function resetVisibleSurface() {
-    visibleScoreCache = {};
-    lastVisibleBatchKey = '';
-    visibleScoringActive = false;
-    if (surfaceRescanTimer) { clearTimeout(surfaceRescanTimer); surfaceRescanTimer = null; }
-    removeAllBadges();
-    if (shadow) {
-      var el = shadow.getElementById('cb-surface-summary');
-      if (el) el.style.display = 'none';
-    }
-  }
-
-  function scheduleVisibleRescan() {
-    if (surfaceRescanTimer) clearTimeout(surfaceRescanTimer);
-    surfaceRescanTimer = setTimeout(function () { scoreVisibleSurface(); }, 2000);
-  }
-
-  function startVisibleSurfaceWatchers() {
-    var listEl = null;
-    for (var s = 0; s < JOB_LIST_CONTAINER_SELECTORS.length; s++) {
-      listEl = document.querySelector(JOB_LIST_CONTAINER_SELECTORS[s]);
-      if (listEl) break;
-    }
-    if (!listEl) {
-      setTimeout(startVisibleSurfaceWatchers, 3000);
-      return;
-    }
-    var scrollTarget = listEl.closest('.scaffold-layout__list') ||
-                       listEl.closest('[class*="jobs-search"]') ||
-                       listEl;
-    scrollTarget.addEventListener('scroll', function () {
-      scheduleVisibleRescan();
-    }, { passive: true });
-    if (visibleListObserver) visibleListObserver.disconnect();
-    visibleListObserver = new MutationObserver(function () {
-      scheduleVisibleRescan();
-    });
-    visibleListObserver.observe(listEl, { childList: true, subtree: false });
-    console.debug('[Caliber] visible-surface: watchers attached');
-  }
-
-  function stopVisibleSurfaceWatchers() {
-    if (visibleListObserver) { visibleListObserver.disconnect(); visibleListObserver = null; }
-    if (surfaceRescanTimer) { clearTimeout(surfaceRescanTimer); surfaceRescanTimer = null; }
-  }
-
   // ─── Panel Creation ───────────────────────────────────────
 
   function getOrCreatePanel() {
@@ -652,39 +383,17 @@
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
 
-    // Wire auto-save action buttons
-    shadow.getElementById("cb-autosave-tailor").addEventListener("click", function () {
-      chrome.runtime.sendMessage({
-        type: "CALIBER_TAILOR_PREPARE",
-        jobTitle: lastJobMeta.title || "",
-        company: lastJobMeta.company || "",
-        jobUrl: location.href,
-        jobText: lastScoredText || "",
-      });
-    });
-    shadow.getElementById("cb-autosave-pipeline").addEventListener("click", function () {
-      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
-    });
-
     // Wire collapsible section toggles
     shadow.querySelectorAll(".cb-collapse-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var section = btn.closest(".cb-collapsible");
         if (section) section.classList.toggle("cb-open");
-        // Expand results container when any section is open
-        var results = shadow.getElementById("cb-results");
-        var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
-        if (results) {
-          if (anyOpen) results.classList.add("cb-results-expanded");
-          else results.classList.remove("cb-results-expanded");
-        }
       });
     });
 
     // Wire feedback controls
     shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
     shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
-    shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
     shadow.getElementById("cb-fb-submit").addEventListener("click", handleFeedbackSubmit);
     shadow.getElementById("cb-fb-cancel").addEventListener("click", handleFeedbackCancel);
     shadow.querySelectorAll(".cb-fb-chip").forEach(function (chip) {
@@ -693,14 +402,19 @@
       });
     });
 
+    // Wire bug report controls
+    shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
+    shadow.getElementById("cb-bug-submit").addEventListener("click", handleBugSubmit);
+    shadow.getElementById("cb-bug-cancel").addEventListener("click", handleBugCancel);
+    shadow.querySelectorAll(".cb-bug-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("cb-fb-chip-selected");
+      });
+    });
+
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
       var btn = shadow.getElementById("cb-tailor-btn");
-      // If already in opened state, clicking opens pipeline
-      if (btn && btn.dataset.opened === "1") {
-        chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
-        return;
-      }
       if (btn) { btn.textContent = "Preparing\u2026"; btn.disabled = true; }
       chrome.runtime.sendMessage({
         type: "CALIBER_TAILOR_PREPARE",
@@ -708,9 +422,10 @@
         company: lastJobMeta.company || "",
         jobUrl: location.href,
         jobText: lastScoredText || "",
+        score: lastScoredScore || 0,
       }, function (resp) {
         if (resp && resp.ok) {
-          setTailorBtnOpened(shadow);
+          if (btn) btn.textContent = "Opened \u2713";
         } else {
           if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
@@ -719,20 +434,6 @@
     });
 
     return shadow;
-  }
-
-  /**
-   * Transition the tailor banner button to "Opened \u2713" state.
-   * In this state, clicking opens the pipeline page.
-   */
-  function setTailorBtnOpened(shadowRoot) {
-    var btn = shadowRoot.getElementById("cb-tailor-btn");
-    if (!btn) return;
-    btn.textContent = "Opened \u2713";
-    btn.disabled = false;
-    btn.dataset.opened = "1";
-    btn.style.cursor = "pointer";
-    btn.setAttribute("aria-label", "View pipeline");
   }
 
   function removePanel() {
@@ -826,8 +527,6 @@
     if (panel) panel.style.display = "";
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.style.display = "none";
-    var res = shadow.getElementById("cb-results");
-    if (res) res.classList.add("cb-results-expanded");
   }
 
   function handleFeedbackSubmit() {
@@ -838,10 +537,6 @@
     var comment = (shadow.getElementById("cb-fb-text").value || "").trim();
     sendFeedback("thumbs_down", reason, comment || null);
     shadow.getElementById("cb-fb-panel").style.display = "none";
-    // Collapse results if no collapsible sections are open
-    var res = shadow.getElementById("cb-results");
-    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
-    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
     showFeedbackConfirm();
   }
 
@@ -849,23 +544,62 @@
     shadow.getElementById("cb-fb-panel").style.display = "none";
     var row = shadow.getElementById("cb-fb-row");
     if (row) row.style.display = "";
-    // Collapse results if no collapsible sections are open
-    var res = shadow.getElementById("cb-results");
-    var anyOpen = shadow.querySelectorAll(".cb-collapsible.cb-open").length > 0;
-    if (res && !anyOpen) res.classList.remove("cb-results-expanded");
   }
 
-  function handleBugReport() {
+  function handleBugOpen() {
+    var panel = shadow.getElementById("cb-bug-panel");
+    if (panel) panel.style.display = "";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "none";
+    // Also hide thumbs-down panel if open
+    var fbPanel = shadow.getElementById("cb-fb-panel");
+    if (fbPanel) fbPanel.style.display = "none";
+  }
+
+  function handleBugSubmit() {
+    var selected = shadow.querySelectorAll(".cb-bug-chip.cb-fb-chip-selected");
+    var category = null;
+    if (selected.length > 0) category = selected[0].getAttribute("data-bug");
+    var comment = (shadow.getElementById("cb-bug-text").value || "").trim();
+    sendBugReport(category, comment || null);
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    showFeedbackConfirm();
+  }
+
+  function handleBugCancel() {
+    shadow.getElementById("cb-bug-panel").style.display = "none";
+    var row = shadow.getElementById("cb-fb-row");
+    if (row) row.style.display = "";
+  }
+
+  function sendBugReport(category, comment) {
     var d = lastFeedbackData || {};
-    var body = "**Score shown:** " + (d.score != null ? d.score : "n/a") +
-      "\n**Job:** " + (d.jobTitle || "n/a") + " @ " + (d.company || "n/a") +
-      "\n**Decision:** " + (d.decision || "n/a") +
-      "\n**Panel version:** " + PANEL_VERSION +
-      "\n\n**What went wrong?**\n";
-    var url = "https://github.com/K1ZM3TxD/caliber-beta/issues/new?" +
-      "labels=bug&title=" + encodeURIComponent("[Extension Bug] ") +
-      "&body=" + encodeURIComponent(body);
-    window.open(url, "_blank", "noopener");
+    var payload = {
+      surface: "extension",
+      site: "linkedin",
+      company_name: d.company || null,
+      job_title: d.jobTitle || null,
+      search_title: getSearchKeywords() || null,
+      calibration_title_direction: null,
+      fit_score: d.score != null ? d.score : null,
+      decision_label: d.decision || null,
+      hiring_reality_band: d.hrcBand || null,
+      better_search_title_suggestion: d.suggestedTitle || null,
+      feedback_type: "bug_report",
+      feedback_reason: null,
+      bug_category: category,
+      optional_comment: comment,
+      behavioral_signals: {
+        jobs_viewed_in_session: sessionSignals.jobs_viewed,
+        scores_below_6_count: sessionSignals.scores_below_6,
+        highest_score_seen: sessionSignals.highest_score,
+        better_title_suggestion_shown: sessionSignals.suggest_shown,
+        better_title_suggestion_clicked: sessionSignals.suggest_clicked,
+      },
+    };
+    chrome.runtime.sendMessage({ type: "CALIBER_FEEDBACK", payload: payload }, function () {
+      console.debug("[Caliber] bug report sent:", category)
+    });
   }
 
   function showFeedbackConfirm() {
@@ -915,10 +649,8 @@
   }
 
   function checkWeakSearchPattern() {
-    // Documented: rolling window of last 4 scored jobs.
-    // Trigger when 3 of 4 scores are below 6.5 and none are >= 7.5.
-    if (recentScores.length < 4) {
-      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 4");
+    if (recentScores.length < 3) {
+      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 3+");
       return null;
     }
     var win = recentScores.slice(-4);
@@ -931,31 +663,17 @@
     console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
     if (weakCount >= 3 && !hasStrong) {
       var currentQuery = getSearchKeywords();
-
-      // Check if ANY entry has suggestion data
-      var hasAnyCalibrationTitle = false;
-      var hasAnyNearbyRole = false;
-      for (var c = 0; c < win.length; c++) {
-        if (win[c].calibrationTitle) hasAnyCalibrationTitle = true;
-        if (win[c].nearbyRoles && win[c].nearbyRoles.length > 0) hasAnyNearbyRole = true;
-      }
-
-      if (!hasAnyCalibrationTitle && !hasAnyNearbyRole) {
-        // Neither calibration_title nor nearby_roles available — cannot suggest
-        console.warn("[Caliber] weak-search triggered but no suggestion data: calibration_title and nearby_roles are both empty. Check that the calibration session has titleRecommendation populated.");
-        return "";
-      }
-
-      // Source 1: calibration primary title (the user's strongest fit direction)
+      // Primary: calibration primary title (the user's strongest fit direction)
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].calibrationTitle && !titlesEquivalent(win[j].calibrationTitle, currentQuery)) {
           console.debug("[Caliber] weak-search triggered, suggesting calibration title: " + win[j].calibrationTitle);
           return win[j].calibrationTitle;
         }
       }
-      // Source 2: adjacent search-surface titles from calibration
+      // Secondary: adjacent search-surface titles from calibration
       for (var j = win.length - 1; j >= 0; j--) {
         if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
+          // Find first non-redundant adjacent title
           for (var k = 0; k < win[j].nearbyRoles.length; k++) {
             var role = win[j].nearbyRoles[k];
             if (role.title && !titlesEquivalent(role.title, currentQuery)) {
@@ -965,8 +683,8 @@
           }
         }
       }
-      // All available titles match current search query — suppress banner
-      console.debug("[Caliber] weak-search triggered but all suggestions match current query (" + currentQuery + ") — suppressed");
+      // All available titles match current query — suppress banner
+      console.debug("[Caliber] weak-search triggered, all suggestions match current query — suppressed");
       return "";
     }
     return null;
@@ -975,11 +693,6 @@
   function showResults(data) {
     getOrCreatePanel();
     hideOverlay();
-
-    // Reset collapsible sections and fixed-height lock for fresh results
-    shadow.querySelectorAll(".cb-collapsible.cb-open").forEach(function (s) { s.classList.remove("cb-open"); });
-    var cbResults = shadow.getElementById("cb-results");
-    if (cbResults) cbResults.classList.remove("cb-results-expanded");
 
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
@@ -992,7 +705,7 @@
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = Math.round(score);
+    scoreEl.textContent = score;
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
@@ -1005,38 +718,13 @@
     companyEl.textContent = lastJobMeta.company || "";
     titleEl.textContent = lastJobMeta.title || "";
 
-    // Auto-save to pipeline for strong matches (score >= 8.5)
-    // Row always occupies space; content shown/hidden via visibility
-    var autosaveRow = shadow.getElementById("cb-autosave-row");
-    if (autosaveRow) {
-      if (score >= 8.5) {
-        autosaveRow.style.visibility = "hidden"; // reserve space, hidden until save confirms
-        chrome.runtime.sendMessage({
-          type: "CALIBER_PIPELINE_SAVE",
-          jobTitle: lastJobMeta.title || "",
-          company: lastJobMeta.company || "",
-          jobUrl: location.href,
-          score: score,
-        }, function (resp) {
-          if (resp && resp.ok) {
-            autosaveRow.style.visibility = "visible";
-            console.debug("[Caliber] auto-saved to pipeline: " + (lastJobMeta.title || "untitled"));
-          } else {
-            autosaveRow.style.visibility = "hidden";
-            console.warn("[Caliber] auto-save failed:", resp && resp.error);
-          }
-        });
-      } else {
-        autosaveRow.style.visibility = "hidden";
-      }
-    }
-
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
     var hrcBandEl = shadow.getElementById("cb-hrc-band");
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
     if (hrc && hrc.band) {
+      hrcSection.style.display = "";
       hrcBandEl.textContent = hrc.band;
       hrcBandEl.className = "cb-hrc-badge";
       hrcToggle.className = "cb-collapse-toggle";
@@ -1055,10 +743,7 @@
       }
       hrcReason.textContent = hrc.reason || "";
     } else {
-      hrcBandEl.textContent = "\u2014";
-      hrcBandEl.className = "cb-hrc-badge";
-      hrcToggle.className = "cb-collapse-toggle";
-      hrcReason.textContent = "";
+      hrcSection.style.display = "none";
     }
 
     // Supports (collapsible — dot indicators in toggle)
@@ -1072,18 +757,19 @@
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
-    // stretch section always visible — no display toggle needed
+    var stretchSection = shadow.getElementById("cb-stretch-section");
+    if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
 
     // Bottom line (collapsible)
-    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "\u2014";
-    // bottom-line section always visible — no display toggle needed
+    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
+    var blSection = shadow.getElementById("cb-bottomline-section");
+    if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
 
     // Nearby roles (only for stretch/skip)
-    // Section always occupies space; content shown/hidden via visibility
     var nearbySection = shadow.getElementById("cb-nearby-section");
     var nearbyList = shadow.getElementById("cb-nearby");
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
-      nearbySection.style.visibility = "visible";
+      nearbySection.style.display = "";
       nearbyList.innerHTML = "";
       for (var i = 0; i < data.nearby_roles.length; i++) {
         var role = data.nearby_roles[i];
@@ -1097,41 +783,35 @@
         nearbyList.appendChild(li);
       }
     } else {
-      nearbySection.style.visibility = "hidden";
-      nearbyList.innerHTML = "";
+      nearbySection.style.display = "none";
     }
 
-    // Tailor Resume banner (above sidecard, 8.0+ only)
-    // Show opened-state only when pipeline entry confirmed; otherwise show tailor CTA.
+    // Tailor Resume banner (above sidecard, 8.0+ only, suppressed if already in pipeline)
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
-        tailorBanner.style.display = "";
-        var btn = shadow.getElementById("cb-tailor-btn");
-        // Default to tailor CTA while pipeline check is in flight
-        if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; btn.dataset.opened = ""; }
-        // Check pipeline membership asynchronously
-        chrome.runtime.sendMessage({
-          type: "CALIBER_PIPELINE_CHECK",
-          jobUrl: location.href,
-        }, function (resp) {
-          if (resp && resp.ok && resp.exists) {
-            // Job is already in pipeline — show opened state
-            setTailorBtnOpened(shadow);
+        // Check pipeline membership before showing CTA
+        tailorBanner.style.display = "none";
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
+          function (resp) {
+            if (resp && resp.exists) {
+              console.debug("[Caliber] job already in pipeline, suppressing tailor CTA");
+              tailorBanner.style.display = "none";
+            } else {
+              tailorBanner.style.display = "";
+            }
           }
-          // If not in pipeline or check failed, keep the default tailor CTA
-        });
+        );
       } else {
         tailorBanner.style.display = "none";
       }
     }
 
     // Rolling weak-search detection
-    var _calTitle = data.calibration_title || "";
-    var _nearbyLen = (data.nearby_roles || []).length;
-    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: _calTitle });
+    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" });
     if (recentScores.length > 4) recentScores.shift();
-    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score + ", calibration_title=" + (_calTitle || "(empty)") + ", nearby_roles=" + _nearbyLen);
+    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
     var suggestedTitle = checkWeakSearchPattern();
     var recoveryBanner = shadow.getElementById("cb-recovery-banner");
     var recoveryLink = shadow.getElementById("cb-recovery-link");
@@ -1163,17 +843,19 @@
     // Reset feedback UI for new result (unless already given in this session)
     var fbRow = shadow.getElementById("cb-fb-row");
     var fbPanel = shadow.getElementById("cb-fb-panel");
+    var bugPanel = shadow.getElementById("cb-bug-panel");
     if (fbPanel) fbPanel.style.display = "none";
+    if (bugPanel) bugPanel.style.display = "none";
     if (fbRow && !feedbackGiven) {
       fbRow.style.display = "";
       fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
-        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>' +
-        '<button id="cb-fb-down" class="cb-fb-btn" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>' +
-        '<span class="cb-fb-spacer"></span>' +
-        '<button id="cb-fb-bug" class="cb-fb-bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>';
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
+        '<span class="cb-fb-sep"></span>' +
+        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B Report</button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
-      shadow.getElementById("cb-fb-bug").addEventListener("click", handleBugReport);
+      shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
     }
 
     setPanelState("cb-results");
@@ -1300,12 +982,10 @@
           recentScores = [];
           lastSearchQuery = currentQuery;
           resetSessionSignals();
-          resetVisibleSurface();
-          console.debug("[Caliber] search query changed, reset rolling window + session signals + visible surface");
+          console.debug("[Caliber] search query changed, reset rolling window + session signals");
         }
         console.debug("[Caliber] URL changed, re-scoring");
         scoreCurrentJob(true);
-        scheduleVisibleRescan();
         return;
       }
       var text = extractJobText();
@@ -1358,23 +1038,18 @@
     chrome.storage.local.set({ caliberPanelEnabled: true });
     showIdle();
     startWatching();
-    startVisibleSurfaceWatchers();
     // If a job description is already visible, score immediately
     var text = extractJobText();
     if (text && text.length >= MIN_SCORE_CHARS) {
       scoreCurrentJob(true);
     }
-    // Kick off visible-surface scoring after a short delay
-    setTimeout(function () { scoreVisibleSurface(); }, 2500);
   }
 
   function deactivatePanel() {
     active = false;
     chrome.storage.local.set({ caliberPanelEnabled: false });
     stopWatching();
-    stopVisibleSurfaceWatchers();
     removePanel();
-    resetVisibleSurface();
     lastScoredText = "";
     recentScores = [];
     resetSessionSignals();
@@ -1425,15 +1100,6 @@
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '    </div>',
     '  </div>',
-    '  <div id="cb-surface-summary" class="cb-surface-summary" style="display:none">',
-    '    <div class="cb-surface-header">Search Surface</div>',
-    '    <div class="cb-surface-stats">',
-    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Median Fit</span><span id="cb-surface-median" class="cb-surface-stat-value">\u2014</span></div>',
-    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Top Fit</span><span id="cb-surface-top" class="cb-surface-stat-value">\u2014</span></div>',
-    '      <div class="cb-surface-stat"><span class="cb-surface-stat-label">Strong</span><span id="cb-surface-strong" class="cb-surface-stat-value">\u2014</span></div>',
-    '    </div>',
-    '    <div id="cb-surface-count" class="cb-surface-count"></div>',
-    '  </div>',
     '  <div id="cb-idle" class="cb-body" style="display:none">',
     '    <div class="cb-idle-icon">\u25CE</div>',
     '    <p class="cb-status">Select a job to analyze</p>',
@@ -1452,14 +1118,6 @@
     '      <div class="cb-spinner cb-spinner-sm"></div>',
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
-    '    <div id="cb-autosave-row" class="cb-autosave-row" style="visibility:hidden">',
-    '      <span class="cb-autosave-check">✓</span>',
-    '      <span class="cb-autosave-label">Saved to pipeline</span>',
-    '      <div class="cb-autosave-actions">',
-    '        <button id="cb-autosave-tailor" class="cb-autosave-action">Tailor resume</button>',
-    '        <button id="cb-autosave-pipeline" class="cb-autosave-action">View pipeline</button>',
-    '      </div>',
-    '    </div>',
     '    <div class="cb-toprow">',
     '      <div class="cb-toprow-left">',
     '        <div class="cb-score-row">',
@@ -1473,7 +1131,7 @@
     '        <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-hrc-section" class="cb-collapsible">',
+    '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>Hiring Reality</span>',
@@ -1512,7 +1170,7 @@
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="visibility:hidden">',
+    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>\u2192 Better nearby roles</span>',
@@ -1524,10 +1182,10 @@
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
-    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>',
-    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button>',
-    '      <span class="cb-fb-spacer"></span>',
-    '      <button id="cb-fb-bug" class="cb-fb-bug" aria-label="Report a bug" title="Report a bug"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
+    '      <span class="cb-fb-sep"></span>',
+    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B Report</button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1544,6 +1202,22 @@
     '        <button id="cb-fb-cancel" class="cb-fb-cancel">Cancel</button>',
     '      </div>',
     '    </div>',
+    '    <div id="cb-bug-panel" class="cb-fb-panel" style="display:none">',
+    '      <div class="cb-fb-panel-title">What went wrong?</div>',
+    '      <div class="cb-fb-chips">',
+    '        <button class="cb-bug-chip" data-bug="wrong_job_detected">Wrong job detected</button>',
+    '        <button class="cb-bug-chip" data-bug="score_failed_to_load">Score failed to load</button>',
+    '        <button class="cb-bug-chip" data-bug="panel_not_opening">Panel not opening correctly</button>',
+    '        <button class="cb-bug-chip" data-bug="content_missing">Content missing or cut off</button>',
+    '        <button class="cb-bug-chip" data-bug="action_not_working">Button/action not working</button>',
+    '        <button class="cb-bug-chip" data-bug="other">Other</button>',
+    '      </div>',
+    '      <textarea id="cb-bug-text" class="cb-fb-text" placeholder="Optional details\u2026" rows="2" maxlength="500"></textarea>',
+    '      <div class="cb-fb-actions">',
+    '        <button id="cb-bug-submit" class="cb-fb-submit">Submit</button>',
+    '        <button id="cb-bug-cancel" class="cb-fb-cancel">Cancel</button>',
+    '      </div>',
+    '    </div>',
     '  </div>',
     '</div>',
     '</div>'
@@ -1551,19 +1225,18 @@
 
   var PANEL_CSS = [
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
-    // Container: sidecard in normal flow; banners absolutely positioned above
+    // Container: stacks recovery banner above sidecard
     ".cb-container {",
-    "  position: relative;",
+    "  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;",
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
-    "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  animation: cb-banner-fade 0.15s ease-out;",
+    "  animation: cb-enter 0.2s ease-out;",
     "}",
     ".cb-recovery-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-recovery-body { flex: 1; min-width: 0; }",
@@ -1592,16 +1265,12 @@
     "  from { opacity: 0; transform: translateY(12px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
-    "@keyframes cb-banner-fade {",
-    "  from { opacity: 0; }",
-    "  to   { opacity: 1; }",
-    "}",
     ".cb-panel::-webkit-scrollbar { width: 4px; }",
     ".cb-panel::-webkit-scrollbar-track { background: transparent; }",
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -1615,9 +1284,7 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 8px 14px; position: relative; }",
-    "#cb-results { min-height: 280px; height: 280px; overflow: hidden; }",
-    "#cb-results.cb-results-expanded { height: auto; min-height: 280px; overflow: visible; }",
+    ".cb-body { padding: 12px 14px; position: relative; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1648,8 +1315,8 @@
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
     // Top row: score LEFT, identity RIGHT
     ".cb-toprow {",
-    "  display: flex; align-items: center; gap: 10px;",
-    "  padding-bottom: 6px; margin-bottom: 2px;",
+    "  display: flex; align-items: center; gap: 12px;",
+    "  padding-bottom: 8px; margin-bottom: 4px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-toprow-left {",
@@ -1657,7 +1324,7 @@
     "  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
-    ".cb-score-num { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
+    ".cb-score-num { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }",
     ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
     "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
@@ -1691,7 +1358,7 @@
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
     "  flex-wrap: nowrap;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
@@ -1733,14 +1400,13 @@
     "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
     "}",
     ".cb-bullets li::before {",
-    "  content: '\\2022'; position: absolute; left: 0; top: 0; color: #4ADE80; font-weight: 700;",
+    "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
     // Nearby roles
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 0 8px; margin-top: 1px;",
-    "  min-height: 22px;",
+    "  padding: 0 8px; margin-top: 2px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
@@ -1751,36 +1417,14 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
-    // Auto-save pipeline row
-    ".cb-autosave-row {",
-    "  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;",
-    "  padding: 4px 0 3px; margin-bottom: 1px;",
-    "  border-bottom: 1px solid rgba(255,255,255,0.06);",
-    "}",
-    ".cb-autosave-check {",
-    "  font-size: 12px; font-weight: 700; color: #4ADE80; line-height: 1;",
-    "}",
-    ".cb-autosave-label {",
-    "  font-size: 11px; font-weight: 600; color: #4ADE80;",
-    "}",
-    ".cb-autosave-actions {",
-    "  display: flex; gap: 6px; margin-left: auto;",
-    "}",
-    ".cb-autosave-action {",
-    "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
-    "  border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600;",
-    "  color: #AFAFAF; cursor: pointer; transition: background 0.15s, color 0.15s;",
-    "}",
-    ".cb-autosave-action:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
-    "  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;",
     "  width: 380px; background: #0F2318;",
     "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
     "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  animation: cb-banner-fade 0.15s ease-out;",
+    "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
     "}",
     ".cb-tailor-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
     ".cb-tailor-body { flex: 1; min-width: 0; }",
@@ -1813,34 +1457,33 @@
     // Feedback row
     ".cb-fb-row {",
     "  display: flex; align-items: center; gap: 6px;",
-    "  padding: 5px 0 2px; margin-top: 2px;",
+    "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-prompt { font-size: 10.5px; color: #555; font-weight: 600; }",
-    ".cb-fb-spacer { flex: 1; }",
+    ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
     ".cb-fb-btn {",
-    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 5px;",
-    "  cursor: pointer; padding: 4px 6px; line-height: 1; color: #777;",
-    "  display: inline-flex; align-items: center; justify-content: center;",
-    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;",
+    "  transition: background 0.15s, border-color 0.15s;",
     "}",
-    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #CFCFCF; }",
-    ".cb-fb-bug {",
-    "  background: none; border: none; cursor: pointer; padding: 3px 4px;",
-    "  color: #444; line-height: 1; display: inline-flex; align-items: center;",
-    "  transition: color 0.15s;",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
+    ".cb-bug-btn {",
+    "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
+    "  cursor: pointer; font-size: 11px; padding: 2px 8px; line-height: 1; gap: 3px;",
+    "  transition: background 0.15s, border-color 0.15s;",
     "}",
-    ".cb-fb-bug:hover { color: #888; }",
+    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
     // Feedback detail panel
     ".cb-fb-panel {",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
-    ".cb-fb-panel-title { font-size: 10.5px; font-weight: 600; color: #888; margin-bottom: 5px; }",
+    ".cb-fb-panel-title { font-size: 10px; font-weight: 600; color: #888; margin-bottom: 5px; }",
     ".cb-fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }",
     ".cb-fb-chip {",
     "  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);",
-    "  border-radius: 10px; padding: 2px 8px; font-size: 10.5px; color: #AFAFAF;",
+    "  border-radius: 10px; padding: 2px 8px; font-size: 10px; color: #AFAFAF;",
     "  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
     ".cb-fb-chip:hover { background: rgba(255,255,255,0.10); color: #F2F2F2; }",
@@ -1849,7 +1492,7 @@
     "}",
     ".cb-fb-text {",
     "  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 5px; padding: 5px 7px; font-size: 10.5px; color: #CFCFCF;",
+    "  border-radius: 5px; padding: 4px 6px; font-size: 10px; color: #CFCFCF;",
     "  resize: none; font-family: inherit; outline: none;",
     "}",
     ".cb-fb-text::placeholder { color: #555; }",
@@ -1857,47 +1500,22 @@
     ".cb-fb-actions { display: flex; gap: 6px; margin-top: 5px; }",
     ".cb-fb-submit {",
     "  background: rgba(74,222,128,0.15); color: #4ADE80; border: none;",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
     "  cursor: pointer; transition: opacity 0.15s;",
     "}",
     ".cb-fb-submit:hover { opacity: 0.85; }",
     ".cb-fb-cancel {",
     "  background: none; color: #666; border: 1px solid rgba(255,255,255,0.08);",
-    "  border-radius: 4px; padding: 3px 10px; font-size: 10.5px; font-weight: 600;",
+    "  border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 600;",
     "  cursor: pointer; transition: color 0.15s;",
     "}",
     ".cb-fb-cancel:hover { color: #AFAFAF; }",
     // Feedback thanks
     ".cb-fb-thanks {",
-    "  font-size: 10.5px; color: #4ADE80; font-weight: 600;",
+    "  font-size: 10px; color: #4ADE80; font-weight: 600;",
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "  text-align: center;",
-    "}",
-    // Surface summary (visible-job stats)
-    ".cb-surface-summary {",
-    "  border-bottom: 1px solid rgba(255,255,255,0.08);",
-    "  padding: 8px 14px;",
-    "}",
-    ".cb-surface-header {",
-    "  font-size: 9px; font-weight: 600; color: #60A5FA;",
-    "  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;",
-    "}",
-    ".cb-surface-stats {",
-    "  display: flex; gap: 16px;",
-    "}",
-    ".cb-surface-stat {",
-    "  display: flex; flex-direction: column; align-items: center;",
-    "}",
-    ".cb-surface-stat-label {",
-    "  font-size: 9px; color: #555; font-weight: 500; text-transform: uppercase;",
-    "  letter-spacing: 0.03em;",
-    "}",
-    ".cb-surface-stat-value {",
-    "  font-size: 18px; font-weight: 700; color: #F2F2F2;",
-    "}",
-    ".cb-surface-count {",
-    "  font-size: 9px; color: #444; margin-top: 4px; text-align: center;",
     "}"
   ].join("\n");
 })();

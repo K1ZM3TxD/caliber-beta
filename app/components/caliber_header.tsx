@@ -4,6 +4,8 @@ interface CaliberHeaderProps {
   className?: string;
   typedText?: string;
   showCursor?: boolean;
+  compact?: boolean;
+  noGradient?: boolean;
 }
 
 export default function CaliberHeader({ className = "", typedText, showCursor }: CaliberHeaderProps) {
