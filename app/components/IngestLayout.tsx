@@ -28,7 +28,7 @@ export default function IngestLayout({
   return (
     <div
       className="fixed inset-0"
-      style={{ backgroundColor: "#050505" }}
+      style={{ backgroundColor: "#0a0a0a" }}
     >
       {/* Atmospheric green wash — soft diffuse radial behind content zone */}
       <div
