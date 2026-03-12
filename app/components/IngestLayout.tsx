@@ -35,7 +35,7 @@ export default function IngestLayout({
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
+            "radial-gradient(ellipse 120% 65% at 50% 55%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
         }}
       />
       {/* Hero atmosphere — green halo glow BEHIND the surface panel */}
@@ -43,19 +43,19 @@ export default function IngestLayout({
         <div
           className="absolute inset-x-0 pointer-events-none"
           style={{
-            top: "4vh",
-            height: "80vh",
+            top: "14vh",
+            height: "75vh",
             background:
-              "radial-gradient(ellipse 110% 70% at 50% 35%, rgba(74,222,128,0.14) 0%, rgba(74,222,128,0.06) 40%, rgba(74,222,128,0.015) 70%, transparent 100%)",
+              "radial-gradient(ellipse 110% 65% at 50% 42%, rgba(74,222,128,0.14) 0%, rgba(74,222,128,0.06) 40%, rgba(74,222,128,0.015) 70%, transparent 100%)",
           }}
         />
       )}
-      {/* Top darkening — gentle vignette */}
+      {/* Top darkening — extended vignette keeps top 10% calm and dark */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
         style={{
-          height: "30vh",
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
+          height: "38vh",
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 28%, rgba(0,0,0,0.12) 65%, transparent 100%)",
         }}
       />
       {/* Framing line — thin architectural rule above wordmark */}
