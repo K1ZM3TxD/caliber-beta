@@ -43,6 +43,16 @@ export default function IngestLayout({
           background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
         }}
       />
+      {/* Horizon line — thin atmospheric glow behind wordmark */}
+      <div
+        className="absolute inset-x-0 pointer-events-none"
+        style={{
+          top: "calc(22vh + 0.6rem)",
+          height: "6px",
+          background: "radial-gradient(ellipse 50% 100% at 50% 50%, rgba(74,222,128,0.12) 0%, rgba(74,222,128,0.03) 60%, transparent 100%)",
+          filter: "blur(3px)",
+        }}
+      />
       {/* Scrollable content layer */}
       <div className="relative z-10 h-full overflow-y-auto flex justify-center">
         <div
