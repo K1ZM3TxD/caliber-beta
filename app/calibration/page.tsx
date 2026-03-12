@@ -430,7 +430,7 @@ export default function CalibrationPage() {
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
   // Typewriter hooks
-  const [tagline] = useTypewriter("The alignment tool for job calibration.");
+  const [tagline] = useTypewriter("Career Decision Engine.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
