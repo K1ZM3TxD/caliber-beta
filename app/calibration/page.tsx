@@ -8,12 +8,12 @@ import CaliberHeader from "../components/caliber_header";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
-function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, boolean] {
+function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boolean = true): [string, boolean] {
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
     setTyped("");
-    if (!text) return;
+    if (!text || !startWhen) return;
     const timeout = setTimeout(() => {
       const step = () => {
         i++;
@@ -28,8 +28,8 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS): [string, bool
       step();
     }, START_DELAY_MS);
     return () => { clearTimeout(timeout); };
-  }, [text, msPerChar]);
-  return [typed, typed === text];
+  }, [text, msPerChar, startWhen]);
+  return [typed, typed.length > 0 && typed === text];
 }
 
 type AnySession = any;
@@ -427,8 +427,15 @@ export default function CalibrationPage() {
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
-  // Typewriter hooks
-  const [tagline] = useTypewriter("The alignment tool for job calibration.");
+  // Typewriter hooks — CALIBER at half speed, then tagline after 2ms buffer
+  const [caliberTyped, caliberDone] = useTypewriter("Caliber", TYPE_MS * 2);
+  const [taglineReady, setTaglineReady] = useState(false);
+  useEffect(() => {
+    if (!caliberDone) { setTaglineReady(false); return; }
+    const t = setTimeout(() => setTaglineReady(true), 2);
+    return () => clearTimeout(t);
+  }, [caliberDone]);
+  const [tagline] = useTypewriter("Career Decision Engine.", TYPE_MS, taglineReady);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -640,7 +647,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             ) : (
               <div style={{ paddingTop: "clamp(5rem, 16vh, 9rem)", background: "radial-gradient(ellipse 120% 80% at 50% 60%, rgba(74,222,128,0.07), transparent 70%)" }}>
-                <CaliberHeader compact noGradient />
+                <CaliberHeader compact noGradient typedText={step === "LANDING" ? caliberTyped : undefined} />
               </div>
             )}
             {/* Error area */}
