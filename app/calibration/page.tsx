@@ -11,7 +11,7 @@ function Stage({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
       <HeroSurface variant="elevated">
-        <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
+        <div className="text-center">{children}</div>
       </HeroSurface>
     </div>
   );

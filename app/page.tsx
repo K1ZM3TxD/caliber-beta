@@ -6,7 +6,7 @@ export default function HomePage() {
   return (
     <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
       <HeroSurface variant="elevated">
-        <div className="w-full max-w-[720px] px-6 text-center">
+        <div className="text-center">
         <div className="text-xs tracking-[0.35em] opacity-80">
           WELCOME TO
         </div>
