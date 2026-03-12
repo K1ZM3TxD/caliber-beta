@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import TailorPanel from "../components/TailorPanel";
 
 interface PipelineEntry {
   id: string;
@@ -15,6 +14,14 @@ interface PipelineEntry {
   updatedAt: string;
   tailorId?: string;
 }
+
+type TailorPanelStatus =
+  | "loading"
+  | "ready"
+  | "generating"
+  | "done"
+  | "error"
+  | "unavailable";
 
 const BOARD_COLUMNS = [
   { key: "resume_prep", label: "Resume Prep", color: "#4ADE80" },
@@ -39,7 +46,7 @@ function mapStageToColumn(stage: string): string {
     case "interview":
       return "interview";
     case "offer":
-      return "interview"; // show offers in interview column
+      return "interview";
     default:
       return "resume_prep";
   }
@@ -51,12 +58,326 @@ function scoreColor(score: number): string {
   return "#EF4444";
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+   Inline Tailor — Slide-over side panel
+   ──────────────────────────────────────────────────────────────────────── */
+
+function TailorPanel({
+  entry,
+  onClose,
+}: {
+  entry: PipelineEntry;
+  onClose: () => void;
+}) {
+  const [status, setStatus] = useState<TailorPanelStatus>("loading");
+  const [tailoredText, setTailoredText] = useState("");
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setStatus("loading");
+    setTailoredText("");
+    setError("");
+    fetch(`/api/pipeline/tailor?pipelineId=${encodeURIComponent(entry.id)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) {
+          setStatus("error");
+          setError(data.error || "Failed to check tailor status");
+          return;
+        }
+        if (data.status === "done") {
+          setTailoredText(data.tailoredText);
+          setStatus("done");
+        } else if (data.status === "ready") {
+          setStatus("ready");
+        } else {
+          setStatus("unavailable");
+        }
+      })
+      .catch(() => {
+        setStatus("error");
+        setError("Failed to load tailor status");
+      });
+  }, [entry.id]);
+
+  const generate = useCallback(async () => {
+    setStatus("generating");
+    setError("");
+    try {
+      const res = await fetch("/api/pipeline/tailor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pipelineId: entry.id }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Generation failed");
+      setTailoredText(data.tailoredText);
+      setStatus("done");
+    } catch (err: unknown) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Generation failed");
+    }
+  }, [entry.id]);
+
+  const copyToClipboard = useCallback(async () => {
+    if (!tailoredText) return;
+    try {
+      await navigator.clipboard.writeText(tailoredText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard not available */
+    }
+  }, [tailoredText]);
+
+  const download = useCallback(() => {
+    if (!tailoredText) return;
+    const blob = new Blob([tailoredText], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `resume-${entry.company.toLowerCase().replace(/\s+/g, "-")}-${entry.jobTitle.toLowerCase().replace(/\s+/g, "-")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [tailoredText, entry.company, entry.jobTitle]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+      {/* Panel */}
+      <div
+        className="relative w-full max-w-[480px] h-full bg-zinc-950 border-l border-zinc-800 overflow-y-auto"
+        style={{ animation: "cb-slide-in 0.2s ease-out" }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800/60 px-6 py-4 flex items-start justify-between gap-3 z-10">
+          <div className="min-w-0">
+            <h2 className="text-white text-base font-semibold leading-snug truncate">
+              {entry.jobTitle}
+            </h2>
+            <div className="text-zinc-400 text-sm mt-0.5">
+              {entry.company}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            title="Close"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Loading */}
+          {status === "loading" && (
+            <div className="text-center py-8">
+              <div className="cb-spinner mx-auto mb-3" />
+              <p className="text-zinc-500 text-sm">
+                Checking tailor status…
+              </p>
+            </div>
+          )}
+
+          {/* Unavailable */}
+          {status === "unavailable" && (
+            <div className="text-center py-8 space-y-3">
+              <p className="text-zinc-400 text-sm">
+                No job context available for tailoring.
+              </p>
+              <p className="text-zinc-600 text-xs leading-relaxed">
+                Use the Caliber extension on LinkedIn to score this job first —
+                that captures the full job description needed for tailoring.
+              </p>
+            </div>
+          )}
+
+          {/* Ready */}
+          {status === "ready" && (
+            <div className="space-y-4">
+              <p className="text-zinc-400 text-sm leading-relaxed">
+                Caliber rewrites your resume to foreground experience most
+                relevant to this role. Nothing is fabricated — only emphasis,
+                ordering, and language are adjusted.
+              </p>
+              <button
+                onClick={generate}
+                className="w-full py-3 rounded-lg font-semibold text-sm transition-all"
+                style={{
+                  background: "rgba(74,222,128,0.06)",
+                  color: "#4ADE80",
+                  border: "1px solid rgba(74,222,128,0.45)",
+                }}
+              >
+                Generate Tailored Resume
+              </button>
+            </div>
+          )}
+
+          {/* Generating */}
+          {status === "generating" && (
+            <div className="text-center py-8 space-y-3">
+              <div className="cb-spinner mx-auto" />
+              <p className="text-zinc-400 text-sm">
+                Tailoring your resume for{" "}
+                <span className="text-white">{entry.jobTitle}</span> at{" "}
+                <span className="text-white">{entry.company}</span>…
+              </p>
+              <p className="text-zinc-600 text-xs">
+                This usually takes 10–20 seconds
+              </p>
+            </div>
+          )}
+
+          {/* Error */}
+          {status === "error" && (
+            <div className="text-center py-6 space-y-3">
+              <p className="text-red-400 text-sm">{error}</p>
+              <button
+                onClick={generate}
+                className="text-sm text-zinc-400 hover:text-white underline underline-offset-2 transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {/* Done — result + actions */}
+          {status === "done" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                <svg
+                  className="w-4 h-4 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                Resume tailored
+              </div>
+
+              {/* Result preview */}
+              <div className="border border-zinc-800 rounded-lg bg-zinc-900/50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/60">
+                  <span className="text-zinc-500 text-xs font-medium tracking-wide uppercase">
+                    Tailored Resume
+                  </span>
+                  <button
+                    onClick={copyToClipboard}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+                  >
+                    {copied ? (
+                      <>
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="p-4 max-h-[360px] overflow-y-auto">
+                  <pre className="text-zinc-300 text-sm whitespace-pre-wrap font-[family-name:var(--font-geist-sans)] leading-relaxed">
+                    {tailoredText}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Download */}
+              <button
+                onClick={download}
+                className="w-full py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                style={{
+                  background: "rgba(74,222,128,0.06)",
+                  color: "#4ADE80",
+                  border: "1px solid rgba(74,222,128,0.45)",
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                Download Tailored Resume
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Pipeline Board
+   ──────────────────────────────────────────────────────────────────────── */
+
 export default function PipelinePage() {
   const [entries, setEntries] = useState<PipelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const [tailorOpenId, setTailorOpenId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
+  const [tailorEntryId, setTailorEntryId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/pipeline")
@@ -134,7 +455,8 @@ export default function PipelinePage() {
     (e: React.DragEvent, colKey: string) => {
       e.preventDefault();
       setDragOverCol(null);
-      const entryId = e.dataTransfer.getData("text/plain") || dragIdRef.current;
+      const entryId =
+        e.dataTransfer.getData("text/plain") || dragIdRef.current;
       if (!entryId) return;
       const entry = entries.find((en) => en.id === entryId);
       if (!entry) return;
@@ -144,6 +466,11 @@ export default function PipelinePage() {
     },
     [entries, moveToStage]
   );
+
+  // Tailor panel entry
+  const tailorEntry = tailorEntryId
+    ? entries.find((e) => e.id === tailorEntryId) ?? null
+    : null;
 
   // Group entries by board column
   const columns = BOARD_COLUMNS.map((col) => ({
@@ -230,27 +557,52 @@ export default function PipelinePage() {
                 }}
               >
                 {col.entries.map((entry) => {
+                  const isResumePrepCol = col.key === "resume_prep";
                   return (
                     <div
                       key={entry.id}
-                      draggable={tailorOpenId !== entry.id}
+                      draggable
                       onDragStart={(e) => onDragStart(e, entry.id)}
                       onDragEnd={onDragEnd}
-                      className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing"
+                      className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing group"
                     >
-                      {/* Top row: title + fit score */}
+                      {/* Top row: title + score + archive */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="text-white text-sm font-medium leading-snug min-w-0 truncate">
+                        <div className="text-white text-sm font-medium leading-snug min-w-0 truncate flex-1">
                           {entry.jobTitle}
                         </div>
-                        {entry.score > 0 && (
-                          <span
-                            className="text-sm font-bold tabular-nums flex-shrink-0"
-                            style={{ color: scoreColor(entry.score) }}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {entry.score > 0 && (
+                            <span
+                              className="text-sm font-bold tabular-nums"
+                              style={{ color: scoreColor(entry.score) }}
+                            >
+                              {entry.score.toFixed(1)}
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              archive(entry.id);
+                            }}
+                            className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-600 hover:text-red-400 hover:bg-zinc-800/80 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Remove from pipeline"
                           >
-                            {entry.score.toFixed(1)}
-                          </span>
-                        )}
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       <div className="text-zinc-500 text-xs mt-0.5 truncate">
                         {entry.company}
@@ -268,48 +620,48 @@ export default function PipelinePage() {
                             Open job
                           </a>
                         )}
-                        <button
-                          onClick={() =>
-                            setTailorOpenId(
-                              tailorOpenId === entry.id ? null : entry.id
-                            )
-                          }
-                          className="text-[11px] font-medium transition-colors underline underline-offset-2"
-                          style={{ color: "#4ADE80" }}
-                        >
-                          Tailor resume
-                        </button>
-                        <button
-                          onClick={() => archive(entry.id)}
-                          className="ml-auto flex-shrink-0 w-7 h-7 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-600 hover:text-red-400 transition-colors"
-                          title="Archive"
-                          aria-label={`Archive ${entry.jobTitle}`}
-                        >
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
+                        {isResumePrepCol && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTailorEntryId(entry.id);
+                            }}
+                            className="text-[11px] font-medium transition-colors ml-auto flex items-center gap-1"
+                            style={{
+                              color: entry.tailorId
+                                ? "#4ADE80"
+                                : "rgba(74,222,128,0.7)",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLElement).style.color =
+                                "#4ADE80";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLElement).style.color =
+                                entry.tailorId
+                                  ? "#4ADE80"
+                                  : "rgba(74,222,128,0.7)";
+                            }}
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                            {entry.tailorId
+                              ? "View tailored"
+                              : "Tailor resume"}
+                          </button>
+                        )}
                       </div>
-
-                      {/* Inline tailor panel */}
-                      {tailorOpenId === entry.id && (
-                        <TailorPanel
-                          entryId={entry.id}
-                          jobTitle={entry.jobTitle}
-                          company={entry.company}
-                          onClose={() => setTailorOpenId(null)}
-                        />
-                      )}
                     </div>
                   );
                 })}
@@ -333,6 +685,17 @@ export default function PipelinePage() {
         </a>
       </div>
 
+      {/* Inline tailor slide-over panel */}
+      {tailorEntry && (
+        <TailorPanel
+          entry={tailorEntry}
+          onClose={() => {
+            setTailorEntryId(null);
+            load();
+          }}
+        />
+      )}
+
       <style jsx>{`
         .cb-spinner {
           width: 28px;
@@ -345,6 +708,14 @@ export default function PipelinePage() {
         @keyframes cb-spin {
           to {
             transform: rotate(360deg);
+          }
+        }
+        @keyframes cb-slide-in {
+          from {
+            transform: translateX(100%);
+          }
+          to {
+            transform: translateX(0);
           }
         }
       `}</style>
