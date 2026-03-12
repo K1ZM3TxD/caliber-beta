@@ -604,36 +604,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
   return (
     <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: '#050505' }}>
-      {/* Atmospheric top spotlight gradient */}
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0"
-        style={{
-          height: "42vh",
-          background: step === "TITLES"
-            ? "radial-gradient(ellipse 110% 80% at 50% 0%, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 45%, transparent 72%)"
-            : "radial-gradient(ellipse 110% 80% at 50% 0%, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.022) 45%, transparent 72%)",
-          zIndex: 0,
-        }}
-      />
-      {/* Definition line — strongest at center, fades at edges */}
-      <div
-        className="pointer-events-none fixed inset-x-0"
-        style={{
-          top: "40vh",
-          height: "1px",
-          background: "linear-gradient(90deg, transparent 5%, rgba(74,222,128,0.07) 30%, rgba(74,222,128,0.11) 50%, rgba(74,222,128,0.07) 70%, transparent 95%)",
-          zIndex: 0,
-        }}
-      />
-      {/* Top darkening vignette */}
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0"
-        style={{
-          height: "35vh",
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 30%, rgba(0,0,0,0.08) 65%, transparent 100%)",
-          zIndex: 0,
-        }}
-      />
+      {/* Spotlight band — 3-layer gradient stack via pseudo-elements */}
+      <div className="cb-hero-atmosphere" />
       <div className={`relative z-10 w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[32vh]" : "pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -644,8 +616,70 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
+
+          /* Hero spotlight band — 3-layer stack */
+          .cb-hero-atmosphere {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+          }
+          /* Layer 1: Soft atmospheric glow */
+          .cb-hero-atmosphere::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+              radial-gradient(
+                120% 55% at 50% 24%,
+                rgba(34, 197, 94, 0.18) 0%,
+                rgba(34, 197, 94, 0.10) 22%,
+                rgba(34, 197, 94, 0.04) 42%,
+                rgba(34, 197, 94, 0.00) 68%
+              );
+          }
+          /* Layer 2: Definition line + Layer 3: Downward fade */
+          .cb-hero-atmosphere::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 24%;
+            height: 140px;
+            background:
+              linear-gradient(
+                to bottom,
+                rgba(255,255,255,0.00) 0%,
+                rgba(210,255,225,0.10) 10%,
+                rgba(74, 222, 128, 0.16) 12%,
+                rgba(255,255,255,0.08) 13%,
+                rgba(255,255,255,0.00) 18%,
+                rgba(5,5,5,0.00) 35%,
+                rgba(5,5,5,0.60) 62%,
+                rgba(5,5,5,0.92) 100%
+              );
+            mask-image:
+              radial-gradient(
+                140% 100% at 50% 50%,
+                black 0%,
+                black 56%,
+                rgba(0,0,0,0.75) 72%,
+                rgba(0,0,0,0.25) 86%,
+                transparent 100%
+              );
+            -webkit-mask-image:
+              radial-gradient(
+                140% 100% at 50% 50%,
+                black 0%,
+                black 56%,
+                rgba(0,0,0,0.75) 72%,
+                rgba(0,0,0,0.25) 86%,
+                transparent 100%
+              );
+          }
         `}</style>
-        {/* Full-bleed atmospheric gradient — top spotlight band */}
+        {/* Hero content */}
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
@@ -673,7 +707,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.12em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.16em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
