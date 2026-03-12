@@ -27,7 +27,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
       >
-        <div className="min-h-screen flex items-center justify-center px-6">
+        {/* Page-level atmospheric band — single continuous glow behind all content */}
+        <div
+          aria-hidden
+          className="fixed inset-0 pointer-events-none z-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 160% 45% at 50% 38%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.025) 40%, transparent 70%)",
+          }}
+        />
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
           <div className="w-full max-w-[600px]">
             {children}
           </div>

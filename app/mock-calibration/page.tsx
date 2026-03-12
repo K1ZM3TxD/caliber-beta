@@ -31,7 +31,7 @@ export default function MockCalibrationPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-[#0B0B0B] flex items-center justify-center overflow-hidden">
+    <div className="fixed inset-0 flex items-center justify-center overflow-hidden">
       <div className="w-full max-w-[720px] px-6">
         <div className="relative min-h-[560px]">
           <div

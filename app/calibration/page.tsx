@@ -8,7 +8,7 @@ type NormalizedError = { code: string; message: string };
 
 function Stage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 w-screen h-[100svh] bg-[#0B0B0B] text-[#F2F2F2] flex items-center justify-center">
+    <div className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
       <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
     </div>
   );

@@ -3,7 +3,7 @@ import Link from "next/link"
 
 export default function HomePage() {
   return (
-    <main className="fixed inset-0 w-screen h-[100svh] bg-[#0B0B0B] text-[#F2F2F2] flex items-center justify-center">
+    <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
       <div className="w-full max-w-[720px] px-6 text-center">
         <div className="text-xs tracking-[0.35em] opacity-80">
           WELCOME TO
