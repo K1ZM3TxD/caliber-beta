@@ -3,7 +3,7 @@ import Link from "next/link"
 
 export default function HomePage() {
   return (
-    <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
+    <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center" style={{ background: "blue" }}>
       {/* Layer 3: Hero surface plane — diagnostic: intentionally visible */}
       <div
         aria-hidden
