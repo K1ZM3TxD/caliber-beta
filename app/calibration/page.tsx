@@ -627,14 +627,24 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
-        {/* Full-bleed atmospheric gradient — viewport edge to edge */}
+        {/* Full-bleed atmospheric gradient — top spotlight band */}
         <div
           className="fixed top-0 left-0 right-0 pointer-events-none"
           style={{
-            height: step === "TITLES" ? "40vh" : "45vh",
+            height: step === "TITLES" ? "38vh" : "40vh",
             background: step === "TITLES"
-              ? "radial-gradient(ellipse 120% 60% at 50% 20%, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.06) 30%, rgba(34,197,94,0.02) 55%, transparent 75%)"
-              : "radial-gradient(ellipse 90% 50% at 50% 25%, rgba(74,222,128,0.055), transparent 65%)",
+              ? "radial-gradient(ellipse 100% 90% at 50% 0%, rgba(34,197,94,0.13) 0%, rgba(34,197,94,0.05) 40%, transparent 70%)"
+              : "radial-gradient(ellipse 100% 90% at 50% 0%, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.025) 45%, transparent 70%)",
+            zIndex: 0,
+          }}
+        />
+        {/* Lightweight definition line — fades at far ends */}
+        <div
+          className="fixed left-0 right-0 pointer-events-none"
+          style={{
+            top: step === "TITLES" ? "36vh" : "38vh",
+            height: "1px",
+            background: "linear-gradient(90deg, transparent 5%, rgba(74,222,128,0.08) 30%, rgba(74,222,128,0.12) 50%, rgba(74,222,128,0.08) 70%, transparent 95%)",
             zIndex: 0,
           }}
         />
@@ -675,7 +685,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "1.5em" }} className="mt-8">
-                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.08em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.14em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
