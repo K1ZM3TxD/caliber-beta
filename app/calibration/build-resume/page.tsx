@@ -9,7 +9,7 @@ export default function BuildResumePage() {
       className="fixed inset-0 flex justify-center overflow-y-auto"
       style={{
         background:
-          "radial-gradient(ellipse 70% 30% at 50% 55%, rgba(74,222,128,0.045), transparent), #050505",
+          "linear-gradient(to bottom, #050505 0%, #050505 12%, transparent 28%), radial-gradient(ellipse 80% 45% at 50% 50%, rgba(74,222,128,0.07), transparent), #050505",
       }}
     >
     <div

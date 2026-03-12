@@ -598,7 +598,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 30% at 50% 55%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
+    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'linear-gradient(to bottom, #050505 0%, #050505 12%, transparent 28%), radial-gradient(ellipse 80% 45% at 50% 50%, rgba(74,222,128,0.09) 0%, transparent 100%), #050505' }}>
       <div className={`w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[25vh]" : "pt-[20vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
