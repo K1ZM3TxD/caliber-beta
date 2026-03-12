@@ -9,17 +9,7 @@ type NormalizedError = { code: string; message: string };
 function Stage({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
-      {/* Hero surface — subtle depth lift */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 pointer-events-none"
-        style={{
-          top: "20%",
-          bottom: "20%",
-          background: "var(--bg-hero-surface)",
-        }}
-      />
-      <div className="relative w-full max-w-[720px] px-6 text-center">{children}</div>
+      <div className="w-full max-w-[720px] px-6 text-center">{children}</div>
     </div>
   );
 }
