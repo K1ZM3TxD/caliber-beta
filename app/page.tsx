@@ -13,8 +13,8 @@ export default function HomePage() {
           Caliber
         </h1>
 
-        <p className="mt-4 text-base sm:text-lg opacity-90">
-          The alignment tool for job calibration.
+        <p className="mt-4 text-base sm:text-lg opacity-90 tracking-[0.06em]">
+          Career Decision Engine.
         </p>
 
         <div className="mt-8 flex items-center justify-center">
