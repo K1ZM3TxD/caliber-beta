@@ -79,6 +79,37 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-11 — UX Task Contract: UI Constitution + Layout Skeleton Required
+
+**What changed:**
+- PM-to-coder UX handoffs were allowing visual drift because shared visual rules were not attached as a required contract. Repeated regressions showed that AI coders need explicit shared visual primitives, not only local page instructions.
+- A new mandatory PM operating rule has been added: every UX/UI coder task must include the governing UI Constitution (`docs/ui-constitution.md`). Layout/composition tasks must additionally include the Layout Skeleton (`docs/layout-skeleton.md`).
+- Two canonical artifacts formalized: UI Constitution (visual primitives) and Layout Skeleton (page composition rules).
+
+**Why it changed:**
+- Visual drift accumulated from under-specified UX handoffs. Coders were implementing UI changes without a shared visual contract, leading to per-page style divergence that required repeated correction passes.
+
+**What is now expected:**
+- PM attaches or explicitly references `docs/ui-constitution.md` on every UX/UI coder task.
+- PM attaches or explicitly references `docs/layout-skeleton.md` on every layout/composition task (in addition to the UI Constitution).
+- Coder rejects any UX/UI task missing the UI Constitution reference.
+- Coder rejects any layout/composition task missing both references.
+- UX tasks are never issued as local visual patches without the governing ruleset.
+
+**What is explicitly no longer expected:**
+- UX/UI coder tasks issued with only local page-level styling instructions.
+- Coders implementing visual changes without a shared primitives contract.
+- PM treating shared visual rules as optional or "recommended when helpful."
+
+**Risk / fallout:**
+- Risk is low — this is additive process enforcement, not a code change.
+- If PM forgets to attach the references, coder is required to reject the task, which may slow handoff until the habit is established.
+
+**Proof target:**
+- Next UX/UI coder task includes explicit UI Constitution reference. Next layout task includes both. Visual drift is reduced compared to prior sessions.
+
+**Files touched:** Bootstrap/PM_bootstrap.md, Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md, Bootstrap/CALIBER_ISSUES_LOG.md, Bootstrap/kernel.md, docs/ui-constitution.md, docs/layout-skeleton.md
+
 ### 2026-03-11 — Calibration Result Copy Structure
 
 **What changed:**

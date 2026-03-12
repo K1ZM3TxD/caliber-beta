@@ -399,6 +399,17 @@ Strong-fit jobs may trigger an action workflow. This invariant constrains what a
 - The job pipeline must remain intentionally minimal. Anti-CRM by design.
 - Pipeline is NOT a CRM. No subtasks, no notes fields, no timeline features, no due dates. If it gains these, the design has failed.
 
+## UX Shared-Primitives Invariant (2026-03-11)
+
+UI changes must be governed by documented shared primitives. PM UX tasks may not rely on local page-only styling instructions.
+
+- Every UX/UI coder task must reference the UI Constitution (`docs/ui-constitution.md`). This is mandatory, not optional.
+- Every layout/composition task must additionally reference the Layout Skeleton (`docs/layout-skeleton.md`).
+- Coder must reject UX/UI tasks that do not include the required visual-contract references.
+- The UI Constitution defines visual primitives (text tokens, surface tokens, spacing rhythm, interaction boundaries). The Layout Skeleton defines page composition (zones, reserved heights, transition stability, vertical rhythm).
+- These two documents are complementary: the Constitution governs primitives, the Skeleton governs composition.
+- UX tasks issued without shared-primitives governance are a process regression.
+
 ## Shell Framework Invariant (2026-03-11)
 
 Do not declare a layout framework canonical until a single owner exists for gradient placement, hero offset, and content width.

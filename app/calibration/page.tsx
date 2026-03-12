@@ -705,7 +705,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             style={{
                               backgroundColor: "rgba(255,255,255,0.08)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(255,255,255,0.12)",
+                              border: "1px solid rgba(255,255,255,0.18)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -799,7 +799,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       style={{
                         backgroundColor: "rgba(255,255,255,0.06)",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(255,255,255,0.13)",
+                        border: "1px solid rgba(255,255,255,0.18)",
                         boxShadow: "none",
                         opacity: 1,
                         fontSize: "1em",

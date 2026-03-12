@@ -3,6 +3,15 @@
 
 ## Current Open Issues
 
+53. Visual drift from under-specified PM UX handoffs — **MITIGATED** (2026-03-11)
+  - PM-to-coder UX tasks were issued without shared visual primitives, relying on local page-level styling instructions only.
+  - Result: repeated visual drift and regressions requiring correction passes after each UX implementation.
+  - Root cause: no mandatory contract requiring shared visual rules on UX handoffs.
+  - Mitigation: process contract added — UI Constitution (`docs/ui-constitution.md`) is now mandatory for all UX/UI coder tasks; Layout Skeleton (`docs/layout-skeleton.md`) is additionally mandatory for layout/composition tasks.
+  - PM operating rule added to `Bootstrap/PM_bootstrap.md`; durable invariant added to `Bootstrap/kernel.md`.
+  - Coder must reject UX tasks missing the required references.
+  - Status: process fix documented and enforced. Effectiveness to be verified on next UX coder task.
+
 52. Pipeline dashboard lacked direct action workflow — **RESOLVED** (2026-03-11)
   - Users were forced to leave the pipeline dashboard to tailor resumes (redirected to /tailor).
   - Archive (X) control was too small for reliable click/touch targeting.

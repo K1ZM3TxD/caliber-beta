@@ -1,5 +1,25 @@
 ---
 
+BREAK + UPDATE — 2026-03-11 (UX Task Contract: UI Constitution + Layout Skeleton Required)
+---
+DONE:
+- Identified UX task under-specification as a process break causing repeated visual drift
+- Formalized UI Constitution (`docs/ui-constitution.md`) as mandatory attachment for all UX/UI coder tasks
+- Formalized Layout Skeleton (`docs/layout-skeleton.md`) as mandatory attachment for layout/composition tasks
+- Added mandatory PM operating rule to `Bootstrap/PM_bootstrap.md` under coder handoff rules
+- Promoted UX shared-primitives governance to durable enforcement invariant in `Bootstrap/kernel.md`
+- Logged process issue in `Bootstrap/CALIBER_ISSUES_LOG.md`
+
+BLOCKED:
+- Constitution and skeleton docs need to be adopted in live PM handoffs (first real usage pending)
+
+NEXT:
+- Use UI Constitution + Layout Skeleton references in the next UX/UI coder task
+- Verify reduced visual drift compared to prior sessions
+- Refine constitution/skeleton content based on first adoption cycle
+
+---
+
 BREAK + UPDATE — 2026-03-11 (Pipeline Dashboard Inline Tailor)
 ---
 DONE:
