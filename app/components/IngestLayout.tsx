@@ -27,15 +27,15 @@ export default function IngestLayout({
       className="fixed inset-0"
       style={{ backgroundColor: "#050505" }}
     >
-      {/* Atmospheric green wash — single diffuse radial, centered behind content zone */}
+      {/* Atmospheric green wash — soft diffuse radial behind content zone */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.055) 0%, rgba(74,222,128,0.015) 50%, transparent 80%)",
+            "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
         }}
       />
-      {/* Top darkening — gentle vignette, not a hard band */}
+      {/* Top darkening — gentle vignette */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
         style={{
@@ -43,14 +43,13 @@ export default function IngestLayout({
           background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
         }}
       />
-      {/* Framing wash — very diffuse, broad glow at wordmark altitude */}
+      {/* Framing line — thin architectural rule above wordmark */}
       <div
         className="absolute inset-x-0 pointer-events-none"
         style={{
-          top: "18vh",
-          height: "14vh",
-          background:
-            "radial-gradient(ellipse 90% 100% at 50% 50%, rgba(74,222,128,0.025) 0%, transparent 70%)",
+          top: "calc(22vh - 0.5rem)",
+          height: "1px",
+          background: "linear-gradient(to right, transparent 15%, rgba(74,222,128,0.18) 40%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.18) 60%, transparent 85%)",
         }}
       />
       {/* Scrollable content layer */}
