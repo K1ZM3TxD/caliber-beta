@@ -599,7 +599,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
   return (
     <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 35% at 50% 45%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
-      <div className={`w-full max-w-[760px] px-6 ${step === "TITLES" ? "pt-[10vh] pb-16" : "my-auto pt-[10vh]"}`}>
+      <div className={`w-full max-w-[760px] px-6 ${step === "TITLES" ? "pt-[25vh] pb-16" : "my-auto pt-[10vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -934,7 +934,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Two-sentence context → market translation */}
                 <div className="cb-reveal mb-6 text-center">
-                  <p className="text-base sm:text-lg leading-relaxed mb-4" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
+                  <p className="text-base sm:text-lg leading-relaxed mb-1.5" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
                     {resultCopy.contextSentence}
                   </p>
                   <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>

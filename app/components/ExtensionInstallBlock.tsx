@@ -39,19 +39,6 @@ export default function ExtensionInstallBlock({ calibratedTitle }: ExtensionInst
       {/* Install instructions + LinkedIn CTA — revealed on button click */}
       {showInstall && (
         <div className="cb-reveal">
-          {/* Download link */}
-          <div className="text-center mb-4">
-            <a
-              href={EXTENSION_ZIP_PATH}
-              download
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors duration-200"
-              style={{ color: "#4ADE80" }}
-            >
-              <span>{"\u2B07"}</span>
-              <span>Download ZIP</span>
-            </a>
-          </div>
-
           {/* Compact install instructions */}
           <div
             className="rounded-lg px-5 py-4 mb-5 text-left"
@@ -64,7 +51,15 @@ export default function ExtensionInstallBlock({ calibratedTitle }: ExtensionInst
               Install in 30 seconds
             </div>
             <ol className="space-y-1.5 text-[13px] list-decimal list-inside" style={{ color: "#999" }}>
-              <li>Download the ZIP above and unzip it.</li>
+              <li>
+                <a
+                  href={EXTENSION_ZIP_PATH}
+                  download
+                  className="font-medium transition-colors duration-200"
+                  style={{ color: "#4ADE80" }}
+                >Download the ZIP</a>{" "}
+                and unzip it.
+              </li>
               <li>
                 Open{" "}
                 <code
