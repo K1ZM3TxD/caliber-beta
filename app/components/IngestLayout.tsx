@@ -72,7 +72,7 @@ export default function IngestLayout({
         <div
           className="absolute inset-x-0 pointer-events-none"
           style={{
-            top: "16vh",
+            top: "1vh",
             bottom: 0,
             background:
               "linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 35%, #080808 55%, rgba(6,6,6,0.6) 78%, rgba(5,5,5,0) 100%)",
