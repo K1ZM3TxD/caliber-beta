@@ -4,7 +4,16 @@ import Link from "next/link"
 export default function HomePage() {
   return (
     <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
-      <div className="w-full max-w-[720px] px-6 text-center">
+      {/* Hero surface — lifted dark value for depth separation from page base */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 100% 60% at 50% 48%, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.02) 40%, transparent 72%)",
+        }}
+      />
+      <div className="relative w-full max-w-[720px] px-6 text-center">
         <div className="text-xs tracking-[0.35em] opacity-80">
           WELCOME TO
         </div>
