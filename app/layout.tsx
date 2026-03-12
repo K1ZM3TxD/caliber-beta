@@ -26,25 +26,25 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-white`}
-        style={{ background: "radial-gradient(ellipse 80% 45% at 50% 0%, rgba(74,222,128,0.05), transparent 70%) no-repeat, #050505" }}
+        style={{ background: "#050505" }}
       >
-        {/* Atmospheric green wash — soft diffuse radial behind content zone */}
+        {/* Layer 1: Broad green atmospheric wash */}
         <div
           aria-hidden
           className="fixed inset-0 pointer-events-none z-[1]"
           style={{
             background:
-              "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
+              "radial-gradient(ellipse 140% 80% at 50% 32%, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.025) 45%, transparent 78%)",
           }}
         />
-        {/* Top darkening — gentle vignette */}
+        {/* Layer 2: Top darkening — sculpts the wash into depth */}
         <div
           aria-hidden
           className="fixed inset-x-0 top-0 pointer-events-none z-[2]"
           style={{
-            height: "30vh",
+            height: "100vh",
             background:
-              "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
+              "linear-gradient(to bottom, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.18) 38%, rgba(0,0,0,0.06) 62%, transparent 100%)",
           }}
         />
         {/* Framing line — thin architectural rule */}
