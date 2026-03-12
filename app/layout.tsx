@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-white`}
-        style={{ background: "#050505" }}
+        style={{ background: "red" }}
       >
         {/* Layer 1: Broad green atmospheric wash */}
         <div
