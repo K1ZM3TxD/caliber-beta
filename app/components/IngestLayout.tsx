@@ -8,6 +8,8 @@ interface IngestLayoutProps {
   extendedTop?: boolean;
   /** Override max-width (default 760px) */
   maxWidth?: string;
+  /** Show the hero surface band behind the content zone */
+  showHeroSurface?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export default function IngestLayout({
   children,
   extendedTop = false,
   maxWidth = "760px",
+  showHeroSurface = false,
 }: IngestLayoutProps) {
   return (
     <div
@@ -52,6 +55,21 @@ export default function IngestLayout({
           background: "linear-gradient(to right, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.20) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.20) 65%, rgba(74,222,128,0.10) 100%)",
         }}
       />
+      {/* Hero surface band — visible wide panel behind hero content */}
+      {showHeroSurface && (
+        <div
+          className="absolute inset-x-0 pointer-events-none"
+          style={{
+            top: "16vh",
+            height: "52vh",
+            background: "#222226",
+            borderTop: "1.5px solid rgba(255,255,255,0.20)",
+            borderBottom: "1.5px solid rgba(255,255,255,0.20)",
+            boxShadow:
+              "0 0 80px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(255,255,255,0.04)",
+          }}
+        />
+      )}
       {/* Scrollable content layer */}
       <div className="relative z-10 h-full overflow-y-auto flex justify-center">
         <div

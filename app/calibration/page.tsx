@@ -599,7 +599,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <IngestLayout extendedTop={step === "TITLES"}>
+    <IngestLayout extendedTop={step === "TITLES"} showHeroSurface={step === "LANDING"}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
