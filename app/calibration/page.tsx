@@ -667,7 +667,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div style={{ minHeight: "3.6em", lineHeight: 1.4 }}>
-                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
+                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: '#CFCFCF', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
                 <div className="mt-6 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
@@ -780,7 +780,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       <span className="ml-2">Loading…</span>
                     </span>
                   ) : (
-                    <span style={{ opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
+                    <span style={{ color: "#CFCFCF", opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
                   )}
                 </div>
                 {/* Remove "Prompt X of 5" line */}
