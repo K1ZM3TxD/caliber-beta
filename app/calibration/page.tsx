@@ -7,6 +7,7 @@ import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import { generateCalibrationResultCopyFromSession } from "@/lib/calibration_result_copy";
 import CaliberHeader from "../components/caliber_header";
 import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
+import IngestLayout from "../components/IngestLayout";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -598,8 +599,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'linear-gradient(to bottom, #050505 0%, #050505 15%, transparent 38%), radial-gradient(ellipse 80% 45% at 50% 55%, rgba(74,222,128,0.09) 0%, transparent 100%), #050505' }}>
-      <div className={`w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[30vh]" : "pt-[20vh]"}`}>
+    <IngestLayout extendedTop={step === "TITLES"}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -1002,7 +1002,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
           </div>
         </div>
-      </div>
-    </div>
+    </IngestLayout>
   );
 }

@@ -2,19 +2,12 @@
 
 import Link from "next/link";
 import CaliberHeader from "../../components/caliber_header";
+import IngestLayout from "../../components/IngestLayout";
 
 export default function BuildResumePage() {
   return (
-    <div
-      className="fixed inset-0 flex justify-center overflow-y-auto"
-      style={{
-        background:
-          "linear-gradient(to bottom, #050505 0%, #050505 15%, transparent 38%), radial-gradient(ellipse 80% 45% at 50% 55%, rgba(74,222,128,0.07), transparent), #050505",
-      }}
-    >
-    <div
-      className="w-full max-w-[600px] px-6 pt-[20vh] pb-16 text-center flex flex-col items-center"
-    >
+    <IngestLayout maxWidth="600px">
+    <div className="text-center flex flex-col items-center">
       <CaliberHeader className="mb-8" />
 
       <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white mb-4">
@@ -38,6 +31,6 @@ export default function BuildResumePage() {
         Back to Upload
       </Link>
     </div>
-    </div>
+    </IngestLayout>
   );
 }
