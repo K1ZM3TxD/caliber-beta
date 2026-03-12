@@ -4,10 +4,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
-import { generateCalibrationResultCopyFromSession } from "@/lib/calibration_result_copy";
 import CaliberHeader from "../components/caliber_header";
-import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
-import IngestLayout from "../components/IngestLayout";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -431,7 +428,7 @@ export default function CalibrationPage() {
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
   // Typewriter hooks
-  const [tagline] = useTypewriter("Career Decision Engine.");
+  const [tagline] = useTypewriter("The alignment tool for job calibration.");
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -599,45 +596,70 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <IngestLayout extendedTop={step === "TITLES"} showHeroSurface={step === "LANDING"}>
+    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: '#050505' }}>
+      {/* Full-bleed ambient gradient band — visible behind hero on entry pages */}
+      {step !== "TITLES" && (
+        <div
+          className="pointer-events-none fixed inset-x-0"
+          style={{
+            top: 0,
+            height: "60vh",
+            background: "radial-gradient(ellipse 160% 55% at 50% 38%, rgba(34,197,94,0.22) 0%, rgba(34,197,94,0.12) 30%, rgba(34,197,94,0.04) 55%, transparent 72%)",
+            zIndex: 0,
+          }}
+        />
+      )}
+      <div className="relative z-10 w-full max-w-[760px] px-6 pb-16">
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
-          .cb-dropzone:hover { border-color: rgba(255,255,255,0.30) !important; background-color: rgba(255,255,255,0.03) !important; }
+          .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
-            {/* Static header area */}
-            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step === "TITLES" ? (
-                <div className="flex items-center gap-2 mb-1">
+            {/* Zone 1 — Brand / Status field */}
+            {step === "TITLES" ? (
+              <div
+                className="relative w-full flex flex-col items-center justify-center text-center"
+                style={{
+                  height: "20vh",
+                  minHeight: 140,
+                  background:
+                    "radial-gradient(ellipse 120% 70% at 50% 50%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.09) 35%, rgba(34,197,94,0.03) 60%, transparent 80%)",
+                }}
+              >
+                <div className="flex items-center gap-2">
                   <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
-              ) : (
-                <CaliberHeader />
-              )}
-              {/* Fixed-height error area */}
-              <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
+              </div>
+            ) : (
+              <div style={{ paddingTop: "clamp(5rem, 16vh, 9rem)", background: "radial-gradient(ellipse 120% 80% at 50% 60%, rgba(74,222,128,0.07), transparent 70%)" }}>
+                <CaliberHeader compact noGradient />
+              </div>
+            )}
+            {/* Error area */}
+            {step !== "TITLES" && (
+              <div style={{ minHeight: "2.2em" }}>
                 {error ? (
                   <div className="mt-2 text-sm rounded-md px-3 py-2" style={{ background: "#2A0F0F", color: "#FFD1D1" }}>
                     {error}
                   </div>
                 ) : null}
               </div>
-            </div>
+            )}
 
 
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
-                <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                <div style={{ minHeight: "1.5em" }} className="mt-8">
+                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
@@ -666,15 +688,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "3.6em", lineHeight: 1.4 }}>
-                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: '#CFCFCF', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
+                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
+                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
                 <div className="mt-6 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(255,255,255,0.18)",
+                        border: "1px dashed rgba(255,255,255,0.08)",
                         backgroundColor: selectedFile ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
@@ -705,7 +727,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             style={{
                               backgroundColor: "rgba(255,255,255,0.08)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(255,255,255,0.18)",
+                              border: "1px solid rgba(255,255,255,0.12)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -732,11 +754,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           </button>
                         </div>
                       )}
-                      {!selectedFile && <span className="absolute bottom-2 left-0 right-0 text-center text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>}
+                      <span className="absolute bottom-2 left-0 right-0 text-center text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>
                     </div>
                   </div>
                 </div>
-                <div className="mt-5">
+                <div className="mt-5 flex justify-center">
                   <button
                     type="button"
                     onClick={submitResume}
@@ -773,14 +795,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "PROMPT" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 {/* Prompt question container, smaller font, more breathing room */}
-                <div style={{ minHeight: "4em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
                       <Spinner />
                       <span className="ml-2">Loading…</span>
                     </span>
                   ) : (
-                    <span style={{ color: "#CFCFCF", opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
+                    <span style={{ opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
                   )}
                 </div>
                 {/* Remove "Prompt X of 5" line */}
@@ -799,7 +821,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       style={{
                         backgroundColor: "rgba(255,255,255,0.06)",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(255,255,255,0.18)",
+                        border: "1px solid rgba(255,255,255,0.13)",
                         boxShadow: "none",
                         opacity: 1,
                         fontSize: "1em",
@@ -913,55 +935,138 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 1);
 
               const heroTitle = titlesToRender[0] ?? null;
+              const heroExpanded = expandedTitleIdx === 0;
               const heroRawBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3 : [];
               const heroValidBullets = heroRawBullets.filter((b: string) => b && b.trim());
               const heroHasBullets = heroValidBullets.length > 0;
               const heroSummaryText: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
               const heroHasSummary = heroSummaryText.length > 0;
-
-              // Confidence-banded result copy from canonical scoring
-              const resultCopy = generateCalibrationResultCopyFromSession(session);
+              const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
-              <div className="w-full max-w-2xl pb-8">
+              <div className="w-full max-w-3xl pb-8">
+                {/* Section heading */}
+                <div className="mb-3 flex flex-col items-center">
+                  <h2 className="text-base sm:text-lg font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title suggestion for your pattern</h2>
+                  {archetypeLabel ? (
+                    <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
+                  ) : null}
+                </div>
 
                 {/* Fallback: no title available */}
-                {!heroTitle && resultCopy.band !== "weak" ? (
+                {!heroTitle ? (
                   <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "rgba(255,255,255,0.025)", color: "#AFAFAF", border: "1px solid rgba(255,255,255,0.05)" }}>
                     Your title recommendation is still being generated.
                   </div>
                 ) : null}
 
-                {/* Two-sentence context → market translation */}
-                <div className="cb-reveal mb-3 text-center">
-                  <p className="text-base sm:text-lg leading-relaxed mb-0.5" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
-                    {resultCopy.contextSentence}
-                  </p>
-                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(207,207,207,0.85)", fontWeight: 300, letterSpacing: "0.01em" }}>
-                    {resultCopy.marketLabelSentence}
-                  </p>
-                </div>
-
-                {/* Hero title — horizontal glow band */}
+                {/* Hero title card */}
                 {heroTitle ? (
                   <div
-                    className="cb-reveal w-full py-8 sm:py-10 text-center"
+                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
-                      animationDelay: "0.15s",
-                      background: "radial-gradient(ellipse 100% 80% at 50% 50%, rgba(74,222,128,0.06) 0%, transparent 100%)",
+                      animation: "cb-title-enter 0.35s ease-out 0.15s both",
+                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
+                      border: heroExpanded ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)",
+                    }}
+                    onClick={() => {
+                      if (!heroCanExpand) return;
+                      setExpandedTitleIdx(heroExpanded ? null : 0);
                     }}
                   >
-                    <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
+                    <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
+                      <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
+                      <div className="flex items-center justify-center gap-4 mt-5">
+                        <a
+                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:brightness-110"
+                          style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.22)", textDecoration: "none", whiteSpace: "nowrap" }}
+                        >Search on LinkedIn</a>
+                        {heroCanExpand ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
+                            className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
+                            style={{ background: "rgba(251,191,36,0.08)", color: heroExpanded ? "#999" : "#FBBF24", border: "1px solid rgba(251,191,36,0.18)", whiteSpace: "nowrap", cursor: "pointer" }}
+                          >
+                            {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Expanded content */}
+                    {heroExpanded && heroCanExpand ? (
+                      <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
+                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                          <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>Your pattern matches on 4 core signals.</p>
+                          {heroHasBullets ? (
+                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
+                              {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
+                            </ul>
+                          ) : null}
+                          {heroHasSummary ? (
+                            <p className="text-[13px] leading-relaxed" style={{ color: "#999" }}>{heroSummaryText}</p>
+                          ) : null}
+                        </div>
+                        {/* Search actions */}
+                        <div className="flex items-center gap-2 mt-3">
+                          <a
+                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
+                          >Search on LinkedIn</a>
+                          <a
+                            href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
+                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
+                          >Search on Indeed</a>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
-                {/* Inline extension install block */}
-                <div className="cb-reveal mt-6" style={{ animationDelay: "0.35s" }}>
-                  <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} />
+                {/* Extension CTA — supporting section */}
+                <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
+                  <div
+                    className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(74,222,128,0.025) 0%, transparent 100%)",
+                      border: "1px solid rgba(74,222,128,0.06)",
+                    }}
+                  >
+                    <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
+                    <a
+                      href="/extension"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      style={{
+                        background: "rgba(74,222,128,0.06)",
+                        color: "#4ADE80",
+                        cursor: "pointer",
+                        minWidth: 180,
+                        border: "1px solid rgba(74,222,128,0.45)",
+                        boxShadow: "none",
+                      }}
+                    >
+                      <span>Get the Extension</span>
+                      <span style={{ fontSize: "1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
+                    </a>
+                    <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
+                  </div>
                 </div>
 
                 {/* How we score this — integrated philosophy */}
-                <div className="cb-reveal mt-3" style={{ animationDelay: "0.5s" }}>
+                <div className="mt-3">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
@@ -1002,6 +1107,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
           </div>
         </div>
-    </IngestLayout>
+      </div>
+    </div>
   );
 }
