@@ -27,47 +27,20 @@ export default function IngestLayout({
       className="fixed inset-0"
       style={{ backgroundColor: "#050505" }}
     >
-      {/* Layer 1 — Dark top band: visibly darker than base, no glow */}
+      {/* Atmospheric green wash — single diffuse radial, centered behind content zone */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.055) 0%, rgba(74,222,128,0.015) 50%, transparent 80%)",
+        }}
+      />
+      {/* Top darkening — gentle vignette, not a hard band */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
         style={{
-          height: "18vh",
-          background: "linear-gradient(to bottom, #000000 0%, #010101 40%, #030303 75%, #050505 100%)",
-          zIndex: 1,
-        }}
-      />
-      {/* Layer 2 — Ambient glow: subtle atmospheric green, felt not seen */}
-      <div
-        className="absolute inset-x-0 pointer-events-none"
-        style={{
-          top: "16vh",
-          height: "50vh",
-          background:
-            "radial-gradient(ellipse 70% 40% at 50% 40%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 55%, transparent 100%)",
-          zIndex: 0,
-        }}
-      />
-      {/* Layer 2b — Wordmark halo: tight radial glow centered on wordmark position */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          top: "19vh",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "280px",
-          height: "80px",
-          background:
-            "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(74,222,128,0.06) 0%, transparent 70%)",
-          zIndex: 0,
-        }}
-      />
-      {/* Layer 3 — Bottom fade: return to black */}
-      <div
-        className="absolute inset-x-0 bottom-0 pointer-events-none"
-        style={{
-          height: "38vh",
-          background: "linear-gradient(to bottom, transparent 0%, #050505 100%)",
-          zIndex: 1,
+          height: "30vh",
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
         }}
       />
       {/* Scrollable content layer */}
