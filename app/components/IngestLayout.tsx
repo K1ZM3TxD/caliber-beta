@@ -43,14 +43,14 @@ export default function IngestLayout({
           background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)",
         }}
       />
-      {/* Horizon line — thin atmospheric glow behind wordmark */}
+      {/* Framing wash — very diffuse, broad glow at wordmark altitude */}
       <div
         className="absolute inset-x-0 pointer-events-none"
         style={{
-          top: "calc(22vh + 0.6rem)",
-          height: "6px",
-          background: "radial-gradient(ellipse 50% 100% at 50% 50%, rgba(74,222,128,0.12) 0%, rgba(74,222,128,0.03) 60%, transparent 100%)",
-          filter: "blur(3px)",
+          top: "18vh",
+          height: "14vh",
+          background:
+            "radial-gradient(ellipse 90% 100% at 50% 50%, rgba(74,222,128,0.025) 0%, transparent 70%)",
         }}
       />
       {/* Scrollable content layer */}
