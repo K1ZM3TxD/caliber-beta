@@ -7,18 +7,18 @@ import React from "react";
  * Renders a full-viewport-width panel behind hero content.
  *
  * Variants:
- *  - soft:     subtle surface (#111, 7% edge)
- *  - elevated: stronger surface (#161616, 12% edge)
+ *  - soft:     subtle surface (#181818, 10% edge)
+ *  - elevated: stronger surface (#222222, 25% edge)
  */
 
 const VARIANTS = {
   soft: {
-    surface: "#111111",
-    borderColor: "rgba(255,255,255,0.07)",
+    surface: "#181818",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   elevated: {
-    surface: "#161616",
-    borderColor: "rgba(255,255,255,0.12)",
+    surface: "#222222",
+    borderColor: "rgba(255,255,255,0.25)",
   },
 } as const;
 
@@ -42,6 +42,7 @@ export default function HeroSurface({
         background: v.surface,
         borderTop: `1px solid ${v.borderColor}`,
         borderBottom: `1px solid ${v.borderColor}`,
+        boxShadow: "0 0 80px 20px rgba(0,0,0,0.7)",
       }}
     >
       {/* Center content back to parent alignment */}
