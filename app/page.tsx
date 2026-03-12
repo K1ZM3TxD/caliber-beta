@@ -1,10 +1,12 @@
 // app/page.tsx
 import Link from "next/link"
+import HeroSurface from "./components/HeroSurface"
 
 export default function HomePage() {
   return (
     <main className="fixed inset-0 w-screen h-[100svh] text-[#F2F2F2] flex items-center justify-center">
-      <div className="relative w-full max-w-[720px] px-6 text-center">
+      <HeroSurface variant="elevated">
+        <div className="w-full max-w-[720px] px-6 text-center">
         <div className="text-xs tracking-[0.35em] opacity-80">
           WELCOME TO
         </div>
@@ -25,7 +27,8 @@ export default function HomePage() {
             Begin Calibration
           </Link>
         </div>
-      </div>
+        </div>
+      </HeroSurface>
     </main>
   )
 }

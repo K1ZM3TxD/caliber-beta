@@ -57,15 +57,6 @@ export default function RootLayout({
             background: "var(--bg-framing-line)",
           }}
         />
-        {/* Hero surface plane — lifted dark value for depth separation */}
-        <div
-          aria-hidden
-          className="fixed inset-0 pointer-events-none z-[4]"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 45% at 50% 52%, rgba(26,26,26,0.65) 0%, rgba(20,20,20,0.45) 35%, rgba(12,12,12,0.25) 55%, rgba(5,5,5,0) 75%)",
-          }}
-        />
 
         {/* Content layer */}
         <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
