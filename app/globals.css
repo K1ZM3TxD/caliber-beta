@@ -2,6 +2,7 @@
 
 html {
   scrollbar-gutter: auto;
+  overflow-x: hidden;
 }
 
 :root {

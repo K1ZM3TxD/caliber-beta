@@ -428,7 +428,7 @@ export default function CalibrationPage() {
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
   // Typewriter hooks — CALIBER at half speed, then tagline after 2ms buffer
-  const [caliberTyped, caliberDone] = useTypewriter("Caliber", TYPE_MS * 2);
+  const [caliberTyped, caliberDone] = useTypewriter("Caliber", 200);
   const [taglineReady, setTaglineReady] = useState(false);
   useEffect(() => {
     if (!caliberDone) { setTaglineReady(false); return; }
@@ -627,7 +627,18 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
-        <div className="relative" style={{ color: "#F2F2F2" }}>
+        {/* Full-bleed atmospheric gradient — viewport edge to edge */}
+        <div
+          className="fixed top-0 left-0 right-0 pointer-events-none"
+          style={{
+            height: step === "TITLES" ? "45vh" : "55vh",
+            background: step === "TITLES"
+              ? "radial-gradient(ellipse 120% 70% at 50% 30%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.09) 35%, rgba(34,197,94,0.03) 60%, transparent 80%)"
+              : "radial-gradient(ellipse 80% 60% at 50% 12%, rgba(74,222,128,0.06), transparent 70%)",
+            zIndex: 0,
+          }}
+        />
+        <div className="relative" style={{ color: "#F2F2F2", zIndex: 1 }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
             {step === "TITLES" ? (
@@ -636,8 +647,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 style={{
                   height: "20vh",
                   minHeight: 140,
-                  background:
-                    "radial-gradient(ellipse 120% 70% at 50% 50%, rgba(34,197,94,0.18) 0%, rgba(34,197,94,0.09) 35%, rgba(34,197,94,0.03) 60%, transparent 80%)",
                 }}
               >
                 <div className="flex items-center gap-2">
@@ -646,7 +655,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
               </div>
             ) : (
-              <div style={{ paddingTop: "clamp(5rem, 16vh, 9rem)", background: "radial-gradient(ellipse 120% 80% at 50% 60%, rgba(74,222,128,0.07), transparent 70%)" }}>
+              <div style={{ paddingTop: "clamp(5rem, 16vh, 9rem)" }}>
                 <CaliberHeader compact noGradient typedText={step === "LANDING" ? caliberTyped : undefined} />
               </div>
             )}
@@ -666,7 +675,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "1.5em" }} className="mt-8">
-                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.08em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
