@@ -38,6 +38,18 @@ export default function IngestLayout({
             "radial-gradient(ellipse 120% 70% at 50% 45%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
         }}
       />
+      {/* Hero atmosphere — green halo glow BEHIND the surface panel */}
+      {showHeroSurface && (
+        <div
+          className="absolute inset-x-0 pointer-events-none"
+          style={{
+            top: "4vh",
+            height: "80vh",
+            background:
+              "radial-gradient(ellipse 110% 70% at 50% 35%, rgba(74,222,128,0.14) 0%, rgba(74,222,128,0.06) 40%, rgba(74,222,128,0.015) 70%, transparent 100%)",
+          }}
+        />
+      )}
       {/* Top darkening — gentle vignette */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
@@ -55,31 +67,17 @@ export default function IngestLayout({
           background: "linear-gradient(to right, rgba(74,222,128,0.10) 0%, rgba(74,222,128,0.20) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.20) 65%, rgba(74,222,128,0.10) 100%)",
         }}
       />
-      {/* Hero surface band — soft illuminated panel emerging from atmosphere */}
+      {/* Hero surface — solid dark panel, top edge defined, bottom dissolves */}
       {showHeroSurface && (
         <div
           className="absolute inset-x-0 pointer-events-none"
           style={{
             top: "16vh",
-            height: "52vh",
+            bottom: 0,
             background:
-              "linear-gradient(to bottom, #0c0c0c 0%, #151515 25%, #1a1a1a 50%, #151515 75%, #0c0c0c 100%)",
+              "linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 35%, #080808 55%, rgba(6,6,6,0.6) 78%, rgba(5,5,5,0) 100%)",
             borderTop: "1px solid rgba(74,222,128,0.12)",
-            borderBottom: "1px solid rgba(74,222,128,0.12)",
-            boxShadow:
-              "0 0 60px 15px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(255,255,255,0.03)",
-          }}
-        />
-      )}
-      {/* Hero atmosphere — green glow concentrated behind the panel */}
-      {showHeroSurface && (
-        <div
-          className="absolute inset-x-0 pointer-events-none"
-          style={{
-            top: "16vh",
-            height: "52vh",
-            background:
-              "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(74,222,128,0.055) 0%, rgba(74,222,128,0.02) 60%, transparent 100%)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
           }}
         />
       )}
