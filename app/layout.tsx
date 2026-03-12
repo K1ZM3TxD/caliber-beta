@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-white`}
-        style={{ background: "red" }}
+        style={{ background: "#050505" }}
       >
         {/* Layer 1: Broad green atmospheric wash */}
         <div
@@ -55,6 +55,15 @@ export default function RootLayout({
             top: "calc(50% - 5.5rem)",
             height: "1px",
             background: "var(--bg-framing-line)",
+          }}
+        />
+        {/* Hero surface plane — lifted dark value for depth separation */}
+        <div
+          aria-hidden
+          className="fixed inset-0 pointer-events-none z-[4]"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 45% at 50% 46%, #1a1a1a 0%, #141414 25%, #0d0d0d 50%, #080808 68%, transparent 85%)",
           }}
         />
 
