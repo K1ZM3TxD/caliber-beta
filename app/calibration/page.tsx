@@ -598,8 +598,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: 'radial-gradient(ellipse 65% 40% at 50% 12%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
-      <div className="w-full max-w-[760px] px-6 pt-[10vh] pb-16">
+    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: 'radial-gradient(ellipse 70% 35% at 50% 45%, rgba(74,222,128,0.07) 0%, transparent 100%), #050505' }}>
+      <div className={`w-full max-w-[760px] px-6 ${step === "TITLES" ? "pt-[10vh] pb-16" : "my-auto pt-[10vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -636,8 +636,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
-                <div style={{ minHeight: "1.5em" }} className="mt-8">
-                  <p style={{ fontSize: '26px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
+                  <p style={{ fontWeight: 400, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
@@ -666,7 +666,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
-                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
+                <div style={{ minHeight: "3.6em", lineHeight: 1.4 }}>
                   <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
                 <div className="mt-6 flex justify-center">
@@ -773,7 +773,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "PROMPT" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 {/* Prompt question container, smaller font, more breathing room */}
-                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                <div style={{ minHeight: "4em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
                       <Spinner />
