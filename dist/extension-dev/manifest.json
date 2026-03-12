@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Caliber — Job Fit Score [DEV]",
+  "version": "0.7.0",
+  "description": "DEV BUILD — localhost only. Get a fit score on LinkedIn or Indeed job posts.",
+  "permissions": ["activeTab", "storage", "scripting", "cookies"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://www.linkedin.com/*",
+    "https://www.indeed.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*"
+      ],
+      "js": ["env.js", "content_caliber.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://www.linkedin.com/jobs/view/*"
+      ],
+      "js": ["env.js", "content_linkedin.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.indeed.com/*"
+      ],
+      "js": ["env.js", "content_indeed.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

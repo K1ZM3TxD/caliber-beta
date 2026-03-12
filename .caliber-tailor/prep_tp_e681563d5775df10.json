@@ -1,0 +1,10 @@
+{
+  "sessionId": "test-session-1",
+  "jobTitle": "Senior Engineer",
+  "company": "Acme Corp",
+  "jobUrl": "https://www.linkedin.com/jobs/view/12345?tracking=abc",
+  "jobText": "This is a job description for a senior engineer role at Acme Corp with at least 150 characters of text to make it valid for the test here.",
+  "score": 8.5,
+  "id": "tp_e681563d5775df10",
+  "createdAt": "2026-03-10T20:56:08.150Z"
+}

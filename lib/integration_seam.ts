@@ -181,10 +181,10 @@ export type CalibrationDispatchOk = { ok: true; session: CalibrationSession }
 export type CalibrationDispatchErr = { ok: false; error: { code: string; message: string } }
 export type CalibrationDispatchResult = CalibrationDispatchOk | CalibrationDispatchErr
 
-export function dispatchCalibration(event: CalibrationEvent): CalibrationDispatchResult {
-  const res = dispatchCalibrationEvent(event)
+export async function dispatchCalibration(event: CalibrationEvent): Promise<CalibrationDispatchResult> {
+  const res = await dispatchCalibrationEvent(event)
   if (!res.ok) {
     return { ok: false, error: { code: res.error.code, message: res.error.message } }
   }
-  return { ok: true, session: res.value }
+  return { ok: true, session: res.session }
 }

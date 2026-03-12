@@ -575,8 +575,7 @@ async function buildSemanticPatternSummary(session: CalibrationSession, v: Perso
 
 const tryOnce = async (): Promise<string | null> => {
   const promptAnswersText = promptAnswers.map(p => p.answer).join("\n")
-  const anchorSourceText = `${resumeText}\n${promptAnswersText}`
-  const anchors = extractLexicalAnchors(anchorSourceText)
+  const anchors = extractLexicalAnchors({ resumeText, promptAnswersText })
 
   const anchorsText = anchors.combined
     .slice(0, 12)
@@ -1046,7 +1045,7 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
           // Ritual completes -> move to ENCODING_RITUAL (externally visible).
           const to: CalibrationState = "ENCODING_RITUAL"
-          let next = {
+          let next: CalibrationSession = {
             ...session,
             state: to,
             consolidationRitual: nextRitual,
