@@ -10,6 +10,7 @@
   --bg-atmospheric-wash: radial-gradient(ellipse 160% 50% at 50% 42%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.025) 40%, transparent 72%);
   --bg-framing-line: linear-gradient(to right, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.18) 35%, rgba(74,222,128,0.22) 50%, rgba(74,222,128,0.18) 65%, rgba(74,222,128,0.06) 100%);
   --bg-bottom-fade: linear-gradient(to top, rgba(0,0,0,0.50) 0%, transparent 100%);
+  --bg-hero-surface: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.03) 75%, transparent 100%);
 }
 
 body {
