@@ -22,6 +22,15 @@ For execution rules → KERNEL.md
 
 ---
 
+\## BREAK + UPDATE — Atmospheric Band Skeleton Compliance (2026-03-12)
+
+Atmospheric band moved to page root background to enforce skeleton layout ownership.
+Previous implementation placed band inside hero containers, causing visual drift and invisible rendering.
+Background tokens consolidated into shared CSS custom properties.
+Explicit z-index layering added to guarantee band visibility above body, below content.
+
+---
+
 
 
 \## OPERATIONAL BASELINE (COMPLETED RECORD)

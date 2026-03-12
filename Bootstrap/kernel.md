@@ -56,6 +56,15 @@ We constrain it until behavior aligns.
 
 
 
+\# Background Layer Ownership
+
+All atmospheric gradients and band effects must be implemented at the page root background layer.
+Hero or section containers must not define page-level lighting effects.
+Background tokens live in globals.css as CSS custom properties.
+Layout skeleton zones are rendered in the root layout only.
+
+
+
 All synthesis is governed by structural pressure, not prompt rhetoric.
 
 

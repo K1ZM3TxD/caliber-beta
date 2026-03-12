@@ -33,28 +33,28 @@ export default function RootLayout({
         {/* Zone 1 — Atmospheric green wash (full viewport) */}
         <div
           aria-hidden
-          className="fixed inset-0 pointer-events-none"
+          className="fixed inset-0 pointer-events-none z-[1]"
           style={{ background: "var(--bg-atmospheric-wash)" }}
         />
 
         {/* Zone 2 — Top dark region */}
         <div
           aria-hidden
-          className="fixed inset-x-0 top-0 pointer-events-none"
+          className="fixed inset-x-0 top-0 pointer-events-none z-[2]"
           style={{ height: "38vh", background: "var(--bg-top-dark)" }}
         />
 
         {/* Zone 3 — Bottom dark fade */}
         <div
           aria-hidden
-          className="fixed inset-x-0 bottom-0 pointer-events-none"
+          className="fixed inset-x-0 bottom-0 pointer-events-none z-[2]"
           style={{ height: "25vh", background: "var(--bg-bottom-fade)" }}
         />
 
         {/* Framing line — thin architectural rule above wordmark */}
         <div
           aria-hidden
-          className="fixed inset-x-0 pointer-events-none"
+          className="fixed inset-x-0 pointer-events-none z-[3]"
           style={{
             top: "calc(50% - 5.5rem)",
             height: "1px",
