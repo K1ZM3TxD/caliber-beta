@@ -47,3 +47,32 @@ Process correction is being added because visual wording alone has not been suff
 The deterministic handoff rule is the structural response to this failure pattern.
 
 The atmospheric band recreation should be reattempted only after the new deterministic handoff structure is actively used, and only with explicit ownership-layer + removal-clause compliance.
+
+---
+
+## 2026-03-12 — Two-Layer Depth Model (Atmosphere vs HeroSurface)
+
+### What changed
+Formalized the distinction between global atmosphere and hero-level depth as two separate visual layers with separate owners.
+
+### Why it changed
+Landing depth work stalled across multiple passes because every task targeted the global atmospheric background layer. Diagnostic investigation proved:
+- layout.tsx correctly owned the page background
+- A full-screen `<main>` in page.tsx was occluding the body background
+- The results page's depth effect comes from a local hero surface treatment, not from global atmosphere alone
+
+The missing architectural insight: global atmosphere creates mood, but visible hero depth requires a dedicated surface primitive behind the hero content.
+
+### What is now expected
+- Global atmosphere (wash, vignette, framing line) → owned by layout.tsx
+- Hero depth (lifted dark plane behind hero content) → owned by shared HeroSurface primitive
+- PM tasks must name which layer they target
+- Pages compose these layers; they do not invent new lighting systems
+
+### What is no longer expected
+- Treating "background atmosphere" and "hero depth" as the same problem
+- Tuning global atmospheric gradients to create local hero separation
+- Page-specific one-off gradient hacks for depth
+
+### Root cause record
+Multiple commits landed correctly but produced no visible change because the global atmosphere layer cannot produce perceptible hero-level depth separation on near-black backgrounds. The fix is architectural (two layers), not parametric (stronger gradients).

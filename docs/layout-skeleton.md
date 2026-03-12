@@ -12,17 +12,24 @@ All atmospheric bands, ambient washes, and page-level lighting effects must be i
 ### Deterministic Structure
 
 ```
-page root (layout.tsx)
+page root (layout.tsx) — Global Atmosphere
  ├── background layers (fixed, pointer-events-none)
- │    ├── Zone 1: atmospheric green wash (full viewport)
- │    ├── Zone 2: top dark region (38vh)
- │    ├── Zone 3: bottom dark fade (25vh)
- │    └── framing line (1px, above wordmark)
+ │    ├── z-[1]: atmospheric green wash (full viewport radial)
+ │    ├── z-[2]: top darkening vignette (100vh linear-gradient)
+ │    └── z-[3]: framing line (1px, architectural rule)
  │
  └── content layer (relative, z-10)
       └── page content
-           └── hero / sections / inputs
+           └── HeroSurface (local depth primitive)
+                └── hero text / CTA
 ```
+
+### Two-Layer Depth Model
+
+| Layer | Owner | Purpose | Scope |
+|-------|-------|---------|-------|
+| Global Atmosphere | layout.tsx | Page mood, ambient wash, vignette | Full viewport, all routes |
+| HeroSurface | Shared component | Visible depth behind hero content | Per-page, composable |
 
 ### Rules
 
@@ -34,37 +41,49 @@ page root (layout.tsx)
 
 ### Implementation
 
-Background zones use shared CSS custom properties (tokens) from `globals.css`:
-- `--bg-atmospheric-wash` — the green radial wash
-- `--bg-top-dark` — top vignette
-- `--bg-bottom-fade` — bottom fade
-- `--bg-framing-line` — architectural rule
+Global atmosphere layers in layout.tsx:
+- Wash: `fixed inset-0 z-[1]` — green radial gradient
+- Vignette: `fixed inset-x-0 top-0 z-[2]` — top darkening over 100vh
+- Framing line: `fixed inset-x-0 z-[3]` — 1px architectural rule
+- Content: `relative z-10`
 
-These are rendered as `fixed` `pointer-events-none` divs with explicit z-index layering:
-- Wash: `z-[1]`
-- Dark zones: `z-[2]`
-- Framing line: `z-[3]`
-- Content: `z-10`
+HeroSurface primitive (`app/components/HeroSurface.tsx`):
+- Wraps hero content with a soft neutral dark radial behind it
+- Variants: `soft` (subtle) and `elevated` (stronger)
+- Uses `absolute` positioning with oversized inset for soft bleed
+- Does not paint page-level atmosphere
+
+Background tokens in `globals.css`:
+- `--bg-base: #050505`
+- `--bg-framing-line` — green gradient for architectural rule
 
 ### What is invalid
 
 - Hero-local radial-gradient that creates a page-level atmospheric effect.
 - Section-contained background that causes the band to restart between sections.
-- Ad hoc green rgba values outside the shared token definitions.
-- Any background styling inside a content component that duplicates or overrides the skeleton zones.
+- Ad hoc green rgba values outside layout.tsx atmosphere layers.
+- Any background styling inside a content component that duplicates the skeleton zones.
+- Page-specific one-off gradient hacks for hero depth (use HeroSurface instead).
+- Tuning global atmosphere parameters to achieve hero-level depth separation.
 
 ---
 
 ## Zone Model
 
-### Reserved Heights
+### Reserved Layers
 
-| Zone | Position | Height | Purpose |
-|------|----------|--------|---------|
-| Top dark | `fixed top-0` | 38vh | Darkens top edge above content |
-| Atmospheric wash | `fixed inset-0` | 100vh | Continuous green atmosphere |
-| Bottom fade | `fixed bottom-0` | 25vh | Darkens bottom edge |
-| Framing line | `fixed` at `calc(50% - 5.5rem)` | 1px | Architectural rule above wordmark |
+| Zone | Position | z-index | Purpose |
+|------|----------|---------|---------|
+| Atmospheric wash | `fixed inset-0` | z-[1] | Continuous green atmosphere |
+| Top darkening | `fixed inset-x-0 top-0` | z-[2] | Sculpts wash into depth |
+| Framing line | `fixed inset-x-0` at `calc(50% - 5.5rem)` | z-[3] | Architectural rule |
+| Content | `relative` | z-10 | Page content above all background |
+
+### HeroSurface (Composable)
+
+Not a fixed zone — composed per-page inside the content layer.
+Creates local depth behind hero content using a neutral dark radial gradient.
+See `app/components/HeroSurface.tsx`.
 
 ### Content Layer
 

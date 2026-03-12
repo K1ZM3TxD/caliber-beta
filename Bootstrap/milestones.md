@@ -42,6 +42,26 @@ NEXT:
 
 ---
 
+\## BREAK + UPDATE — Two-Layer Depth Model (2026-03-12)
+
+DONE:
+- Identified wrong-layer targeting as root cause of landing visual failures across multiple passes.
+- Diagnosed page.tsx `<main>` occlusion of layout.tsx body background.
+- Documented two-layer depth system: Global Atmosphere + HeroSurface.
+- Created shared HeroSurface primitive (`app/components/HeroSurface.tsx`) with `soft` and `elevated` variants.
+- Applied HeroSurface to landing page and results page.
+- Removed hero surface plane from layout.tsx global layers.
+
+BLOCKED:
+- (none)
+
+NEXT:
+- Verify HeroSurface visual result on deployed landing page.
+- Tune HeroSurface variant intensities if needed.
+- Apply HeroSurface to calibration completion states if appropriate.
+
+---
+
 \## BREAK + UPDATE — Atmospheric Band Skeleton Compliance (2026-03-12)
 
 Atmospheric band moved to page root background to enforce skeleton layout ownership.

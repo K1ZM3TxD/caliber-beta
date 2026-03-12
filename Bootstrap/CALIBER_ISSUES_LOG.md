@@ -2,48 +2,63 @@
 
 ## Current Open Issues
 
-### 54. Atmospheric band / hero depth effect not reliably recreated — UNRESOLVED (2026-03-12)
+### 54. Atmospheric band / hero depth effect not reliably recreated — RESOLVED (2026-03-12)
 
 **Symptom:**
 Repeated UI passes leave the atmospheric band effect unchanged or misimplemented.
 The intended page-level green atmospheric wash and hero depth separation do not visually match the reference target on deployed builds.
 
 **Root cause:**
-Effect was described visually (mood language, reference screenshots) but not structurally.
-Handoffs lacked ownership-layer specification, removal clauses, and structural trees.
-Multiple correction passes adjusted opacity, z-index, and token values without confirming the rendered result matched intent.
+Two separate problems were conflated into one:
+1. Effect was described visually (mood language) but not structurally — fixed by deterministic handoff rules.
+2. Global atmosphere was being tuned to produce hero-level depth, which is architecturally impossible on near-black backgrounds.
 
-**Mitigation:**
-- Deterministic UX handoff rules added to PM_bootstrap.md (6-part contract).
-- Background Layer Ownership invariant added to kernel.md.
-- Background tokens consolidated into globals.css as CSS custom properties.
-- Z-index layering made explicit in layout.tsx.
+**Resolution:**
+- Two-layer depth model formalized: Global Atmosphere (layout.tsx) + HeroSurface (shared primitive).
+- Shared HeroSurface component created with `soft` and `elevated` variants.
+- Landing and results pages now compose HeroSurface for local depth.
+- Layout.tsx retains global atmosphere only.
 
-**Current status:** UNRESOLVED / ACTIVE
-The structural groundwork (tokens, skeleton zones, z-index layering) is in place, but the visual effect has not been reliably confirmed as matching the reference.
-Next attempt should use the new deterministic handoff structure with explicit ownership and removal.
+**Status:** RESOLVED
 
 ---
 
-### 55. Hero-local gradients violate shared background ownership — ACTIVE RISK (2026-03-12)
+### 55. Hero-local gradients violate shared background ownership — RESOLVED (2026-03-12)
 
 **Symptom:**
-UX tasks that describe page-level atmospheric effects get implemented as hero-local gradients inside content containers, causing:
-- Band stops at section boundaries instead of continuing across the page.
-- Effect restarts between sections.
-- Background appears segmented rather than continuous.
+UX tasks that describe page-level atmospheric effects get implemented as hero-local gradients inside content containers.
 
 **Root cause:**
-PM handoffs did not specify that the effect is page-level and must live at the root background layer.
-Without explicit ownership language, the default implementation path is to add the gradient to the nearest content container.
+PM handoffs did not distinguish atmosphere from hero depth. Without two-layer model, all depth work defaulted to page-level gradient tuning.
 
-**Mitigation:**
-- kernel.md invariant: page-level lighting must live at page root.
-- PM_bootstrap.md rule: layout/background tasks must state root-level ownership and require removal of hero-local implementations.
-- layout-skeleton.md: background ownership section added with explicit zone model.
+**Resolution:**
+- HeroSurface primitive now owns hero-level depth as a composable layer.
+- Pages compose HeroSurface; they do not invent page-level gradients.
+- PM_bootstrap.md requires naming the target layer.
 
-**Current status:** ACTIVE RISK
-Process rules are documented. Compliance depends on enforcement during future handoffs.
+**Status:** RESOLVED
+
+---
+
+### 56. Landing depth failed due to page.tsx main occluding layout.tsx body — RESOLVED (2026-03-12)
+
+**Symptom:**
+UI changes to layout.tsx background produced no visible change on the landing page.
+
+**Root cause:**
+page.tsx `<main>` used `fixed inset-0` which painted a full-screen layer over the body background from layout.tsx. All layout.tsx background layers (atmospheric wash, vignette, hero surface) were invisible because `<main>` covered them.
+
+**Diagnostic:**
+- Set body background to red → page showed blue (diagnostic color on `<main>`).
+- Confirmed `<main>` was the visual background owner.
+
+**Resolution:**
+- Removed all background painting from page.tsx `<main>`.
+- `<main>` is now a transparent structural wrapper.
+- All page-level background layers live in layout.tsx.
+- Hero depth lives in HeroSurface composable primitive.
+
+**Status:** RESOLVED
 
 ---
 

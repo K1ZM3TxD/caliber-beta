@@ -65,6 +65,17 @@ Layout skeleton zones are rendered in the root layout only.
 
 Page-level lighting effects (bands, atmospheric washes, ambient gradients) must live at the page root/shared background layer; hero/section components may not own page-level lighting.
 
+\# Two-Layer Depth Invariant
+
+Global atmospheric background must not be relied on to create visible hero depth.
+Hero-level depth effects must use a dedicated surface primitive (HeroSurface or equivalent).
+
+The two layers serve different purposes:
+- Global atmosphere → page mood (wash, vignette, framing line)
+- HeroSurface → visible depth separation behind hero content
+
+Tuning global atmosphere parameters will never produce hero-level depth on near-black backgrounds. This is a perceptual limit, not a tuning problem.
+
 
 
 \# UX/UI Task Handoff Invariant

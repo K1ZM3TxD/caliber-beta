@@ -62,6 +62,20 @@ If a visual effect is component-level, PM must explicitly state:
 
 ---
 
+## Two-Layer Depth Targeting
+
+Visual depth must be described using two distinct layers:
+1. **Global atmosphere** (owned by layout.tsx background system)
+2. **HeroSurface depth** (owned by shared HeroSurface primitive)
+
+PM must explicitly state which layer a visual change targets.
+
+If a task says "add depth" or "increase separation" without naming the layer, coder must reject and request clarification.
+
+Global atmosphere creates page mood. HeroSurface creates visible hero depth. They are not interchangeable.
+
+---
+
 ## UI Constitution + Layout Skeleton Requirements
 
 All UX/UI coder tasks must reference:

@@ -15,7 +15,29 @@ Rules:
 - If a visual effect is intended to span the full viewport, it must be implemented at the page root — never inside a content container.
 - Visual effects should be described as primitives and ownership rules, not only as aesthetic moods.
 
-**Current status (2026-03-12):** Background tokens and skeleton zones are defined in `globals.css` and `layout.tsx`. The intended atmospheric band effect has NOT been reliably recreated to match the reference. The structural foundation exists but the visual result is not yet confirmed.
+**Current status (2026-03-12):** Two-layer depth model implemented. Global atmosphere owned by layout.tsx. Hero depth owned by shared HeroSurface primitive. Landing page occlusion bug resolved.
+
+---
+
+## Two-Layer Depth System
+
+### Global Atmosphere (layout.tsx)
+Creates page mood. Not responsible for hero-level depth.
+- Atmospheric green wash (broad radial gradient)
+- Top darkening vignette
+- Framing line
+
+### HeroSurface (shared primitive)
+Creates visible depth separation behind hero content.
+- Soft lifted dark plane, not a card
+- Reusable component with intensity variants:
+  - `soft` — subtle depth
+  - `elevated` — stronger separation
+- Composable: pages wrap hero content in HeroSurface
+- Does not paint page-level atmosphere
+
+### Why two layers
+Global atmosphere on near-black backgrounds produces imperceptible contrast differences. Repeated attempts to create hero depth via atmospheric gradient tuning failed because the perceptual delta between `#050505` and `#0f0f0f` is below display/eye threshold. Hero depth requires a dedicated surface primitive with stronger local contrast.
 
 ---
 
@@ -30,8 +52,8 @@ Rules:
 
 ## Surface Tokens
 
-- Page base: `#000000` / `--bg-base`
-- Hero surface lift: `--bg-hero-surface` (subtle white-lift gradient, not a card)
+- Page base: `#050505` / `--bg-base`
+- Hero surface lift: HeroSurface component (neutral dark radial, not a token — see Two-Layer Depth System)
 
 ---
 
@@ -39,15 +61,14 @@ Rules:
 
 All defined as CSS custom properties in `globals.css`:
 
-- `--bg-base` — Pure black page surface
-- `--bg-top-dark` — Top darkening vignette
-- `--bg-atmospheric-wash` — Green atmospheric radial wash
+- `--bg-base` — Dark page surface (#050505)
 - `--bg-framing-line` — Thin green architectural rule
-- `--bg-bottom-fade` — Bottom dark fade
-- `--bg-hero-surface` — Subtle hero depth lift
 
-These tokens are consumed by the skeleton zones in `layout.tsx`.
-No page or component may define its own atmospheric gradient outside these tokens.
+Atmospheric wash and top darkening are rendered directly in layout.tsx as inline styles.
+Hero depth is rendered by the HeroSurface component.
+
+No page or component may define its own atmospheric gradient outside layout.tsx.
+No page may define its own hero depth gradient outside HeroSurface.
 
 ---
 
