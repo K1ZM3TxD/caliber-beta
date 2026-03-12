@@ -36,25 +36,28 @@ export default function IngestLayout({
           zIndex: 1,
         }}
       />
-      {/* Layer 2 — Ambient glow band: horizontal green band behind interaction surface */}
+      {/* Layer 2 — Ambient glow: subtle atmospheric green, felt not seen */}
       <div
         className="absolute inset-x-0 pointer-events-none"
         style={{
           top: "16vh",
-          height: "58vh",
+          height: "50vh",
           background:
-            "radial-gradient(ellipse 85% 50% at 50% 38%, rgba(74,222,128,0.16) 0%, rgba(74,222,128,0.06) 50%, transparent 100%)",
+            "radial-gradient(ellipse 70% 40% at 50% 40%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 55%, transparent 100%)",
           zIndex: 0,
         }}
       />
-      {/* Layer 2b — Hero backlight: soft horizontal illumination behind wordmark/hero area */}
+      {/* Layer 2b — Wordmark halo: tight radial glow centered on wordmark position */}
       <div
-        className="absolute inset-x-0 pointer-events-none"
+        className="absolute pointer-events-none"
         style={{
-          top: "18vh",
-          height: "22vh",
+          top: "19vh",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "280px",
+          height: "80px",
           background:
-            "radial-gradient(ellipse 60% 70% at 50% 50%, rgba(74,222,128,0.08) 0%, transparent 100%)",
+            "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(74,222,128,0.06) 0%, transparent 70%)",
           zIndex: 0,
         }}
       />

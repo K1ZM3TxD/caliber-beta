@@ -12,7 +12,7 @@ export default function CaliberHeader({ className = "" }: CaliberHeaderProps) {
         style={{
           fontSize: "2.15rem",
           color: "rgba(161,161,170,0.75)",
-          textShadow: "0 0 50px rgba(74,222,128,0.07)",
+          textShadow: "0 0 40px rgba(74,222,128,0.09), 0 0 80px rgba(74,222,128,0.04)",
         }}
       >
         Caliber
