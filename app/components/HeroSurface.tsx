@@ -13,16 +13,20 @@ import React from "react";
 
 const VARIANTS = {
   soft: {
-    bg: "#0b0b0b",
-    edgeOpacity: 0.06,
-    topFade: "linear-gradient(to bottom, transparent 0%, #0b0b0b 100%)",
-    bottomFade: "linear-gradient(to top, transparent 0%, #0b0b0b 100%)",
+    surface: "#111111",
+    edge: "rgba(255,255,255,0.07)",
+    shadow: "0 0 40px 10px rgba(0,0,0,0.5)",
+    topFade: "linear-gradient(to bottom, rgba(5,5,5,1) 0%, rgba(5,5,5,0) 100%)",
+    bottomFade: "linear-gradient(to top, rgba(5,5,5,1) 0%, rgba(5,5,5,0) 100%)",
+    fadeH: "3.5vh",
   },
   elevated: {
-    bg: "#0e0e0e",
-    edgeOpacity: 0.08,
-    topFade: "linear-gradient(to bottom, transparent 0%, #0e0e0e 100%)",
-    bottomFade: "linear-gradient(to top, transparent 0%, #0e0e0e 100%)",
+    surface: "#141414",
+    edge: "rgba(255,255,255,0.10)",
+    shadow: "0 0 60px 14px rgba(0,0,0,0.6)",
+    topFade: "linear-gradient(to bottom, rgba(5,5,5,1) 0%, rgba(5,5,5,0) 100%)",
+    bottomFade: "linear-gradient(to top, rgba(5,5,5,1) 0%, rgba(5,5,5,0) 100%)",
+    fadeH: "3vh",
   },
 } as const;
 
@@ -38,46 +42,46 @@ export default function HeroSurface({
   const v = VARIANTS[variant];
   return (
     <div className="relative w-full">
-      {/* Surface plane — full-width lifted dark band */}
+      {/* Surface plane — full-width foreground panel */}
       <div
         aria-hidden
         className="absolute pointer-events-none -z-10"
         style={{
-          /* Stretch full viewport width, bleed vertically past content */
-          left: "-50vw",
-          right: "-50vw",
-          top: "-6vh",
-          bottom: "-6vh",
-          marginLeft: "calc(50% - 0px)",
-          marginRight: "calc(50% - 0px)",
+          left: "50%",
+          transform: "translateX(-50%)",
           width: "100vw",
-          background: v.bg,
+          top: "-4vh",
+          bottom: "-4vh",
+          background: v.surface,
+          boxShadow: v.shadow,
         }}
       >
-        {/* Top fade edge */}
+        {/* Top boundary fade — short, sharp transition from page base */}
         <div
           className="absolute inset-x-0 top-0"
-          style={{ height: "6vh", background: v.topFade }}
+          style={{ height: v.fadeH, background: v.topFade }}
         />
-        {/* Bottom fade edge */}
+        {/* Bottom boundary fade */}
         <div
           className="absolute inset-x-0 bottom-0"
-          style={{ height: "6vh", background: v.bottomFade }}
+          style={{ height: v.fadeH, background: v.bottomFade }}
         />
-        {/* Top edge line — subtle architectural separation */}
+        {/* Top edge line */}
         <div
-          className="absolute inset-x-0 top-0"
+          className="absolute inset-x-0"
           style={{
+            top: v.fadeH,
             height: "1px",
-            background: `rgba(255,255,255,${v.edgeOpacity})`,
+            background: v.edge,
           }}
         />
         {/* Bottom edge line */}
         <div
-          className="absolute inset-x-0 bottom-0"
+          className="absolute inset-x-0"
           style={{
+            bottom: v.fadeH,
             height: "1px",
-            background: `rgba(255,255,255,${v.edgeOpacity})`,
+            background: v.edge,
           }}
         />
       </div>
