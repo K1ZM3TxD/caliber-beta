@@ -4,9 +4,15 @@
 (function () {
   var statusEl = document.getElementById("popup-status");
   var toggleBtn = document.getElementById("popup-toggle");
+  var calibrateLink = document.getElementById("popup-calibrate");
 
   function setStatus(msg) {
     statusEl.textContent = msg;
+  }
+
+  function showCalibrateLink() {
+    calibrateLink.href = CALIBER_ENV.API_BASE + "/calibration";
+    calibrateLink.style.display = "";
   }
 
   // Detect supported pages: LinkedIn job listings
@@ -30,27 +36,43 @@
       return;
     }
 
-    // On a LinkedIn jobs page — offer to open/reopen the sidecard
-    setStatus("LinkedIn job page detected.");
-    toggleBtn.style.display = "";
-    toggleBtn.textContent = "Open Sidecard";
+    // On a LinkedIn jobs page — check session before offering sidecard
+    setStatus("Checking calibration…");
+    chrome.runtime.sendMessage({ type: "CALIBER_SESSION_DISCOVER" }, function (response) {
+      if (chrome.runtime.lastError || !response || !response.ok) {
+        // No session found — show prerequisite state
+        setStatus("Complete your calibration on Caliber to start scoring jobs.");
+        showCalibrateLink();
+        return;
+      }
+      if (!response.profileComplete) {
+        setStatus("Your calibration is in progress. Finish it on Caliber to start scoring.");
+        showCalibrateLink();
+        return;
+      }
 
-    toggleBtn.addEventListener("click", function () {
-      toggleBtn.disabled = true;
-      setStatus("Activating…");
-      chrome.tabs.sendMessage(tab.id, { type: "ACTIVATE_PANEL" }, function (response) {
-        if (chrome.runtime.lastError) {
-          setStatus("Could not reach the page. Try refreshing.");
-          toggleBtn.disabled = false;
-          return;
-        }
-        if (response && response.activated) {
-          setStatus("\u2713 Sidecard activated");
-          setTimeout(function () { window.close(); }, 600);
-        } else {
-          setStatus("Could not activate. Try refreshing the page.");
-          toggleBtn.disabled = false;
-        }
+      // Session valid — offer sidecard
+      setStatus("LinkedIn job page detected.");
+      toggleBtn.style.display = "";
+      toggleBtn.textContent = "Open Sidecard";
+
+      toggleBtn.addEventListener("click", function () {
+        toggleBtn.disabled = true;
+        setStatus("Activating…");
+        chrome.tabs.sendMessage(tab.id, { type: "ACTIVATE_PANEL" }, function (resp) {
+          if (chrome.runtime.lastError) {
+            setStatus("Could not reach the page. Try refreshing.");
+            toggleBtn.disabled = false;
+            return;
+          }
+          if (resp && resp.activated) {
+            setStatus("\u2713 Sidecard activated");
+            setTimeout(function () { window.close(); }, 600);
+          } else {
+            setStatus("Could not activate. Try refreshing the page.");
+            toggleBtn.disabled = false;
+          }
+        });
       });
     });
   });
