@@ -428,8 +428,10 @@ export default function CalibrationPage() {
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
-  // Typewriter hooks — tagline is static on landing, typewriter used for other steps
+  // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
   const tagline = "Career Decision Engine.";
+  const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", TYPE_MS * 2);
+  const [taglineTyped, taglineDone] = useTypewriter(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -629,7 +631,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <CaliberHeader />
+                <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING" && !caliberDone} />
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
@@ -646,7 +648,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineTyped : tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button

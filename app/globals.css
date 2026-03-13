@@ -39,6 +39,15 @@ body {
   animation: cb-reveal 0.45s ease-out both;
 }
 
+/* Blinking cursor for typewriter */
+@keyframes cb-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cb-blink-cursor {
+  animation: cb-blink 0.85s step-end infinite;
+}
+
 /* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
   .cb-reveal,
