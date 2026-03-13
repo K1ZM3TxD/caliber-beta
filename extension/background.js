@@ -156,6 +156,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "CALIBER_PRESCAN_BATCH") {
+    (async () => {
+      try {
+        // Discover session once for the whole batch
+        const info = await discoverSession();
+        if (!info.sessionId || !info.profileComplete) {
+          sendResponse({ ok: false, error: "No active calibration session.", results: [] });
+          return;
+        }
+        const results = [];
+        const jobs = Array.isArray(msg.jobs) ? msg.jobs : [];
+        for (const job of jobs) {
+          try {
+            const data = await callFitAPI(job.jobText, info.sessionId, { prescan: true });
+            results.push({
+              title: job.title || "",
+              score: data.score_0_to_10 || 0,
+              calibrationTitle: data.calibration_title || "",
+              nearbyRoles: data.nearby_roles || [],
+              ok: true,
+            });
+          } catch (err) {
+            results.push({ title: job.title || "", score: 0, ok: false, error: err.message });
+          }
+        }
+        sendResponse({ ok: true, results });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message, results: [] });
+      }
+    })();
+    return true;
+  }
   if (msg.type === "CALIBER_SCORE_HISTORY_PUSH") {
     (async () => {
       try {
@@ -467,9 +499,10 @@ async function tryRestoreSession(sessionId) {
   } catch { return false; }
 }
 
-async function callFitAPI(jobText, sessionId) {
+async function callFitAPI(jobText, sessionId, options) {
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
+  if (options && options.prescan) body.prescan = true;
 
   // Include session backup inline for serverless resilience — avoids
   // multi-Lambda mismatch where restore PUT and fit POST hit different instances.

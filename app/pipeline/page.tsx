@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import AuthButton from "../components/auth_button";
+import CaliberHeader from "../components/caliber_header";
 
 interface PipelineEntry {
   id: string;
@@ -391,15 +391,14 @@ export default function PipelinePage() {
 
   const load = useCallback(() => {
     if (authStatus === "loading") return;
-    if (authStatus === "unauthenticated") {
-      setLoading(false);
-      return;
-    }
     // Pass calibration sessionId so server can migrate file-based entries
     const calSessionId = getCookie("caliber_sessionId") || "";
     const qs = calSessionId ? `?sessionId=${encodeURIComponent(calSessionId)}` : "";
     fetch(`/api/pipeline${qs}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) return { ok: false };
+        return r.json();
+      })
       .then((data) => {
         if (data.ok) {
           const filtered = (data.entries as PipelineEntry[]).filter(
@@ -502,30 +501,39 @@ export default function PipelinePage() {
   }));
 
   return (
-    <div
-      className="w-full pt-[10vh] pb-10"
-      style={{
-        background:
-          "radial-gradient(ellipse 80% 40% at 50% 12%, rgba(74,222,128,0.045), transparent)",
-      }}
-    >
-      <div className="flex items-center justify-between mb-8">
-        <div className="w-8" />
-        <h1 className="text-xl font-semibold text-zinc-300 text-center tracking-tight">
+    <div className="w-full pb-16">
+      {/* Ambient glow — matches current shell baseline */}
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0"
+        style={{
+          height: "50vh",
+          background: "radial-gradient(ellipse 100% 70% at 50% -20%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
+          zIndex: 0,
+        }}
+      />
+      <div className="relative z-10">
+        <CaliberHeader />
+
+        <h1 className="text-xl font-semibold text-neutral-200 text-center tracking-tight mt-8 mb-8">
           Your Pipeline
         </h1>
-        <div className="w-8 flex justify-end">
-          <AuthButton />
-        </div>
-      </div>
 
-      {/* Auth gate — unauthenticated users see sign-in prompt */}
+      {/* Sign-in CTA for unauthenticated users — non-blocking */}
       {authStatus === "unauthenticated" && (
-        <div className="text-center text-zinc-500 text-sm space-y-4">
-          <p>Sign in to save jobs and track your pipeline.</p>
+        <div
+          className="mb-6 mx-auto rounded-lg px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
+          style={{
+            maxWidth: "960px",
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <p className="text-neutral-400 text-sm">
+            Sign in to save your pipeline across sessions and devices.
+          </p>
           <Link
             href="/signin?callbackUrl=/pipeline"
-            className="inline-block px-6 py-3 rounded-lg font-semibold text-sm transition-all"
+            className="inline-block px-5 py-2 rounded-lg font-semibold text-sm transition-all flex-shrink-0"
             style={{
               background: "rgba(74,222,128,0.06)",
               color: "#4ADE80",
@@ -537,24 +545,14 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {authStatus !== "unauthenticated" && loading && (
-        <div className="text-center text-zinc-500">
+      {loading && (
+        <div className="text-center text-neutral-500">
           <div className="cb-spinner mx-auto mb-4" />
           Loading…
         </div>
       )}
 
-      {authStatus !== "unauthenticated" && !loading && entries.length === 0 && (
-        <div className="text-center text-zinc-500 text-sm">
-          <p className="mb-4">No jobs in your pipeline yet.</p>
-          <p className="text-zinc-600">
-            Score jobs on LinkedIn — strong matches (8.0+) will appear here
-            when you tailor your resume.
-          </p>
-        </div>
-      )}
-
-      {!loading && entries.length > 0 && (
+      {!loading && (
         <div
           className="grid gap-4"
           style={{
@@ -721,7 +719,7 @@ export default function PipelinePage() {
       <div className="text-center mt-8">
         <a
           href="/calibration"
-          className="text-zinc-600 text-xs hover:text-zinc-400 underline underline-offset-2 transition-colors"
+          className="text-neutral-500 text-xs hover:text-neutral-300 underline underline-offset-2 transition-colors"
         >
           Back to Caliber
         </a>
@@ -737,6 +735,7 @@ export default function PipelinePage() {
           }}
         />
       )}
+      </div>
 
       <style jsx>{`
         .cb-spinner {

@@ -131,14 +131,17 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <div
-      className="w-full min-h-screen flex flex-col items-center"
-      style={{
-        background:
-          "radial-gradient(ellipse 80% 40% at 50% 12%, rgba(74,222,128,0.045), transparent)",
-      }}
-    >
-      <div className="w-full max-w-[600px] mx-auto px-4">
+    <div className="w-full pb-16">
+      {/* Ambient glow — matches current shell baseline */}
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0"
+        style={{
+          height: "50vh",
+          background: "radial-gradient(ellipse 100% 70% at 50% -20%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
+          zIndex: 0,
+        }}
+      />
+      <div className="relative z-10 w-full max-w-[600px] mx-auto px-4">
         <CaliberHeader />
 
         <div className="mt-10 text-center">

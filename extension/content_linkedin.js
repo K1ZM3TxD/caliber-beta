@@ -366,6 +366,268 @@
     catch (e) { return ""; }
   }
 
+  // ─── Pre-scan State ───────────────────────────────────────
+
+  let prescanDone = false;       // has prescan completed for current search query?
+  let prescanRunning = false;    // is prescan currently in progress?
+  let prescanSearchQuery = "";   // query for which prescan was last completed
+  let prescanBSTActive = false;  // is a prescan-triggered BST banner currently showing?
+
+  // ─── Pre-scan: Job Card Detection ─────────────────────────
+
+  var JOB_CARD_SELECTORS = [
+    ".jobs-search-results__list-item",
+    ".scaffold-layout__list-container li.ember-view",
+    ".job-card-container",
+    "[data-occludable-job-id]",
+    'li[class*="jobs-search-results"]',
+    'li[class*="job-card"]',
+  ];
+
+  var JOB_CARD_TITLE_SELECTORS = [
+    ".job-card-list__title",
+    ".job-card-container__link",
+    'a[class*="job-card"][href*="/jobs/view/"]',
+    ".artdeco-entity-lockup__title a",
+    'a[href*="/jobs/view/"]',
+  ];
+
+  function isElementInViewport(el) {
+    var rect = el.getBoundingClientRect();
+    return rect.top < window.innerHeight && rect.bottom > 0;
+  }
+
+  /**
+   * Detect the first visible job cards in the LinkedIn search results list.
+   * Returns array of { element, url, title, text } capped at maxCards.
+   */
+  function getVisibleJobCards(maxCards) {
+    maxCards = maxCards || 12;
+    var cards = [];
+    var seen = new Set(); // dedupe by URL
+
+    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
+      if (els.length === 0) continue;
+
+      for (var i = 0; i < els.length && cards.length < maxCards; i++) {
+        if (!isElementInViewport(els[i])) continue;
+
+        var el = els[i];
+        var cardText = (el.innerText || "").trim().replace(/\s+/g, " ");
+        if (cardText.length < 30) continue; // too small to be a real card
+
+        // Extract job URL
+        var link = el.querySelector('a[href*="/jobs/view/"]');
+        var jobUrl = link ? link.href : "";
+        if (jobUrl && seen.has(jobUrl)) continue;
+        if (jobUrl) seen.add(jobUrl);
+
+        // Extract job title
+        var titleText = "";
+        for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
+          var titleEl = el.querySelector(JOB_CARD_TITLE_SELECTORS[t]);
+          if (titleEl) {
+            titleText = (titleEl.textContent || "").trim();
+            if (titleText.length > 2) break;
+          }
+        }
+
+        cards.push({
+          element: el,
+          url: jobUrl,
+          title: titleText,
+          text: cardText,
+        });
+      }
+      if (cards.length > 0) break; // found cards with this selector set
+    }
+
+    return cards;
+  }
+
+  // ─── Pre-scan Trigger Logic ───────────────────────────────
+
+  function isSearchResultsPage() {
+    return /\/jobs\/search|\/jobs\/collections/.test(location.pathname);
+  }
+
+  /**
+   * Pre-scan the first visible job cards on a search results page.
+   * Scores each visible card via the fit API and triggers the BST prompt
+   * if 5 or more are weak fits (score < 7.0).
+   */
+  function runSearchPrescan() {
+    var currentQuery = getSearchKeywords();
+
+    // Guard: skip if already done for this query, running, or not search page
+    if (prescanRunning) {
+      console.debug("[Caliber][prescan] already running, skipping");
+      return;
+    }
+    if (prescanDone && prescanSearchQuery === currentQuery) {
+      console.debug("[Caliber][prescan] already completed for query: " + currentQuery);
+      return;
+    }
+    if (!isSearchResultsPage()) {
+      console.debug("[Caliber][prescan] not a search results page, skipping");
+      return;
+    }
+
+    prescanRunning = true;
+    prescanDone = false;
+    prescanSearchQuery = currentQuery;
+    prescanBSTActive = false;
+
+    // Hide any previous prescan banner
+    if (shadow) {
+      var banner = shadow.getElementById("cb-recovery-banner");
+      if (banner) banner.style.display = "none";
+    }
+
+    console.debug("[Caliber][prescan] starting pre-scan for query: \"" + currentQuery + "\"");
+
+    // Wait for LinkedIn to finish rendering job cards
+    setTimeout(function () {
+      var cards = getVisibleJobCards(12);
+      console.debug("[Caliber][prescan] visible cards detected: " + cards.length);
+
+      if (cards.length < 3) {
+        console.debug("[Caliber][prescan] too few cards (" + cards.length + "), aborting");
+        prescanRunning = false;
+        prescanDone = true;
+        return;
+      }
+
+      // Build job texts for scoring — filter by minimum text length
+      var jobs = [];
+      for (var i = 0; i < cards.length; i++) {
+        var jobText = cards[i].text;
+        if (jobText.length < 80) {
+          console.debug("[Caliber][prescan] card " + i + " too short (" + jobText.length + " chars), skipping: " + cards[i].title);
+          continue;
+        }
+        jobs.push({
+          jobText: jobText,
+          title: cards[i].title,
+        });
+      }
+
+      console.debug("[Caliber][prescan] jobs to pre-score: " + jobs.length);
+
+      if (jobs.length < 3) {
+        console.debug("[Caliber][prescan] too few scoreable cards (" + jobs.length + "), aborting");
+        prescanRunning = false;
+        prescanDone = true;
+        return;
+      }
+
+      // Send batch to background for sequential scoring
+      chrome.runtime.sendMessage({
+        type: "CALIBER_PRESCAN_BATCH",
+        jobs: jobs,
+      }, function (resp) {
+        prescanRunning = false;
+        prescanDone = true;
+
+        if (chrome.runtime.lastError) {
+          console.debug("[Caliber][prescan] message error:", chrome.runtime.lastError.message);
+          return;
+        }
+        if (!resp || !resp.ok || !Array.isArray(resp.results)) {
+          console.debug("[Caliber][prescan] batch scoring failed:", resp && resp.error);
+          return;
+        }
+
+        var results = resp.results;
+        var weakCount = 0;
+        var scoredCount = 0;
+        var scores = [];
+        var bestCalibrationTitle = "";
+        var bestNearbyRoles = [];
+
+        for (var i = 0; i < results.length; i++) {
+          var r = results[i];
+          if (!r.ok) {
+            console.debug("[Caliber][prescan] job " + i + " (" + r.title + ") scoring failed: " + r.error);
+            continue;
+          }
+          scoredCount++;
+          scores.push(r.score);
+          if (r.score < 7.0) weakCount++;
+          if (r.calibrationTitle) bestCalibrationTitle = r.calibrationTitle;
+          if (r.nearbyRoles && r.nearbyRoles.length > 0) bestNearbyRoles = r.nearbyRoles;
+        }
+
+        console.debug("[Caliber][prescan] scored: " + scoredCount + "/" + results.length);
+        console.debug("[Caliber][prescan] scores: [" + scores.join(", ") + "]");
+        console.debug("[Caliber][prescan] weak fits (< 7.0): " + weakCount + " of " + scoredCount + " scored");
+
+        // Evaluate trigger: 5 or more weak fits
+        if (weakCount >= 5) {
+          console.debug("[Caliber][prescan] TRIGGER FIRED — " + weakCount + " weak fits in " + scoredCount + " scored jobs");
+          var suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
+          if (suggestedTitle) {
+            showPrescanBSTBanner(suggestedTitle);
+          } else {
+            console.debug("[Caliber][prescan] trigger fired but all suggestions match current query — suppressed");
+          }
+        } else {
+          console.debug("[Caliber][prescan] trigger NOT fired — " + weakCount + " weak fits (need 5+) in " + scoredCount + " scored jobs");
+        }
+      });
+    }, 2500); // Wait 2.5s for LinkedIn cards to finish rendering
+  }
+
+  /**
+   * Determine the best title suggestion from prescan results.
+   * Hierarchy: calibration primary title > adjacent/nearby roles > null
+   */
+  function determinePrescanSuggestion(calibrationTitle, nearbyRoles, currentQuery) {
+    // Primary: calibration primary title
+    if (calibrationTitle && !titlesEquivalent(calibrationTitle, currentQuery)) {
+      return calibrationTitle;
+    }
+    // Secondary: adjacent/nearby roles from calibration
+    if (nearbyRoles && nearbyRoles.length > 0) {
+      for (var i = 0; i < nearbyRoles.length; i++) {
+        if (nearbyRoles[i].title && !titlesEquivalent(nearbyRoles[i].title, currentQuery)) {
+          return nearbyRoles[i].title;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Show the Better Search Title banner from prescan results.
+   */
+  function showPrescanBSTBanner(suggestedTitle) {
+    getOrCreatePanel();
+    prescanBSTActive = true;
+    var banner = shadow.getElementById("cb-recovery-banner");
+    var link = shadow.getElementById("cb-recovery-link");
+    if (banner && link) {
+      banner.style.display = "";
+      link.textContent = suggestedTitle;
+      link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+      sessionSignals.suggest_shown = true;
+      link.onclick = function () { sessionSignals.suggest_clicked = true; };
+      console.debug("[Caliber][prescan] BST banner shown, suggested title: \"" + suggestedTitle + "\"");
+    }
+  }
+
+  function resetPrescanState() {
+    prescanDone = false;
+    prescanRunning = false;
+    prescanSearchQuery = "";
+    prescanBSTActive = false;
+    if (shadow) {
+      var banner = shadow.getElementById("cb-recovery-banner");
+      if (banner) banner.style.display = "none";
+    }
+  }
+
   // ─── Panel Creation ───────────────────────────────────────
 
   function getOrCreatePanel() {
@@ -431,6 +693,12 @@
       });
     });
 
+    // Wire pipeline link in tailor banner
+    shadow.getElementById("cb-tailor-pipeline").addEventListener("click", function (e) {
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+    });
+
     // Wire tailor banner button
     shadow.getElementById("cb-tailor-btn").addEventListener("click", function () {
       var btn = shadow.getElementById("cb-tailor-btn");
@@ -445,6 +713,8 @@
       }, function (resp) {
         if (resp && resp.ok) {
           if (btn) btn.textContent = "Opened \u2713";
+          var pipeLink = shadow.getElementById("cb-tailor-pipeline");
+          if (pipeLink) pipeLink.style.display = "";
         } else {
           if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
@@ -811,6 +1081,11 @@
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 8.0) {
+        // Reset banner to default state for the new job
+        var tailorBtn = shadow.getElementById("cb-tailor-btn");
+        var pipelineLink = shadow.getElementById("cb-tailor-pipeline");
+        if (tailorBtn) { tailorBtn.textContent = "Tailor resume for this job \u2192"; tailorBtn.disabled = false; }
+        if (pipelineLink) pipelineLink.style.display = "none";
         // Check pipeline membership before showing CTA
         tailorBanner.style.display = "none";
         chrome.runtime.sendMessage(
@@ -829,7 +1104,7 @@
       }
     }
 
-    // Rolling weak-search detection — persist to chrome.storage.local
+    // Rolling score history — persist for analytics (BST prompt is now prescan-driven)
     var historyEntry = { score: score, title: lastJobMeta.title || "", nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" };
     recentScores.push(historyEntry);
     if (recentScores.length > 10) recentScores = recentScores.slice(-10);
@@ -844,19 +1119,9 @@
         recentScores = resp.history;
       }
     });
-    console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
-    var suggestedTitle = checkWeakSearchPattern();
-    var recoveryBanner = shadow.getElementById("cb-recovery-banner");
-    var recoveryLink = shadow.getElementById("cb-recovery-link");
-    if (suggestedTitle !== null && suggestedTitle !== "") {
-      recoveryBanner.style.display = "";
-      recoveryLink.textContent = suggestedTitle;
-      recoveryLink.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
-      sessionSignals.suggest_shown = true;
-      recoveryLink.onclick = function () { sessionSignals.suggest_clicked = true; };
-    } else {
-      recoveryBanner.style.display = "none";
-    }
+
+    // Recovery banner is now controlled exclusively by the prescan flow.
+    // Do NOT touch cb-recovery-banner here — prescan owns it.
 
     // Behavioral signal tracking
     sessionSignals.jobs_viewed++;
@@ -902,10 +1167,10 @@
     if (fbRow && !feedbackGiven) {
       fbRow.style.display = "";
       fbRow.innerHTML = '<span class="cb-fb-prompt">Helpful?</span>' +
-        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\uD83D\uDC4D</button>' +
-        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\uD83D\uDC4E</button>' +
+        '<button id="cb-fb-up" class="cb-fb-btn" title="Yes">\u25B2</button>' +
+        '<button id="cb-fb-down" class="cb-fb-btn" title="No">\u25BC</button>' +
         '<span class="cb-fb-sep"></span>' +
-        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">\uD83D\uDC1B Report</button>';
+        '<button id="cb-bug-btn" class="cb-bug-btn" title="Report bug">Report bug</button>';
       shadow.getElementById("cb-fb-up").addEventListener("click", handleThumbsUp);
       shadow.getElementById("cb-fb-down").addEventListener("click", handleThumbsDown);
       shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
@@ -1034,7 +1299,10 @@
           recentScores = [];
           lastSearchQuery = currentQuery;
           resetSessionSignals();
-          console.debug("[Caliber] search query changed, reset rolling window + session signals");
+          resetPrescanState();
+          console.debug("[Caliber] search query changed, reset rolling window + session signals + prescan");
+          // Re-trigger prescan for the new search query
+          setTimeout(function () { runSearchPrescan(); }, 3000);
         }
         console.debug("[Caliber] URL changed, re-scoring");
         // Delay slightly so LinkedIn DOM settles before extraction
@@ -1096,6 +1364,8 @@
     if (text && text.length >= MIN_SCORE_CHARS) {
       scoreCurrentJob(true);
     }
+    // Trigger pre-scan of visible job cards on search results pages
+    setTimeout(function () { runSearchPrescan(); }, 3000);
   }
 
   function deactivatePanel() {
@@ -1106,6 +1376,7 @@
     lastScoredText = "";
     recentScores = [];
     resetSessionSignals();
+    resetPrescanState();
   }
 
   // Auto-activate unless user explicitly dismissed
@@ -1132,10 +1403,13 @@
   var PANEL_HTML = [
     '<div class="cb-container">',
     '<div id="cb-tailor-banner" class="cb-tailor-banner" style="display:none">',
-    '  <span class="cb-tailor-icon">\u2728</span>',
+    '  <span class="cb-tailor-icon">\u25C6</span>',
     '  <div class="cb-tailor-body">',
     '    <div class="cb-tailor-label">Strong match</div>',
-    '    <button id="cb-tailor-btn" class="cb-tailor-link">Tailor resume for this job \u2192</button>',
+    '    <div class="cb-tailor-actions">',
+    '      <button id="cb-tailor-btn" class="cb-tailor-link">Tailor resume for this job \u2192</button>',
+    '      <a id="cb-tailor-pipeline" class="cb-tailor-pipeline-link" style="display:none">View in Pipeline</a>',
+    '    </div>',
     '  </div>',
     '</div>',
     '<div id="cb-recovery-banner" class="cb-recovery-banner" style="display:none">',
@@ -1231,10 +1505,10 @@
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
-    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\uD83D\uDC4D</button>',
-    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\uD83D\uDC4E</button>',
+    '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\u25B2</button>',
+    '      <button id="cb-fb-down" class="cb-fb-btn" aria-label="Thumbs down" title="No">\u25BC</button>',
     '      <span class="cb-fb-sep"></span>',
-    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">\uD83D\uDC1B Report</button>',
+    '      <button id="cb-bug-btn" class="cb-bug-btn" aria-label="Report bug" title="Report bug">Report bug</button>',
     '    </div>',
     '    <div id="cb-fb-panel" class="cb-fb-panel" style="display:none">',
     '      <div class="cb-fb-panel-title">What was off?</div>',
@@ -1370,7 +1644,7 @@
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 3px; }",
-    ".cb-score-num { font-size: 38px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
+    ".cb-score-num { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
     ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
     "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
@@ -1474,15 +1748,19 @@
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
     "}",
-    ".cb-tailor-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }",
+    ".cb-tailor-icon { font-size: 11px; flex-shrink: 0; line-height: 1; color: #4ADE80; }",
     ".cb-tailor-body { flex: 1; min-width: 0; }",
     ".cb-tailor-label {",
     "  font-size: 9px; font-weight: 600; color: #4ADE80;",
     "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
     "}",
+    ".cb-tailor-actions {",
+    "  display: flex; align-items: baseline; gap: 8px;",
+    "  flex-wrap: nowrap; min-width: 0;",
+    "}",
     ".cb-tailor-link {",
     "  font-size: 12px; font-weight: 700; color: #86EFAC;",
-    "  text-decoration: none; display: block; cursor: pointer;",
+    "  text-decoration: none; cursor: pointer;",
     "  background: none; border: none; padding: 0; text-align: left;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "  border-bottom: 1px solid rgba(74,222,128,0.3);",
@@ -1490,6 +1768,14 @@
     "}",
     ".cb-tailor-link:hover { color: #BBF7D0; border-color: #BBF7D0; }",
     ".cb-tailor-link:disabled { opacity: 0.6; cursor: default; }",
+    ".cb-tailor-pipeline-link {",
+    "  font-size: 10px; font-weight: 600; color: #555;",
+    "  text-decoration: none; cursor: pointer;",
+    "  white-space: nowrap; flex-shrink: 0;",
+    "  border-bottom: 1px solid transparent;",
+    "  transition: color 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-tailor-pipeline-link:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
@@ -1511,17 +1797,17 @@
     ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
     ".cb-fb-btn {",
     "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
-    "  cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;",
-    "  transition: background 0.15s, border-color 0.15s;",
+    "  cursor: pointer; font-size: 9px; padding: 3px 7px; line-height: 1; color: #555;",
+    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
-    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-fb-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #999; }",
     ".cb-fb-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.06); margin: 0 2px; }",
     ".cb-bug-btn {",
     "  background: none; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px;",
-    "  cursor: pointer; font-size: 11px; padding: 2px 8px; line-height: 1; gap: 3px;",
-    "  transition: background 0.15s, border-color 0.15s;",
+    "  cursor: pointer; font-size: 9px; font-weight: 500; padding: 3px 8px; line-height: 1; color: #444;",
+    "  transition: background 0.15s, border-color 0.15s, color 0.15s;",
     "}",
-    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }",
+    ".cb-bug-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); color: #888; }",
     // Feedback detail panel
     ".cb-fb-panel {",
     "  padding: 6px 0 2px; margin-top: 4px;",

@@ -13,17 +13,25 @@ export default function CaliberHeader({ className = "", typedText, showCursor }:
   return (
     <div className={`flex flex-col items-center text-center pt-4 ${className}`}>
       <span
-        className="font-semibold tracking-[0.22em] uppercase cb-wordmark-glow"
+        className="font-semibold tracking-[0.22em] uppercase cb-wordmark-glow relative inline-block"
         style={{
           fontSize: "2.15rem",
           color: "rgba(161,161,170,0.75)",
-          minWidth: "14ch",
-          display: "inline-block",
         }}
       >
         {display}
         {showCursor && (
-          <span className="cb-blink-cursor" style={{ color: "#22c55e", marginLeft: "0.05em" }}>_</span>
+          <span
+            className="cb-blink-cursor absolute"
+            style={{
+              color: "#22c55e",
+              left: "100%",
+              marginLeft: "0.05em",
+              top: 0,
+            }}
+          >
+            _
+          </span>
         )}
       </span>
     </div>

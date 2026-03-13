@@ -21,9 +21,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const jobText = typeof body.jobText === "string" ? body.jobText.trim() : "";
-    if (jobText.length < 200) {
+    const isPrescan = body.prescan === true;
+    const minLength = isPrescan ? 80 : 200;
+    if (jobText.length < minLength) {
       return NextResponse.json(
-        { error: "Job description too short (need ≥200 characters)." },
+        { error: `Job description too short (need ≥${minLength} characters).` },
         { status: 400 }
       );
     }
