@@ -364,7 +364,7 @@
     panelHost = document.createElement("div");
     panelHost.id = PANEL_HOST_ID;
     panelHost.style.cssText =
-      "position:fixed!important;top:20px!important;left:20px!important;" +
+      "position:fixed!important;bottom:20px!important;left:20px!important;" +
       "z-index:2147483647!important;"
 
     shadow = panelHost.attachShadow({ mode: "closed" });
@@ -1287,7 +1287,7 @@
     "  contain: layout style;",
     "}",
     "@keyframes cb-enter {",
-    "  from { opacity: 0; transform: translateY(-8px); }",
+    "  from { opacity: 0; transform: translateY(8px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
     ".cb-panel::-webkit-scrollbar { width: 4px; }",
