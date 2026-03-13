@@ -10,6 +10,8 @@ interface IngestLayoutProps {
   maxWidth?: string;
   /** Show the hero surface band behind the content zone */
   showHeroSurface?: boolean;
+  /** Vertically center the content block (hero-style composition) */
+  centered?: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export default function IngestLayout({
   extendedTop = false,
   maxWidth = "760px",
   showHeroSurface = false,
+  centered = false,
 }: IngestLayoutProps) {
   return (
     <div
@@ -82,9 +85,9 @@ export default function IngestLayout({
         />
       )}
       {/* Scrollable content layer */}
-      <div className="relative z-10 h-full overflow-y-auto flex justify-center">
+      <div className={`relative z-10 h-full overflow-y-auto flex justify-center ${centered ? "items-center" : ""}`}>
         <div
-          className={`w-full px-6 pb-16 ${extendedTop ? "pt-[32vh]" : "pt-[22vh]"}`}
+          className={`w-full px-6 pb-16 ${centered ? "" : extendedTop ? "pt-[32vh]" : "pt-[22vh]"}`}
           style={{ maxWidth }}
         >
           {children}
