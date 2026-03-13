@@ -673,7 +673,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineWords.map((w, i) => <span key={i} className="cb-reveal" style={{ marginRight: '0.35em' }}>{w}</span>) : tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineWords.map((w, i) => <span key={i} className="cb-word-reveal" style={{ marginRight: '0.35em' }}>{w}</span>) : tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
