@@ -14,9 +14,13 @@
     "smoke:calibration": "node scripts/calibration_smoke.mjs"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.1",
+    "@prisma/client": "^6.19.2",
     "mammoth": "^1.9.0",
     "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.30",
     "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.13",
     "pdf-parse": "^1.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
@@ -30,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "jest": "^30.3.0",
+    "prisma": "^6.19.2",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",

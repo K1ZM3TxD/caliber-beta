@@ -52,3 +52,4 @@ caliber-extension.zip
 .caliber-sessions/
 .caliber-pipeline/
 .caliber-tailor/
+*.db

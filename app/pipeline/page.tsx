@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 interface PipelineEntry {
   id: string;
-  sessionId: string;
+  userId?: string;
+  sessionId?: string;
   jobTitle: string;
   company: string;
   jobUrl: string;
@@ -29,6 +32,11 @@ const BOARD_COLUMNS = [
   { key: "interview_prep", label: "Interview Prep", color: "#FBBF24" },
   { key: "interview", label: "Interview", color: "#F472B6" },
 ] as const;
+
+function getCookie(name: string): string {
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : "";
+}
 
 // Map legacy stages to board columns
 function mapStageToColumn(stage: string): string {
@@ -373,6 +381,7 @@ function TailorPanel({
    ──────────────────────────────────────────────────────────────────────── */
 
 export default function PipelinePage() {
+  const { data: session, status: authStatus } = useSession();
   const [entries, setEntries] = useState<PipelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -380,7 +389,15 @@ export default function PipelinePage() {
   const [tailorEntryId, setTailorEntryId] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/pipeline")
+    if (authStatus === "loading") return;
+    if (authStatus === "unauthenticated") {
+      setLoading(false);
+      return;
+    }
+    // Pass calibration sessionId so server can migrate file-based entries
+    const calSessionId = getCookie("caliber_sessionId") || "";
+    const qs = calSessionId ? `?sessionId=${encodeURIComponent(calSessionId)}` : "";
+    fetch(`/api/pipeline${qs}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.ok) {
@@ -392,7 +409,7 @@ export default function PipelinePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [authStatus]);
 
   useEffect(() => {
     load();
@@ -495,14 +512,32 @@ export default function PipelinePage() {
         Your Pipeline
       </h1>
 
-      {loading && (
+      {/* Auth gate — unauthenticated users see sign-in prompt */}
+      {authStatus === "unauthenticated" && (
+        <div className="text-center text-zinc-500 text-sm space-y-4">
+          <p>Sign in to save jobs and track your pipeline.</p>
+          <Link
+            href="/signin?callbackUrl=/pipeline"
+            className="inline-block px-6 py-3 rounded-lg font-semibold text-sm transition-all"
+            style={{
+              background: "rgba(74,222,128,0.06)",
+              color: "#4ADE80",
+              border: "1px solid rgba(74,222,128,0.45)",
+            }}
+          >
+            Sign in
+          </Link>
+        </div>
+      )}
+
+      {authStatus !== "unauthenticated" && loading && (
         <div className="text-center text-zinc-500">
           <div className="cb-spinner mx-auto mb-4" />
           Loading…
         </div>
       )}
 
-      {!loading && entries.length === 0 && (
+      {authStatus !== "unauthenticated" && !loading && entries.length === 0 && (
         <div className="text-center text-zinc-500 text-sm">
           <p className="mb-4">No jobs in your pipeline yet.</p>
           <p className="text-zinc-600">
