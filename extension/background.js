@@ -156,6 +156,39 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "CALIBER_SCORE_HISTORY_PUSH") {
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberRecentScores"]);
+        const history = Array.isArray(store.caliberRecentScores) ? store.caliberRecentScores : [];
+        history.push({
+          score: Number(msg.score) || 0,
+          title: String(msg.title || "").slice(0, 200),
+          nearbyRoles: Array.isArray(msg.nearbyRoles) ? msg.nearbyRoles.slice(0, 5) : [],
+          calibrationTitle: String(msg.calibrationTitle || "").slice(0, 200),
+          ts: Date.now(),
+        });
+        // Keep only the most recent 10 entries
+        const trimmed = history.slice(-10);
+        await chrome.storage.local.set({ caliberRecentScores: trimmed });
+        sendResponse({ ok: true, history: trimmed });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+  if (msg.type === "CALIBER_SCORE_HISTORY_GET") {
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberRecentScores"]);
+        sendResponse({ ok: true, history: Array.isArray(store.caliberRecentScores) ? store.caliberRecentScores : [] });
+      } catch (err) {
+        sendResponse({ ok: false, history: [] });
+      }
+    })();
+    return true;
+  }
   if (msg.type === "CALIBER_OPEN_PIPELINE") {
     chrome.tabs.create({ url: API_BASE + "/pipeline" });
     sendResponse({ ok: true });

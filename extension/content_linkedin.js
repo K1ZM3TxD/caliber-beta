@@ -328,9 +328,19 @@
   let detailObserver = null;
   let detailDebounce = null;
 
-  // Rolling weak-search detection
-  let recentScores = [];       // last 4 entries: { score, nearbyRoles, calibrationTitle }
+  // Rolling weak-search detection (persisted via chrome.storage.local)
+  let recentScores = [];       // last 10 entries: { score, nearbyRoles, calibrationTitle, title, ts }
+  let recentScoresLoaded = false;
   let lastSearchQuery = getSearchKeywords();
+
+  // Load persisted score history on script init
+  chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_GET" }, function (resp) {
+    if (resp && resp.ok && Array.isArray(resp.history)) {
+      recentScores = resp.history;
+      recentScoresLoaded = true;
+      console.debug("[Caliber] loaded persisted score history: " + recentScores.length + " entries");
+    }
+  });
 
   // Behavioral signals (per search session)
   let sessionSignals = {
@@ -658,19 +668,17 @@
   }
 
   function checkWeakSearchPattern() {
-    if (recentScores.length < 3) {
-      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 3+");
+    if (recentScores.length < 5) {
+      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 5+");
       return null;
     }
-    var win = recentScores.slice(-4);
+    var win = recentScores.slice(-10);
     var weakCount = 0;
-    var hasStrong = false;
     for (var i = 0; i < win.length; i++) {
-      if (win[i].score < 6.5) weakCount++;
-      if (win[i].score >= 7.5) hasStrong = true;
+      if (win[i].score < 7) weakCount++;
     }
-    console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount + ", hasStrong=" + hasStrong);
-    if (weakCount >= 3 && !hasStrong) {
+    console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount);
+    if (weakCount >= 5) {
       var currentQuery = getSearchKeywords();
       // Primary: calibration primary title (the user's strongest fit direction)
       for (var j = win.length - 1; j >= 0; j--) {
@@ -821,9 +829,21 @@
       }
     }
 
-    // Rolling weak-search detection
-    recentScores.push({ score: score, nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" });
-    if (recentScores.length > 4) recentScores.shift();
+    // Rolling weak-search detection — persist to chrome.storage.local
+    var historyEntry = { score: score, title: lastJobMeta.title || "", nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" };
+    recentScores.push(historyEntry);
+    if (recentScores.length > 10) recentScores = recentScores.slice(-10);
+    chrome.runtime.sendMessage({
+      type: "CALIBER_SCORE_HISTORY_PUSH",
+      score: score,
+      title: lastJobMeta.title || "",
+      nearbyRoles: data.nearby_roles || [],
+      calibrationTitle: data.calibration_title || "",
+    }, function (resp) {
+      if (resp && resp.ok && Array.isArray(resp.history)) {
+        recentScores = resp.history;
+      }
+    });
     console.debug("[Caliber] rolling window: " + recentScores.length + " entries, latest score=" + score);
     var suggestedTitle = checkWeakSearchPattern();
     var recoveryBanner = shadow.getElementById("cb-recovery-banner");
