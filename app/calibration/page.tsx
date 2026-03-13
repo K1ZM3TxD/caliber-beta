@@ -7,7 +7,7 @@ import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
 import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
 
-const TYPE_MS = 38;
+const TYPE_MS = 57;
 const START_DELAY_MS = 350;
 function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boolean = true): [string, boolean] {
   const [typed, setTyped] = useState("");
@@ -430,7 +430,7 @@ export default function CalibrationPage() {
   const computeFiredRef = useRef(false);
   // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
   const tagline = "Career Decision Engine.";
-  const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", TYPE_MS * 2);
+  const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 300);
   const [taglineTyped, taglineDone] = useTypewriter(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
@@ -633,7 +633,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING" && !caliberDone} />
+                <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>

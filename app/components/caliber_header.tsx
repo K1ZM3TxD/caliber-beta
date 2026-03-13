@@ -24,7 +24,7 @@ export default function CaliberHeader({ className = "", typedText, showCursor }:
       >
         {display}
         {showCursor && (
-          <span className="cb-blink-cursor" style={{ color: "inherit" }}>_</span>
+          <span className="cb-blink-cursor" style={{ color: "rgba(74,222,128,0.7)", marginLeft: "0.05em" }}>_</span>
         )}
       </span>
     </div>
