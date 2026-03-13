@@ -9,15 +9,29 @@
     statusEl.textContent = msg;
   }
 
+  // Detect supported pages: LinkedIn job listings
+  var SUPPORTED_PATTERN = /linkedin\.com\/jobs/;
+
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     var tab = tabs[0];
-    if (!tab || !tab.url || !/linkedin\.com\/jobs/.test(tab.url)) {
-      setStatus("Navigate to a LinkedIn jobs page to use Caliber.");
+    if (!tab || !tab.url) {
+      setStatus("Open a LinkedIn job listing to use Caliber.");
+      return;
+    }
+
+    // Check if on a supported page
+    if (!SUPPORTED_PATTERN.test(tab.url)) {
+      // Unsupported page — show clear guidance, no action button
+      if (/linkedin\.com/.test(tab.url)) {
+        setStatus("Navigate to a job listing on LinkedIn to activate scoring.");
+      } else {
+        setStatus("Caliber works on LinkedIn job listings. Open a job on linkedin.com/jobs to get started.");
+      }
       return;
     }
 
     // On a LinkedIn jobs page — offer to open/reopen the sidecard
-    setStatus("LinkedIn jobs page detected.");
+    setStatus("LinkedIn job page detected.");
     toggleBtn.style.display = "";
     toggleBtn.textContent = "Open Sidecard";
 
