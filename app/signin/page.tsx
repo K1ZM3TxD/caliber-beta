@@ -139,7 +139,7 @@ export default function SignInPage() {
       }}
     >
       <div className="w-full max-w-[600px] mx-auto px-4">
-        <CaliberHeader hideAuth />
+        <CaliberHeader />
 
         <div className="mt-10 text-center">
           <h1 className="text-neutral-200 text-xl font-semibold tracking-tight">

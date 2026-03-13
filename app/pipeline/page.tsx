@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import AuthButton from "../components/auth_button";
 
 interface PipelineEntry {
   id: string;
@@ -508,9 +509,15 @@ export default function PipelinePage() {
           "radial-gradient(ellipse 80% 40% at 50% 12%, rgba(74,222,128,0.045), transparent)",
       }}
     >
-      <h1 className="text-xl font-semibold text-zinc-300 text-center mb-8 tracking-tight">
-        Your Pipeline
-      </h1>
+      <div className="flex items-center justify-between mb-8">
+        <div className="w-8" />
+        <h1 className="text-xl font-semibold text-zinc-300 text-center tracking-tight">
+          Your Pipeline
+        </h1>
+        <div className="w-8 flex justify-end">
+          <AuthButton />
+        </div>
+      </div>
 
       {/* Auth gate — unauthenticated users see sign-in prompt */}
       {authStatus === "unauthenticated" && (
