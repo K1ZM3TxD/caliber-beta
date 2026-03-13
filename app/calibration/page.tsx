@@ -617,7 +617,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
 
-          /* Hero spotlight band — 3-layer stack */
+          /* Hero spotlight band — 3-layer stack anchored to wordmark at ~23vh */
           .cb-hero-atmosphere {
             position: fixed;
             inset: 0;
@@ -625,56 +625,56 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             z-index: 0;
             overflow: hidden;
           }
-          /* Layer 1: Soft atmospheric glow */
+          /* Layer 1: Soft atmospheric glow — centered on wordmark zone */
           .cb-hero-atmosphere::before {
             content: "";
             position: absolute;
             inset: 0;
             background:
               radial-gradient(
-                120% 55% at 50% 24%,
-                rgba(34, 197, 94, 0.18) 0%,
-                rgba(34, 197, 94, 0.10) 22%,
-                rgba(34, 197, 94, 0.04) 42%,
-                rgba(34, 197, 94, 0.00) 68%
+                120% 45% at 50% 23vh,
+                rgba(34, 197, 94, 0.16) 0%,
+                rgba(34, 197, 94, 0.08) 25%,
+                rgba(34, 197, 94, 0.03) 45%,
+                rgba(34, 197, 94, 0.00) 65%
               );
           }
-          /* Layer 2: Definition line + Layer 3: Downward fade */
+          /* Layer 2: Highlight line through wordmark + Layer 3: Downward fade */
           .cb-hero-atmosphere::after {
             content: "";
             position: absolute;
             left: 0;
             right: 0;
-            top: 24%;
-            height: 140px;
+            top: calc(23vh - 20px);
+            height: 160px;
             background:
               linear-gradient(
                 to bottom,
                 rgba(255,255,255,0.00) 0%,
-                rgba(210,255,225,0.10) 10%,
-                rgba(74, 222, 128, 0.16) 12%,
-                rgba(255,255,255,0.08) 13%,
-                rgba(255,255,255,0.00) 18%,
-                rgba(5,5,5,0.00) 35%,
-                rgba(5,5,5,0.60) 62%,
-                rgba(5,5,5,0.92) 100%
+                rgba(210,255,225,0.06) 10%,
+                rgba(74, 222, 128, 0.14) 12%,
+                rgba(200,255,220,0.07) 13.5%,
+                rgba(255,255,255,0.00) 20%,
+                rgba(5,5,5,0.00) 38%,
+                rgba(5,5,5,0.50) 60%,
+                rgba(5,5,5,0.88) 100%
               );
             mask-image:
               radial-gradient(
                 140% 100% at 50% 50%,
                 black 0%,
-                black 56%,
-                rgba(0,0,0,0.75) 72%,
-                rgba(0,0,0,0.25) 86%,
+                black 50%,
+                rgba(0,0,0,0.65) 70%,
+                rgba(0,0,0,0.20) 85%,
                 transparent 100%
               );
             -webkit-mask-image:
               radial-gradient(
                 140% 100% at 50% 50%,
                 black 0%,
-                black 56%,
-                rgba(0,0,0,0.75) 72%,
-                rgba(0,0,0,0.25) 86%,
+                black 50%,
+                rgba(0,0,0,0.65) 70%,
+                rgba(0,0,0,0.20) 85%,
                 transparent 100%
               );
           }
@@ -707,7 +707,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.16em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.07em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
