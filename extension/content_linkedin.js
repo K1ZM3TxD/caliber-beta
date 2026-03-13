@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.6.0";
+  const PANEL_VERSION = "0.7.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -364,8 +364,8 @@
     panelHost = document.createElement("div");
     panelHost.id = PANEL_HOST_ID;
     panelHost.style.cssText =
-      "position:fixed!important;bottom:20px!important;right:20px!important;" +
-      "z-index:2147483647!important;";
+      "position:fixed!important;top:20px!important;left:20px!important;" +
+      "z-index:2147483647!important;"
 
     shadow = panelHost.attachShadow({ mode: "closed" });
 
@@ -378,6 +378,15 @@
     shadow.appendChild(wrapper.firstElementChild);
 
     document.body.appendChild(panelHost);
+
+    // Animate on first creation only
+    var panelEl = shadow.querySelector(".cb-panel");
+    if (panelEl) {
+      panelEl.style.animation = "cb-enter 0.2s ease-out";
+      panelEl.addEventListener("animationend", function () {
+        panelEl.style.animation = "none";
+      }, { once: true });
+    }
 
     shadow.getElementById("cb-close").addEventListener("click", deactivatePanel);
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
@@ -712,11 +721,11 @@
     decEl.textContent = decision.label;
     decEl.className = "cb-decision " + decision.cls;
 
-    // Company identity (right side of header row)
-    var companyEl = shadow.getElementById("cb-company");
+    // Job identity (below score row)
     var titleEl = shadow.getElementById("cb-jobtitle");
-    companyEl.textContent = lastJobMeta.company || "";
+    var companyEl = shadow.getElementById("cb-company");
     titleEl.textContent = lastJobMeta.title || "";
+    companyEl.textContent = lastJobMeta.company || "";
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
@@ -750,13 +759,13 @@
     var supportItems = data.supports_fit || [];
     renderList(shadow.getElementById("cb-supports"), supportItems);
     var supCount = shadow.getElementById("cb-supports-count");
-    if (supCount) supCount.innerHTML = renderDotIndicators(supportItems.length, "green");
+    if (supCount) supCount.innerHTML = renderBarIndicator(supportItems.length, "green");
 
     // Stretch factors (collapsible — dot indicators in toggle)
     var stretchItems = data.stretch_factors || [];
     renderList(shadow.getElementById("cb-stretch"), stretchItems);
     var strCount = shadow.getElementById("cb-stretch-count");
-    if (strCount) strCount.innerHTML = renderDotIndicators(stretchItems.length, "yellow");
+    if (strCount) strCount.innerHTML = renderBarIndicator(stretchItems.length, "yellow");
     var stretchSection = shadow.getElementById("cb-stretch-section");
     if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
 
@@ -876,19 +885,11 @@
    * @param {number} count  - actual item count
    * @param {"green"|"yellow"} tone - color family
    */
-  function renderDotIndicators(count, tone) {
+  function renderBarIndicator(count, tone) {
     if (count === 0) return "";
-    var maxDots = 5;
-    var filled = Math.min(count, maxDots);
-    var html = '<span class="cb-dots">';
-    for (var i = 0; i < maxDots; i++) {
-      html += '<span class="cb-dot ' + (i < filled ? "cb-dot-on-" + tone : "cb-dot-off-" + tone) + '"></span>';
-    }
-    if (count > maxDots) {
-      html += '<span class="cb-dot-star cb-dot-star-' + tone + '">\u2605</span>';
-    }
-    html += '</span>';
-    return html;
+    var pct = Math.min(count / 5, 1) * 100;
+    return '<span class="cb-bar"><span class="cb-bar-fill cb-bar-' + tone + '" style="width:' + pct + '%"></span></span>' +
+           '<span class="cb-bar-count cb-bar-count-' + tone + '">' + count + '</span>';
   }
 
   // ─── API Call via Background Service Worker ───────────────
@@ -985,14 +986,15 @@
           console.debug("[Caliber] search query changed, reset rolling window + session signals");
         }
         console.debug("[Caliber] URL changed, re-scoring");
-        scoreCurrentJob(true);
+        // Delay slightly so LinkedIn DOM settles before extraction
+        setTimeout(function () { scoreCurrentJob(true); }, 400);
         return;
       }
       var text = extractJobText();
       if (text && text.length >= MIN_SCORE_CHARS && text !== lastScoredText) {
         scoreCurrentJob(false);
       }
-    }, 2000);
+    }, 2500);
 
     // MutationObserver on the detail pane for faster job-switch detection
     tryObserveDetailPane();
@@ -1018,7 +1020,7 @@
           console.debug("[Caliber] detail pane mutation detected, re-scoring");
           scoreCurrentJob(false);
         }
-      }, 1000);
+      }, 1500);
     });
     detailObserver.observe(target, { childList: true, subtree: true });
     console.debug("[Caliber] MutationObserver attached to detail pane");
@@ -1119,17 +1121,13 @@
     '      <span class="cb-overlay-text">Rescoring\u2026</span>',
     '    </div>',
     '    <div class="cb-toprow">',
-    '      <div class="cb-toprow-left">',
-    '        <div class="cb-score-row">',
-    '          <span id="cb-score" class="cb-score-num">\u2014</span>',
-    '          <span class="cb-score-of">/10</span>',
-    '        </div>',
-    '        <div id="cb-decision" class="cb-decision"></div>',
+    '      <div class="cb-score-row">',
+    '        <span id="cb-score" class="cb-score-num">\u2014</span>',
+    '        <span class="cb-score-of">/10</span>',
+    '        <span id="cb-decision" class="cb-decision"></span>',
     '      </div>',
-    '      <div class="cb-toprow-right">',
-    '        <div id="cb-company" class="cb-company-name"></div>',
-    '        <div id="cb-jobtitle" class="cb-job-title"></div>',
-    '      </div>',
+    '      <div id="cb-jobtitle" class="cb-job-title"></div>',
+    '      <div id="cb-company" class="cb-company-name"></div>',
     '    </div>',
     '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
     '      <button class="cb-collapse-toggle" type="button">',
@@ -1227,14 +1225,14 @@
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     // Container: stacks recovery banner above sidecard
     ".cb-container {",
-    "  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;",
+    "  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;",
     "}",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
-    "  width: 380px; background: #161B2E;",
+    "  width: 320px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
-    "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
+    "  padding: 6px 10px; display: flex; align-items: center; gap: 6px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
@@ -1253,16 +1251,16 @@
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
-    "  width: 380px; max-height: 520px; overflow-y: auto;",
-    "  background: #111114; color: #F2F2F2; border-radius: 12px;",
-    "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.5);",
+    "  width: 320px; max-height: 90vh; overflow-y: auto;",
+    "  background: #111114; color: #F2F2F2; border-radius: 10px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-    "  font-size: 13px; line-height: 1.45;",
+    "  font-size: 12px; line-height: 1.4;",
     "  border: 1px solid rgba(255,255,255,0.12);",
-    "  animation: cb-enter 0.2s ease-out;",
+    "  contain: layout style;",
     "}",
     "@keyframes cb-enter {",
-    "  from { opacity: 0; transform: translateY(12px); }",
+    "  from { opacity: 0; transform: translateY(-8px); }",
     "  to   { opacity: 1; transform: translateY(0); }",
     "}",
     ".cb-panel::-webkit-scrollbar { width: 4px; }",
@@ -1270,7 +1268,7 @@
     ".cb-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }",
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
-    "  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
@@ -1284,7 +1282,7 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 12px 14px; position: relative; }",
+    ".cb-body { padding: 8px 10px; position: relative; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -1313,33 +1311,28 @@
     "  display: flex; align-items: center; justify-content: center; gap: 6px;",
     "}",
     ".cb-overlay-text { font-size: 11px; color: #AFAFAF; }",
-    // Top row: score LEFT, identity RIGHT
+    // Top row: score dominant, then title, then company
     ".cb-toprow {",
-    "  display: flex; align-items: center; gap: 12px;",
-    "  padding-bottom: 8px; margin-bottom: 4px;",
+    "  display: flex; flex-direction: column; gap: 2px;",
+    "  padding-bottom: 6px; margin-bottom: 3px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
-    ".cb-toprow-left {",
-    "  flex-shrink: 0;",
-    "  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;",
-    "}",
-    ".cb-score-row { display: flex; align-items: baseline; gap: 1px; }",
-    ".cb-score-num { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }",
+    ".cb-score-row { display: flex; align-items: baseline; gap: 3px; }",
+    ".cb-score-num { font-size: 38px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
     ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
     ".cb-decision {",
     "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
-    "  letter-spacing: 0.01em;",
+    "  letter-spacing: 0.01em; margin-left: 6px;",
     "}",
     ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-toprow-right { flex: 1; min-width: 0; text-align: right; }",
-    ".cb-company-name {",
-    "  font-size: 11px; font-weight: 600; color: #777;",
-    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-    "}",
     ".cb-job-title {",
     "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
+    "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+    "}",
+    ".cb-company-name {",
+    "  font-size: 10px; font-weight: 600; color: #777;",
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
     "}",
     // Hiring Reality Check badge
@@ -1349,16 +1342,16 @@
     ".cb-hrc-high { background: rgba(74,222,128,0.15); color: #4ADE80; }",
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
-    ".cb-hrc-reason { font-size: 10px; color: #999; padding: 2px 0 4px; line-height: 1.4; }",
+    ".cb-hrc-reason { font-size: 10px; color: #999; padding: 1px 0 3px; line-height: 1.35; }",
     // Bottom line text
-    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.4; padding: 2px 0 4px; }",
+    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.35; padding: 1px 0 3px; }",
     // Collapsible sections
     ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-collapse-toggle {",
     "  display: flex; align-items: center; gap: 4px; width: 100%;",
     "  background: none; border: none; color: #888; cursor: pointer;",
     "  font-size: 10px; font-weight: 600; text-transform: uppercase;",
-    "  letter-spacing: 0.04em; padding: 7px 0; text-align: left;",
+    "  letter-spacing: 0.04em; padding: 5px 0; text-align: left;",
     "  flex-wrap: nowrap;",
     "}",
     ".cb-collapse-toggle:hover { color: #CFCFCF; }",
@@ -1372,21 +1365,24 @@
     "  font-size: 9px; transition: transform 0.15s; display: inline-block;",
     "}",
     ".cb-collapse-count { font-weight: 400; color: #666; margin-left: auto; flex-shrink: 0; }",
-    // Dot indicators (collapsed row signal strength)
-    ".cb-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; flex-shrink: 0; white-space: nowrap; }",
-    ".cb-dot {",
-    "  width: 5px; height: 5px; border-radius: 50%; display: inline-block;",
-    "  flex-shrink: 0;",
+    // Bar indicators (collapsed row signal strength)
+    ".cb-bar {",
+    "  display: inline-block; width: 40px; height: 4px; border-radius: 2px;",
+    "  background: rgba(255,255,255,0.08); margin-left: auto; vertical-align: middle;",
+    "  overflow: hidden; flex-shrink: 0;",
     "}",
-    ".cb-dot-on-green  { background: #4ADE80; }",
-    ".cb-dot-off-green { background: rgba(74,222,128,0.18); }",
-    ".cb-dot-on-yellow  { background: #FBBF24; }",
-    ".cb-dot-off-yellow { background: rgba(251,191,36,0.18); }",
-    ".cb-dot-star {",
-    "  font-size: 8px; line-height: 1; margin-left: 1px;",
+    ".cb-bar-fill {",
+    "  display: block; height: 100%; border-radius: 2px;",
+    "  transition: width 0.2s ease;",
     "}",
-    ".cb-dot-star-green  { color: #4ADE80; }",
-    ".cb-dot-star-yellow { color: #FBBF24; }",
+    ".cb-bar-green  { background: #4ADE80; }",
+    ".cb-bar-yellow { background: #FBBF24; }",
+    ".cb-bar-count {",
+    "  font-size: 9px; font-weight: 600; margin-left: 4px;",
+    "  vertical-align: middle; flex-shrink: 0;",
+    "}",
+    ".cb-bar-count-green  { color: #4ADE80; }",
+    ".cb-bar-count-yellow { color: #FBBF24; }",
     ".cb-collapse-body {",
     "  max-height: 0; overflow: hidden;",
     "  transition: max-height 0.2s ease-out;",
@@ -1394,10 +1390,10 @@
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
     ".cb-open .cb-collapse-body { max-height: 600px; }",
     // Bullet lists
-    ".cb-bullets { list-style: none; padding-bottom: 3px; }",
+    ".cb-bullets { list-style: none; padding-bottom: 2px; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 10px;",
-    "  font-size: 11px; color: #CFCFCF; margin-bottom: 2px; line-height: 1.45;",
+    "  font-size: 11px; color: #CFCFCF; margin-bottom: 1px; line-height: 1.35;",
     "}",
     ".cb-bullets li::before {",
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
@@ -1406,7 +1402,7 @@
     // Nearby roles
     ".cb-nearby-section {",
     "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 0 8px; margin-top: 2px;",
+    "  padding: 0 6px; margin-top: 1px;",
     "}",
     ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
     ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
@@ -1419,10 +1415,10 @@
     ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
-    "  width: 380px; background: #0F2318;",
+    "  width: 320px; background: #0F2318;",
     "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
-    "  padding: 8px 12px; display: flex; align-items: center; gap: 8px;",
+    "  padding: 6px 10px; display: flex; align-items: center; gap: 6px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
     "}",
@@ -1456,8 +1452,8 @@
     "}",
     // Feedback row
     ".cb-fb-row {",
-    "  display: flex; align-items: center; gap: 6px;",
-    "  padding: 6px 0 2px; margin-top: 4px;",
+    "  display: flex; align-items: center; gap: 4px;",
+    "  padding: 4px 0 1px; margin-top: 3px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
     ".cb-fb-prompt { font-size: 10px; color: #666; font-weight: 600; }",
