@@ -48,12 +48,3 @@ body {
     transform: none !important;
   }
 }
-
-/* Blinking underscore cursor for CALIBER wordmark */
-@keyframes cb-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-.cb-blink-cursor {
-  animation: cb-blink 1.1s ease-in-out infinite;
-}

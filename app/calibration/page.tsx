@@ -5,6 +5,7 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
+import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
 
 const TYPE_MS = 38;
 const START_DELAY_MS = 350;
@@ -427,15 +428,8 @@ export default function CalibrationPage() {
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
-  // Typewriter hooks — CALIBER at half speed, then tagline after 2ms buffer
-  const [caliberTyped, caliberDone] = useTypewriter("Caliber", 200);
-  const [taglineReady, setTaglineReady] = useState(false);
-  useEffect(() => {
-    if (!caliberDone) { setTaglineReady(false); return; }
-    const t = setTimeout(() => setTaglineReady(true), 2);
-    return () => clearTimeout(t);
-  }, [caliberDone]);
-  const [tagline] = useTypewriter("Career Decision Engine.", TYPE_MS, taglineReady);
+  // Typewriter hooks — tagline is static on landing, typewriter used for other steps
+  const tagline = "Career Decision Engine.";
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -604,8 +598,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
   return (
     <div className="fixed inset-0 flex justify-center items-start overflow-y-auto" style={{ background: '#050505' }}>
-      {/* Spotlight band — 3-layer gradient stack via pseudo-elements */}
-      <div className="cb-hero-atmosphere" />
+      {/* Subtle ambient glow */}
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0"
+        style={{
+          height: "50vh",
+          background: "radial-gradient(ellipse 100% 70% at 50% 0%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
+          zIndex: 0,
+        }}
+      />
       <div className={`relative z-10 w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[32vh]" : "pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -616,68 +617,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
-
-          /* Hero spotlight band — 3-layer stack anchored to wordmark at ~23vh */
-          .cb-hero-atmosphere {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 0;
-            overflow: hidden;
-          }
-          /* Layer 1: Tight concentrated glow — narrow band around wordmark */
-          .cb-hero-atmosphere::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background:
-              radial-gradient(
-                80% 18% at 50% 23vh,
-                rgba(34, 197, 94, 0.28) 0%,
-                rgba(34, 197, 94, 0.14) 30%,
-                rgba(34, 197, 94, 0.04) 60%,
-                rgba(34, 197, 94, 0.00) 100%
-              );
-          }
-          /* Layer 2: Bright highlight line through wordmark + hard downward cutoff */
-          .cb-hero-atmosphere::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: calc(23vh - 10px);
-            height: 200px;
-            background:
-              linear-gradient(
-                to bottom,
-                rgba(255,255,255,0.00) 0%,
-                rgba(74, 222, 128, 0.25) 5%,
-                rgba(180,255,200,0.15) 6%,
-                rgba(74, 222, 128, 0.12) 8%,
-                rgba(255,255,255,0.00) 14%,
-                rgba(5,5,5,0.00) 25%,
-                rgba(5,5,5,0.70) 50%,
-                rgba(5,5,5,0.95) 100%
-              );
-            mask-image:
-              radial-gradient(
-                100% 100% at 50% 0%,
-                black 0%,
-                black 30%,
-                rgba(0,0,0,0.50) 55%,
-                rgba(0,0,0,0.10) 75%,
-                transparent 100%
-              );
-            -webkit-mask-image:
-              radial-gradient(
-                100% 100% at 50% 0%,
-                black 0%,
-                black 30%,
-                rgba(0,0,0,0.50) 55%,
-                rgba(0,0,0,0.10) 75%,
-                transparent 100%
-              );
-          }
         `}</style>
         {/* Hero content */}
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -690,7 +629,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                 </div>
               ) : (
-                <CaliberHeader compact noGradient typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
+                <CaliberHeader />
               )}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
@@ -1082,7 +1021,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Extension CTA — supporting section */}
+                {/* Extension CTA — inline install block */}
                 <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                   <div
                     className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
@@ -1092,23 +1031,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     }}
                   >
                     <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
-                    <a
-                      href="/extension"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                      style={{
-                        background: "rgba(74,222,128,0.06)",
-                        color: "#4ADE80",
-                        cursor: "pointer",
-                        minWidth: 180,
-                        border: "1px solid rgba(74,222,128,0.45)",
-                        boxShadow: "none",
-                      }}
-                    >
-                      <span>Get the Extension</span>
-                      <span style={{ fontSize: "1em", display: "inline-block", transition: "transform 0.2s" }} className="group-hover:translate-x-0.5">{"\u2192"}</span>
-                    </a>
+                    <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} />
                     <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
                   </div>
                 </div>
