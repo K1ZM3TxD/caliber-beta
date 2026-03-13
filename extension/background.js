@@ -465,6 +465,11 @@ async function callFitAPI(jobText, sessionId) {
 
   const data = await resp.json();
   if (!resp.ok) {
+    // Translate session/pipeline errors into a clean user-facing message
+    // so raw internal strings like "SUBMIT_JOB_TEXT failed" never surface.
+    if (resp.status === 401 || /session|pipeline|SUBMIT_JOB/i.test(data.error || "")) {
+      throw new Error("No active calibration found. Complete your calibration on Caliber first.");
+    }
     throw new Error(data.error || "API error " + resp.status);
   }
 

@@ -30,6 +30,13 @@ body {
   color: #F2F2F2;
 }
 
+.popup-headline {
+  color: #E5E5E5;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
 .status-text {
   color: #AFAFAF;
   font-size: 12px;

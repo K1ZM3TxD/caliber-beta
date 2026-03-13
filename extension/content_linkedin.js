@@ -971,7 +971,13 @@
             if (chrome.runtime.lastError) {
               reject(new Error(chrome.runtime.lastError.message));
             } else if (!response || !response.ok) {
-              reject(new Error((response && response.error) || "API error"));
+              var raw = (response && response.error) || "API error";
+              // Sanitize session/pipeline errors to a clean prerequisite message
+              if (/session|pipeline|SUBMIT_JOB|calibration/i.test(raw)) {
+                reject(new Error("No active calibration found. Complete your calibration on Caliber first."));
+              } else {
+                reject(new Error(raw));
+              }
             } else {
               resolve(response.data);
             }

@@ -2,6 +2,7 @@
 // env.js is loaded first via popup.html <script> tag
 
 (function () {
+  var headlineEl = document.getElementById("popup-headline");
   var statusEl = document.getElementById("popup-status");
   var toggleBtn = document.getElementById("popup-toggle");
   var calibrateLink = document.getElementById("popup-calibrate");
@@ -10,7 +11,10 @@
     statusEl.textContent = msg;
   }
 
-  function showCalibrateLink() {
+  function showPrerequisiteState() {
+    headlineEl.textContent = "Complete calibration first";
+    headlineEl.style.display = "";
+    setStatus("Caliber needs your calibrated profile to analyze job fit.");
     calibrateLink.href = CALIBER_ENV.API_BASE + "/calibration";
     calibrateLink.style.display = "";
   }
@@ -40,14 +44,11 @@
     setStatus("Checking calibration…");
     chrome.runtime.sendMessage({ type: "CALIBER_SESSION_DISCOVER" }, function (response) {
       if (chrome.runtime.lastError || !response || !response.ok) {
-        // No session found — show prerequisite state
-        setStatus("Complete your calibration on Caliber to start scoring jobs.");
-        showCalibrateLink();
+        showPrerequisiteState();
         return;
       }
       if (!response.profileComplete) {
-        setStatus("Your calibration is in progress. Finish it on Caliber to start scoring.");
-        showCalibrateLink();
+        showPrerequisiteState();
         return;
       }
 
