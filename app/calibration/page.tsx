@@ -728,7 +728,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                           <span className="text-sm sm:text-base font-medium">{selectedFile.name}</span>
-                          <span className="mt-2 text-xs" style={{ color: "#CFCFCF" }}>File selected</span>
                           <button
                             type="button"
                             onClick={openFilePicker}
@@ -745,7 +744,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           </button>
                         </div>
                       )}
-                      <span className="absolute bottom-2 left-0 right-0 text-center text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>
+                      {!selectedFile && <span className="absolute bottom-2 left-0 right-0 text-center text-[10px]" style={{ color: "#CFCFCF" }}>PDF, DOCX, or TXT</span>}
                     </div>
                   </div>
                 </div>
