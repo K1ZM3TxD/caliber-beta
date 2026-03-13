@@ -733,7 +733,6 @@
     var hrcReason = shadow.getElementById("cb-hrc-reason");
     var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
     if (hrc && hrc.band) {
-      hrcSection.style.display = "";
       hrcBandEl.textContent = hrc.band;
       hrcBandEl.className = "cb-hrc-badge";
       hrcToggle.className = "cb-collapse-toggle";
@@ -752,8 +751,13 @@
       }
       hrcReason.textContent = hrc.reason || "";
     } else {
-      hrcSection.style.display = "none";
+      hrcBandEl.textContent = "\u2014";
+      hrcBandEl.className = "cb-hrc-badge";
+      hrcBandEl.style.color = "#555";
+      hrcToggle.className = "cb-collapse-toggle";
+      hrcReason.textContent = "";
     }
+    hrcSection.style.display = "";
 
     // Supports (collapsible — dot indicators in toggle)
     var supportItems = data.supports_fit || [];
@@ -767,12 +771,12 @@
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.innerHTML = renderBarIndicator(stretchItems.length, "yellow");
     var stretchSection = shadow.getElementById("cb-stretch-section");
-    if (stretchSection) stretchSection.style.display = stretchItems.length ? "" : "none";
+    if (stretchSection) stretchSection.style.display = "";
 
     // Bottom line (collapsible)
     shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
     var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = (data.bottom_line_2s) ? "" : "none";
+    if (blSection) blSection.style.display = "";
 
     // Nearby roles (only for stretch/skip)
     var nearbySection = shadow.getElementById("cb-nearby-section");
@@ -1156,7 +1160,7 @@
     '      <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      <div id="cb-company" class="cb-company-name"></div>',
     '    </div>',
-    '    <div id="cb-hrc-section" class="cb-collapsible" style="display:none">',
+    '    <div id="cb-hrc-section" class="cb-collapsible">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>Hiring Reality</span>',
@@ -1278,7 +1282,8 @@
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
     ".cb-panel {",
-    "  width: 320px; max-height: 90vh; overflow-y: auto;",
+    "  width: 320px; min-width: 320px; max-width: 320px;",
+    "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
     "  background: #111114; color: #F2F2F2; border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
@@ -1309,7 +1314,7 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 8px 10px; position: relative; }",
+    ".cb-body { padding: 8px 10px; position: relative; min-height: 80px; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
