@@ -33,7 +33,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boo
   return [typed, typed.length > 0 && typed === text];
 }
 
-function useWordReveal(text: string, msPerChar: number = TYPE_MS, startWhen: boolean = true): [string[], boolean] {
+function useWordReveal(text: string, msPerChar: number = TYPE_MS, startWhen: boolean = true): [string[], number, boolean] {
   const words = useMemo(() => (text ? text.split(/\s+/) : []), [text]);
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -53,7 +53,7 @@ function useWordReveal(text: string, msPerChar: number = TYPE_MS, startWhen: boo
     timers.push(setTimeout(reveal, firstDelay));
     return () => timers.forEach(clearTimeout);
   }, [text, msPerChar, startWhen, words]);
-  return [words.slice(0, count), count >= words.length];
+  return [words, count, count >= words.length];
 }
 
 type AnySession = any;
@@ -454,7 +454,7 @@ export default function CalibrationPage() {
   // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
   const tagline = "Career Decision Engine";
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
-  const [taglineWords, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
+  const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
@@ -673,7 +673,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineWords.map((w, i) => <span key={i} className="cb-word-reveal" style={{ marginRight: '0.35em' }}>{w}</span>) : tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.35em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
