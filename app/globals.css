@@ -46,12 +46,34 @@ body {
 }
 .cb-blink-cursor {
   animation: cb-blink 0.85s step-end infinite;
+  text-shadow: 0 0 10px rgba(34,197,94,0.6);
+}
+
+/* Subtle breathing glow synced loosely with cursor blink */
+@keyframes caliberGlow {
+  0%, 100% {
+    text-shadow:
+      0 2px 6px rgba(0,0,0,0.55),
+      0 0 6px rgba(34,197,94,0.06);
+  }
+  50% {
+    text-shadow:
+      0 2px 6px rgba(0,0,0,0.55),
+      0 0 12px rgba(34,197,94,0.14);
+  }
+}
+.cb-wordmark-glow {
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.55),
+    0 0 8px rgba(34,197,94,0.08);
+  animation: caliberGlow 2.5s ease-in-out infinite;
 }
 
 /* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
   .cb-reveal,
-  .cb-title-card {
+  .cb-title-card,
+  .cb-wordmark-glow {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

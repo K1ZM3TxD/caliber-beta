@@ -17,11 +17,10 @@ export default function CaliberHeader({ className = "", typedText, showCursor, h
     <div className={`flex items-center justify-between pt-4 ${className}`}>
       <div className="w-8" />
       <span
-        className="font-semibold tracking-[0.22em] uppercase"
+        className="font-semibold tracking-[0.22em] uppercase cb-wordmark-glow"
         style={{
           fontSize: "2.15rem",
           color: "rgba(161,161,170,0.75)",
-          textShadow: "0 0 40px rgba(74,222,128,0.09), 0 0 80px rgba(74,222,128,0.04)",
           minWidth: "14ch",
           display: "inline-block",
           textAlign: "center",
@@ -29,7 +28,7 @@ export default function CaliberHeader({ className = "", typedText, showCursor, h
       >
         {display}
         {showCursor && (
-          <span className="cb-blink-cursor" style={{ color: "rgba(74,222,128,0.7)", marginLeft: "0.05em" }}>_</span>
+          <span className="cb-blink-cursor" style={{ color: "#22c55e", marginLeft: "0.05em" }}>_</span>
         )}
       </span>
       <div className="w-8 flex justify-end">
