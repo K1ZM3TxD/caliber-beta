@@ -625,56 +625,56 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             z-index: 0;
             overflow: hidden;
           }
-          /* Layer 1: Soft atmospheric glow — centered on wordmark zone */
+          /* Layer 1: Tight concentrated glow — narrow band around wordmark */
           .cb-hero-atmosphere::before {
             content: "";
             position: absolute;
             inset: 0;
             background:
               radial-gradient(
-                120% 45% at 50% 23vh,
-                rgba(34, 197, 94, 0.16) 0%,
-                rgba(34, 197, 94, 0.08) 25%,
-                rgba(34, 197, 94, 0.03) 45%,
-                rgba(34, 197, 94, 0.00) 65%
+                80% 18% at 50% 23vh,
+                rgba(34, 197, 94, 0.28) 0%,
+                rgba(34, 197, 94, 0.14) 30%,
+                rgba(34, 197, 94, 0.04) 60%,
+                rgba(34, 197, 94, 0.00) 100%
               );
           }
-          /* Layer 2: Highlight line through wordmark + Layer 3: Downward fade */
+          /* Layer 2: Bright highlight line through wordmark + hard downward cutoff */
           .cb-hero-atmosphere::after {
             content: "";
             position: absolute;
             left: 0;
             right: 0;
-            top: calc(23vh - 20px);
-            height: 160px;
+            top: calc(23vh - 10px);
+            height: 200px;
             background:
               linear-gradient(
                 to bottom,
                 rgba(255,255,255,0.00) 0%,
-                rgba(210,255,225,0.06) 10%,
-                rgba(74, 222, 128, 0.14) 12%,
-                rgba(200,255,220,0.07) 13.5%,
-                rgba(255,255,255,0.00) 20%,
-                rgba(5,5,5,0.00) 38%,
-                rgba(5,5,5,0.50) 60%,
-                rgba(5,5,5,0.88) 100%
+                rgba(74, 222, 128, 0.25) 5%,
+                rgba(180,255,200,0.15) 6%,
+                rgba(74, 222, 128, 0.12) 8%,
+                rgba(255,255,255,0.00) 14%,
+                rgba(5,5,5,0.00) 25%,
+                rgba(5,5,5,0.70) 50%,
+                rgba(5,5,5,0.95) 100%
               );
             mask-image:
               radial-gradient(
-                140% 100% at 50% 50%,
+                100% 100% at 50% 0%,
                 black 0%,
-                black 50%,
-                rgba(0,0,0,0.65) 70%,
-                rgba(0,0,0,0.20) 85%,
+                black 30%,
+                rgba(0,0,0,0.50) 55%,
+                rgba(0,0,0,0.10) 75%,
                 transparent 100%
               );
             -webkit-mask-image:
               radial-gradient(
-                140% 100% at 50% 50%,
+                100% 100% at 50% 0%,
                 black 0%,
-                black 50%,
-                rgba(0,0,0,0.65) 70%,
-                rgba(0,0,0,0.20) 85%,
+                black 30%,
+                rgba(0,0,0,0.50) 55%,
+                rgba(0,0,0,0.10) 75%,
                 transparent 100%
               );
           }
