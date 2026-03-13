@@ -970,7 +970,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               return (
               <div className="w-full max-w-3xl pb-8">
                 {/* Pattern summary context */}
-                <div className="mt-6 mb-12 flex flex-col items-center text-center" style={{ maxWidth: 560, margin: "0 auto" }}>
+                <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
                   <p className="text-lg sm:text-xl leading-snug" style={{ color: "rgba(225,225,225,0.9)", fontWeight: 500 }}>{contextSentence}</p>
                   <p className="text-lg sm:text-xl leading-snug mt-1.5" style={{ color: "rgba(225,225,225,0.9)", fontWeight: 500 }}>{marketLabelSentence}</p>
                   {archetypeLabel ? (
@@ -980,7 +980,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Fallback: no title available */}
                 {!heroTitle ? (
-                  <div className="mt-4 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "rgba(255,255,255,0.025)", color: "#AFAFAF", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="mt-10 mb-4 rounded-lg px-5 py-4 text-center text-sm" style={{ backgroundColor: "rgba(255,255,255,0.025)", color: "#AFAFAF", border: "1px solid rgba(255,255,255,0.05)" }}>
                     Your title recommendation is still being generated.
                   </div>
                 ) : null}
@@ -988,7 +988,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {/* Hero title card */}
                 {heroTitle ? (
                   <div
-                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
+                    className="mt-10 cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
@@ -1060,7 +1060,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 ) : null}
 
                 {/* Extension CTA — inline install block */}
-                <div className="mt-4" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
+                <div className="mt-8" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
                   <div
                     className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
                     style={{
@@ -1075,7 +1075,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 </div>
 
                 {/* How we score this — integrated philosophy */}
-                <div className="mt-3">
+                <div className="mt-6">
                   <div
                     className="rounded-xl transition-all duration-150 cursor-pointer"
                     style={{
