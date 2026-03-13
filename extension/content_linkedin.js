@@ -974,6 +974,7 @@
               var raw = (response && response.error) || "API error";
               // Sanitize session/pipeline errors to a clean prerequisite message
               if (/session|pipeline|SUBMIT_JOB|calibration/i.test(raw)) {
+                console.warn("[caliber] prerequisite error (raw):", raw);
                 reject(new Error("No active calibration found. Complete your calibration on Caliber first."));
               } else {
                 reject(new Error(raw));
