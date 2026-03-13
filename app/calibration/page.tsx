@@ -609,7 +609,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           zIndex: 0,
         }}
       />
-      <div className={`relative z-10 w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[32vh]" : "pt-[22vh]"}`}>
+      {/* Layout rule: pages with CaliberHeader use pt-[22vh] for header breathing room.
+         No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
+      <div className={`relative z-10 w-full max-w-[760px] px-6 pb-16 ${step === "TITLES" ? "pt-[10vh]" : "pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -897,6 +899,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
+              // Pattern summary context — two-sentence structure above hero title
+              const rawPatternSummary: string = (session?.synthesis?.patternSummary as string) ?? "";
+              const firstSentence = rawPatternSummary
+                .split(/(?<=[.!?])\s+/)
+                .filter((s: string) => s.trim().length > 10)[0]
+                ?.trim() ?? "";
+              const contextSentence = firstSentence || "You\u2019re most energized when your work aligns with your natural pattern.";
+              const marketLabelSentence = "The closest market label for the kind of work you\u2019re naturally aligned with is:";
+
               // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
               if (enrichedTitles.length === 0 && rec?.primary_title) {
@@ -934,11 +945,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
               return (
               <div className="w-full max-w-3xl pb-8">
-                {/* Section heading */}
-                <div className="mb-3 flex flex-col items-center">
-                  <h2 className="text-base sm:text-lg font-light tracking-tight" style={{ color: "#F2F2F2" }}>Top title suggestion for your pattern</h2>
+                {/* Pattern summary context */}
+                <div className="mb-6 flex flex-col items-center text-center" style={{ maxWidth: 560, margin: "0 auto" }}>
+                  <p className="text-sm sm:text-[15px] leading-relaxed" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 300 }}>{contextSentence}</p>
+                  <p className="text-sm sm:text-[15px] leading-relaxed mt-3" style={{ color: "rgba(207,207,207,0.55)", fontWeight: 300 }}>{marketLabelSentence}</p>
                   {archetypeLabel ? (
-                    <span className="text-[11px] font-medium uppercase tracking-widest mt-1" style={{ color: "#555" }}>{archetypeLabel}</span>
+                    <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
                 </div>
 
@@ -956,7 +968,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     style={{
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
-                      border: heroExpanded ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)",
+                      border: heroExpanded ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(74,222,128,0.22)",
                     }}
                     onClick={() => {
                       if (!heroCanExpand) return;
