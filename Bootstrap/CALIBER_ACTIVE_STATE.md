@@ -7,6 +7,8 @@
 ## Current Phase
 **Stabilization / debug-before-expansion phase.** Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes that must be validated stable before new action-layer work begins. The project is in a validation-driven sequenced pipeline — each main step is soft-locked behind completion of the previous step. Small, narrow UI bug squashes may proceed at any time without breaking the sequence.
 
+**Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
+
 ## Active Current Fix
 **Extension sidecard collapsed height stability.** The sidecard currently changes height between scored jobs even when all collapsible sections are closed. Collapsed card height should remain fixed; the card should only expand when a collapsible section is opened. Different score states, label lengths, or optional rows (e.g., Stretch Factors absent) should not change the collapsed height. This is in flight — not yet complete.
 

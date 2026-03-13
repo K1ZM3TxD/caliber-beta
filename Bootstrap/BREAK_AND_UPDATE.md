@@ -79,6 +79,36 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-13 — Defer Alternate Career-Signal Uploads Until Post-Beta
+
+**What changed:**
+- PM reviewed future product ideas around allowing users to upload non-resume career documents (personality assessments, strengths reports, skills profiles) as additional pattern-engine inputs.
+- Product decision: these are promising future inputs but are explicitly deferred until after beta ships.
+- No new feature scope will be added to the beta flow.
+
+**Why it changed:**
+- Current beta priority is shipping and stabilizing the existing core flow (resume → calibration → extension → pipeline). Adding new document-source features would expand scope and risk destabilizing the beta release.
+
+**What is now expected:**
+- Resume-first beta scope remains the active and only upload path.
+- The calibration flow accepts resumes only (PDF, DOCX, TXT).
+- Alternate career-signal upload ideas are captured as a post-beta exploration item, not active roadmap work.
+
+**What is explicitly no longer expected:**
+- Implementation of alternate document-source upload features before beta ships.
+- PM issuing tasks to build personality assessment, strengths report, or skills profile ingestion during beta.
+- Any UI or API changes to support non-resume uploads in the current milestone.
+
+**Risk / fallout:**
+- Lower scope risk — deferring reduces the chance of beta delays from feature creep.
+- Deferred strategic upside — the idea has product value but is intentionally parked to protect the shipping timeline.
+- No code impact. No user-facing change.
+
+**Proof target:**
+- No alternate-upload feature work appears in active tasks or milestones until beta ships.
+
+**Files touched:** Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md, Bootstrap/CALIBER_ISSUES_LOG.md, Bootstrap/CALIBER_ACTIVE_STATE.md
+
 ### 2026-03-11 — UX Task Contract: UI Constitution + Layout Skeleton Required
 
 **What changed:**

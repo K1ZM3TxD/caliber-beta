@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+54. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) — **DEFERRED / POST-BETA** (2026-03-13)
+  - PM reviewed future product ideas for allowing users to upload non-resume career documents as additional pattern-engine inputs.
+  - Product decision: promising future inputs, but explicitly deferred until after beta ships.
+  - No implementation, UI, or API changes during beta. Resume-first flow remains the only active upload path.
+  - Revisit as post-beta exploration once core flow is shipped and stable.
+  - Scope-control entry logged in `Bootstrap/BREAK_AND_UPDATE.md` (2026-03-13).
+
 53. Visual drift from under-specified PM UX handoffs — **MITIGATED** (2026-03-11)
   - PM-to-coder UX tasks were issued without shared visual primitives, relying on local page-level styling instructions only.
   - Result: repeated visual drift and regressions requiring correction passes after each UX implementation.

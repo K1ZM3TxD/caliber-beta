@@ -1,5 +1,21 @@
 ---
 
+BREAK + UPDATE — 2026-03-13 (Defer Alternate Career-Signal Uploads Until Post-Beta)
+---
+DONE:
+- PM reviewed and captured future product ideas for non-resume career document uploads (personality assessments, strengths reports, skills profiles)
+- Product decision made: defer all alternate career-signal upload features until after beta
+- Scope-control entry added to BREAK_AND_UPDATE.md, CALIBER_ISSUES_LOG.md, CALIBER_ACTIVE_STATE.md
+
+BLOCKED:
+- None — this is a scope-freeze decision, not an implementation task
+
+NEXT:
+- Resume-first beta scope continues as the only active upload path
+- Revisit alternate career-signal ingestion as a post-beta exploration item once core flow is shipped and stable
+
+---
+
 BREAK + UPDATE — 2026-03-11 (UX Task Contract: UI Constitution + Layout Skeleton Required)
 ---
 DONE:
