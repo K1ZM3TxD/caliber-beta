@@ -603,7 +603,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         className="pointer-events-none fixed inset-x-0 top-0"
         style={{
           height: "50vh",
-          background: "radial-gradient(ellipse 100% 70% at 50% 0%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
+          background: "radial-gradient(ellipse 100% 70% at 50% -20%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
           zIndex: 0,
         }}
       />
@@ -646,7 +646,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.07em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
+                  <p style={{ fontWeight: 400, letterSpacing: '0.005em', color: 'rgba(237,237,237,0.78)' }}>{tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
