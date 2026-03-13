@@ -970,9 +970,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               return (
               <div className="w-full max-w-3xl pb-8">
                 {/* Pattern summary context */}
-                <div className="mb-8 flex flex-col items-center text-center" style={{ maxWidth: 560, margin: "0 auto" }}>
-                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(220,220,220,0.85)", fontWeight: 400 }}>{contextSentence}</p>
-                  <p className="text-sm sm:text-[15px] leading-relaxed mt-4" style={{ color: "rgba(207,207,207,0.55)", fontWeight: 300 }}>{marketLabelSentence}</p>
+                <div className="mt-6 mb-8 flex flex-col items-center text-center" style={{ maxWidth: 560, margin: "0 auto" }}>
+                  <p className="text-lg sm:text-xl leading-snug" style={{ color: "rgba(225,225,225,0.9)", fontWeight: 500 }}>{contextSentence}</p>
+                  <p className="text-sm sm:text-[15px] leading-relaxed mt-1.5" style={{ color: "rgba(207,207,207,0.55)", fontWeight: 300 }}>{marketLabelSentence}</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
