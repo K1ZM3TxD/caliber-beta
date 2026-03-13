@@ -1,5 +1,7 @@
 // lib/resume_skeleton.ts — Generate ATS-friendly base resume skeleton from 3 prompts
 
+import { requireOpenAIKey } from "./env";
+
 export interface ResumeSkeletonInput {
   experience: string;   // Prompt 1: what they've done
   strengths: string;    // Prompt 2: what they do unusually well

@@ -112,9 +112,16 @@ export async function POST(req: NextRequest) {
     );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Internal error";
+    const isMissingKey = msg.includes("OPENAI_API_KEY");
+    console.error(`[tailor/generate] ${msg}`);
     return NextResponse.json(
-      { ok: false, error: msg },
-      { status: 500 }
+      {
+        ok: false,
+        error: isMissingKey
+          ? "Resume tailoring is temporarily unavailable. Please try again later."
+          : msg,
+      },
+      { status: isMissingKey ? 503 : 500 }
     );
   }
 }

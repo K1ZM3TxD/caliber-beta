@@ -1,5 +1,22 @@
 ---
 
+BREAK + UPDATE — 2026-03-13 (OPENAI_API_KEY Runtime Contract)
+---
+DONE:
+- Created shared environment guard `lib/env.ts` with `requireOpenAIKey()` helper
+- All OpenAI usage points (`lib/tailor_store.ts`, `lib/resume_skeleton.ts`, `lib/semantic_synthesis.ts`) now use the shared guard instead of inline checks
+- Tailor API routes return clean 503 + user-facing message when key is missing; real error logged server-side
+- `OPENAI_API_KEY` documented in `.env.development` and `.env.production` with operator comments
+- No secrets committed; key is server-side only; no NEXT_PUBLIC exposure
+
+BLOCKED:
+- None — operator must add real OPENAI_API_KEY to .env.local / deployment settings
+
+NEXT:
+- Operator supplies key; tailor generation works end-to-end
+
+---
+
 BREAK + UPDATE — 2026-03-13 (Defer Alternate Career-Signal Uploads Until Post-Beta)
 ---
 DONE:

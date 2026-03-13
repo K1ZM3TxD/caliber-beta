@@ -3,6 +3,14 @@
 
 ## Current Open Issues
 
+55. OPENAI_API_KEY runtime contract for AI features — **RESOLVED** (2026-03-13)
+  - Tailoring, pattern synthesis, and resume skeleton generation all depend on OPENAI_API_KEY at runtime.
+  - Previously: each file did its own inline `process.env.OPENAI_API_KEY` check with inconsistent error handling.
+  - Fix: shared `lib/env.ts` with `requireOpenAIKey()` guard used by all three consumers.
+  - Tailor routes return 503 with safe user-facing message when key is missing; error logged server-side.
+  - Env files (`.env.development`, `.env.production`) now document the variable with operator instructions.
+  - No secrets committed. Key is server-side only.
+
 54. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) — **DEFERRED / POST-BETA** (2026-03-13)
   - PM reviewed future product ideas for allowing users to upload non-resume career documents as additional pattern-engine inputs.
   - Product decision: promising future inputs, but explicitly deferred until after beta ships.

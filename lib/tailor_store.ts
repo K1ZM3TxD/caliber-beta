@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { normalizeJobUrl } from "./pipeline_store";
+import { requireOpenAIKey } from "./env";
 
 export interface TailorPrep {
   id: string;
@@ -98,8 +99,7 @@ export async function generateTailoredResume(
   company: string,
   jobDescription: string
 ): Promise<string> {
-  const apiKey = (process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+  const apiKey = requireOpenAIKey();
 
   const model = (
     process.env.OPENAI_MODEL_TAILOR || "gpt-4o-mini"

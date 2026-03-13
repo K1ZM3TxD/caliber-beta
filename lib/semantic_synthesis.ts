@@ -1,6 +1,7 @@
 // lib/semantic_synthesis.ts
 
 import { extractAnchors } from "@/lib/anchors"
+import { requireOpenAIKey } from "@/lib/env"
 
 type PersonVector6 = [0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2, 0 | 1 | 2]
 
@@ -77,11 +78,7 @@ export async function generateSemanticSynthesis(args: {
   constructionLayer: string
   consequenceDrop?: string
 }> {
-  const apiKey = (process.env.OPENAI_API_KEY || "").trim()
-  if (!apiKey) {
-    console.log("synthesis_source=fallback")
-    throw new Error("Missing OPENAI_API_KEY")
-  }
+  const apiKey = requireOpenAIKey()
 
   const model = (process.env.OPENAI_MODEL_SEMANTIC_SYNTHESIS || "gpt-4o-mini").trim()
   const temperature = Number.parseFloat(process.env.OPENAI_TEMP_SEMANTIC_SYNTHESIS || "0.35")

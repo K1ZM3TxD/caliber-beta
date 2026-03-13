@@ -30,6 +30,7 @@
 - The browser extension sidecard is the primary decision surface: job identity, fit score, decision badge, Hiring Reality Check, collapsible supports/stretch/bottom line.
 - Jobs scoring 8.0+ trigger a contextual card above the sidecard: "Tailor resume for this job."
 - Resume tailoring uses the user's existing uploaded Caliber resume + live job context from the extension. Nothing is fabricated.
+- All OpenAI-dependent features (tailoring, pattern synthesis, resume skeleton) use a shared `requireOpenAIKey()` guard from `lib/env.ts`. OPENAI_API_KEY must be set in the runtime environment. Missing key returns clean 503 to the user.
 - Pipeline entry is created at `/api/tailor/prepare` time — pipeline persistence begins before tailoring, not after. Pipeline dedupe is based on canonical/normalized job URL.
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download actions.
 - Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Code is complete; product validation deferred to step 6.
