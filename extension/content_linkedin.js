@@ -839,6 +839,26 @@
     if (score < 6) sessionSignals.scores_below_6++;
     if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
 
+    // Auto-save strong-match jobs (>= 8.5) to pipeline silently
+    if (score >= 8.5) {
+      chrome.runtime.sendMessage(
+        {
+          type: "CALIBER_PIPELINE_SAVE",
+          jobTitle: lastJobMeta.title || "",
+          company: lastJobMeta.company || "",
+          jobUrl: location.href,
+          score: score,
+        },
+        function (resp) {
+          if (resp && resp.ok) {
+            console.debug("[Caliber] auto-saved strong match to pipeline (score=" + score + ")");
+          } else {
+            console.debug("[Caliber] auto-save skipped or failed:", resp && resp.error);
+          }
+        }
+      );
+    }
+
     // Snapshot context for feedback
     lastFeedbackData = {
       score: score,
