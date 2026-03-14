@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.2";
+  const PANEL_VERSION = "0.8.4";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -976,7 +976,10 @@
    * pre-rendered and recycled cards that may not trigger scroll events.
    */
   function scanAndBadgeVisibleCards() {
-    if (!active || !isSearchResultsPage()) return;
+    if (!active || !isSearchResultsPage()) {
+      console.debug("[Caliber][diag][detect] scanAndBadgeVisibleCards skipped — active=" + active + ", searchPage=" + isSearchResultsPage());
+      return;
+    }
 
     ensureBadgeStyles();
 
@@ -1323,6 +1326,44 @@
   }
 
   /**
+   * Start badge scanning with retry polling for cards.
+   * LinkedIn lazily renders card DOM, so we poll until cards appear.
+   * Separated from prescan evaluation so scanning always runs regardless
+   * of whether prescan BST evaluation has already completed for this surface.
+   */
+  function startBadgeScanningWithRetry() {
+    var attempts = 0;
+    var maxAttempts = 8;
+    function attempt() {
+      attempts++;
+      if (!active || !isSearchResultsPage()) {
+        console.debug("[Caliber][diag][detect] badge scan aborted — active=" + active + ", searchPage=" + isSearchResultsPage());
+        return;
+      }
+      scanAndBadgeVisibleCards();
+      startBadgeScrollListener();
+      startBadgeListObserver();
+      // Check if we found any cards; if not, retry
+      var foundAny = false;
+      var cardCounts = [];
+      for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+        var count = document.querySelectorAll(JOB_CARD_SELECTORS[s]).length;
+        if (count > 0) { foundAny = true; cardCounts.push(JOB_CARD_SELECTORS[s] + ":" + count); }
+      }
+      if (!foundAny && attempts < maxAttempts) {
+        console.debug("[Caliber][diag][detect] badge scan retry " + attempts + "/" + maxAttempts + " — no cards found yet");
+        setTimeout(attempt, 1500);
+      } else if (foundAny) {
+        console.debug("[Caliber][diag][detect] badge scanning active, cards found on attempt " + attempts + " [" + cardCounts.join(", ") + "]");
+      } else {
+        console.debug("[Caliber][diag][detect] badge scanning: no cards found after " + maxAttempts + " retries");
+      }
+    }
+    // First attempt after short delay for DOM to settle
+    setTimeout(attempt, 1000);
+  }
+
+  /**
    * Kick off the search prescan.
    * Badge scoring IS the prescan — this just ensures badge scanning is running.
    * BST evaluation happens automatically in evaluateBSTFromBadgeCache() after scores arrive.
@@ -1330,17 +1371,22 @@
   function runSearchPrescan() {
     var surfaceKey = getSearchSurfaceKey();
 
-    // Guard: skip if already done for this surface or not search page
+    if (!isSearchResultsPage()) {
+      console.debug("[Caliber][prescan] not a search results page, skipping");
+      return;
+    }
+
+    // Guard: skip prescan EVALUATION if already done for this surface,
+    // but ALWAYS start badge scanning infrastructure.
+    // Previous regression: early return here prevented badge scanning from
+    // ever starting when durable prescan state was loaded on page reload.
     if (prescanDone && prescanSearchQuery === surfaceKey) {
       // Restore banner from durable state if suggestion was shown previously
       if (prescanStoredTitle && !prescanBSTActive) {
         showPrescanBSTBanner(prescanStoredTitle);
       }
-      console.debug("[Caliber][prescan] already completed for surface: " + surfaceKey);
-      return;
-    }
-    if (!isSearchResultsPage()) {
-      console.debug("[Caliber][prescan] not a search results page, skipping");
+      console.debug("[Caliber][prescan] evaluation already completed for surface: " + surfaceKey + " — starting badge scanning");
+      startBadgeScanningWithRetry();
       return;
     }
 
@@ -1360,29 +1406,7 @@
     console.debug("[Caliber][prescan] prescan delegated to badge scoring pipeline for surface: " + surfaceKey);
 
     // Badge scoring handles all API calls — BST evaluates from badge cache after each chunk
-    // Retry-poll until cards are found (LinkedIn lazy-renders card DOM)
-    var prescanAttempts = 0;
-    var prescanMaxAttempts = 8;
-    function prescanRetry() {
-      prescanAttempts++;
-      scanAndBadgeVisibleCards();
-      startBadgeScrollListener();
-      startBadgeListObserver();
-      // Check if we found any cards; if not, retry
-      var foundAny = false;
-      for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
-        if (document.querySelectorAll(JOB_CARD_SELECTORS[s]).length > 0) { foundAny = true; break; }
-      }
-      if (!foundAny && prescanAttempts < prescanMaxAttempts) {
-        console.debug("[Caliber][prescan] no cards found yet, retry " + prescanAttempts + "/" + prescanMaxAttempts);
-        setTimeout(prescanRetry, 1500);
-      } else if (foundAny) {
-        console.debug("[Caliber][prescan] cards found on attempt " + prescanAttempts);
-      } else {
-        console.debug("[Caliber][prescan] no cards found after " + prescanMaxAttempts + " attempts");
-      }
-    }
-    setTimeout(prescanRetry, 1500);
+    startBadgeScanningWithRetry();
   }
 
   /**
