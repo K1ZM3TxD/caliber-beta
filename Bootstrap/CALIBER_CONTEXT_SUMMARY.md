@@ -2,19 +2,15 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-11, Stabilization Phase — Debug/Polish Before Action-Layer Expansion)
+## Project Status (2026-03-14, Phase-2 Overlay Scoring Shipped)
 
-**Entering stabilization/debugging phase.** Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes. These must be validated stable before any new action-layer work (auto-save, account prompt, pipeline expansion) begins. The roadmap is now explicitly sequenced and soft-locked — each main step is blocked by the previous step until validated complete. Small UI bug squashes are the documented exception.
-
-**Active fix:** Extension sidecard collapsed height stability — collapsed card height should remain fixed across scored jobs; should only expand when collapsible sections are opened.
+**Phase-2 overlay scoring is shipped and stable.** Extension now operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on the selected job. Badge system includes stable card identity, session score cache, progressive chunked scoring, scroll/mutation listeners, and BST evaluation from badge cache. Eight lifecycle/stability bugs were found and fixed during stabilization.
 
 **Queued next (soft-locked in order):**
-1. Fix extension scorecard collapsed sizing stability (ACTIVE)
-2. Restore / verify Better Search Title trigger behavior
-3. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
-4. Add post-save confirmation / action state in sidecard
-5. Add account prompt for durable pipeline saving
-6. Continue pipeline/action-layer refinement only after the above are stable
+1. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
+2. Add post-save confirmation / action state in sidecard
+3. Add account prompt for durable pipeline saving
+4. Continue pipeline/action-layer refinement only after the above are stable
 
 **Recent completed fixes (this session):**
 - Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)
@@ -36,7 +32,7 @@
 - Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Code is complete; product validation deferred to step 6.
 - Shell visual baseline anchored to commit a211182. Shared shell framework not yet locked; deferred to step 6.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
-- Extension v0.6.0 deployed (ZIP rebuilt with latest source).
+- Extension v0.8.0 deployed (ZIP rebuilt with overlay badge system).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
 - Next priorities: validate sidecard collapsed sizing → verify BST trigger → auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
@@ -44,6 +40,12 @@
 **Real User Flow:**
 ```
 calibration → results page → /extension → download ZIP → install in Chrome → navigate LinkedIn → extension scores jobs
+
+Discovery layer (search results):
+LinkedIn search results → score badges appear on visible job cards → progressive scoring via scroll → cache restores on return navigation → BST fires if too few strong matches
+
+Decision layer (selected job):
+Click a job → sidecard scores full description → Fit Score + Hiring Reality Check + Bottom Line
 
 Strong-match action flow (8.0+):
 LinkedIn job scores 8.0+ → contextual card above sidecard → "Tailor resume for this job" → /tailor page → generate tailored resume → download → entry tracked in /pipeline
@@ -93,9 +95,13 @@ What is **not** on this page:
 
 Job-fit evaluation lives exclusively in the browser extension sidecard.
 
-## Current Extension Sidecard (2026-03-11, canonical)
+## Current Extension Sidecard (2026-03-14, canonical)
 
-The extension sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content.
+The extension operates as a two-layer evaluation surface:
+- **Discovery layer (listings):** Score badges injected directly into LinkedIn search result cards. Each card shows a color-coded fit score (Green 8.0+ / Yellow 6.5–7.9 / Gray 0–6.4) next to the company logo. Progressive scoring via chunked API batches. Scroll and MutationObserver detect new/rerendered cards. Cache restores badges instantly on return navigation.
+- **Decision layer (sidecard):** Full evaluation panel for the selected job. Fit score, Hiring Reality Check, supports/stretch/bottom line, nearby roles, feedback controls.
+
+The sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content.
 
 **Structure (top to bottom):**
 
@@ -114,7 +120,7 @@ The extension sidecard is the primary decision surface. Compact, decision-first 
 9. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
 
 **Dimensions:** 380px wide, 520px max height, 240px min height (results body).
-**Version:** v0.6.1.
+**Version:** v0.8.0.
 
 ## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
 
@@ -166,6 +172,14 @@ Structured feedback collection active across extension and web app.
 - Calibration titles are initial search terms / starting hypothesis, not the full search surface. Real market discovery may require adjacent/expanded titles later.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
+- Phase 2 overlay flow: navigate LinkedIn search results → score badges appear on visible cards → scroll triggers progressive scoring → BST evaluates from accumulated badge cache.
+
+## Session Decisions (2026-03-14, Phase-2 Overlay Scoring Shipped)
+
+- **Phase-2 overlay scoring complete.** Extension now provides two evaluation surfaces: score badges on search result cards (discovery) and full sidecard evaluation on selected job (decision). Badge system is stable with identity, caching, progressive scoring, and lifecycle management.
+- **Next priorities updated.** With overlay scoring stable, the next product-layer additions are: auto-save strong matches → post-save confirmation → account prompt → pipeline refinement. Soft-locked in order.
+- **Card identity uses LinkedIn's native IDs.** Priority chain: data-occludable-job-id → /jobs/view/{id} href → data-job-id → text hash fallback. Native IDs are preferred over composite text identity for stability and O(1) lookup.
+- **BST evaluation unified with badge scoring.** `evaluateBSTFromBadgeCache()` replaces the separate prescan pipeline — badge scoring IS the prescan. Reduces API calls and architectural complexity.
 
 ## Session Decisions (2026-03-11, Stabilization Phase — Soft-Locked Task Sequencing)
 

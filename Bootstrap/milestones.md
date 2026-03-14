@@ -1,5 +1,32 @@
 ---
 
+BREAK + UPDATE — 2026-03-14 (Phase-2 Overlay Scoring — LinkedIn Job Card Badges)
+---
+DONE:
+- Phase-2 overlay badge system fully implemented and stabilized across 4 commits (3c18f30 → 6d2ef28 → 5bb8565 → 82742a7)
+- Badge injection into LinkedIn search results: CSS injected into page, badges render next to company logo on each job card
+- Visible-job scoring engine: `scanAndBadgeVisibleCards()` stamps identity, deduplicates via cache, queues new cards for progressive scoring
+- Chunked batch scoring: `CALIBER_PRESCAN_BATCH` message to background.js, `BADGE_CHUNK_SIZE=5` per chunk, sequential `callFitAPI()` calls with `{ prescan: true }`
+- Stable card identity: `cardJobId()` with 4-level priority chain (data-occludable-job-id → /jobs/view/{id} href → data-job-id → text hash), cards stamped with `data-caliber-job-id` attribute
+- Session score cache: `badgeScoreCache` keyed by job ID, `badgeCacheSurface` for surface binding, cache-hit badges restored instantly without API call
+- Search-surface reset: `clearAllBadges()` on surface change, `getSearchSurfaceKey()` normalizes pathname + keywords + location + filters
+- Scroll listener with stored handler ref for clean detach, MutationObserver with module-level debounce for DOM rerender recovery
+- BST evaluation migrated to badge cache: `evaluateBSTFromBadgeCache()` replaces separate prescan — badge scoring IS the prescan
+- 8 lifecycle/stability bugs fixed: surface key normalization, scroll listener lifecycle, observer debounce leak, batch generation counter for stale responses, active guard on processBadgeQueue, cache surface empty-string check, style element parentNode check, same-surface URL change badge restoration
+- Loading placeholder format: `[diamond icon] …` — matches Caliber brand
+- Score color bands: Green (8.0+), Yellow (6.5–7.9), Gray (0–6.4)
+- Self-mutation guard: `badgeInjecting` flag prevents MutationObserver from re-triggering during badge writes
+
+BLOCKED:
+- None — overlay badge system is stable and shipped
+
+NEXT:
+- Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
+- Post-save confirmation / action state in sidecard
+- Account prompt for durable pipeline saving
+
+---
+
 BREAK + UPDATE — 2026-03-13 (OPENAI_API_KEY Runtime Contract)
 ---
 DONE:

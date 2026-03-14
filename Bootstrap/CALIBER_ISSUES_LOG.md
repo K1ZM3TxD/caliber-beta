@@ -3,6 +3,15 @@
 
 ## Current Open Issues
 
+56. Overlay job scoring instability risks — **MITIGATED** (2026-03-14)
+  - Phase-2 overlay badges inject DOM elements into LinkedIn's job card listing, which LinkedIn can rerender at any time.
+  - Three risk categories identified and mitigated:
+    1. **DOM rerender duplication:** LinkedIn replaces card DOM nodes during virtual scroll. Mitigation: `MutationObserver` with debounce restores badges from cache; `badgeInjecting` flag prevents self-triggered mutations.
+    2. **Badge placement drift:** Logo containers can change selectors across LinkedIn A/B tests. Mitigation: 4 fallback selectors in `CARD_LOGO_SELECTORS`, with prepend-to-card fallback if none match.
+    3. **Progressive scoring race conditions:** Batch responses can arrive after surface change or deactivation. Mitigation: `badgeBatchGeneration` counter invalidates stale responses; `active` guard in `processBadgeQueue()` prevents zombie processing.
+  - Additional mitigations: scroll listener stored handler ref for clean detach, surface key normalization to prevent false cache invalidation, same-surface URL change detection with badge restoration.
+  - Status: all three risk categories mitigated with tested code. Ongoing monitoring needed as LinkedIn changes their DOM structure.
+
 55. OPENAI_API_KEY runtime contract for AI features — **RESOLVED** (2026-03-13)
   - Tailoring, pattern synthesis, and resume skeleton generation all depend on OPENAI_API_KEY at runtime.
   - Previously: each file did its own inline `process.env.OPENAI_API_KEY` check with inconsistent error handling.
