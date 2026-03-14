@@ -8,9 +8,10 @@ import {
 
 interface ExtensionInstallBlockProps {
   calibratedTitle?: string | null;
+  hideLinkedIn?: boolean;
 }
 
-export default function ExtensionInstallBlock({ calibratedTitle }: ExtensionInstallBlockProps) {
+export default function ExtensionInstallBlock({ calibratedTitle, hideLinkedIn }: ExtensionInstallBlockProps) {
   const [showInstall, setShowInstall] = useState(false);
 
   return (
@@ -75,7 +76,7 @@ export default function ExtensionInstallBlock({ calibratedTitle }: ExtensionInst
           </div>
 
           {/* LinkedIn search CTA */}
-          {calibratedTitle ? (
+          {calibratedTitle && !hideLinkedIn ? (
             <div className="text-center">
               <a
                 href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(calibratedTitle)}`}

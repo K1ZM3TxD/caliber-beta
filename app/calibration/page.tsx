@@ -239,7 +239,6 @@ function truncateToSentences(text: string, n: number): string {
 export default function CalibrationPage() {
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-    const [expandedTitleIdx, setExpandedTitleIdx] = useState<number | null>(null);
     function handleCopyTitle(idx: number, title: string) {
       navigator.clipboard.writeText(title);
       setCopiedIndex(idx);
@@ -1054,13 +1053,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 1);
 
               const heroTitle = titlesToRender[0] ?? null;
-              const heroExpanded = expandedTitleIdx === 0;
-              const heroRawBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3 : [];
-              const heroValidBullets = heroRawBullets.filter((b: string) => b && b.trim());
-              const heroHasBullets = heroValidBullets.length > 0;
-              const heroSummaryText: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
-              const heroHasSummary = heroSummaryText.length > 0;
-              const heroCanExpand = heroHasBullets || heroHasSummary;
 
               return (
               <div className="w-full max-w-3xl pb-8">
@@ -1081,95 +1073,40 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Hero title card — 48px visual pause after explanation */}
+                {/* Hero title card — centered action stack */}
                 {heroTitle ? (
                   <div
-                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
+                    className="cb-title-card rounded-2xl"
                     style={{
                       marginTop: 48,
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
-                      border: heroExpanded ? "1px solid rgba(74,222,128,0.30)" : "1px solid rgba(74,222,128,0.18)",
-                    }}
-                    onClick={() => {
-                      if (!heroCanExpand) return;
-                      setExpandedTitleIdx(heroExpanded ? null : 0);
+                      backgroundColor: "rgba(255,255,255,0.015)",
+                      border: "1px solid rgba(74,222,128,0.18)",
                     }}
                   >
-                    <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
+                    <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
+                      {/* Title */}
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-3 sm:gap-4 mt-5 flex-wrap">
-                        <a
-                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-150 hover:brightness-110"
-                          style={{ background: "rgba(74,222,128,0.12)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.22)", textDecoration: "none", whiteSpace: "nowrap" }}
-                        >Search on LinkedIn</a>
-                        {heroCanExpand ? (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setExpandedTitleIdx(heroExpanded ? null : 0); }}
-                            className="px-6 py-2.5 rounded-lg text-[15px] font-medium transition-colors duration-150"
-                            style={{ background: "rgba(251,191,36,0.08)", color: heroExpanded ? "#999" : "#FBBF24", border: "1px solid rgba(251,191,36,0.18)", whiteSpace: "nowrap", cursor: "pointer" }}
-                          >
-                            {heroExpanded ? "Hide details \u25B4" : "See why it fits \u25BE"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
 
-                    {/* Expanded content */}
-                    {heroExpanded && heroCanExpand ? (
-                      <div className="px-6 pb-5 sm:px-8 text-left" onClick={(e) => e.stopPropagation()}>
-                        <div className="border-t pt-4 mb-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                          <p className="text-sm leading-relaxed mb-2" style={{ color: "#CFCFCF" }}>Your pattern matches on 4 core signals.</p>
-                          {heroHasBullets ? (
-                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5 mb-2" style={{ color: "#A0A0A0", listStyleType: "disc" }}>
-                              {heroValidBullets.map((b: string, bi: number) => <li key={bi}>{b}</li>)}
-                            </ul>
-                          ) : null}
-                          {heroHasSummary ? (
-                            <p className="text-[13px] leading-relaxed" style={{ color: "#999" }}>{heroSummaryText}</p>
-                          ) : null}
-                        </div>
-                        {/* Search actions */}
-                        <div className="flex items-center gap-2 mt-3">
-                          <a
-                            href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
-                          >Search on LinkedIn</a>
-                          <a
-                            href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 hover:bg-[rgba(242,242,242,0.10)]"
-                            style={{ background: "rgba(255,255,255,0.04)", color: "#AAA", border: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
-                          >Search on Indeed</a>
-                        </div>
+                      {/* Subtitle */}
+                      <p className="mt-5 text-sm" style={{ color: "#999" }}>Analyze real jobs as you browse</p>
+
+                      {/* Primary CTA — Extension download */}
+                      <div className="mt-5 w-full">
+                        <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
-                    ) : null}
+
+                      {/* Secondary CTA — LinkedIn search */}
+                      <a
+                        href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
+                        style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
+                      >Search on LinkedIn</a>
+                    </div>
                   </div>
                 ) : null}
-
-                {/* Extension CTA — inline install block */}
-                <div className="mt-8" style={{ animation: "cb-fade-up 0.35s ease-out both" }}>
-                  <div
-                    className="rounded-lg px-4 py-3 sm:px-5 sm:py-4 flex flex-col items-center text-center"
-                    style={{
-                      background: "linear-gradient(180deg, rgba(74,222,128,0.025) 0%, transparent 100%)",
-                      border: "1px solid rgba(74,222,128,0.06)",
-                    }}
-                  >
-                    <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
-                    <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} />
-                    <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
-                  </div>
-                </div>
 
                 {/* Recalibrate */}
                 <div className="mt-4 flex justify-center">

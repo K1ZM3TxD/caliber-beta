@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 html {
-  scrollbar-gutter: auto;
+  scrollbar-gutter: stable;
   overflow-x: hidden;
 }
 
