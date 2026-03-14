@@ -475,6 +475,90 @@ export function scoreAllTitles(resumeText: string, promptAnswers: string[]): Arr
   return enriched.map(({ title, score }) => ({ title, score }));
 }
 
+// ─── Signal-to-human-language mapping ────────────────────────────────────────
+
+const SIGNAL_HUMAN_LABEL: Record<string, string> = {
+  product: "product strategy", development: "product development", market: "market analysis",
+  launch: "go-to-market execution", design: "design thinking", system: "systems-level thinking",
+  workflow: "workflow design", usability: "usability research", prototyping: "prototyping",
+  user: "user experience", users: "user research", brand: "brand strategy",
+  identity: "visual identity", visual: "visual design", operations: "operational leadership",
+  management: "cross-functional management", program: "program management",
+  project: "project execution", process: "process optimization", planning: "strategic planning",
+  execution: "execution and delivery", tracking: "performance tracking",
+  resource_planning: "resource planning", customer: "client engagement",
+  client: "client relationship management", sale: "sales development",
+  sales: "revenue development", relationship: "relationship building",
+  partnership: "strategic partnerships", alliance: "partnership development",
+  retention: "client retention", account: "account management",
+  community: "community building", engagement: "stakeholder engagement",
+  growth: "growth strategy", renewal: "renewal management", service: "service delivery",
+  security: "security operations", cybersecurity: "cybersecurity",
+  penetration: "penetration testing", vulnerability: "vulnerability assessment",
+  risk: "risk analysis", investigation: "security investigation",
+  compliance: "compliance management", analysis: "analytical rigor",
+  technical: "technical depth", tool: "tooling and infrastructure",
+  tools: "tooling and infrastructure", automate: "workflow automation",
+  sop: "standard process development", sql: "data analysis", scripting: "technical scripting",
+  architecture: "systems architecture", integration: "systems integration",
+  strategy: "strategic thinking", proposal: "proposal development",
+  pitch: "client-facing presentations", deck: "executive presentations",
+  documentation: "technical documentation", writing: "professional communication",
+  material: "content development", consultation: "consultative approach",
+  consulting: "consulting expertise", feasibility: "feasibility analysis",
+  methodology: "methodology design", team: "team leadership",
+  cross_functional: "cross-functional collaboration", stakeholder: "stakeholder management",
+  stakeholders: "stakeholder management", coordination: "coordination across teams",
+  onboard: "onboarding programs", onboarding: "onboarding design",
+  training: "training and development", recruitment: "talent acquisition",
+  delivery: "delivery management", implementation: "implementation",
+  optimization: "performance optimization", roadmap: "roadmapping",
+  rollout: "rollout planning", specification: "requirements definition",
+  validation: "validation", standard: "standards development",
+  standards: "standards compliance", guidelines: "guidelines development",
+  framework: "framework development", transition: "transition management",
+  schedule: "schedule management", estimation: "project estimation",
+  rubric: "evaluation frameworks", pilot: "pilot programs",
+  research: "research methodology", assessment: "assessment methodology",
+  study: "analytical studies", feedback: "feedback systems",
+  performance: "performance analysis", test: "testing methodology",
+  testing: "quality testing", business: "business operations",
+  portfolio: "portfolio management", incentives: "incentive design",
+  network: "network development", values: "organizational values",
+  skill: "skills development", investigator: "investigative analysis",
+  need: "needs analysis", outcome: "outcomes management",
+  pipeline: "pipeline management", negotiation: "negotiation",
+};
+
+const PAIR_HUMAN_LABEL: Record<string, string> = {
+  "design+system": "designing scalable systems",
+  "create+sop": "building repeatable processes",
+  "automate+workflow": "streamlining and automating workflows",
+  "pitch+deck": "crafting compelling client presentations",
+  "feasibility+study": "evaluating feasibility and strategic fit",
+  "customer+need": "translating customer needs into action",
+  "client+outcome": "delivering measurable client outcomes",
+  "build+relationship": "building lasting professional relationships",
+  "penetration+test": "conducting penetration testing",
+  "vulnerability+assessment": "performing thorough vulnerability assessments",
+  "investigate+risk": "investigating and mitigating risk",
+  "partnership+alliance": "forging strategic partnerships",
+  "sale+strategy": "developing go-to-market strategies",
+};
+
+function humanizeSignal(token: string): string {
+  return SIGNAL_HUMAN_LABEL[token] || token.replace(/_/g, " ");
+}
+function humanizePair(pair: string): string {
+  return PAIR_HUMAN_LABEL[pair] || pair.split("+").map(t => humanizeSignal(t)).join(" and ");
+}
+function naturalList(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 // ─── Title recommendation pack ──────────────────────────────────────────────
 
 export interface TitleRecommendation {
@@ -542,38 +626,46 @@ export function generateTitleRecommendation(
   }
 
   // Build per-title enrichment for UI expand/collapse
-  const enrichedTitles = top3.map((c) => {
-    const summaryParts: string[] = [];
-    if (c._matchedReq.length > 0) {
-      const signalNames = c._matchedReq.slice(0, 4).join(", ");
-      summaryParts.push(`From what you shared, the strongest signals in your background point to ${signalNames}.`);
-    }
-    if (c._matchedPairs.length > 0) {
-      const pairNames = c._matchedPairs.map(p => p.replace("+", " and ")).join(", ");
-      summaryParts.push(`Your experience with ${pairNames} shows up consistently.`);
-    } else if (c._reqCov >= 0.7) {
-      summaryParts.push(`There's broad overlap between your background and what this kind of role typically involves.`);
-    }
-    if (summaryParts.length === 0) {
-      summaryParts.push(`Your answers and resume together suggest a strong fit for this direction.`);
-    }
-    const summary_2s = summaryParts.join(" ");
+  const enrichedTitles = top3.map((c) => buildTitleEnrichment(c));
+  function buildTitleEnrichment(c: typeof top3[0]) {
+    const hSignals = c._matchedReq.map(s => humanizeSignal(s)).filter(Boolean);
+    const hPairs = c._matchedPairs.map(p => humanizePair(p)).filter(Boolean);
+    const hMissing = c._missing.map(s => humanizeSignal(s)).filter(Boolean);
 
-    const rawBullets: string[] = [];
-    if (c._matchedReq.length > 0) {
-      rawBullets.push(`Your calibration answers revealed clear strengths in ${c._matchedReq.join(", ")}`);
+    // Bullet 1: strengths detected
+    const bullets: string[] = [];
+    if (hSignals.length > 0) {
+      const top = hSignals.slice(0, 3);
+      bullets.push(`Strong signals in ${naturalList(top)}`);
     }
-    if (c._matchedPairs.length > 0) {
-      rawBullets.push(`We recognized hands-on depth in ${c._matchedPairs.map(p => p.replace("+", " and ")).join(", ")}`);
+    // Bullet 2: type of work the user drives
+    if (hPairs.length > 0) {
+      bullets.push(`Consistent depth in ${naturalList(hPairs)}`);
+    } else if (hSignals.length > 2) {
+      bullets.push(`Broad, well-rounded coverage across what this role demands`);
     }
-    if (c._missing.length > 0) {
-      rawBullets.push(`Room to build toward: ${c._missing.join(", ")}`);
-    } else if (rawBullets.length < 3 && c._reqCov > 0) {
-      rawBullets.push(`Your background covers most of what roles like this typically ask for`);
+    // Bullet 3: alignment with the title (or growth edge)
+    if (c._reqCov >= 0.8) {
+      bullets.push(`Your background closely mirrors what top ${c.title} roles look for`);
+    } else if (hMissing.length > 0 && hMissing.length <= 2) {
+      bullets.push(`Room to grow in ${naturalList(hMissing)} — the rest is already there`);
+    } else if (c._reqCov >= 0.5) {
+      bullets.push(`Solid foundation with clear momentum toward this direction`);
     }
-    // Pad to exactly 3 or truncate
-    while (rawBullets.length < 3) rawBullets.push("");
-    const bullets_3 = rawBullets.slice(0, 3) as [string, string, string];
+
+    // Pad / cap at 3
+    while (bullets.length < 3) bullets.push("");
+    const bullets_3 = bullets.slice(0, 3) as [string, string, string];
+
+    // Summary: one-liner thesis connecting pattern → title (not repeating bullets)
+    let summary_2s: string;
+    if (hSignals.length > 0) {
+      summary_2s = `The pattern across your experience points clearly toward ${c.title} — this isn't a stretch, it's where your work already lives.`;
+    } else if (c._reqCov >= 0.6) {
+      summary_2s = `Your background and the way you describe your work align closely with what defines a strong ${c.title}.`;
+    } else {
+      summary_2s = `Based on what you shared, this direction fits the shape of your experience and the kind of work you gravitate toward.`;
+    }
 
     return {
       title: c.title,
@@ -581,7 +673,7 @@ export function generateTitleRecommendation(
       summary_2s,
       bullets_3: bullets_3.some(b => b.length > 0) ? bullets_3 : undefined,
     };
-  });
+  }
 
   return {
     candidates: top3.map(({ title, score }) => ({ title, score })),

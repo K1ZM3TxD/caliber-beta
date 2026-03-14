@@ -1112,34 +1112,39 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Why this fits — slim dropdown */}
+                {/* Why this fits — centered dropdown, green family */}
                 {heroTitle && heroHasWhyContent ? (
                   <div
-                    className="mt-6 rounded-lg transition-colors duration-150"
+                    className="mt-6 w-full max-w-[480px] mx-auto rounded-lg transition-all duration-200"
                     style={{
-                      backgroundColor: whyFitsOpen ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.02)",
-                      border: whyFitsOpen ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.05)",
+                      backgroundColor: whyFitsOpen ? "rgba(74,222,128,0.04)" : "rgba(74,222,128,0.02)",
+                      border: whyFitsOpen ? "1px solid rgba(74,222,128,0.18)" : "1px solid rgba(74,222,128,0.08)",
                     }}
                   >
                     <button
                       type="button"
                       onClick={() => setWhyFitsOpen(!whyFitsOpen)}
-                      className="w-full flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 cursor-pointer select-none"
                       style={{ background: "none", border: "none" }}
                     >
-                      <span className="text-[13px] font-medium" style={{ color: "#999" }}>Why this fits</span>
-                      <span className="text-xs" style={{ color: "#666" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
+                      <span className="text-[13px] font-medium" style={{ color: "rgba(74,222,128,0.7)" }}>Why this fits</span>
+                      <span className="text-[11px]" style={{ color: "rgba(74,222,128,0.45)" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
                     </button>
                     {whyFitsOpen ? (
                       <div className="px-5 pb-4">
-                        <div className="border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                        <div className="border-t pt-3" style={{ borderColor: "rgba(74,222,128,0.10)" }}>
                           {heroBullets.length > 0 ? (
-                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5" style={{ color: "#A0A0A0", listStyleType: "disc", textAlign: "left" }}>
-                              {heroBullets.map((b: string, i: number) => <li key={i}>{b}</li>)}
+                            <ul className="text-[13px] leading-relaxed pl-4 space-y-1.5" style={{ color: "#a3a3a3", listStyleType: "none", textAlign: "left" }}>
+                              {heroBullets.map((b: string, i: number) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="mt-[5px] shrink-0 h-[5px] w-[5px] rounded-full" style={{ background: "rgba(74,222,128,0.45)" }} />
+                                  <span>{b}</span>
+                                </li>
+                              ))}
                             </ul>
                           ) : null}
-                          {heroSummary ? (
-                            <p className={`text-[13px] leading-relaxed ${heroBullets.length > 0 ? "mt-2" : ""}`} style={{ color: "#888", textAlign: "left" }}>{heroSummary}</p>
+                          {heroSummary && heroBullets.length === 0 ? (
+                            <p className="text-[13px] leading-relaxed" style={{ color: "#888", textAlign: "left" }}>{heroSummary}</p>
                           ) : null}
                         </div>
                       </div>
