@@ -331,16 +331,7 @@
   // Rolling weak-search detection (persisted via chrome.storage.local)
   let recentScores = [];       // last 10 entries: { score, nearbyRoles, calibrationTitle, title, ts }
   let recentScoresLoaded = false;
-  let lastSearchQuery = getSearchKeywords();
-
-  // Load persisted score history on script init
-  chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_GET" }, function (resp) {
-    if (resp && resp.ok && Array.isArray(resp.history)) {
-      recentScores = resp.history;
-      recentScoresLoaded = true;
-      console.debug("[Caliber] loaded persisted score history: " + recentScores.length + " entries");
-    }
-  });
+  let lastSearchQuery = getSearchSurfaceKey();
 
   // Behavioral signals (per search session)
   let sessionSignals = {
@@ -366,6 +357,33 @@
     catch (e) { return ""; }
   }
 
+  /**
+   * Build a stable search-surface key from query + filters + pathname.
+   * Two different search surfaces must produce different keys.
+   */
+  function getSearchSurfaceKey() {
+    try {
+      var url = new URL(location.href);
+      var params = url.searchParams;
+      // Include keywords, location, job type, distance, experience level, sort
+      var parts = [
+        url.pathname,
+        params.get("keywords") || "",
+        params.get("location") || "",
+        params.get("f_TPR") || "",
+        params.get("f_JT") || "",
+        params.get("f_E") || "",
+        params.get("f_WT") || "",
+        params.get("distance") || "",
+        params.get("sortBy") || "",
+        params.get("geoId") || "",
+      ];
+      return parts.join("|").trim().toLowerCase();
+    } catch (e) {
+      return "";
+    }
+  }
+
   // ─── Pre-scan State (durable via chrome.storage.local) ────
 
   let prescanDone = false;       // has prescan completed for current search query?
@@ -377,14 +395,36 @@
   // Load persisted prescan state on script init
   chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_GET" }, function (resp) {
     if (resp && resp.ok && resp.state && resp.state.done) {
-      var currentQuery = getSearchKeywords().trim().toLowerCase();
-      if (resp.state.query === currentQuery) {
+      var currentKey = getSearchSurfaceKey();
+      if (resp.state.surfaceKey === currentKey) {
         prescanDone = true;
-        prescanSearchQuery = getSearchKeywords();
+        prescanSearchQuery = currentKey;
         prescanBSTActive = resp.state.suggestionShown || false;
         prescanStoredTitle = resp.state.suggestedTitle || null;
-        console.debug("[Caliber][prescan] restored durable state for query: " + currentQuery);
+        console.debug("[Caliber][prescan] restored durable state for surface: " + currentKey);
+      } else {
+        // Stale state from different search surface — clear it
+        console.debug("[Caliber][prescan] durable state is stale (different surface), clearing");
+        chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_CLEAR" });
       }
+    }
+  });
+
+  // Load persisted score history — only if surface key matches
+  chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_GET" }, function (resp) {
+    if (resp && resp.ok && Array.isArray(resp.history)) {
+      // Check surface key on most recent entry
+      var currentKey = getSearchSurfaceKey();
+      if (resp.history.length > 0 && resp.history[resp.history.length - 1].surfaceKey && resp.history[resp.history.length - 1].surfaceKey !== currentKey) {
+        // Stale history from different surface — clear it
+        console.debug("[Caliber] persisted score history is from different surface, clearing");
+        recentScores = [];
+        chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_CLEAR" });
+      } else {
+        recentScores = resp.history;
+        console.debug("[Caliber] loaded persisted score history: " + recentScores.length + " entries");
+      }
+      recentScoresLoaded = true;
     }
   });
 
@@ -603,13 +643,14 @@
         // Persist prescan result to durable storage
         chrome.runtime.sendMessage({
           type: "CALIBER_PRESCAN_STATE_SAVE",
-          query: currentQuery,
+          surfaceKey: currentKey,
+          query: getSearchKeywords(),
           weakCount: weakCount,
           scoredCount: scoredCount,
           suggestedTitle: suggestedTitle,
           suggestionShown: suggestionShown,
         }, function () {
-          console.debug("[Caliber][prescan] state persisted for query: " + currentQuery);
+          console.debug("[Caliber][prescan] state persisted for surface: " + currentKey);
         });
       });
     }, 2500); // Wait 2.5s for LinkedIn cards to finish rendering
@@ -1146,7 +1187,7 @@
     }
 
     // Rolling score history — persist for analytics + fallback BST trigger
-    var historyEntry = { score: score, title: lastJobMeta.title || "", nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" };
+    var historyEntry = { score: score, title: lastJobMeta.title || "", nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "", surfaceKey: getSearchSurfaceKey() };
     recentScores.push(historyEntry);
     if (recentScores.length > 10) recentScores = recentScores.slice(-10);
     chrome.runtime.sendMessage({
@@ -1155,6 +1196,7 @@
       title: lastJobMeta.title || "",
       nearbyRoles: data.nearby_roles || [],
       calibrationTitle: data.calibration_title || "",
+      surfaceKey: getSearchSurfaceKey(),
     }, function (resp) {
       if (resp && resp.ok && Array.isArray(resp.history)) {
         recentScores = resp.history;
@@ -1170,6 +1212,7 @@
         // Persist so banner survives DOM rerenders
         chrome.runtime.sendMessage({
           type: "CALIBER_PRESCAN_STATE_SAVE",
+          surfaceKey: getSearchSurfaceKey(),
           query: getSearchKeywords(),
           weakCount: recentScores.filter(function (e) { return e.score < 7; }).length,
           scoredCount: recentScores.length,
@@ -1354,15 +1397,17 @@
       if (location.href !== lastWatchedUrl) {
         lastWatchedUrl = location.href;
         lastScoredText = ""; // force re-score on navigation
-        // Reset rolling window if search query changed
-        var currentQuery = getSearchKeywords();
-        if (currentQuery !== lastSearchQuery) {
+        // Reset rolling window if search surface changed
+        var currentKey = getSearchSurfaceKey();
+        if (currentKey !== lastSearchQuery) {
           recentScores = [];
-          lastSearchQuery = currentQuery;
+          lastSearchQuery = currentKey;
           resetSessionSignals();
           resetPrescanState();
-          console.debug("[Caliber] search query changed, reset rolling window + session signals + prescan");
-          // Re-trigger prescan for the new search query
+          // Also clear persisted score history for the old surface
+          chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_CLEAR" });
+          console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history");
+          // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
         }
         console.debug("[Caliber] URL changed, re-scoring");

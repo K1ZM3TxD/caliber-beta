@@ -198,12 +198,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           title: String(msg.title || "").slice(0, 200),
           nearbyRoles: Array.isArray(msg.nearbyRoles) ? msg.nearbyRoles.slice(0, 5) : [],
           calibrationTitle: String(msg.calibrationTitle || "").slice(0, 200),
+          surfaceKey: String(msg.surfaceKey || "").slice(0, 500),
           ts: Date.now(),
         });
         // Keep only the most recent 10 entries
         const trimmed = history.slice(-10);
         await chrome.storage.local.set({ caliberRecentScores: trimmed });
         sendResponse({ ok: true, history: trimmed });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+  if (msg.type === "CALIBER_SCORE_HISTORY_CLEAR") {
+    (async () => {
+      try {
+        await chrome.storage.local.remove("caliberRecentScores");
+        sendResponse({ ok: true });
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
       }
@@ -224,9 +236,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_PRESCAN_STATE_SAVE") {
     (async () => {
       try {
-        const key = String(msg.query || "").trim().toLowerCase();
+        const surfaceKey = String(msg.surfaceKey || "").trim().toLowerCase();
         const entry = {
-          query: key,
+          surfaceKey: surfaceKey,
+          query: String(msg.query || "").trim().toLowerCase(),
           done: true,
           weakCount: Number(msg.weakCount) || 0,
           scoredCount: Number(msg.scoredCount) || 0,
