@@ -508,24 +508,26 @@
   }
 
   /**
-   * Pre-scan the first visible job cards on a search results page.
-   * Scores each visible card via the fit API and triggers the BST prompt
-   * if 5 or more are weak fits (score < 7.0).
+   * Scan the first visible job cards on a LinkedIn search results page.
+   * Scores each visible card via the fit API and evaluates strong-match supply.
+   * Strong match = score >= 8.0. Healthy search = 5+ strong matches.
+   * If fewer than 5 strong matches, show Better Search Title suggestion immediately.
    */
   function runSearchPrescan() {
+    var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
 
-    // Guard: skip if already done for this query, running, or not search page
+    // Guard: skip if already done for this surface, running, or not search page
     if (prescanRunning) {
       console.debug("[Caliber][prescan] already running, skipping");
       return;
     }
-    if (prescanDone && prescanSearchQuery === currentQuery) {
+    if (prescanDone && prescanSearchQuery === surfaceKey) {
       // Restore banner from durable state if suggestion was shown previously
       if (prescanStoredTitle && !prescanBSTActive) {
         showPrescanBSTBanner(prescanStoredTitle);
       }
-      console.debug("[Caliber][prescan] already completed for query: " + currentQuery);
+      console.debug("[Caliber][prescan] already completed for surface: " + surfaceKey);
       return;
     }
     if (!isSearchResultsPage()) {
@@ -535,7 +537,7 @@
 
     prescanRunning = true;
     prescanDone = false;
-    prescanSearchQuery = currentQuery;
+    prescanSearchQuery = surfaceKey;
     prescanBSTActive = false;
     prescanStoredTitle = null;
 
@@ -545,12 +547,13 @@
       if (banner) banner.style.display = "none";
     }
 
-    console.debug("[Caliber][prescan] starting pre-scan for query: \"" + currentQuery + "\"");
+    console.debug("[Caliber][prescan] starting visible-page scan for surface: " + surfaceKey);
+    console.debug("[Caliber][prescan] search keywords: \"" + currentQuery + "\"");
 
     // Wait for LinkedIn to finish rendering job cards
     setTimeout(function () {
       var cards = getVisibleJobCards(12);
-      console.debug("[Caliber][prescan] visible cards detected: " + cards.length);
+      console.debug("[Caliber][prescan] visible jobs detected: " + cards.length);
 
       if (cards.length < 3) {
         console.debug("[Caliber][prescan] too few cards (" + cards.length + "), aborting");
@@ -573,7 +576,7 @@
         });
       }
 
-      console.debug("[Caliber][prescan] jobs to pre-score: " + jobs.length);
+      console.debug("[Caliber][prescan] jobs to score: " + jobs.length);
 
       if (jobs.length < 3) {
         console.debug("[Caliber][prescan] too few scoreable cards (" + jobs.length + "), aborting");
@@ -600,7 +603,7 @@
         }
 
         var results = resp.results;
-        var weakCount = 0;
+        var strongCount = 0;
         var scoredCount = 0;
         var scores = [];
         var bestCalibrationTitle = "";
@@ -614,43 +617,50 @@
           }
           scoredCount++;
           scores.push(r.score);
-          if (r.score < 7.0) weakCount++;
+          if (r.score >= 8.0) strongCount++;
           if (r.calibrationTitle) bestCalibrationTitle = r.calibrationTitle;
           if (r.nearbyRoles && r.nearbyRoles.length > 0) bestNearbyRoles = r.nearbyRoles;
         }
 
+        // Diagnostic: median score
+        var sortedScores = scores.slice().sort(function (a, b) { return a - b; });
+        var median = sortedScores.length > 0 ? sortedScores[Math.floor(sortedScores.length / 2)] : 0;
+
         console.debug("[Caliber][prescan] scored: " + scoredCount + "/" + results.length);
         console.debug("[Caliber][prescan] scores: [" + scores.join(", ") + "]");
-        console.debug("[Caliber][prescan] weak fits (< 7.0): " + weakCount + " of " + scoredCount + " scored");
+        console.debug("[Caliber][prescan] median score: " + median);
+        console.debug("[Caliber][prescan] strong matches (>= 8.0): " + strongCount + " of " + scoredCount + " scored");
+        console.debug("[Caliber][prescan] surface key: " + surfaceKey);
 
-        // Evaluate trigger: 5 or more weak fits
+        // Evaluate trigger: fewer than 5 strong matches = unhealthy search surface
         var suggestedTitle = null;
         var suggestionShown = false;
-        if (weakCount >= 5) {
-          console.debug("[Caliber][prescan] TRIGGER FIRED — " + weakCount + " weak fits in " + scoredCount + " scored jobs");
+        if (strongCount < 5) {
+          console.debug("[Caliber][prescan] TRIGGER FIRED — only " + strongCount + " strong matches (need 5+) in " + scoredCount + " scored jobs");
           suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
           if (suggestedTitle) {
+            console.debug("[Caliber][prescan] suggestion source: " + (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary title" : "adjacent/nearby role"));
             showPrescanBSTBanner(suggestedTitle);
             suggestionShown = true;
             prescanStoredTitle = suggestedTitle;
           } else {
-            console.debug("[Caliber][prescan] trigger fired but all suggestions match current query — suppressed");
+            console.debug("[Caliber][prescan] trigger fired but no valid suggestion available — suppressed");
           }
         } else {
-          console.debug("[Caliber][prescan] trigger NOT fired — " + weakCount + " weak fits (need 5+) in " + scoredCount + " scored jobs");
+          console.debug("[Caliber][prescan] trigger NOT fired — " + strongCount + " strong matches (5+ = healthy) in " + scoredCount + " scored jobs");
         }
 
         // Persist prescan result to durable storage
         chrome.runtime.sendMessage({
           type: "CALIBER_PRESCAN_STATE_SAVE",
-          surfaceKey: currentKey,
+          surfaceKey: surfaceKey,
           query: getSearchKeywords(),
-          weakCount: weakCount,
+          strongCount: strongCount,
           scoredCount: scoredCount,
           suggestedTitle: suggestedTitle,
           suggestionShown: suggestionShown,
         }, function () {
-          console.debug("[Caliber][prescan] state persisted for surface: " + currentKey);
+          console.debug("[Caliber][prescan] state persisted for surface: " + surfaceKey);
         });
       });
     }, 2500); // Wait 2.5s for LinkedIn cards to finish rendering
@@ -677,15 +687,17 @@
   }
 
   /**
-   * Show the Better Search Title banner from prescan results.
+   * Show the Better Search Title banner from search-surface scan results.
    */
   function showPrescanBSTBanner(suggestedTitle) {
     getOrCreatePanel();
     prescanBSTActive = true;
     var banner = shadow.getElementById("cb-recovery-banner");
     var link = shadow.getElementById("cb-recovery-link");
+    var reason = shadow.getElementById("cb-recovery-reason");
     if (banner && link) {
       banner.style.display = "";
+      if (reason) reason.textContent = "After scanning this page, there aren\u2019t enough strong matches for this search.";
       link.textContent = suggestedTitle;
       link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
       sessionSignals.suggest_shown = true;
@@ -1019,45 +1031,7 @@
     return na === nb;
   }
 
-  function checkWeakSearchPattern() {
-    if (recentScores.length < 5) {
-      console.debug("[Caliber] rolling window: only " + recentScores.length + " entries, need 5+");
-      return null;
-    }
-    var win = recentScores.slice(-10);
-    var weakCount = 0;
-    for (var i = 0; i < win.length; i++) {
-      if (win[i].score < 7) weakCount++;
-    }
-    console.debug("[Caliber] rolling window check: " + win.length + " entries, weak=" + weakCount);
-    if (weakCount >= 5) {
-      var currentQuery = getSearchKeywords();
-      // Primary: calibration primary title (the user's strongest fit direction)
-      for (var j = win.length - 1; j >= 0; j--) {
-        if (win[j].calibrationTitle && !titlesEquivalent(win[j].calibrationTitle, currentQuery)) {
-          console.debug("[Caliber] weak-search triggered, suggesting calibration title: " + win[j].calibrationTitle);
-          return win[j].calibrationTitle;
-        }
-      }
-      // Secondary: adjacent search-surface titles from calibration
-      for (var j = win.length - 1; j >= 0; j--) {
-        if (win[j].nearbyRoles && win[j].nearbyRoles.length > 0) {
-          // Find first non-redundant adjacent title
-          for (var k = 0; k < win[j].nearbyRoles.length; k++) {
-            var role = win[j].nearbyRoles[k];
-            if (role.title && !titlesEquivalent(role.title, currentQuery)) {
-              console.debug("[Caliber] weak-search triggered, suggesting adjacent title: " + role.title);
-              return role.title;
-            }
-          }
-        }
-      }
-      // All available titles match current query — suppress banner
-      console.debug("[Caliber] weak-search triggered, all suggestions match current query — suppressed");
-      return "";
-    }
-    return null;
-  }
+  // checkWeakSearchPattern removed — BST is now triggered by visible-page scan, not per-click history
 
   function showResults(data) {
     getOrCreatePanel();
@@ -1202,27 +1176,6 @@
         recentScores = resp.history;
       }
     });
-
-    // Fallback BST: if prescan didn't show a suggestion, evaluate per-click rolling history
-    if (!prescanBSTActive) {
-      var rollingSuggestion = checkWeakSearchPattern();
-      if (rollingSuggestion) {
-        console.debug("[Caliber][BST-fallback] rolling history triggered, suggestion: \"" + rollingSuggestion + "\"");
-        showPrescanBSTBanner(rollingSuggestion);
-        // Persist so banner survives DOM rerenders
-        chrome.runtime.sendMessage({
-          type: "CALIBER_PRESCAN_STATE_SAVE",
-          surfaceKey: getSearchSurfaceKey(),
-          query: getSearchKeywords(),
-          weakCount: recentScores.filter(function (e) { return e.score < 7; }).length,
-          scoredCount: recentScores.length,
-          suggestedTitle: rollingSuggestion,
-          suggestionShown: true,
-        });
-      } else if (rollingSuggestion === "") {
-        console.debug("[Caliber][BST-fallback] rolling history triggered but all suggestions match current query");
-      }
-    }
 
     // Behavioral signal tracking
     sessionSignals.jobs_viewed++;
@@ -1521,7 +1474,8 @@
     '<div id="cb-recovery-banner" class="cb-recovery-banner" style="display:none">',
     '  <span class="cb-recovery-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></span>',
     '  <div class="cb-recovery-body">',
-    '    <div class="cb-recovery-label">Try a stronger search title</div>',
+    '    <div id="cb-recovery-reason" class="cb-recovery-reason"></div>',
+    '    <div class="cb-recovery-label">Try this title instead</div>',
     '    <a id="cb-recovery-link" class="cb-recovery-link" target="_self"></a>',
     '  </div>',
     '</div>',
@@ -1663,12 +1617,15 @@
     "  width: 320px; background: #161B2E;",
     "  border: 1px solid rgba(96,165,250,0.25); border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
-    "  padding: 6px 10px; display: flex; align-items: center; gap: 6px;",
+    "  padding: 8px 10px; display: flex; align-items: flex-start; gap: 8px;",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  animation: cb-enter 0.2s ease-out;",
     "}",
-    ".cb-recovery-icon { flex-shrink: 0; line-height: 0; color: #60A5FA; display: flex; align-items: center; }",
+    ".cb-recovery-icon { flex-shrink: 0; line-height: 0; color: #60A5FA; display: flex; align-items: center; align-self: flex-start; margin-top: 2px; }",
     ".cb-recovery-body { flex: 1; min-width: 0; }",
+    ".cb-recovery-reason {",
+    "  font-size: 10px; color: #A0AEC0; line-height: 1.3; margin-bottom: 4px;",
+    "}",
     ".cb-recovery-label {",
     "  font-size: 9px; font-weight: 600; color: #60A5FA;",
     "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
