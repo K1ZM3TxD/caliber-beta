@@ -505,9 +505,14 @@
 
   var BADGE_ATTR = "data-caliber-badge";
   var BADGE_STYLE_ID = "caliber-badge-css";
-  var badgeScoredUrls = new Set();  // URLs already scored or in-flight for badges
-  var badgeScrollTimer = null;
+  var badgeScoredUrls = new Set();       // URLs already scored or in-flight
+  var badgeScoreCache = {};              // URL → { score, calibrationTitle, nearbyRoles }
   var badgeScrollAttached = false;
+  var badgeScrollTimer = null;
+  var badgeListObserver = null;          // MutationObserver on the results list
+  var badgeBatchQueue = [];              // pending cards waiting to be scored
+  var badgeBatchRunning = false;         // is a batch currently in-flight?
+  var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
 
   // LinkedIn card logo container selectors (for badge placement)
   var CARD_LOGO_SELECTORS = [
@@ -564,6 +569,19 @@
     return null;
   }
 
+  /** Extract the canonical job URL from a card element. */
+  function cardJobUrl(cardEl) {
+    var link = cardEl.querySelector('a[href*="/jobs/view/"]');
+    if (!link || !link.href) return "";
+    // Normalize: strip query params and hash for canonical dedup
+    try {
+      var u = new URL(link.href);
+      return u.origin + u.pathname.replace(/\/$/, "");
+    } catch (e) {
+      return link.href;
+    }
+  }
+
   /** Inject or update a badge on a single card element. */
   function setBadgeOnCard(cardEl, state, score) {
     var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
@@ -583,16 +601,125 @@
     }
   }
 
+  /** Re-find a card element by its job URL (survives DOM rerenders). */
+  function findCardByUrl(url) {
+    if (!url) return null;
+    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
+      for (var i = 0; i < els.length; i++) {
+        if (cardJobUrl(els[i]) === url) return els[i];
+      }
+      if (els.length > 0) break;
+    }
+    return null;
+  }
+
   /**
-   * Scan visible job cards, inject loading badges, and score them progressively.
-   * Does not re-score cards that already have a final badge.
+   * Re-inject badges on cards that lost them due to LinkedIn DOM rerenders.
+   * Uses the score cache to restore badges without re-scoring.
+   */
+  function restoreBadgesFromCache() {
+    if (!active || !isSearchResultsPage()) return;
+    ensureBadgeStyles();
+    var restored = 0;
+    for (var url in badgeScoreCache) {
+      var cardEl = findCardByUrl(url);
+      if (cardEl && !cardEl.querySelector("[" + BADGE_ATTR + "]")) {
+        var cached = badgeScoreCache[url];
+        setBadgeOnCard(cardEl, "scored", cached.score);
+        restored++;
+      }
+    }
+    if (restored > 0) {
+      console.debug("[Caliber][badges] restored " + restored + " badges from cache after DOM mutation");
+    }
+  }
+
+  /**
+   * Process the next chunk from the badge batch queue.
+   * Scores BADGE_CHUNK_SIZE cards, applies results, then recurses for the next chunk.
+   */
+  function processBadgeQueue() {
+    if (badgeBatchRunning || badgeBatchQueue.length === 0) return;
+
+    var chunk = badgeBatchQueue.splice(0, BADGE_CHUNK_SIZE);
+    badgeBatchRunning = true;
+
+    console.debug("[Caliber][badges] scoring chunk of " + chunk.length +
+      " (remaining in queue: " + badgeBatchQueue.length + ")");
+
+    chrome.runtime.sendMessage({
+      type: "CALIBER_PRESCAN_BATCH",
+      jobs: chunk.map(function (c) { return { jobText: c.jobText, title: c.title }; }),
+    }, function (resp) {
+      badgeBatchRunning = false;
+
+      if (chrome.runtime.lastError) {
+        console.debug("[Caliber][badges] chunk error:", chrome.runtime.lastError.message);
+        // Continue with next chunk despite error
+        if (badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
+        return;
+      }
+      if (!resp || !resp.ok || !Array.isArray(resp.results)) {
+        console.debug("[Caliber][badges] chunk scoring failed:", resp && resp.error);
+        if (badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
+        return;
+      }
+
+      for (var k = 0; k < resp.results.length; k++) {
+        var result = resp.results[k];
+        var entry = chunk[k];
+        if (!entry) continue;
+
+        if (result.ok) {
+          // Cache the score by URL
+          if (entry.url) {
+            badgeScoreCache[entry.url] = {
+              score: result.score,
+              calibrationTitle: result.calibrationTitle || "",
+              nearbyRoles: result.nearbyRoles || [],
+            };
+          }
+          // Re-find the card by URL (survives DOM mutation during async scoring)
+          var cardEl = entry.url ? findCardByUrl(entry.url) : null;
+          if (cardEl) {
+            setBadgeOnCard(cardEl, "scored", result.score);
+          }
+          console.debug("[Caliber][badges] scored: " + entry.title + " → " + result.score +
+            (entry.url ? " (" + entry.url.split("/").pop() + ")" : ""));
+        } else {
+          // Remove loading badge on error
+          var errCard = entry.url ? findCardByUrl(entry.url) : null;
+          if (errCard) {
+            var badge = errCard.querySelector("[" + BADGE_ATTR + "]");
+            if (badge) badge.remove();
+          }
+          console.debug("[Caliber][badges] error: " + entry.title + " → " + result.error);
+        }
+      }
+
+      // After each chunk, check if BST should fire (from accumulated badge scores)
+      evaluateBSTFromBadgeCache();
+
+      // Process next chunk
+      if (badgeBatchQueue.length > 0) {
+        setTimeout(processBadgeQueue, 200);
+      } else {
+        console.debug("[Caliber][badges] all queued cards scored. Cache size: " + Object.keys(badgeScoreCache).length);
+      }
+    });
+  }
+
+  /**
+   * Scan visible job cards, inject loading badges, and queue them for scoring.
+   * Cards with cached scores get their badge immediately (no API call).
    */
   function scanAndBadgeVisibleCards() {
     if (!active || !isSearchResultsPage()) return;
 
     ensureBadgeStyles();
 
-    // Gather all visible cards (not capped — we want all in viewport)
+    // Gather all visible cards
     var allCards = [];
     for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
       var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
@@ -604,84 +731,139 @@
     }
 
     // Filter to un-scored cards only
-    var newCards = [];
+    var toQueue = [];
+    var cacheHits = 0;
     for (var c = 0; c < allCards.length; c++) {
       var card = allCards[c];
-      var link = card.querySelector('a[href*="/jobs/view/"]');
-      var url = link ? link.href : "";
-      // Use URL for dedup; fallback to element check
-      if (url && badgeScoredUrls.has(url)) continue;
+      var url = cardJobUrl(card);
+
+      // Already has a badge → skip
       if (card.querySelector("[" + BADGE_ATTR + "]")) continue;
 
-      newCards.push(card);
+      // Cache hit → inject badge immediately, no API call
+      if (url && badgeScoreCache[url]) {
+        setBadgeOnCard(card, "scored", badgeScoreCache[url].score);
+        cacheHits++;
+        continue;
+      }
+
+      // Already in-flight → skip
+      if (url && badgeScoredUrls.has(url)) continue;
+
+      // New card — mark as in-flight and queue
       if (url) badgeScoredUrls.add(url);
-    }
 
-    if (newCards.length === 0) return;
-
-    console.debug("[Caliber][badges] found " + newCards.length + " new visible cards to score");
-
-    // Inject loading placeholders immediately
-    var jobs = [];
-    var cardRefs = [];
-    for (var j = 0; j < newCards.length; j++) {
-      setBadgeOnCard(newCards[j], "loading", 0);
-
-      var cardText = (newCards[j].innerText || "").trim().replace(/\s+/g, " ");
+      var cardText = (card.innerText || "").trim().replace(/\s+/g, " ");
       var titleText = "";
       for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
-        var titleEl = newCards[j].querySelector(JOB_CARD_TITLE_SELECTORS[t]);
+        var titleEl = card.querySelector(JOB_CARD_TITLE_SELECTORS[t]);
         if (titleEl) {
           titleText = (titleEl.textContent || "").trim();
           if (titleText.length > 2) break;
         }
       }
 
-      if (cardText.length >= 80) {
-        jobs.push({ jobText: cardText, title: titleText, _cardIdx: j });
+      if (cardText.length < 80) {
+        console.debug("[Caliber][badges] card too short (" + cardText.length + " chars), skipping: " + titleText);
+        continue;
       }
-      cardRefs.push(newCards[j]);
+
+      // Inject loading placeholder immediately
+      setBadgeOnCard(card, "loading", 0);
+
+      toQueue.push({
+        url: url,
+        jobText: cardText,
+        title: titleText,
+      });
     }
 
-    if (jobs.length === 0) {
-      console.debug("[Caliber][badges] no scoreable cards (all too short)");
-      return;
+    if (cacheHits > 0) {
+      console.debug("[Caliber][badges] restored " + cacheHits + " badges from cache (no API call)");
     }
 
-    console.debug("[Caliber][badges] sending " + jobs.length + " cards for batch scoring");
+    if (toQueue.length === 0) return;
 
-    // Send batch to background for scoring
+    console.debug("[Caliber][badges] queued " + toQueue.length + " new cards for scoring" +
+      " (visible: " + allCards.length + ", already scored: " + (allCards.length - toQueue.length - cacheHits) + ")");
+
+    // Add to queue and kick off processing
+    badgeBatchQueue = badgeBatchQueue.concat(toQueue);
+    processBadgeQueue();
+  }
+
+  /**
+   * Evaluate BST trigger from accumulated badge scores.
+   * Replaces the separate prescan batch — badge scoring IS the prescan.
+   */
+  function evaluateBSTFromBadgeCache() {
+    // Only evaluate once per surface
+    if (prescanDone) return;
+
+    var urls = Object.keys(badgeScoreCache);
+    if (urls.length < 3) return; // too few scores to evaluate
+
+    var surfaceKey = getSearchSurfaceKey();
+    var currentQuery = getSearchKeywords();
+    var strongCount = 0;
+    var scoredCount = 0;
+    var scores = [];
+    var bestCalibrationTitle = "";
+    var bestNearbyRoles = [];
+
+    for (var i = 0; i < urls.length; i++) {
+      var entry = badgeScoreCache[urls[i]];
+      scoredCount++;
+      scores.push(entry.score);
+      if (entry.score >= 8.0) strongCount++;
+      if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
+      if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
+    }
+
+    // Need enough scores to be meaningful (at least 5 scored)
+    if (scoredCount < 5) return;
+
+    // Mark prescan as done — we have enough data
+    prescanDone = true;
+    prescanRunning = false;
+    prescanSearchQuery = surfaceKey;
+
+    var sortedScores = scores.slice().sort(function (a, b) { return a - b; });
+    var median = sortedScores.length > 0 ? sortedScores[Math.floor(sortedScores.length / 2)] : 0;
+
+    console.debug("[Caliber][BST] evaluating from badge cache: " + scoredCount + " scores");
+    console.debug("[Caliber][BST] scores: [" + scores.join(", ") + "]");
+    console.debug("[Caliber][BST] median: " + median + ", strong (>=8.0): " + strongCount);
+    console.debug("[Caliber][BST] surface: " + surfaceKey);
+
+    var suggestedTitle = null;
+    var suggestionShown = false;
+
+    if (strongCount < 5) {
+      console.debug("[Caliber][BST] TRIGGER — only " + strongCount + " strong matches (need 5+) in " + scoredCount + " scored");
+      suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
+      if (suggestedTitle) {
+        console.debug("[Caliber][BST] suggestion: \"" + suggestedTitle + "\" (source: " +
+          (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary" : "adjacent role") + ")");
+        showPrescanBSTBanner(suggestedTitle);
+        suggestionShown = true;
+        prescanStoredTitle = suggestedTitle;
+      } else {
+        console.debug("[Caliber][BST] trigger fired but no valid suggestion — suppressed");
+      }
+    } else {
+      console.debug("[Caliber][BST] healthy search — " + strongCount + " strong matches (5+ = healthy)");
+    }
+
+    // Persist prescan result
     chrome.runtime.sendMessage({
-      type: "CALIBER_PRESCAN_BATCH",
-      jobs: jobs.map(function (j) { return { jobText: j.jobText, title: j.title }; }),
-    }, function (resp) {
-      if (chrome.runtime.lastError) {
-        console.debug("[Caliber][badges] message error:", chrome.runtime.lastError.message);
-        return;
-      }
-      if (!resp || !resp.ok || !Array.isArray(resp.results)) {
-        console.debug("[Caliber][badges] batch scoring failed:", resp && resp.error);
-        return;
-      }
-
-      console.debug("[Caliber][badges] received " + resp.results.length + " scores");
-
-      for (var k = 0; k < resp.results.length; k++) {
-        var result = resp.results[k];
-        var cardIdx = jobs[k]._cardIdx;
-        var cardEl = cardRefs[cardIdx];
-        if (!cardEl) continue;
-
-        if (result.ok) {
-          setBadgeOnCard(cardEl, "scored", result.score);
-          console.debug("[Caliber][badges] " + result.title + " → " + result.score);
-        } else {
-          // Remove loading badge on error (fail silently)
-          var badge = cardEl.querySelector("[" + BADGE_ATTR + "]");
-          if (badge) badge.remove();
-          console.debug("[Caliber][badges] " + result.title + " → error: " + result.error);
-        }
-      }
+      type: "CALIBER_PRESCAN_STATE_SAVE",
+      surfaceKey: surfaceKey,
+      query: currentQuery,
+      strongCount: strongCount,
+      scoredCount: scoredCount,
+      suggestedTitle: suggestedTitle,
+      suggestionShown: suggestionShown,
     });
   }
 
@@ -689,7 +871,6 @@
   function startBadgeScrollListener() {
     if (badgeScrollAttached) return;
     badgeScrollAttached = true;
-    // Debounced scan on scroll
     var scrollHandler = function () {
       clearTimeout(badgeScrollTimer);
       badgeScrollTimer = setTimeout(function () {
@@ -700,12 +881,43 @@
     console.debug("[Caliber][badges] scroll listener attached");
   }
 
-  /** Clear all badges from the page (used on surface change). */
+  /** Attach a MutationObserver on the results list to restore badges after rerenders. */
+  function startBadgeListObserver() {
+    if (badgeListObserver) return;
+    var listEl =
+      document.querySelector(".jobs-search-results-list") ||
+      document.querySelector(".scaffold-layout__list-container") ||
+      document.querySelector("[class*='jobs-search-results']") ||
+      document.querySelector("[class*='scaffold-layout__list']");
+    if (!listEl) {
+      console.debug("[Caliber][badges] no results list container found for observer");
+      return;
+    }
+    var debounce = null;
+    badgeListObserver = new MutationObserver(function () {
+      clearTimeout(debounce);
+      debounce = setTimeout(function () {
+        restoreBadgesFromCache();
+        // Also pick up any brand-new cards that appeared
+        scanAndBadgeVisibleCards();
+      }, 500);
+    });
+    badgeListObserver.observe(listEl, { childList: true, subtree: true });
+    console.debug("[Caliber][badges] list MutationObserver attached");
+  }
+
+  /** Clear all badges and cache (used on surface change). */
   function clearAllBadges() {
     badgeScoredUrls.clear();
+    badgeScoreCache = {};
+    badgeBatchQueue = [];
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
     for (var i = 0; i < badges.length; i++) badges[i].remove();
-    console.debug("[Caliber][badges] cleared all badges");
+    if (badgeListObserver) {
+      badgeListObserver.disconnect();
+      badgeListObserver = null;
+    }
+    console.debug("[Caliber][badges] cleared all badges, cache, and observer");
   }
 
   // ─── Pre-scan Trigger Logic ───────────────────────────────
@@ -715,20 +927,14 @@
   }
 
   /**
-   * Scan the first visible job cards on a LinkedIn search results page.
-   * Scores each visible card via the fit API and evaluates strong-match supply.
-   * Strong match = score >= 8.0. Healthy search = 5+ strong matches.
-   * If fewer than 5 strong matches, show Better Search Title suggestion immediately.
+   * Kick off the search prescan.
+   * Badge scoring IS the prescan — this just ensures badge scanning is running.
+   * BST evaluation happens automatically in evaluateBSTFromBadgeCache() after scores arrive.
    */
   function runSearchPrescan() {
     var surfaceKey = getSearchSurfaceKey();
-    var currentQuery = getSearchKeywords();
 
-    // Guard: skip if already done for this surface, running, or not search page
-    if (prescanRunning) {
-      console.debug("[Caliber][prescan] already running, skipping");
-      return;
-    }
+    // Guard: skip if already done for this surface or not search page
     if (prescanDone && prescanSearchQuery === surfaceKey) {
       // Restore banner from durable state if suggestion was shown previously
       if (prescanStoredTitle && !prescanBSTActive) {
@@ -742,6 +948,7 @@
       return;
     }
 
+    // Reset prescan state for new surface
     prescanRunning = true;
     prescanDone = false;
     prescanSearchQuery = surfaceKey;
@@ -754,123 +961,14 @@
       if (banner) banner.style.display = "none";
     }
 
-    console.debug("[Caliber][prescan] starting visible-page scan for surface: " + surfaceKey);
-    console.debug("[Caliber][prescan] search keywords: \"" + currentQuery + "\"");
+    console.debug("[Caliber][prescan] prescan delegated to badge scoring pipeline for surface: " + surfaceKey);
 
-    // Wait for LinkedIn to finish rendering job cards
+    // Badge scoring handles all API calls — BST evaluates from badge cache after each chunk
+    // Trigger a scan in case badges haven't started yet
     setTimeout(function () {
-      var cards = getVisibleJobCards(12);
-      console.debug("[Caliber][prescan] visible jobs detected: " + cards.length);
-
-      if (cards.length < 3) {
-        console.debug("[Caliber][prescan] too few cards (" + cards.length + "), aborting");
-        prescanRunning = false;
-        prescanDone = true;
-        return;
-      }
-
-      // Build job texts for scoring — filter by minimum text length
-      var jobs = [];
-      for (var i = 0; i < cards.length; i++) {
-        var jobText = cards[i].text;
-        if (jobText.length < 80) {
-          console.debug("[Caliber][prescan] card " + i + " too short (" + jobText.length + " chars), skipping: " + cards[i].title);
-          continue;
-        }
-        jobs.push({
-          jobText: jobText,
-          title: cards[i].title,
-        });
-      }
-
-      console.debug("[Caliber][prescan] jobs to score: " + jobs.length);
-
-      if (jobs.length < 3) {
-        console.debug("[Caliber][prescan] too few scoreable cards (" + jobs.length + "), aborting");
-        prescanRunning = false;
-        prescanDone = true;
-        return;
-      }
-
-      // Send batch to background for sequential scoring
-      chrome.runtime.sendMessage({
-        type: "CALIBER_PRESCAN_BATCH",
-        jobs: jobs,
-      }, function (resp) {
-        prescanRunning = false;
-        prescanDone = true;
-
-        if (chrome.runtime.lastError) {
-          console.debug("[Caliber][prescan] message error:", chrome.runtime.lastError.message);
-          return;
-        }
-        if (!resp || !resp.ok || !Array.isArray(resp.results)) {
-          console.debug("[Caliber][prescan] batch scoring failed:", resp && resp.error);
-          return;
-        }
-
-        var results = resp.results;
-        var strongCount = 0;
-        var scoredCount = 0;
-        var scores = [];
-        var bestCalibrationTitle = "";
-        var bestNearbyRoles = [];
-
-        for (var i = 0; i < results.length; i++) {
-          var r = results[i];
-          if (!r.ok) {
-            console.debug("[Caliber][prescan] job " + i + " (" + r.title + ") scoring failed: " + r.error);
-            continue;
-          }
-          scoredCount++;
-          scores.push(r.score);
-          if (r.score >= 8.0) strongCount++;
-          if (r.calibrationTitle) bestCalibrationTitle = r.calibrationTitle;
-          if (r.nearbyRoles && r.nearbyRoles.length > 0) bestNearbyRoles = r.nearbyRoles;
-        }
-
-        // Diagnostic: median score
-        var sortedScores = scores.slice().sort(function (a, b) { return a - b; });
-        var median = sortedScores.length > 0 ? sortedScores[Math.floor(sortedScores.length / 2)] : 0;
-
-        console.debug("[Caliber][prescan] scored: " + scoredCount + "/" + results.length);
-        console.debug("[Caliber][prescan] scores: [" + scores.join(", ") + "]");
-        console.debug("[Caliber][prescan] median score: " + median);
-        console.debug("[Caliber][prescan] strong matches (>= 8.0): " + strongCount + " of " + scoredCount + " scored");
-        console.debug("[Caliber][prescan] surface key: " + surfaceKey);
-
-        // Evaluate trigger: fewer than 5 strong matches = unhealthy search surface
-        var suggestedTitle = null;
-        var suggestionShown = false;
-        if (strongCount < 5) {
-          console.debug("[Caliber][prescan] TRIGGER FIRED — only " + strongCount + " strong matches (need 5+) in " + scoredCount + " scored jobs");
-          suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
-          if (suggestedTitle) {
-            console.debug("[Caliber][prescan] suggestion source: " + (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary title" : "adjacent/nearby role"));
-            showPrescanBSTBanner(suggestedTitle);
-            suggestionShown = true;
-            prescanStoredTitle = suggestedTitle;
-          } else {
-            console.debug("[Caliber][prescan] trigger fired but no valid suggestion available — suppressed");
-          }
-        } else {
-          console.debug("[Caliber][prescan] trigger NOT fired — " + strongCount + " strong matches (5+ = healthy) in " + scoredCount + " scored jobs");
-        }
-
-        // Persist prescan result to durable storage
-        chrome.runtime.sendMessage({
-          type: "CALIBER_PRESCAN_STATE_SAVE",
-          surfaceKey: surfaceKey,
-          query: getSearchKeywords(),
-          strongCount: strongCount,
-          scoredCount: scoredCount,
-          suggestedTitle: suggestedTitle,
-          suggestionShown: suggestionShown,
-        }, function () {
-          console.debug("[Caliber][prescan] state persisted for surface: " + surfaceKey);
-        });
-      });
-    }, 2500); // Wait 2.5s for LinkedIn cards to finish rendering
+      scanAndBadgeVisibleCards();
+      startBadgeListObserver();
+    }, 2500);
   }
 
   /**
@@ -1571,8 +1669,11 @@
           console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history + badges");
           // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
-          // Re-scan badges for new surface
-          setTimeout(function () { scanAndBadgeVisibleCards(); }, 4000);
+          // Re-scan badges + re-attach observers for new surface
+          setTimeout(function () {
+            scanAndBadgeVisibleCards();
+            startBadgeListObserver();
+          }, 4000);
         }
         console.debug("[Caliber] URL changed, re-scoring");
         // Delay slightly so LinkedIn DOM settles before extraction
@@ -1635,11 +1736,13 @@
       scoreCurrentJob(true);
     }
     // Trigger pre-scan of visible job cards on search results pages
+    // Badge scoring handles both badges AND BST prescan evaluation
     setTimeout(function () { runSearchPrescan(); }, 3000);
-    // Phase 2: badge visible job cards after initial render settles
+    // Phase 2: badge visible job cards + scroll + mutation observer
     setTimeout(function () {
       scanAndBadgeVisibleCards();
       startBadgeScrollListener();
+      startBadgeListObserver();
     }, 4000);
   }
 
