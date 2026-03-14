@@ -1033,7 +1033,7 @@
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = score;
+    scoreEl.textContent = Math.round(score);
     scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
@@ -1145,7 +1145,7 @@
       }
     }
 
-    // Rolling score history — persist for analytics (BST prompt is now prescan-driven)
+    // Rolling score history — persist for analytics + fallback BST trigger
     var historyEntry = { score: score, title: lastJobMeta.title || "", nearbyRoles: data.nearby_roles || [], calibrationTitle: data.calibration_title || "" };
     recentScores.push(historyEntry);
     if (recentScores.length > 10) recentScores = recentScores.slice(-10);
@@ -1161,13 +1161,33 @@
       }
     });
 
-    // Recovery banner is now controlled exclusively by the prescan flow.
-    // Do NOT touch cb-recovery-banner here — prescan owns it.
+    // Fallback BST: if prescan didn't show a suggestion, evaluate per-click rolling history
+    if (!prescanBSTActive) {
+      var rollingSuggestion = checkWeakSearchPattern();
+      if (rollingSuggestion) {
+        console.debug("[Caliber][BST-fallback] rolling history triggered, suggestion: \"" + rollingSuggestion + "\"");
+        showPrescanBSTBanner(rollingSuggestion);
+        // Persist so banner survives DOM rerenders
+        chrome.runtime.sendMessage({
+          type: "CALIBER_PRESCAN_STATE_SAVE",
+          query: getSearchKeywords(),
+          weakCount: recentScores.filter(function (e) { return e.score < 7; }).length,
+          scoredCount: recentScores.length,
+          suggestedTitle: rollingSuggestion,
+          suggestionShown: true,
+        });
+      } else if (rollingSuggestion === "") {
+        console.debug("[Caliber][BST-fallback] rolling history triggered but all suggestions match current query");
+      }
+    }
 
     // Behavioral signal tracking
     sessionSignals.jobs_viewed++;
     if (score < 6) sessionSignals.scores_below_6++;
     if (score > sessionSignals.highest_score) sessionSignals.highest_score = score;
+    console.debug("[Caliber][BST] score=" + score + " weak=" + (score < 7 ? "yes" : "no") +
+      " history=" + recentScores.length + " prescanBST=" + prescanBSTActive +
+      " viewed=" + sessionSignals.jobs_viewed);
 
     // Auto-save strong-match jobs (>= 8.5) to pipeline silently
     if (score >= 8.5) {
