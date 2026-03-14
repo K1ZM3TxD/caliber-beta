@@ -541,12 +541,12 @@
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
 
-  // LinkedIn card logo container selectors (for badge placement)
-  var CARD_LOGO_SELECTORS = [
-    ".artdeco-entity-lockup__image",
-    ".job-card-container__logo",
-    "[class*='entity-lockup__image']",
-    "[class*='job-card'] [class*='logo']",
+  // LinkedIn card content-area selectors (badge renders below title/company)
+  var CARD_CONTENT_SELECTORS = [
+    ".artdeco-entity-lockup__content",
+    ".job-card-container__company-name",
+    "[class*='entity-lockup__content']",
+    "[class*='job-card'] [class*='company']",
   ];
 
   /** Inject badge CSS into the LinkedIn page (outside shadow DOM). */
@@ -559,16 +559,14 @@
     style.id = BADGE_STYLE_ID;
     style.textContent = [
       ".caliber-badge {",
-      "  display: inline-flex; align-items: center; gap: 3px;",
+      "  display: block;",
       "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-      "  font-size: 11px; font-weight: 600; line-height: 1;",
-      "  padding: 2px 5px; border-radius: 4px;",
-      "  background: rgba(17,17,20,0.85); color: #888;",
+      "  font-size: 13px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;",
+      "  padding: 3px 0; color: #888;",
       "  white-space: nowrap; pointer-events: none;",
-      "  margin-top: 4px;",
+      "  margin-top: 2px;",
       "}",
-      ".caliber-badge svg { flex-shrink: 0; }",
-      ".caliber-badge--loading { color: #666; }",
+      ".caliber-badge--loading { color: #666; font-weight: 600; }",
       ".caliber-badge--green  { color: #4ADE80; }",
       ".caliber-badge--yellow { color: #FBBF24; }",
       ".caliber-badge--gray   { color: #888; }",
@@ -578,22 +576,20 @@
 
   /** Build badge HTML for a given state. */
   function badgeHTML(state, score) {
-    // Caliber icon: thin-line diamond (matches brand)
-    var icon = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L22 12 L12 22 L2 12 Z"/></svg>';
     if (state === "loading") {
-      return '<span class="caliber-badge caliber-badge--loading" ' + BADGE_ATTR + '>' + icon + ' \u2026</span>';
+      return '<span class="caliber-badge caliber-badge--loading" ' + BADGE_ATTR + '>\u2026</span>';
     }
     var rounded = Math.round(score * 10) / 10;
     var band = "gray";
     if (rounded >= 8.0) band = "green";
     else if (rounded >= 6.5) band = "yellow";
-    return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + icon + " " + rounded.toFixed(1) + "</span>";
+    return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + rounded.toFixed(1) + "</span>";
   }
 
-  /** Find the logo container within a job card element. */
-  function findLogoContainer(cardEl) {
-    for (var i = 0; i < CARD_LOGO_SELECTORS.length; i++) {
-      var el = cardEl.querySelector(CARD_LOGO_SELECTORS[i]);
+  /** Find the content area within a job card element (badge inserts at the end). */
+  function findBadgeTarget(cardEl) {
+    for (var i = 0; i < CARD_CONTENT_SELECTORS.length; i++) {
+      var el = cardEl.querySelector(CARD_CONTENT_SELECTORS[i]);
       if (el) return el;
     }
     return null;
@@ -649,13 +645,13 @@
         }
         return;
       }
-      // Find logo container and append badge after it
-      var logo = findLogoContainer(cardEl);
-      if (logo) {
-        logo.insertAdjacentHTML("afterend", badgeHTML(state, score));
+      // Append badge at the end of the content area (below title/company)
+      var target = findBadgeTarget(cardEl);
+      if (target) {
+        target.insertAdjacentHTML("beforeend", badgeHTML(state, score));
       } else {
-        // Fallback: prepend to card
-        cardEl.insertAdjacentHTML("afterbegin", badgeHTML(state, score));
+        // Fallback: append to card
+        cardEl.insertAdjacentHTML("beforeend", badgeHTML(state, score));
       }
     } finally {
       badgeInjecting = false;
