@@ -470,7 +470,9 @@
 
   function isElementInViewport(el) {
     var rect = el.getBoundingClientRect();
-    return rect.top < window.innerHeight && rect.bottom > 0;
+    // Include a buffer zone (half viewport) so near-viewport cards get pre-scored
+    var buffer = window.innerHeight * 0.5;
+    return rect.top < window.innerHeight + buffer && rect.bottom > -buffer;
   }
 
   /**
@@ -677,10 +679,13 @@
     ensureBadgeStyles();
     var restored = 0;
     // First pass: re-stamp any visible cards that lost their data attribute
+    // Scan ALL selector groups (avoid early break)
+    var seen = new Set();
     for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
       var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
-      if (els.length === 0) continue;
       for (var i = 0; i < els.length; i++) {
+        if (seen.has(els[i])) continue;
+        seen.add(els[i]);
         var id = stampCard(els[i]);
         // If this card has a cached score but lost its badge, restore it
         if (badgeScoreCache[id] && !els[i].querySelector("[" + BADGE_ATTR + "]")) {
@@ -688,7 +693,6 @@
           restored++;
         }
       }
-      if (els.length > 0) break;
     }
     if (restored > 0) {
       console.debug("[Caliber][badges] restored " + restored + " badges from cache after DOM mutation");
@@ -801,15 +805,17 @@
     var currentSurface = getSearchSurfaceKey();
     if (!badgeCacheSurface) badgeCacheSurface = currentSurface;
 
-    // Gather all visible cards
+    // Gather all visible cards across ALL selector groups (avoid early break)
     var allCards = [];
+    var seen = new Set();
     for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
       var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
-      if (els.length === 0) continue;
       for (var i = 0; i < els.length; i++) {
-        if (isElementInViewport(els[i])) allCards.push(els[i]);
+        if (!seen.has(els[i]) && isElementInViewport(els[i])) {
+          seen.add(els[i]);
+          allCards.push(els[i]);
+        }
       }
-      if (allCards.length > 0) break;
     }
 
     // Filter to un-scored cards only
@@ -960,7 +966,7 @@
       clearTimeout(badgeScrollTimer);
       badgeScrollTimer = setTimeout(function () {
         scanAndBadgeVisibleCards();
-      }, 800);
+      }, 400);
     };
     window.addEventListener("scroll", badgeScrollHandler, { passive: true });
     console.debug("[Caliber][badges] scroll listener attached");
@@ -1070,11 +1076,29 @@
     console.debug("[Caliber][prescan] prescan delegated to badge scoring pipeline for surface: " + surfaceKey);
 
     // Badge scoring handles all API calls — BST evaluates from badge cache after each chunk
-    // Trigger a scan in case badges haven't started yet
-    setTimeout(function () {
+    // Retry-poll until cards are found (LinkedIn lazy-renders card DOM)
+    var prescanAttempts = 0;
+    var prescanMaxAttempts = 8;
+    function prescanRetry() {
+      prescanAttempts++;
       scanAndBadgeVisibleCards();
+      startBadgeScrollListener();
       startBadgeListObserver();
-    }, 2500);
+      // Check if we found any cards; if not, retry
+      var foundAny = false;
+      for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+        if (document.querySelectorAll(JOB_CARD_SELECTORS[s]).length > 0) { foundAny = true; break; }
+      }
+      if (!foundAny && prescanAttempts < prescanMaxAttempts) {
+        console.debug("[Caliber][prescan] no cards found yet, retry " + prescanAttempts + "/" + prescanMaxAttempts);
+        setTimeout(prescanRetry, 1500);
+      } else if (foundAny) {
+        console.debug("[Caliber][prescan] cards found on attempt " + prescanAttempts);
+      } else {
+        console.debug("[Caliber][prescan] no cards found after " + prescanMaxAttempts + " attempts");
+      }
+    }
+    setTimeout(prescanRetry, 1500);
   }
 
   /**
@@ -1803,9 +1827,10 @@
           console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history + badges");
           // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
-          // Re-scan badges + re-attach observers for new surface
+          // Re-scan badges + re-attach scroll + observer for new surface
           setTimeout(function () {
             scanAndBadgeVisibleCards();
+            startBadgeScrollListener();
             startBadgeListObserver();
           }, 4000);
         }
@@ -1815,6 +1840,7 @@
           setTimeout(function () {
             restoreBadgesFromCache();
             scanAndBadgeVisibleCards();
+            startBadgeScrollListener();
             startBadgeListObserver();
           }, 1500);
         }
@@ -1884,13 +1910,7 @@
     }
     // Trigger pre-scan of visible job cards on search results pages
     // Badge scoring handles both badges AND BST prescan evaluation
-    setTimeout(function () { runSearchPrescan(); }, 3000);
-    // Phase 2: badge visible job cards + scroll + mutation observer
-    setTimeout(function () {
-      scanAndBadgeVisibleCards();
-      startBadgeScrollListener();
-      startBadgeListObserver();
-    }, 4000);
+    setTimeout(function () { runSearchPrescan(); }, 2000);
   }
 
   function deactivatePanel() {
