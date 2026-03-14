@@ -365,9 +365,12 @@
     try {
       var url = new URL(location.href);
       var params = url.searchParams;
+      // Normalize pathname: /jobs/view/XXXX should not change the surface key.
+      // Only the search-level path matters (e.g. /jobs/search/, /jobs/collections/).
+      var path = url.pathname.replace(/\/jobs\/view\/\d+\/?/, "/jobs/search/");
       // Include keywords, location, job type, distance, experience level, sort
       var parts = [
-        url.pathname,
+        path,
         params.get("keywords") || "",
         params.get("location") || "",
         params.get("f_TPR") || "",
@@ -511,9 +514,12 @@
   var badgeCacheSurface = "";            // surface key the cache belongs to
   var badgeScrollAttached = false;
   var badgeScrollTimer = null;
+  var badgeScrollHandler = null;        // stored ref for removeEventListener
   var badgeListObserver = null;          // MutationObserver on the results list
+  var badgeObserverDebounce = null;      // debounce timer for observer callback
   var badgeBatchQueue = [];              // pending cards waiting to be scored
   var badgeBatchRunning = false;         // is a batch currently in-flight?
+  var badgeBatchGeneration = 0;          // incremented on clear; stale responses discarded
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
 
@@ -527,7 +533,10 @@
 
   /** Inject badge CSS into the LinkedIn page (outside shadow DOM). */
   function ensureBadgeStyles() {
-    if (document.getElementById(BADGE_STYLE_ID)) return;
+    var existing = document.getElementById(BADGE_STYLE_ID);
+    if (existing && existing.parentNode) return;
+    // Remove orphaned element if it lost its parent
+    if (existing) existing.remove();
     var style = document.createElement("style");
     style.id = BADGE_STYLE_ID;
     style.textContent = [
@@ -650,7 +659,7 @@
     if (!active || !isSearchResultsPage()) return;
     // Safety: skip if cache belongs to a different surface
     var currentSurface = getSearchSurfaceKey();
-    if (badgeCacheSurface && badgeCacheSurface !== currentSurface) return;
+    if (badgeCacheSurface !== "" && badgeCacheSurface !== currentSurface) return;
     ensureBadgeStyles();
     var restored = 0;
     // First pass: re-stamp any visible cards that lost their data attribute
@@ -677,9 +686,10 @@
    * Scores BADGE_CHUNK_SIZE cards, applies results, then recurses for the next chunk.
    */
   function processBadgeQueue() {
-    if (badgeBatchRunning || badgeBatchQueue.length === 0) return;
+    if (!active || badgeBatchRunning || badgeBatchQueue.length === 0) return;
 
     var chunk = badgeBatchQueue.splice(0, BADGE_CHUNK_SIZE);
+    var batchId = ++badgeBatchGeneration;
     badgeBatchRunning = true;
 
     console.debug("[Caliber][badges] scoring chunk of " + chunk.length +
@@ -691,15 +701,20 @@
     }, function (resp) {
       badgeBatchRunning = false;
 
+      // Discard stale response if badges were cleared while in-flight
+      if (batchId !== badgeBatchGeneration) {
+        console.debug("[Caliber][badges] discarding stale batch response (generation mismatch)");
+        return;
+      }
+
       if (chrome.runtime.lastError) {
         console.debug("[Caliber][badges] chunk error:", chrome.runtime.lastError.message);
-        // Continue with next chunk despite error
-        if (badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
+        if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
         return;
       }
       if (!resp || !resp.ok || !Array.isArray(resp.results)) {
         console.debug("[Caliber][badges] chunk scoring failed:", resp && resp.error);
-        if (badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
+        if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
         return;
       }
 
@@ -729,9 +744,12 @@
           var errCard = entry.id ? findCardById(entry.id) : null;
           if (errCard) {
             badgeInjecting = true;
-            var badge = errCard.querySelector("[" + BADGE_ATTR + "]");
-            if (badge) badge.remove();
-            badgeInjecting = false;
+            try {
+              var badge = errCard.querySelector("[" + BADGE_ATTR + "]");
+              if (badge) badge.remove();
+            } finally {
+              badgeInjecting = false;
+            }
           }
           console.debug("[Caliber][badges] error: " + entry.title + " → " + result.error);
         }
@@ -741,9 +759,9 @@
       evaluateBSTFromBadgeCache();
 
       // Process next chunk
-      if (badgeBatchQueue.length > 0) {
+      if (active && badgeBatchQueue.length > 0) {
         setTimeout(processBadgeQueue, 200);
-      } else {
+      } else if (badgeBatchQueue.length === 0) {
         console.debug("[Caliber][badges] all queued cards scored. Cache size: " + Object.keys(badgeScoreCache).length);
       }
     });
@@ -917,14 +935,24 @@
   function startBadgeScrollListener() {
     if (badgeScrollAttached) return;
     badgeScrollAttached = true;
-    var scrollHandler = function () {
+    badgeScrollHandler = function () {
       clearTimeout(badgeScrollTimer);
       badgeScrollTimer = setTimeout(function () {
         scanAndBadgeVisibleCards();
       }, 800);
     };
-    window.addEventListener("scroll", scrollHandler, { passive: true });
+    window.addEventListener("scroll", badgeScrollHandler, { passive: true });
     console.debug("[Caliber][badges] scroll listener attached");
+  }
+
+  /** Detach the scroll listener and reset its flag. */
+  function stopBadgeScrollListener() {
+    if (badgeScrollHandler) {
+      window.removeEventListener("scroll", badgeScrollHandler);
+      badgeScrollHandler = null;
+    }
+    clearTimeout(badgeScrollTimer);
+    badgeScrollAttached = false;
   }
 
   /** Attach a MutationObserver on the results list to restore badges after rerenders. */
@@ -939,12 +967,11 @@
       console.debug("[Caliber][badges] no results list container found for observer");
       return;
     }
-    var debounce = null;
     badgeListObserver = new MutationObserver(function () {
       // Skip mutations caused by our own badge injection
       if (badgeInjecting) return;
-      clearTimeout(debounce);
-      debounce = setTimeout(function () {
+      clearTimeout(badgeObserverDebounce);
+      badgeObserverDebounce = setTimeout(function () {
         restoreBadgesFromCache();
         // Also pick up any brand-new cards that appeared
         scanAndBadgeVisibleCards();
@@ -960,6 +987,7 @@
     badgeScoreCache = {};
     badgeCacheSurface = "";
     badgeBatchQueue = [];
+    badgeBatchGeneration++;  // invalidate any in-flight batch responses
     badgeInjecting = true;
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
     for (var i = 0; i < badges.length; i++) badges[i].remove();
@@ -967,11 +995,14 @@
     var stamped = document.querySelectorAll("[" + JOB_ID_ATTR + "]");
     for (var j = 0; j < stamped.length; j++) stamped[j].removeAttribute(JOB_ID_ATTR);
     badgeInjecting = false;
+    // Detach scroll listener + observer
+    stopBadgeScrollListener();
+    clearTimeout(badgeObserverDebounce);
     if (badgeListObserver) {
       badgeListObserver.disconnect();
       badgeListObserver = null;
     }
-    console.debug("[Caliber][badges] cleared all badges, identity stamps, cache, and observer");
+    console.debug("[Caliber][badges] cleared all badges, identity stamps, cache, scroll listener, and observer");
   }
 
   // ─── Pre-scan Trigger Logic ───────────────────────────────
@@ -1728,6 +1759,15 @@
             scanAndBadgeVisibleCards();
             startBadgeListObserver();
           }, 4000);
+        }
+        // Same surface but URL changed (e.g. opened a job, returned to list)
+        // — restore any cached badges and re-attach observer
+        if (isSearchResultsPage()) {
+          setTimeout(function () {
+            restoreBadgesFromCache();
+            scanAndBadgeVisibleCards();
+            startBadgeListObserver();
+          }, 1500);
         }
         console.debug("[Caliber] URL changed, re-scoring");
         // Delay slightly so LinkedIn DOM settles before extraction
