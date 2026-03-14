@@ -501,6 +501,213 @@
     return cards;
   }
 
+  // ─── Phase 2: Job Card Score Badges ───────────────────────
+
+  var BADGE_ATTR = "data-caliber-badge";
+  var BADGE_STYLE_ID = "caliber-badge-css";
+  var badgeScoredUrls = new Set();  // URLs already scored or in-flight for badges
+  var badgeScrollTimer = null;
+  var badgeScrollAttached = false;
+
+  // LinkedIn card logo container selectors (for badge placement)
+  var CARD_LOGO_SELECTORS = [
+    ".artdeco-entity-lockup__image",
+    ".job-card-container__logo",
+    "[class*='entity-lockup__image']",
+    "[class*='job-card'] [class*='logo']",
+  ];
+
+  /** Inject badge CSS into the LinkedIn page (outside shadow DOM). */
+  function ensureBadgeStyles() {
+    if (document.getElementById(BADGE_STYLE_ID)) return;
+    var style = document.createElement("style");
+    style.id = BADGE_STYLE_ID;
+    style.textContent = [
+      ".caliber-badge {",
+      "  display: inline-flex; align-items: center; gap: 3px;",
+      "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+      "  font-size: 11px; font-weight: 600; line-height: 1;",
+      "  padding: 2px 5px; border-radius: 4px;",
+      "  background: rgba(17,17,20,0.85); color: #888;",
+      "  white-space: nowrap; pointer-events: none;",
+      "  margin-top: 4px;",
+      "}",
+      ".caliber-badge svg { flex-shrink: 0; }",
+      ".caliber-badge--loading { color: #666; }",
+      ".caliber-badge--green  { color: #4ADE80; }",
+      ".caliber-badge--yellow { color: #FBBF24; }",
+      ".caliber-badge--gray   { color: #888; }",
+    ].join("\n");
+    document.head.appendChild(style);
+  }
+
+  /** Build badge HTML for a given state. */
+  function badgeHTML(state, score) {
+    // Caliber icon: thin-line diamond (matches brand)
+    var icon = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L22 12 L12 22 L2 12 Z"/></svg>';
+    if (state === "loading") {
+      return '<span class="caliber-badge caliber-badge--loading" ' + BADGE_ATTR + '>' + icon + ' \u2026</span>';
+    }
+    var rounded = Math.round(score * 10) / 10;
+    var band = "gray";
+    if (rounded >= 8.0) band = "green";
+    else if (rounded >= 6.5) band = "yellow";
+    return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + icon + " " + rounded.toFixed(1) + "</span>";
+  }
+
+  /** Find the logo container within a job card element. */
+  function findLogoContainer(cardEl) {
+    for (var i = 0; i < CARD_LOGO_SELECTORS.length; i++) {
+      var el = cardEl.querySelector(CARD_LOGO_SELECTORS[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  /** Inject or update a badge on a single card element. */
+  function setBadgeOnCard(cardEl, state, score) {
+    var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
+    if (existing) {
+      if (state !== "loading") {
+        existing.outerHTML = badgeHTML(state, score);
+      }
+      return;
+    }
+    // Find logo container and append badge after it
+    var logo = findLogoContainer(cardEl);
+    if (logo) {
+      logo.insertAdjacentHTML("afterend", badgeHTML(state, score));
+    } else {
+      // Fallback: prepend to card
+      cardEl.insertAdjacentHTML("afterbegin", badgeHTML(state, score));
+    }
+  }
+
+  /**
+   * Scan visible job cards, inject loading badges, and score them progressively.
+   * Does not re-score cards that already have a final badge.
+   */
+  function scanAndBadgeVisibleCards() {
+    if (!active || !isSearchResultsPage()) return;
+
+    ensureBadgeStyles();
+
+    // Gather all visible cards (not capped — we want all in viewport)
+    var allCards = [];
+    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
+      if (els.length === 0) continue;
+      for (var i = 0; i < els.length; i++) {
+        if (isElementInViewport(els[i])) allCards.push(els[i]);
+      }
+      if (allCards.length > 0) break;
+    }
+
+    // Filter to un-scored cards only
+    var newCards = [];
+    for (var c = 0; c < allCards.length; c++) {
+      var card = allCards[c];
+      var link = card.querySelector('a[href*="/jobs/view/"]');
+      var url = link ? link.href : "";
+      // Use URL for dedup; fallback to element check
+      if (url && badgeScoredUrls.has(url)) continue;
+      if (card.querySelector("[" + BADGE_ATTR + "]")) continue;
+
+      newCards.push(card);
+      if (url) badgeScoredUrls.add(url);
+    }
+
+    if (newCards.length === 0) return;
+
+    console.debug("[Caliber][badges] found " + newCards.length + " new visible cards to score");
+
+    // Inject loading placeholders immediately
+    var jobs = [];
+    var cardRefs = [];
+    for (var j = 0; j < newCards.length; j++) {
+      setBadgeOnCard(newCards[j], "loading", 0);
+
+      var cardText = (newCards[j].innerText || "").trim().replace(/\s+/g, " ");
+      var titleText = "";
+      for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
+        var titleEl = newCards[j].querySelector(JOB_CARD_TITLE_SELECTORS[t]);
+        if (titleEl) {
+          titleText = (titleEl.textContent || "").trim();
+          if (titleText.length > 2) break;
+        }
+      }
+
+      if (cardText.length >= 80) {
+        jobs.push({ jobText: cardText, title: titleText, _cardIdx: j });
+      }
+      cardRefs.push(newCards[j]);
+    }
+
+    if (jobs.length === 0) {
+      console.debug("[Caliber][badges] no scoreable cards (all too short)");
+      return;
+    }
+
+    console.debug("[Caliber][badges] sending " + jobs.length + " cards for batch scoring");
+
+    // Send batch to background for scoring
+    chrome.runtime.sendMessage({
+      type: "CALIBER_PRESCAN_BATCH",
+      jobs: jobs.map(function (j) { return { jobText: j.jobText, title: j.title }; }),
+    }, function (resp) {
+      if (chrome.runtime.lastError) {
+        console.debug("[Caliber][badges] message error:", chrome.runtime.lastError.message);
+        return;
+      }
+      if (!resp || !resp.ok || !Array.isArray(resp.results)) {
+        console.debug("[Caliber][badges] batch scoring failed:", resp && resp.error);
+        return;
+      }
+
+      console.debug("[Caliber][badges] received " + resp.results.length + " scores");
+
+      for (var k = 0; k < resp.results.length; k++) {
+        var result = resp.results[k];
+        var cardIdx = jobs[k]._cardIdx;
+        var cardEl = cardRefs[cardIdx];
+        if (!cardEl) continue;
+
+        if (result.ok) {
+          setBadgeOnCard(cardEl, "scored", result.score);
+          console.debug("[Caliber][badges] " + result.title + " → " + result.score);
+        } else {
+          // Remove loading badge on error (fail silently)
+          var badge = cardEl.querySelector("[" + BADGE_ATTR + "]");
+          if (badge) badge.remove();
+          console.debug("[Caliber][badges] " + result.title + " → error: " + result.error);
+        }
+      }
+    });
+  }
+
+  /** Start scroll-based badge scanning for newly visible cards. */
+  function startBadgeScrollListener() {
+    if (badgeScrollAttached) return;
+    badgeScrollAttached = true;
+    // Debounced scan on scroll
+    var scrollHandler = function () {
+      clearTimeout(badgeScrollTimer);
+      badgeScrollTimer = setTimeout(function () {
+        scanAndBadgeVisibleCards();
+      }, 800);
+    };
+    window.addEventListener("scroll", scrollHandler, { passive: true });
+    console.debug("[Caliber][badges] scroll listener attached");
+  }
+
+  /** Clear all badges from the page (used on surface change). */
+  function clearAllBadges() {
+    badgeScoredUrls.clear();
+    var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
+    for (var i = 0; i < badges.length; i++) badges[i].remove();
+    console.debug("[Caliber][badges] cleared all badges");
+  }
+
   // ─── Pre-scan Trigger Logic ───────────────────────────────
 
   function isSearchResultsPage() {
@@ -1359,9 +1566,13 @@
           resetPrescanState();
           // Also clear persisted score history for the old surface
           chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_CLEAR" });
-          console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history");
+          // Clear stale badges from previous surface
+          clearAllBadges();
+          console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history + badges");
           // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
+          // Re-scan badges for new surface
+          setTimeout(function () { scanAndBadgeVisibleCards(); }, 4000);
         }
         console.debug("[Caliber] URL changed, re-scoring");
         // Delay slightly so LinkedIn DOM settles before extraction
@@ -1425,6 +1636,11 @@
     }
     // Trigger pre-scan of visible job cards on search results pages
     setTimeout(function () { runSearchPrescan(); }, 3000);
+    // Phase 2: badge visible job cards after initial render settles
+    setTimeout(function () {
+      scanAndBadgeVisibleCards();
+      startBadgeScrollListener();
+    }, 4000);
   }
 
   function deactivatePanel() {
@@ -1432,6 +1648,7 @@
     chrome.storage.local.set({ caliberPanelEnabled: false });
     stopWatching();
     removePanel();
+    clearAllBadges();
     lastScoredText = "";
     recentScores = [];
     resetSessionSignals();
