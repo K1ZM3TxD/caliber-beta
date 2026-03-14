@@ -79,6 +79,42 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-14 — Stable Branch Release Model
+
+**What changed:**
+- Two-branch release model implemented: `main` = development iteration, `stable` = production deploy target.
+- `stable` branch created from current main HEAD (v0.8.5) and pushed to origin.
+- Vercel production deploy target changes from `main` to `stable` (manual operator step in Vercel dashboard).
+- Vercel preview deploys continue on `main` for internal testing.
+- Promotion workflow: validate on main → fast-forward merge into `stable` → push → Vercel auto-deploys production from stable.
+- Extension ZIP on `/extension` page served from stable branch deploy — outside testers always get the validated build.
+- RELEASE MODEL FOLLOW-UP in milestones.md replaced with implemented release model.
+
+**Why it changed:**
+- Single-main-build workflow meant every push was immediately live on caliber-app.com. Outside beta testers would see in-progress/broken work. A stable branch gate was needed before inviting testers.
+
+**What is now expected:**
+- Production (caliber-app.com) deploys only from `stable` branch — pushes to main do not affect production.
+- Development iteration happens freely on `main`; preview URLs available for internal testing.
+- Promotion to production is an explicit merge-and-push to `stable`, not an accident of pushing to main.
+- Extension ZIP available at `/extension` is always the validated stable build.
+
+**What is explicitly no longer expected:**
+- Every push to main being immediately live for outside testers.
+- Single-branch workflow where development and production are the same deploy.
+- The RELEASE MODEL FOLLOW-UP section listing this as an unresolved future decision.
+
+**Risk / fallout:**
+- Low — additive infrastructure. No code changes, no user-facing behavior change.
+- Operator must change Vercel production branch setting manually (Settings → Git → Production Branch → `stable`). Until this is done, Vercel still deploys from main.
+- First promotion cycle (main → stable merge) has not yet been validated.
+
+**Proof target:**
+- `stable` branch exists on origin (`git branch -r | grep stable`).
+- After Vercel config change: caliber-app.com serves from stable branch; main pushes generate preview URLs only.
+
+**Files touched:** Bootstrap/milestones.md, Bootstrap/CALIBER_ACTIVE_STATE.md, Bootstrap/CALIBER_CONTEXT_SUMMARY.md, Bootstrap/BREAK_AND_UPDATE.md
+
 ### 2026-03-14 — Docs Truth Pass (Badge + BST + Overlay Alignment)
 
 **What changed:**

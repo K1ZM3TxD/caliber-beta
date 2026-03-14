@@ -19,15 +19,13 @@ BETA READINESS QUESTIONS (PM must answer YES to all before declaring beta):
 - Are major regressions low enough that outside testing produces useful feedback (not just bug reports about broken basics)?
 - Is the extension installable and activatable by a non-technical user following the /extension page instructions?
 
-RELEASE MODEL FOLLOW-UP:
-- Current limitation: there is only one main build, pushed directly to the production domain (caliber-app.com).
-- This means every push to main is immediately live for any outside tester.
-- Future need: support outside-user beta testing while preserving internal development iteration.
-- Options to evaluate (not yet decided):
-  - Preview/staging deploy URLs (Vercel preview branches)
-  - Separate beta vs stable extension builds
-  - Feature flags for gating incomplete work
-- This decision is deferred until beta readiness is reached — no premature infrastructure.
+RELEASE MODEL (implemented 2026-03-14):
+- Two-branch model active: `main` = development iteration, `stable` = production deploy.
+- Vercel production deploy target: `stable` branch → caliber-app.com.
+- Vercel preview deploys: `main` branch → preview URL for internal testing.
+- Promotion workflow: when main is validated stable, fast-forward merge `main` into `stable` and push.
+- Extension ZIP on `/extension` page is built from `stable` — outside testers always get the validated build.
+- No feature flags needed at this stage — branch separation provides the gate.
 
 POST-BETA METRICS DASHBOARD:
 - This work begins AFTER beta is stable and outside-user testing has started. Not before.
@@ -72,6 +70,27 @@ NEXT:
 - Begin beta stability testing with telemetry instrumentation active
 - Monitor telemetry_events.jsonl for event flow validation during real usage
 - Resume action-layer pipeline: auto-save strong matches → post-save confirmation → account prompt
+
+---
+
+BREAK + UPDATE — 2026-03-14 (Stable Branch Release Model)
+---
+DONE:
+- Two-branch release model implemented: `main` = development iteration, `stable` = production deploy target
+- `stable` branch created from current main HEAD (v0.8.5) and pushed to origin
+- Vercel production deploy target must be changed from `main` to `stable` in Vercel dashboard (manual operator step)
+- Vercel preview deploys continue on `main` for internal testing
+- Promotion workflow defined: validate on main → fast-forward merge into stable → push stable → Vercel deploys to caliber-app.com
+- All Bootstrap docs updated to reflect the new release model
+- RELEASE MODEL FOLLOW-UP section in milestones.md replaced with implemented model
+
+BLOCKED:
+- Vercel dashboard production branch setting must be changed manually by the operator (Settings → Git → Production Branch → `stable`)
+
+NEXT:
+- Operator changes Vercel production branch to `stable`
+- First promotion cycle: validate current main, merge to stable, confirm Vercel deploys from stable
+- Extension ZIP on `/extension` page verified serving from stable branch deploy
 
 ---
 

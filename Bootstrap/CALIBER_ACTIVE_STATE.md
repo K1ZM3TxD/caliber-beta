@@ -30,14 +30,14 @@ None currently in flight. Sidecard collapsed height (#48) resolved (2026-03-11).
 - Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download, tightened spacing.
 - Pipeline board enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus.
-- Extension ZIP v0.8.0 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, and BST doctrine update.
+- Extension ZIP v0.8.5 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, BST doctrine update, and fetch stability fixes.
 - Extension sidecard is compact, decision-first layout with:
   - Two-column header: company + job title (left), fit score + decision badge (right)
   - Hiring Reality Check (collapsible, with band badge)
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.8.0 built, zipped, and deployed.
+- Extension v0.8.5 built, zipped, and deployed.
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
 - Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
@@ -171,10 +171,12 @@ Do not re-sequence without new blocking evidence.
 - Once declared, project shifts to stability/testing mode — no major feature expansion on main.
 - This decision is upcoming but not yet active. Current active work is action-layer completion (auto-save → post-save → account prompt).
 
-**Release/testing model (2026-03-14):**
-- Current reality: single main build pushed to production domain. Every push is immediately live.
-- Before inviting outside testers, need a plan for safe iteration (preview deploys, separate builds, or feature flags).
-- Decision deferred until beta readiness threshold is reached.
+**Release model (implemented 2026-03-14):**
+- Two-branch model active: `main` = development iteration, `stable` = production deploy target.
+- Vercel production deploy: `stable` branch → caliber-app.com. Preview deploys: `main` → preview URL.
+- Promotion workflow: validate on main → fast-forward merge into stable → push → Vercel auto-deploys.
+- Extension ZIP on `/extension` served from stable branch deploy — outside testers always get the validated build.
+- Operator must change Vercel production branch from `main` to `stable` in the Vercel dashboard (Settings → Git → Production Branch).
 
 **Post-beta product metrics (2026-03-14):**
 - Telemetry event instrumentation shipped (2026-03-14). Lightweight append-only JSONL capture via `POST /api/events`.
@@ -184,4 +186,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-14 (overlay shipped, BST doctrine updated, badge placement normalized, discovery coverage fixed — approaching beta readiness)_
+_Last updated: 2026-03-14 (stable branch release model implemented, extension v0.8.5 — approaching beta readiness)_

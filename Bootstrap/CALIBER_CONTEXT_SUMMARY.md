@@ -16,7 +16,7 @@
 - Beta readiness definition established — see `Bootstrap/milestones.md` for threshold criteria and readiness questions.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0.
 - **Telemetry instrumentation is shipped (2026-03-14).** Lightweight event capture via `POST /api/events` and `data/telemetry_events.jsonl`. Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Non-blocking, fire-and-forget. This is the prerequisite layer for TTSM and all future product metrics.
-- Release/testing workflow must evolve beyond a single main build before outside-user testing begins. Options (preview deploys, separate extension builds, feature flags) deferred until beta threshold is reached.
+- Two-branch release model implemented (2026-03-14): `main` = development iteration, `stable` = production deploy. Vercel production deploys from `stable` → caliber-app.com. Preview deploys from `main`. Promotion: validate on main → fast-forward merge to stable → push.
 - Dashboard and cohort analysis remain future work.
 
 **Recent completed fixes (this session):**
@@ -39,7 +39,7 @@
 - Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Code is complete; product validation deferred to step 6.
 - Shell visual baseline anchored to commit a211182. Shared shell framework not yet locked; deferred to step 6.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
-- Extension v0.8.0 deployed (ZIP rebuilt with overlay badge system).
+- Extension v0.8.5 deployed (ZIP rebuilt with overlay badge system and fetch stability fixes).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
 - Next priorities: auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
@@ -64,10 +64,12 @@ LinkedIn job scores 8.0+ → contextual card above sidecard → "Tailor resume f
 - **Extension → Evaluation:** analyze real job descriptions, provide fit + hiring reality evaluation (Fit Score, Hiring Reality Check, Bottom Line).
 - These are fundamentally different evaluation contexts and must not be conflated.
 
-Calibration flow runs end-to-end: resume upload → prompt answers → title recommendation → extension CTA. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys from main.
+Calibration flow runs end-to-end: resume upload → prompt answers → title recommendation → extension CTA. Backend smoke reaches TERMINAL_COMPLETE with result. Vercel auto-deploys production from `stable` branch; preview deploys from `main`.
 
-**Stable Beta — Production/Dev Environment Split Active (2026-03-08).**
-- Production web app served from `https://www.caliber-app.com` (Vercel, auto-deployed from main).
+**Stable Beta — Production/Dev Environment Split Active (2026-03-08). Release model updated (2026-03-14).**
+- Production web app served from `https://www.caliber-app.com` (Vercel, auto-deployed from `stable` branch).
+- Development iteration happens on `main` branch; Vercel generates preview deploys for internal testing.
+- Promotion to production: validate on main → fast-forward merge into `stable` → push → Vercel deploys to caliber-app.com.
 - Production extension locked to `https://www.caliber-app.com` only — no localhost contact.
 - Dev extension locked to `http://localhost:3000` only — no production contact.
 - No host fallback behavior in either extension build.
@@ -193,7 +195,7 @@ Structured feedback collection active across extension and web app.
 
 - **Beta defined operationally.** Beta = core user flow stable enough for outside users without PM hand-holding. Not "feature complete" — "testable by real people." Readiness questions documented in milestones.md. PM must answer all YES before declaring beta.
 - **Post-beta metrics planned.** Primary metric: Time-to-Strong-Match (TTSM). Supporting: Strong Match Rate, Pipeline Save Rate, Tailor Usage Rate, Calibration Completion Rate. All deferred until beta is stable and outside testing has started.
-- **Release model gap acknowledged.** Current single-main-build workflow means every push is immediately live. Need a safer model before inviting outside testers. Options documented but decision deferred.
+- **Release model gap resolved (2026-03-14).** Two-branch model implemented: `main` = development, `stable` = production. Vercel production deploy from `stable`. Preview deploys from `main`. Every push to main is no longer immediately live for outside testers.
 - **No metrics work during current stabilization.** Metrics instrumentation and dashboard are explicitly post-beta. Current focus remains on action-layer completion (auto-save → post-save → account prompt).
 
 ## Session Decisions (2026-03-14, Phase-2 Overlay Scoring Shipped)
