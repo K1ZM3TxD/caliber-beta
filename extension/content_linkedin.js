@@ -504,14 +504,17 @@
   // ─── Phase 2: Job Card Score Badges ───────────────────────
 
   var BADGE_ATTR = "data-caliber-badge";
+  var JOB_ID_ATTR = "data-caliber-job-id";
   var BADGE_STYLE_ID = "caliber-badge-css";
-  var badgeScoredUrls = new Set();       // URLs already scored or in-flight
-  var badgeScoreCache = {};              // URL → { score, calibrationTitle, nearbyRoles }
+  var badgeScoredIds = new Set();        // job IDs already scored or in-flight
+  var badgeScoreCache = {};              // jobId → { score, calibrationTitle, nearbyRoles }
+  var badgeCacheSurface = "";            // surface key the cache belongs to
   var badgeScrollAttached = false;
   var badgeScrollTimer = null;
   var badgeListObserver = null;          // MutationObserver on the results list
   var badgeBatchQueue = [];              // pending cards waiting to be scored
   var badgeBatchRunning = false;         // is a batch currently in-flight?
+  var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
 
   // LinkedIn card logo container selectors (for badge placement)
@@ -569,66 +572,100 @@
     return null;
   }
 
-  /** Extract the canonical job URL from a card element. */
-  function cardJobUrl(cardEl) {
+  /**
+   * Extract a stable job identity from a card element.
+   * Priority: data-occludable-job-id → /jobs/view/{id} href → data-job-id → title hash.
+   * Returns a string like "job-12345678" or "hash-abc123" (never empty).
+   */
+  function cardJobId(cardEl) {
+    // 1. LinkedIn's own job-id attribute (most reliable)
+    var occId = cardEl.getAttribute("data-occludable-job-id");
+    if (occId) return "job-" + occId.trim();
+    // 2. Numeric ID from /jobs/view/{id}/ href
     var link = cardEl.querySelector('a[href*="/jobs/view/"]');
-    if (!link || !link.href) return "";
-    // Normalize: strip query params and hash for canonical dedup
-    try {
-      var u = new URL(link.href);
-      return u.origin + u.pathname.replace(/\/$/, "");
-    } catch (e) {
-      return link.href;
+    if (link && link.href) {
+      var m = link.href.match(/\/jobs\/view\/(\d+)/);
+      if (m) return "job-" + m[1];
     }
+    // 3. data-job-id attribute (alternate LinkedIn markup)
+    var djId = cardEl.getAttribute("data-job-id");
+    if (djId) return "job-" + djId.trim();
+    // 4. Fallback: lightweight hash of title + company
+    var text = (cardEl.textContent || "").trim().substring(0, 120);
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    return "hash-" + Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Stamp a card element with its stable job identity.
+   * Returns the job ID string. If already stamped, returns existing ID.
+   */
+  function stampCard(cardEl) {
+    var existing = cardEl.getAttribute(JOB_ID_ATTR);
+    if (existing) return existing;
+    var id = cardJobId(cardEl);
+    cardEl.setAttribute(JOB_ID_ATTR, id);
+    return id;
   }
 
   /** Inject or update a badge on a single card element. */
   function setBadgeOnCard(cardEl, state, score) {
-    var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
-    if (existing) {
-      if (state !== "loading") {
-        existing.outerHTML = badgeHTML(state, score);
+    badgeInjecting = true;
+    try {
+      var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
+      if (existing) {
+        if (state !== "loading") {
+          existing.outerHTML = badgeHTML(state, score);
+        }
+        return;
       }
-      return;
-    }
-    // Find logo container and append badge after it
-    var logo = findLogoContainer(cardEl);
-    if (logo) {
-      logo.insertAdjacentHTML("afterend", badgeHTML(state, score));
-    } else {
-      // Fallback: prepend to card
-      cardEl.insertAdjacentHTML("afterbegin", badgeHTML(state, score));
+      // Find logo container and append badge after it
+      var logo = findLogoContainer(cardEl);
+      if (logo) {
+        logo.insertAdjacentHTML("afterend", badgeHTML(state, score));
+      } else {
+        // Fallback: prepend to card
+        cardEl.insertAdjacentHTML("afterbegin", badgeHTML(state, score));
+      }
+    } finally {
+      badgeInjecting = false;
     }
   }
 
-  /** Re-find a card element by its job URL (survives DOM rerenders). */
-  function findCardByUrl(url) {
-    if (!url) return null;
-    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
-      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
-      for (var i = 0; i < els.length; i++) {
-        if (cardJobUrl(els[i]) === url) return els[i];
-      }
-      if (els.length > 0) break;
-    }
-    return null;
+  /** Find a card element by its stable job ID (O(1) via data attribute). */
+  function findCardById(jobId) {
+    if (!jobId) return null;
+    return document.querySelector("[" + JOB_ID_ATTR + '="' + jobId + '"]');
   }
 
   /**
    * Re-inject badges on cards that lost them due to LinkedIn DOM rerenders.
    * Uses the score cache to restore badges without re-scoring.
+   * Also re-stamps identity attributes on cards LinkedIn replaced.
    */
   function restoreBadgesFromCache() {
     if (!active || !isSearchResultsPage()) return;
+    // Safety: skip if cache belongs to a different surface
+    var currentSurface = getSearchSurfaceKey();
+    if (badgeCacheSurface && badgeCacheSurface !== currentSurface) return;
     ensureBadgeStyles();
     var restored = 0;
-    for (var url in badgeScoreCache) {
-      var cardEl = findCardByUrl(url);
-      if (cardEl && !cardEl.querySelector("[" + BADGE_ATTR + "]")) {
-        var cached = badgeScoreCache[url];
-        setBadgeOnCard(cardEl, "scored", cached.score);
-        restored++;
+    // First pass: re-stamp any visible cards that lost their data attribute
+    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
+      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
+      if (els.length === 0) continue;
+      for (var i = 0; i < els.length; i++) {
+        var id = stampCard(els[i]);
+        // If this card has a cached score but lost its badge, restore it
+        if (badgeScoreCache[id] && !els[i].querySelector("[" + BADGE_ATTR + "]")) {
+          setBadgeOnCard(els[i], "scored", badgeScoreCache[id].score);
+          restored++;
+        }
       }
+      if (els.length > 0) break;
     }
     if (restored > 0) {
       console.debug("[Caliber][badges] restored " + restored + " badges from cache after DOM mutation");
@@ -672,27 +709,29 @@
         if (!entry) continue;
 
         if (result.ok) {
-          // Cache the score by URL
-          if (entry.url) {
-            badgeScoreCache[entry.url] = {
+          // Cache the score by job ID
+          if (entry.id) {
+            badgeScoreCache[entry.id] = {
               score: result.score,
               calibrationTitle: result.calibrationTitle || "",
               nearbyRoles: result.nearbyRoles || [],
             };
           }
-          // Re-find the card by URL (survives DOM mutation during async scoring)
-          var cardEl = entry.url ? findCardByUrl(entry.url) : null;
+          // Re-find the card by job ID (O(1) via data attribute, survives DOM mutation)
+          var cardEl = entry.id ? findCardById(entry.id) : null;
           if (cardEl) {
             setBadgeOnCard(cardEl, "scored", result.score);
           }
           console.debug("[Caliber][badges] scored: " + entry.title + " → " + result.score +
-            (entry.url ? " (" + entry.url.split("/").pop() + ")" : ""));
+            (entry.id ? " (" + entry.id + ")" : ""));
         } else {
           // Remove loading badge on error
-          var errCard = entry.url ? findCardByUrl(entry.url) : null;
+          var errCard = entry.id ? findCardById(entry.id) : null;
           if (errCard) {
+            badgeInjecting = true;
             var badge = errCard.querySelector("[" + BADGE_ATTR + "]");
             if (badge) badge.remove();
+            badgeInjecting = false;
           }
           console.debug("[Caliber][badges] error: " + entry.title + " → " + result.error);
         }
@@ -711,13 +750,17 @@
   }
 
   /**
-   * Scan visible job cards, inject loading badges, and queue them for scoring.
+   * Scan visible job cards, stamp identity, inject loading badges, and queue for scoring.
    * Cards with cached scores get their badge immediately (no API call).
    */
   function scanAndBadgeVisibleCards() {
     if (!active || !isSearchResultsPage()) return;
 
     ensureBadgeStyles();
+
+    // Bind cache to current surface on first scan
+    var currentSurface = getSearchSurfaceKey();
+    if (!badgeCacheSurface) badgeCacheSurface = currentSurface;
 
     // Gather all visible cards
     var allCards = [];
@@ -735,23 +778,25 @@
     var cacheHits = 0;
     for (var c = 0; c < allCards.length; c++) {
       var card = allCards[c];
-      var url = cardJobUrl(card);
+
+      // Stamp stable identity on card
+      var id = stampCard(card);
 
       // Already has a badge → skip
       if (card.querySelector("[" + BADGE_ATTR + "]")) continue;
 
       // Cache hit → inject badge immediately, no API call
-      if (url && badgeScoreCache[url]) {
-        setBadgeOnCard(card, "scored", badgeScoreCache[url].score);
+      if (badgeScoreCache[id]) {
+        setBadgeOnCard(card, "scored", badgeScoreCache[id].score);
         cacheHits++;
         continue;
       }
 
       // Already in-flight → skip
-      if (url && badgeScoredUrls.has(url)) continue;
+      if (badgeScoredIds.has(id)) continue;
 
       // New card — mark as in-flight and queue
-      if (url) badgeScoredUrls.add(url);
+      badgeScoredIds.add(id);
 
       var cardText = (card.innerText || "").trim().replace(/\s+/g, " ");
       var titleText = "";
@@ -772,7 +817,7 @@
       setBadgeOnCard(card, "loading", 0);
 
       toQueue.push({
-        url: url,
+        id: id,
         jobText: cardText,
         title: titleText,
       });
@@ -785,7 +830,8 @@
     if (toQueue.length === 0) return;
 
     console.debug("[Caliber][badges] queued " + toQueue.length + " new cards for scoring" +
-      " (visible: " + allCards.length + ", already scored: " + (allCards.length - toQueue.length - cacheHits) + ")");
+      " (visible: " + allCards.length + ", already scored: " + (allCards.length - toQueue.length - cacheHits) +
+      ", cache: " + Object.keys(badgeScoreCache).length + ")");
 
     // Add to queue and kick off processing
     badgeBatchQueue = badgeBatchQueue.concat(toQueue);
@@ -895,6 +941,8 @@
     }
     var debounce = null;
     badgeListObserver = new MutationObserver(function () {
+      // Skip mutations caused by our own badge injection
+      if (badgeInjecting) return;
       clearTimeout(debounce);
       debounce = setTimeout(function () {
         restoreBadgesFromCache();
@@ -906,18 +954,24 @@
     console.debug("[Caliber][badges] list MutationObserver attached");
   }
 
-  /** Clear all badges and cache (used on surface change). */
+  /** Clear all badges, cache, and identity stamps (used on surface change). */
   function clearAllBadges() {
-    badgeScoredUrls.clear();
+    badgeScoredIds.clear();
     badgeScoreCache = {};
+    badgeCacheSurface = "";
     badgeBatchQueue = [];
+    badgeInjecting = true;
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
     for (var i = 0; i < badges.length; i++) badges[i].remove();
+    // Remove identity stamps so cards get re-identified on next surface
+    var stamped = document.querySelectorAll("[" + JOB_ID_ATTR + "]");
+    for (var j = 0; j < stamped.length; j++) stamped[j].removeAttribute(JOB_ID_ATTR);
+    badgeInjecting = false;
     if (badgeListObserver) {
       badgeListObserver.disconnect();
       badgeListObserver = null;
     }
-    console.debug("[Caliber][badges] cleared all badges, cache, and observer");
+    console.debug("[Caliber][badges] cleared all badges, identity stamps, cache, and observer");
   }
 
   // ─── Pre-scan Trigger Logic ───────────────────────────────
