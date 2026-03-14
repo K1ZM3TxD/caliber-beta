@@ -735,6 +735,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             </div>
 
 
+            {/* Shared hero content zone — fixed minHeight keeps the flex-centered
+                 block the same height for LANDING and RESUME, preventing wordmark jump. */}
+            {(step === "LANDING" || step === "RESUME") ? (
+              <div style={{ minHeight: 420 }} className="w-full flex flex-col items-center">
+
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
@@ -767,7 +772,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* RESUME */}
             {step === "RESUME" ? (
-              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-[620px]">
                 <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
                   <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
                 </div>
@@ -867,6 +872,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     Don&apos;t have a resume? Build a great one.
                   </Link>
                 </div>
+              </div>
+            ) : null}
+
               </div>
             ) : null}
 

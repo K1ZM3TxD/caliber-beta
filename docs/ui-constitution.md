@@ -120,6 +120,7 @@ The overall visual identity is: **calm, cinematic, premium.**
 - Subtle ambient light, never harsh.
 - Typography-led hierarchy — spacing and weight do the work, not color saturation.
 - No visual noise: no decorative dividers, no gratuitous animations, no competing accent colors.
+- **Centered hero continuity:** Pages that share a centered hero shell (landing, resume ingest, build-resume) must use a shared `minHeight` on the content zone so the wordmark anchor position is identical across transitions. See Layout Skeleton §5.1.
 
 ---
 

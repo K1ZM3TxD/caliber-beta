@@ -60,12 +60,23 @@ For pages with progressive/multi-step flows (e.g., calibration ingest), reserve 
 | Element | Reserved height |
 |---|---|
 | **Hero heading area** | `min-h-[5.5em]` (calibration) |
+| **Hero content zone** | `minHeight: 420` (shared across all centered hero steps) |
 | **Prompt/question area** | `min-h-[3em]` per prompt line |
 | **Textarea / input area** | Height as defined by component; do not collapse to 0 between steps |
 | **Result card area** | `min-h-[200px]` when results are expected but loading |
 
 - Reserved heights prevent the page from "jumping" when content appears or disappears.
 - Use `min-h-` (not fixed `h-`) so content can grow beyond the reservation.
+
+### 5.1 Hero Content Zone Anchor
+
+Centered hero pages (landing, resume ingest, build-resume intro) use `items-center` flex centering. Because flex centering depends on total content height, **all centered steps must share a single `minHeight`** on the content zone below the wordmark so the wordmark sits at the same vertical anchor regardless of which step is active.
+
+- The canonical hero content zone minHeight is **420px**.
+- This value lives on a shared wrapper that contains the step-specific content (not on individual step divs).
+- IngestLayout `centered` mode applies the same `minHeight: 420` to its content slot.
+- New centered hero steps must use this wrapper, not per-step height adjustments.
+- The goal is compositional continuity: transitioning between centered steps must produce no visible vertical shift in the wordmark or content origin.
 
 ---
 

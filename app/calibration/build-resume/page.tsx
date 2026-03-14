@@ -144,7 +144,7 @@ export default function BuildResumePage() {
   /* ─── Render ─── */
   return (
     <IngestLayout maxWidth="600px" centered>
-      <CaliberHeader className="mb-8" />
+      <CaliberHeader className="mb-6" />
 
       {/* ── INTRO ── */}
       {step === "INTRO" && (

@@ -47,7 +47,7 @@ export default function IngestLayout({
         />
         <div
           className="relative z-10 w-full px-4 sm:px-6 pb-16"
-          style={{ maxWidth }}
+          style={{ maxWidth, minHeight: 420 }}
         >
           {children}
         </div>
