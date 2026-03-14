@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.0";
+  const PANEL_VERSION = "0.8.1";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -555,7 +555,15 @@
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
 
-  // LinkedIn card content-area selectors (badge renders below title/company)
+  // LinkedIn card logo/image-area selectors (badge renders below company icon)
+  var CARD_LOGO_SELECTORS = [
+    ".artdeco-entity-lockup__image",
+    ".job-card-container__logo-container",
+    "[class*='entity-lockup__image']",
+    "[class*='job-card'] img[class*='logo']",
+    "[class*='job-card'] [class*='company-logo']",
+  ];
+  // Fallback: content-area selectors if logo column is missing
   var CARD_CONTENT_SELECTORS = [
     ".artdeco-entity-lockup__content",
     ".job-card-container__company-name",
@@ -573,14 +581,17 @@
     style.id = BADGE_STYLE_ID;
     style.textContent = [
       ".caliber-badge {",
-      "  display: block;",
+      "  display: flex; align-items: center; justify-content: center;",
+      "  width: 36px; height: 36px; border-radius: 6px;",
+      "  background: #1a1a1a;",
+      "  box-shadow: 0 1px 4px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);",
       "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
-      "  font-size: 13px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;",
-      "  padding: 3px 0; color: #888;",
+      "  font-size: 12px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;",
+      "  color: #888;",
       "  white-space: nowrap; pointer-events: none;",
-      "  margin-top: 2px;",
+      "  margin: 6px auto 0 auto;",
       "}",
-      ".caliber-badge--loading { color: #666; font-weight: 600; }",
+      ".caliber-badge--loading { color: #555; font-weight: 600; }",
       ".caliber-badge--green  { color: #4ADE80; }",
       ".caliber-badge--yellow { color: #FBBF24; }",
       ".caliber-badge--gray   { color: #888; }",
@@ -600,11 +611,21 @@
     return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + rounded.toFixed(1) + "</span>";
   }
 
-  /** Find the content area within a job card element (badge inserts at the end). */
+  /** Find the logo/image area within a job card element (badge inserts below the icon). */
   function findBadgeTarget(cardEl) {
-    for (var i = 0; i < CARD_CONTENT_SELECTORS.length; i++) {
-      var el = cardEl.querySelector(CARD_CONTENT_SELECTORS[i]);
-      if (el) return el;
+    // Primary: logo/image column — place badge directly under the company icon
+    for (var i = 0; i < CARD_LOGO_SELECTORS.length; i++) {
+      var el = cardEl.querySelector(CARD_LOGO_SELECTORS[i]);
+      if (el) {
+        // If this element is the img itself, use its parent container
+        if (el.tagName === "IMG") return el.parentElement || el;
+        return el;
+      }
+    }
+    // Fallback: content area (text column) if logo column not found
+    for (var j = 0; j < CARD_CONTENT_SELECTORS.length; j++) {
+      var contentEl = cardEl.querySelector(CARD_CONTENT_SELECTORS[j]);
+      if (contentEl) return contentEl;
     }
     return null;
   }
@@ -805,8 +826,10 @@
   }
 
   /**
-   * Scan visible job cards, stamp identity, inject loading badges, and queue for scoring.
+   * Scan all DOM-present job cards, stamp identity, inject loading badges, and queue for scoring.
    * Cards with cached scores get their badge immediately (no API call).
+   * Scans all cards in the DOM (not just viewport-visible) to catch LinkedIn's
+   * pre-rendered and recycled cards that may not trigger scroll events.
    */
   function scanAndBadgeVisibleCards() {
     if (!active || !isSearchResultsPage()) return;
@@ -817,13 +840,13 @@
     var currentSurface = getSearchSurfaceKey();
     if (!badgeCacheSurface) badgeCacheSurface = currentSurface;
 
-    // Gather all visible cards across ALL selector groups (avoid early break)
+    // Gather ALL DOM-present cards across ALL selector groups
     var allCards = [];
     var seen = new Set();
     for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
       var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
       for (var i = 0; i < els.length; i++) {
-        if (!seen.has(els[i]) && isElementInViewport(els[i])) {
+        if (!seen.has(els[i])) {
           seen.add(els[i]);
           allCards.push(els[i]);
         }
@@ -979,6 +1002,24 @@
     });
   }
 
+  /** Find LinkedIn's inner scrollable container (results list scrolls inside this). */
+  function findLinkedInScrollContainer() {
+    var selectors = [
+      ".jobs-search-results-list",
+      ".scaffold-layout__list",
+      ".scaffold-layout__list-container",
+      "[class*='jobs-search-results-list']",
+      "[class*='scaffold-layout__list']",
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && el.scrollHeight > el.clientHeight) return el;
+    }
+    return null;
+  }
+
+  var badgeInnerScrollEl = null;  // cached inner scroll container ref
+
   /** Start scroll-based badge scanning for newly visible cards. */
   function startBadgeScrollListener() {
     if (badgeScrollAttached) return;
@@ -989,14 +1030,26 @@
         scanAndBadgeVisibleCards();
       }, 400);
     };
+    // Listen on window (catches some scroll configurations)
     window.addEventListener("scroll", badgeScrollHandler, { passive: true });
-    console.debug("[Caliber][badges] scroll listener attached");
+    // Also listen on LinkedIn's inner scrollable container if present
+    badgeInnerScrollEl = findLinkedInScrollContainer();
+    if (badgeInnerScrollEl) {
+      badgeInnerScrollEl.addEventListener("scroll", badgeScrollHandler, { passive: true });
+      console.debug("[Caliber][badges] scroll listener attached (window + inner container)");
+    } else {
+      console.debug("[Caliber][badges] scroll listener attached (window only)");
+    }
   }
 
   /** Detach the scroll listener and reset its flag. */
   function stopBadgeScrollListener() {
     if (badgeScrollHandler) {
       window.removeEventListener("scroll", badgeScrollHandler);
+      if (badgeInnerScrollEl) {
+        badgeInnerScrollEl.removeEventListener("scroll", badgeScrollHandler);
+        badgeInnerScrollEl = null;
+      }
       badgeScrollHandler = null;
     }
     clearTimeout(badgeScrollTimer);
