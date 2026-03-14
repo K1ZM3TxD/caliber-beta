@@ -17,13 +17,13 @@ export interface ExplanationSummary {
 // ---------------------------------------------------------------------------
 
 const SIGNAL_MAP: Record<string, string> = {
-  tool: "tools",
-  automate: "automation",
-  sop: "SOPs",
+  tool: "workflow tools",
+  automate: "streamlining team workflows",
+  sop: "repeatable processes",
   sale: "sales",
   workflow: "workflows",
   system: "systems",
-  process: "operational processes",
+  process: "process design",
   business: "business operations",
   strategy: "strategy",
   design: "design",
@@ -79,12 +79,12 @@ export function buildExplanationSummary(
   rawSignals?: string[],
 ): ExplanationSummary {
   let signalBullet =
-    "Strong signals across design, business operations, tools, automation, and SOPs";
+    "Clear pattern across design, business operations, workflow tools, and repeatable processes";
 
   if (rawSignals && rawSignals.length > 0) {
     const phrase = normalizeSignalList(rawSignals);
     if (phrase) {
-      signalBullet = `Strong signals across ${phrase}`;
+      signalBullet = `Clear pattern across ${phrase}`;
     }
   }
 
@@ -94,10 +94,10 @@ export function buildExplanationSummary(
       "Based on your calibration answers, we see a clear pattern in your experience pointing toward this role.",
     bullets: [
       signalBullet,
-      "Hands-on work building systems, workflows, and operational processes",
-      "Experience that aligns closely with what roles like this typically require",
+      "Hands-on experience building systems, workflows, and operational processes",
+      "Your background aligns closely with what roles like this actually require",
     ],
     closing:
-      "Your background consistently blends design thinking with operational execution\u2009\u2014\u2009designing systems, improving workflows, and connecting strategy to real implementation.",
+      "Your background consistently blends design thinking with operational execution\u2009\u2014\u2009designing systems, improving how teams work, and connecting strategy to real implementation.",
   };
 }

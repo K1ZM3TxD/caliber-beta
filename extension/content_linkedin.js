@@ -535,8 +535,55 @@
   //   Badge color bands: green (8.0+), yellow (6.5–7.9), gray (<6.5)
   //
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
-  var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
+  var BST_MIN_WINDOW_SIZE = 3;            // minimum scored cards before BST can evaluate
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
+  var SCORE_CEILING_OUT_OF_SCOPE = 5.0;   // hard cap for clearly out-of-scope job families
+
+  // ─── Role-Family Clusters ─────────────────────────────────
+  // Lightweight client-side heuristic for detecting obviously different job
+  // domains (e.g., bartender vs product manager). Each cluster is a set of
+  // title keywords. If the job title matches one cluster and the calibration
+  // title matches a different cluster, the job is ceiling-capped.
+  var ROLE_FAMILY_CLUSTERS = {
+    hospitality: ["bartender", "barista", "waiter", "waitress", "server", "hostess", "host", "busser", "dishwasher", "line cook", "sous chef", "chef", "sommelier", "barback"],
+    retail: ["cashier", "stocker", "merchandiser", "sales associate", "store manager", "retail"],
+    trades: ["electrician", "plumber", "welder", "carpenter", "hvac", "mechanic", "technician"],
+    healthcare_clinical: ["nurse", "registered nurse", "lpn", "cna", "phlebotomist", "dental hygienist", "paramedic", "emt", "physician", "surgeon", "pharmacist"],
+    transportation: ["truck driver", "cdl", "forklift", "warehouse associate", "delivery driver", "courier", "dispatcher"],
+    education_k12: ["teacher", "substitute teacher", "paraprofessional", "school counselor", "principal"],
+    product_eng: ["product manager", "program manager", "project manager", "product owner", "scrum master", "agile coach", "tpm", "technical program"],
+    software_eng: ["software engineer", "developer", "frontend", "backend", "full stack", "fullstack", "sre", "devops", "platform engineer", "data engineer", "ml engineer", "machine learning"],
+    design: ["ux designer", "ui designer", "product designer", "graphic designer", "visual designer", "interaction designer"],
+    data_analytics: ["data analyst", "data scientist", "business analyst", "analytics", "bi analyst", "statistician"],
+    finance: ["accountant", "cpa", "financial analyst", "controller", "bookkeeper", "auditor", "tax"],
+    legal: ["attorney", "lawyer", "paralegal", "legal counsel", "compliance officer"],
+    marketing: ["marketing manager", "content strategist", "seo", "growth", "brand manager", "copywriter", "social media manager"],
+    sales_bd: ["account executive", "business development", "sales representative", "sdr", "bdr", "account manager"],
+  };
+
+  /**
+   * Detect if job title and calibration title belong to clearly different role families.
+   * Returns true if they are in different clusters (out-of-scope).
+   * Returns false if either is unmatched (benefit of the doubt) or same cluster.
+   */
+  function isRoleFamilyMismatch(jobTitle, calibrationTitle) {
+    if (!jobTitle || !calibrationTitle) return false;
+    var jt = jobTitle.toLowerCase();
+    var ct = calibrationTitle.toLowerCase();
+    var jobCluster = null;
+    var calCluster = null;
+    var clusters = Object.keys(ROLE_FAMILY_CLUSTERS);
+    for (var i = 0; i < clusters.length; i++) {
+      var keywords = ROLE_FAMILY_CLUSTERS[clusters[i]];
+      for (var k = 0; k < keywords.length; k++) {
+        if (jt.indexOf(keywords[k]) !== -1) jobCluster = clusters[i];
+        if (ct.indexOf(keywords[k]) !== -1) calCluster = clusters[i];
+      }
+    }
+    // Only flag mismatch when BOTH matched a cluster AND they differ
+    if (jobCluster && calCluster && jobCluster !== calCluster) return true;
+    return false;
+  }
 
   var BADGE_ATTR = "data-caliber-badge";
   var JOB_ID_ATTR = "data-caliber-job-id";
@@ -553,10 +600,11 @@
   var badgeBatchRunning = false;         // is a batch currently in-flight?
   var badgeBatchGeneration = 0;          // incremented on clear; stale responses discarded
   var badgeBatchTimeout = null;          // safety timeout to reset badgeBatchRunning
+  var badgeBatchStartTime = 0;           // Date.now() when current batch started (stale-lock detection)
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var badgeScanInterval = null;          // periodic fallback scan interval
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
-  var BADGE_BATCH_TIMEOUT_MS = 45000;   // max time to wait for a batch response
+  var BADGE_BATCH_TIMEOUT_MS = 15000;   // max time to wait for a batch response
 
   // LinkedIn card logo/image-area selectors (badge renders below company icon)
   var CARD_LOGO_SELECTORS = [
@@ -708,6 +756,10 @@
       } else {
         // Fallback: append to card
         cardEl.insertAdjacentHTML("beforeend", badgeHTML(state, score));
+        if (state !== "loading") {
+          console.debug("[Caliber][diag][badge] no badge target found for " +
+            (cardEl.getAttribute(JOB_ID_ATTR) || "unknown") + ", used card fallback");
+        }
       }
     } finally {
       badgeInjecting = false;
@@ -758,20 +810,36 @@
    * Scores BADGE_CHUNK_SIZE cards, applies results, then recurses for the next chunk.
    */
   function processBadgeQueue() {
-    if (!active || badgeBatchRunning || badgeBatchQueue.length === 0) return;
+    // Stale-lock recovery: if batch has been running longer than timeout, force-reset
+    if (badgeBatchRunning && badgeBatchStartTime > 0 && (Date.now() - badgeBatchStartTime) > BADGE_BATCH_TIMEOUT_MS) {
+      console.warn("[Caliber][diag][schedule] batch lock stale for " +
+        Math.round((Date.now() - badgeBatchStartTime) / 1000) + "s — force-resetting");
+      badgeBatchRunning = false;
+      badgeBatchStartTime = 0;
+    }
+    if (!active || badgeBatchRunning || badgeBatchQueue.length === 0) {
+      if (badgeBatchRunning && badgeBatchQueue.length > 0) {
+        console.debug("[Caliber][diag][schedule] processBadgeQueue deferred — batch in-flight (" +
+          Math.round((Date.now() - badgeBatchStartTime) / 1000) + "s), queue: " + badgeBatchQueue.length);
+      }
+      return;
+    }
 
     var chunk = badgeBatchQueue.splice(0, BADGE_CHUNK_SIZE);
     var batchGen = badgeBatchGeneration;  // capture current generation (don't increment)
     badgeBatchRunning = true;
+    badgeBatchStartTime = Date.now();
 
     // Safety timeout: if background doesn't respond (service worker unloaded),
     // reset badgeBatchRunning so the queue isn't permanently blocked.
     clearTimeout(badgeBatchTimeout);
     badgeBatchTimeout = setTimeout(function () {
       if (badgeBatchRunning) {
-        console.debug("[Caliber][badges] batch timeout — resetting badgeBatchRunning");
+        console.warn("[Caliber][diag][schedule] batch timeout (" + (BADGE_BATCH_TIMEOUT_MS / 1000) +
+          "s) — resetting lock, releasing " + chunk.length + " cards for retry");
         badgeBatchRunning = false;
-        // Remove loading badges for timed-out cards
+        badgeBatchStartTime = 0;
+        // Remove loading badges for timed-out cards and allow retry
         for (var t = 0; t < chunk.length; t++) {
           if (chunk[t].id && !badgeScoreCache[chunk[t].id]) {
             badgeScoredIds.delete(chunk[t].id);  // allow retry
@@ -787,14 +855,15 @@
       }
     }, BADGE_BATCH_TIMEOUT_MS);
 
-    console.debug("[Caliber][badges] scoring chunk of " + chunk.length +
-      " (remaining in queue: " + badgeBatchQueue.length + ")");
+    console.debug("[Caliber][diag][schedule] scoring chunk of " + chunk.length +
+      " (remaining: " + badgeBatchQueue.length + ", gen: " + batchGen + ")");
 
     chrome.runtime.sendMessage({
       type: "CALIBER_PRESCAN_BATCH",
       jobs: chunk.map(function (c) { return { jobText: c.jobText, title: c.title }; }),
     }, function (resp) {
       badgeBatchRunning = false;
+      badgeBatchStartTime = 0;
       clearTimeout(badgeBatchTimeout);
 
       // Discard stale response if badges were cleared while in-flight
@@ -804,12 +873,29 @@
       }
 
       if (chrome.runtime.lastError) {
-        console.debug("[Caliber][badges] chunk error:", chrome.runtime.lastError.message);
+        console.warn("[Caliber][diag][score] chunk transport error:", chrome.runtime.lastError.message,
+          "— releasing " + chunk.length + " cards for retry");
+        // Release failed cards so they can be retried on next scan
+        for (var f = 0; f < chunk.length; f++) {
+          if (chunk[f].id && !badgeScoreCache[chunk[f].id]) {
+            badgeScoredIds.delete(chunk[f].id);
+            var fc = findCardById(chunk[f].id);
+            if (fc) { badgeInjecting = true; try { var fb = fc.querySelector("[" + BADGE_ATTR + "]"); if (fb) fb.remove(); } finally { badgeInjecting = false; } }
+          }
+        }
         if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
         return;
       }
       if (!resp || !resp.ok || !Array.isArray(resp.results)) {
-        console.debug("[Caliber][badges] chunk scoring failed:", resp && resp.error);
+        console.warn("[Caliber][diag][score] chunk scoring failed:", resp && resp.error,
+          "— releasing " + chunk.length + " cards for retry");
+        for (var g = 0; g < chunk.length; g++) {
+          if (chunk[g].id && !badgeScoreCache[chunk[g].id]) {
+            badgeScoredIds.delete(chunk[g].id);
+            var gc = findCardById(chunk[g].id);
+            if (gc) { badgeInjecting = true; try { var gb = gc.querySelector("[" + BADGE_ATTR + "]"); if (gb) gb.remove(); } finally { badgeInjecting = false; } }
+          }
+        }
         if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
         return;
       }
@@ -820,10 +906,18 @@
         if (!entry) continue;
 
         if (result.ok) {
+          // Apply out-of-scope ceiling before caching
+          var rawBadgeScore = result.score;
+          var badgeScore = applyDomainMismatchGuardrail(
+            rawBadgeScore,
+            result.hrcBand || null,
+            entry.title || "",
+            result.calibrationTitle || ""
+          );
           // Cache the score by job ID
           if (entry.id) {
             badgeScoreCache[entry.id] = {
-              score: result.score,
+              score: badgeScore,
               calibrationTitle: result.calibrationTitle || "",
               nearbyRoles: result.nearbyRoles || [],
             };
@@ -831,19 +925,22 @@
           // Re-find the card by job ID (O(1) via data attribute, survives DOM mutation)
           var cardEl = entry.id ? findCardById(entry.id) : null;
           if (cardEl) {
-            setBadgeOnCard(cardEl, "scored", result.score);
+            setBadgeOnCard(cardEl, "scored", badgeScore);
           }
-          console.debug("[Caliber][badges] scored: " + entry.title + " → " + result.score +
+          console.debug("[Caliber][diag][score] completed: " + entry.title + " → " + badgeScore +
+            (rawBadgeScore !== badgeScore ? " (raw: " + rawBadgeScore + ", capped)" : "") +
             (entry.id ? " (" + entry.id + ")" : ""));
           // Telemetry: badge score rendered on card
           emitTelemetry("job_score_rendered", {
             surfaceKey: getSearchSurfaceKey(),
             jobId: entry.id || null,
             jobTitle: entry.title || null,
-            score: result.score,
+            score: badgeScore,
+            rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
           });
         } else {
-          // Remove loading badge on error
+          // Remove loading badge on error and release from scoredIds for retry
+          if (entry.id) badgeScoredIds.delete(entry.id);
           var errCard = entry.id ? findCardById(entry.id) : null;
           if (errCard) {
             badgeInjecting = true;
@@ -854,7 +951,8 @@
               badgeInjecting = false;
             }
           }
-          console.debug("[Caliber][badges] error: " + entry.title + " → " + result.error);
+          console.debug("[Caliber][diag][score] item error (released for retry): " + entry.title + " → " + result.error +
+            (entry.id ? " (" + entry.id + ")" : ""));
         }
       }
 
@@ -865,7 +963,8 @@
       if (active && badgeBatchQueue.length > 0) {
         setTimeout(processBadgeQueue, 200);
       } else if (badgeBatchQueue.length === 0) {
-        console.debug("[Caliber][badges] all queued cards scored. Cache size: " + Object.keys(badgeScoreCache).length);
+        console.debug("[Caliber][diag][schedule] all queued cards scored. Cache: " + Object.keys(badgeScoreCache).length +
+          ", scoredIds: " + badgeScoredIds.size);
       }
     });
   }
@@ -952,11 +1051,18 @@
       console.debug("[Caliber][badges] restored " + cacheHits + " badges from cache (no API call)");
     }
 
-    if (toQueue.length === 0) return;
+    if (toQueue.length === 0) {
+      console.debug("[Caliber][diag][detect] scan complete — 0 new cards" +
+        " (DOM: " + allCards.length + ", cached: " + cacheHits +
+        ", scoredIds: " + badgeScoredIds.size +
+        ", batchRunning: " + badgeBatchRunning + ", queueLen: " + badgeBatchQueue.length + ")");
+      return;
+    }
 
-    console.debug("[Caliber][badges] queued " + toQueue.length + " new cards for scoring" +
-      " (visible: " + allCards.length + ", already scored: " + (allCards.length - toQueue.length - cacheHits) +
-      ", cache: " + Object.keys(badgeScoreCache).length + ")");
+    console.debug("[Caliber][diag][detect] scan found " + toQueue.length + " new cards to score" +
+      " (DOM: " + allCards.length + ", cacheHits: " + cacheHits +
+      ", cache: " + Object.keys(badgeScoreCache).length +
+      ", batchRunning: " + badgeBatchRunning + ", queueLen: " + badgeBatchQueue.length + ")");
 
     // Add to queue and kick off processing
     badgeBatchQueue = badgeBatchQueue.concat(toQueue);
@@ -972,7 +1078,10 @@
    */
   function evaluateBSTFromBadgeCache() {
     var urls = Object.keys(badgeScoreCache);
-    if (urls.length < BST_MIN_WINDOW_SIZE) return; // too few scores to evaluate
+    if (urls.length < BST_MIN_WINDOW_SIZE) {
+      console.debug("[Caliber][diag][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
+      return;
+    }
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
@@ -991,10 +1100,10 @@
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
     }
 
-    console.debug("[Caliber][BST] evaluating from badge cache: " + scoredCount + " scores");
-    console.debug("[Caliber][BST] scores: [" + scores.join(", ") + "]");
-    console.debug("[Caliber][BST] strong (>=" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount);
-    console.debug("[Caliber][BST] surface: " + surfaceKey);
+    console.debug("[Caliber][diag][BST] evaluating — window: " + scoredCount + " scores, strong(>=" +
+      BST_STRONG_MATCH_THRESHOLD + "): " + strongCount + ", surface: " + surfaceKey +
+      ", prescanBSTActive: " + prescanBSTActive);
+    console.debug("[Caliber][diag][BST] score window: [" + scores.join(", ") + "]");
 
     var suggestedTitle = null;
     var suggestionShown = false;
@@ -1003,7 +1112,7 @@
       // BST TRIGGER: zero strong matches in the scored window
       // This search surface has no pursue-worthy jobs — suggest a better search.
       if (!prescanBSTActive) {
-        console.debug("[Caliber][BST] TRIGGER — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored");
+        console.debug("[Caliber][diag][BST] TRIGGER — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored, query: \"" + currentQuery + "\"");
         suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
         if (suggestedTitle) {
           console.debug("[Caliber][BST] suggestion: \"" + suggestedTitle + "\" (source: " +
@@ -1018,7 +1127,7 @@
     } else {
       // Strong match found — suppress/hide BST banner if it was showing
       if (prescanBSTActive) {
-        console.debug("[Caliber][BST] strong match appeared (" + strongCount + " >= " + BST_STRONG_MATCH_THRESHOLD + "), hiding BST banner");
+        console.debug("[Caliber][diag][BST] SUPPRESS — strong match appeared (" + strongCount + " >= " + BST_STRONG_MATCH_THRESHOLD + "), hiding BST banner");
         prescanBSTActive = false;
         prescanStoredTitle = null;
         if (shadow) {
@@ -1026,7 +1135,7 @@
           if (banner) banner.style.display = "none";
         }
       } else {
-        console.debug("[Caliber][BST] healthy search — " + strongCount + " strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ")");
+        console.debug("[Caliber][diag][BST] healthy — " + strongCount + " strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + "), BST suppressed");
       }
     }
 
@@ -1072,6 +1181,7 @@
     badgeScrollHandler = function () {
       clearTimeout(badgeScrollTimer);
       badgeScrollTimer = setTimeout(function () {
+        console.debug("[Caliber][diag][detect] scroll-triggered scan");
         scanAndBadgeVisibleCards();
       }, 350);
     };
@@ -1084,16 +1194,24 @@
       console.debug("[Caliber][badges] scroll listener attached (window + inner container)");
     } else {
       console.debug("[Caliber][badges] scroll listener attached (window only, will retry inner)");
-      // Retry finding inner container after LinkedIn finishes rendering
-      setTimeout(function () {
-        if (!badgeInnerScrollEl && badgeScrollAttached && badgeScrollHandler) {
-          badgeInnerScrollEl = findLinkedInScrollContainer();
-          if (badgeInnerScrollEl) {
-            badgeInnerScrollEl.addEventListener("scroll", badgeScrollHandler, { passive: true });
-            console.debug("[Caliber][badges] inner scroll container found on retry");
-          }
+      // Persistent retry: keep searching for inner container until found
+      var innerRetryCount = 0;
+      var innerRetryMax = 10;
+      var innerRetryDelay = 2000;
+      function retryInnerScroll() {
+        innerRetryCount++;
+        if (badgeInnerScrollEl || !badgeScrollAttached || !badgeScrollHandler) return;
+        badgeInnerScrollEl = findLinkedInScrollContainer();
+        if (badgeInnerScrollEl) {
+          badgeInnerScrollEl.addEventListener("scroll", badgeScrollHandler, { passive: true });
+          console.debug("[Caliber][diag][detect] inner scroll container found on retry " + innerRetryCount);
+        } else if (innerRetryCount < innerRetryMax) {
+          setTimeout(retryInnerScroll, innerRetryDelay);
+        } else {
+          console.debug("[Caliber][diag][detect] inner scroll container not found after " + innerRetryMax + " retries");
         }
-      }, 4000);
+      }
+      setTimeout(retryInnerScroll, innerRetryDelay);
     }
     // Start periodic fallback scan (catches any cards missed by scroll/observer)
     startBadgeScanInterval();
@@ -1120,9 +1238,18 @@
     if (badgeScanInterval) return;
     badgeScanInterval = setInterval(function () {
       if (!active || !isSearchResultsPage()) return;
+      // Stale-lock recovery (redundant with processBadgeQueue check, but catches idle periods)
+      if (badgeBatchRunning && badgeBatchStartTime > 0 && (Date.now() - badgeBatchStartTime) > BADGE_BATCH_TIMEOUT_MS) {
+        console.warn("[Caliber][diag][schedule] periodic: stale batch lock (" +
+          Math.round((Date.now() - badgeBatchStartTime) / 1000) + "s), resetting");
+        badgeBatchRunning = false;
+        badgeBatchStartTime = 0;
+      }
       scanAndBadgeVisibleCards();
-    }, 5000);  // every 5s, scan for new/recycled cards
-    console.debug("[Caliber][badges] periodic scan interval started (5s)");
+      // Periodic BST re-evaluation from cached scores (catches stalled batch processing)
+      evaluateBSTFromBadgeCache();
+    }, 3000);  // every 3s: scan for new/recycled cards, re-evaluate BST
+    console.debug("[Caliber][diag] periodic scan interval started (3s, includes BST re-eval)");
   }
 
   /** Stop periodic scan interval. */
@@ -1150,6 +1277,7 @@
       if (badgeInjecting) return;
       clearTimeout(badgeObserverDebounce);
       badgeObserverDebounce = setTimeout(function () {
+        console.debug("[Caliber][diag][detect] observer-triggered rescan");
         restoreBadgesFromCache();
         // Also pick up any brand-new cards that appeared
         scanAndBadgeVisibleCards();
@@ -1165,6 +1293,8 @@
     badgeScoreCache = {};
     badgeCacheSurface = "";
     badgeBatchQueue = [];
+    badgeBatchRunning = false;
+    badgeBatchStartTime = 0;
     badgeBatchGeneration++;  // invalidate any in-flight batch responses
     badgeInjecting = true;
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
@@ -1186,7 +1316,10 @@
   // ─── Pre-scan Trigger Logic ───────────────────────────────
 
   function isSearchResultsPage() {
-    return /\/jobs\/search|\/jobs\/collections/.test(location.pathname);
+    // Match search results, collections, AND /jobs/view/ — LinkedIn changes
+    // the URL to /jobs/view/ID when a job is selected from search, but the
+    // split-pane search results list is still visible and needs badge scoring.
+    return /\/jobs\/(search|collections|view)/.test(location.pathname);
   }
 
   /**
@@ -1420,14 +1553,21 @@
   }
 
   // ─── Domain-Mismatch Score Guardrail ─────────────────────
-  // Prevents trust-breaking contradictions where an obviously wrong-domain
-  // job receives a "Strong Fit" score while Hiring Reality is "Unlikely".
-  // Caps the score to the top of the Stretch band so partial overlap can
-  // still be acknowledged without producing a false strong-fit signal.
-  function applyDomainMismatchGuardrail(score, hrcBand) {
-    if (hrcBand === "Unlikely" && score >= 7.5) {
-      console.debug("[Caliber] domain-mismatch guardrail: capping score from " + score + " to 6.9 (HRC=Unlikely)");
-      return 6.9;
+  // Two-tier ceiling for out-of-scope jobs:
+  //   1. HRC="Unlikely" → hard cap at SCORE_CEILING_OUT_OF_SCOPE (5.0)
+  //   2. Role-family mismatch (client-side heuristic) → same cap
+  // Capped scores feed into badge cache and BST evaluation, accelerating
+  // BST recovery when the user's search yields clearly wrong-domain results.
+  function applyDomainMismatchGuardrail(score, hrcBand, jobTitle, calibrationTitle) {
+    var ceiling = SCORE_CEILING_OUT_OF_SCOPE;
+    if (hrcBand === "Unlikely" && score > ceiling) {
+      console.debug("[Caliber][diag][ceiling] HRC=Unlikely cap: " + score + " → " + ceiling);
+      return ceiling;
+    }
+    if (isRoleFamilyMismatch(jobTitle, calibrationTitle) && score > ceiling) {
+      console.debug("[Caliber][diag][ceiling] role-family mismatch cap: " + score + " → " + ceiling +
+        " (job: \"" + (jobTitle || "") + "\", cal: \"" + (calibrationTitle || "") + "\")");
+      return ceiling;
     }
     return score;
   }
@@ -1628,7 +1768,7 @@
     var rawScore = Number(data.score_0_to_10) || 0;
     var hrc = data.hiring_reality_check;
     var hrcBand = (hrc && hrc.band) ? hrc.band : null;
-    var score = applyDomainMismatchGuardrail(rawScore, hrcBand);
+    var score = applyDomainMismatchGuardrail(rawScore, hrcBand, lastJobMeta.title || "", data.calibration_title || "");
     lastScoredScore = score;
     var decision = getDecision(score);
 
@@ -1771,18 +1911,51 @@
       // Extract job ID from current URL
       var urlMatch = location.href.match(/\/jobs\/view\/(\d+)/);
       var sidecardJobId = urlMatch ? "job-" + urlMatch[1] : null;
-      if (!sidecardJobId) return;
+      if (!sidecardJobId) {
+        console.debug("[Caliber][diag][backfill] no job ID in URL, skipping backfill");
+        return;
+      }
+      console.debug("[Caliber][diag][backfill] sidecard scored " + sidecardJobId +
+        " (score=" + score + "), attempting badge backfill");
       // Update badge cache
       badgeScoreCache[sidecardJobId] = {
         score: score,
         calibrationTitle: data.calibration_title || "",
         nearbyRoles: data.nearby_roles || [],
       };
-      // Find the card in the list and inject/update badge
+      // Find the card in the list — first try data-attribute lookup (O(1))
       var cardEl = findCardById(sidecardJobId);
+      // Fallback: search by href if card wasn't previously stamped
+      if (!cardEl) {
+        var numericId = sidecardJobId.replace("job-", "");
+        var allLinks = document.querySelectorAll('a[href*="/jobs/view/' + numericId + '"]');
+        for (var bl = 0; bl < allLinks.length; bl++) {
+          // Walk up to find the card container
+          var ancestor = allLinks[bl];
+          for (var up = 0; up < 8 && ancestor; up++) {
+            ancestor = ancestor.parentElement;
+            if (!ancestor) break;
+            var isCard = false;
+            for (var cs = 0; cs < JOB_CARD_SELECTORS.length; cs++) {
+              if (ancestor.matches && ancestor.matches(JOB_CARD_SELECTORS[cs])) { isCard = true; break; }
+            }
+            if (isCard) {
+              // Stamp it so future lookups find it O(1)
+              ancestor.setAttribute(JOB_ID_ATTR, sidecardJobId);
+              cardEl = ancestor;
+              console.debug("[Caliber][diag][backfill] found card via href walk for " + sidecardJobId);
+              break;
+            }
+          }
+          if (cardEl) break;
+        }
+      }
       if (cardEl) {
         ensureBadgeStyles();
         setBadgeOnCard(cardEl, "scored", score);
+        console.debug("[Caliber][diag][backfill] badge injected on card " + sidecardJobId + " (score=" + score + ")");
+      } else {
+        console.debug("[Caliber][diag][backfill] card DOM not found for " + sidecardJobId + " — badge cached for later restore");
       }
       // Also mark as scored so it's not re-queued
       badgeScoredIds.add(sidecardJobId);

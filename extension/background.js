@@ -187,6 +187,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               score: data.score_0_to_10 || 0,
               calibrationTitle: data.calibration_title || "",
               nearbyRoles: data.nearby_roles || [],
+              hrcBand: (data.hiring_reality_check && data.hiring_reality_check.band) || null,
               ok: true,
             });
           } catch (err) {

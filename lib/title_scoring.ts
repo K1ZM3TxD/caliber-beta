@@ -484,7 +484,7 @@ const SIGNAL_HUMAN_LABEL: Record<string, string> = {
   user: "user experience", users: "user research", brand: "brand strategy",
   identity: "visual identity", visual: "visual design", operations: "operational leadership",
   management: "cross-functional management", program: "program management",
-  project: "project execution", process: "process optimization", planning: "strategic planning",
+  project: "project execution", process: "process design", planning: "strategic planning",
   execution: "execution and delivery", tracking: "performance tracking",
   resource_planning: "resource planning", customer: "client engagement",
   client: "client relationship management", sale: "sales development",
@@ -497,9 +497,9 @@ const SIGNAL_HUMAN_LABEL: Record<string, string> = {
   penetration: "penetration testing", vulnerability: "vulnerability assessment",
   risk: "risk analysis", investigation: "security investigation",
   compliance: "compliance management", analysis: "analytical rigor",
-  technical: "technical depth", tool: "tooling and infrastructure",
-  tools: "tooling and infrastructure", automate: "workflow automation",
-  sop: "standard process development", sql: "data analysis", scripting: "technical scripting",
+  technical: "technical depth", tool: "building workflow tools",
+  tools: "building internal tools", automate: "streamlining team workflows",
+  sop: "building repeatable processes", sql: "data analysis", scripting: "technical scripting",
   architecture: "systems architecture", integration: "systems integration",
   strategy: "strategic thinking", proposal: "proposal development",
   pitch: "client-facing presentations", deck: "executive presentations",
@@ -512,13 +512,13 @@ const SIGNAL_HUMAN_LABEL: Record<string, string> = {
   onboard: "onboarding programs", onboarding: "onboarding design",
   training: "training and development", recruitment: "talent acquisition",
   delivery: "delivery management", implementation: "implementation",
-  optimization: "performance optimization", roadmap: "roadmapping",
+  optimization: "improving how teams operate", roadmap: "roadmapping",
   rollout: "rollout planning", specification: "requirements definition",
-  validation: "validation", standard: "standards development",
-  standards: "standards compliance", guidelines: "guidelines development",
-  framework: "framework development", transition: "transition management",
+  validation: "validation", standard: "building operating standards",
+  standards: "building operating standards", guidelines: "developing team guidelines",
+  framework: "designing operational frameworks", transition: "transition management",
   schedule: "schedule management", estimation: "project estimation",
-  rubric: "evaluation frameworks", pilot: "pilot programs",
+  rubric: "evaluation design", pilot: "pilot programs",
   research: "research methodology", assessment: "assessment methodology",
   study: "analytical studies", feedback: "feedback systems",
   performance: "performance analysis", test: "testing methodology",
@@ -531,9 +531,12 @@ const SIGNAL_HUMAN_LABEL: Record<string, string> = {
 };
 
 const PAIR_HUMAN_LABEL: Record<string, string> = {
-  "design+system": "designing scalable systems",
-  "create+sop": "building repeatable processes",
-  "automate+workflow": "streamlining and automating workflows",
+  "design+system": "designing how systems work end to end",
+  "create+sop": "building processes teams can follow and repeat",
+  "automate+workflow": "streamlining how work flows across teams",
+  "tool+workflow": "building tools that improve how teams operate",
+  "tool+system": "building internal systems and tools",
+  "process+system": "designing operational systems",
   "pitch+deck": "crafting compelling client presentations",
   "feasibility+study": "evaluating feasibility and strategic fit",
   "customer+need": "translating customer needs into action",
@@ -544,6 +547,8 @@ const PAIR_HUMAN_LABEL: Record<string, string> = {
   "investigate+risk": "investigating and mitigating risk",
   "partnership+alliance": "forging strategic partnerships",
   "sale+strategy": "developing go-to-market strategies",
+  "standard+process": "establishing how teams work and operate",
+  "framework+process": "designing how work gets structured and delivered",
 };
 
 function humanizeSignal(token: string): string {
@@ -636,19 +641,19 @@ export function generateTitleRecommendation(
     const bullets: string[] = [];
     if (hSignals.length > 0) {
       const top = hSignals.slice(0, 3);
-      bullets.push(`Strong signals in ${naturalList(top)}`);
+      bullets.push(`Clear pattern in ${naturalList(top)}`);
     }
-    // Bullet 2: type of work the user drives
+    // Bullet 2: how the person tends to work or build
     if (hPairs.length > 0) {
-      bullets.push(`Consistent depth in ${naturalList(hPairs)}`);
+      bullets.push(`You consistently show up ${naturalList(hPairs)}`);
     } else if (hSignals.length > 2) {
-      bullets.push(`Broad, well-rounded coverage across what this role demands`);
+      bullets.push(`Well-rounded across what this kind of role actually demands`);
     }
-    // Bullet 3: alignment with the title (or growth edge)
+    // Bullet 3: why that pattern aligns with the title (or growth edge)
     if (c._reqCov >= 0.8) {
-      bullets.push(`Your background closely mirrors what top ${c.title} roles look for`);
+      bullets.push(`Your experience already looks like what strong ${c.title} roles ask for`);
     } else if (hMissing.length > 0 && hMissing.length <= 2) {
-      bullets.push(`Room to grow in ${naturalList(hMissing)} — the rest is already there`);
+      bullets.push(`Room to grow in ${naturalList(hMissing)} — the core is already there`);
     } else if (c._reqCov >= 0.5) {
       bullets.push(`Solid foundation with clear momentum toward this direction`);
     }
@@ -662,9 +667,9 @@ export function generateTitleRecommendation(
     if (hSignals.length > 0) {
       summary_2s = `The pattern across your experience points clearly toward ${c.title} — this isn't a stretch, it's where your work already lives.`;
     } else if (c._reqCov >= 0.6) {
-      summary_2s = `Your background and the way you describe your work align closely with what defines a strong ${c.title}.`;
+      summary_2s = `The way you describe your work aligns closely with what defines a strong ${c.title}.`;
     } else {
-      summary_2s = `Based on what you shared, this direction fits the shape of your experience and the kind of work you gravitate toward.`;
+      summary_2s = `Based on what you shared, this direction fits the shape of your experience and the kind of work you're drawn to.`;
     }
 
     return {
