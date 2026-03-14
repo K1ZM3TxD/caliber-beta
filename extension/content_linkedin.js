@@ -328,7 +328,8 @@
   let detailObserver = null;
   let detailDebounce = null;
 
-  // Rolling weak-search detection (persisted via chrome.storage.local)
+  // Score history (persisted via chrome.storage.local, used for analytics + fallback)
+  // BST is now driven by badge-cache evaluation, not this rolling window.
   let recentScores = [];       // last 10 entries: { score, nearbyRoles, calibrationTitle, title, ts }
   let recentScoresLoaded = false;
   let lastSearchQuery = getSearchSurfaceKey();
@@ -525,6 +526,17 @@
   }
 
   // ─── Phase 2: Job Card Score Badges ───────────────────────
+  //
+  // Threshold reference (do not merge these thresholds):
+  //   BST_STRONG_MATCH_THRESHOLD (8.0) — discovery guidance: BST fires when
+  //     the recent-window has zero jobs at this score or above.
+  //   PIPELINE_AUTO_SAVE_THRESHOLD (8.5) — action workflow: auto-save to
+  //     pipeline. Separate from BST; do not conflate.
+  //   Badge color bands: green (8.0+), yellow (6.5–7.9), gray (<6.5)
+  //
+  var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
+  var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
+  var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
 
   var BADGE_ATTR = "data-caliber-badge";
   var JOB_ID_ATTR = "data-caliber-job-id";
@@ -885,14 +897,14 @@
 
   /**
    * Evaluate BST trigger from accumulated badge scores.
-   * Replaces the separate prescan batch — badge scoring IS the prescan.
+   * Fires when the visible-job scoring window contains NO strong matches (>= 8.0).
+   * Driven entirely by discovery-layer badge scoring, not by selected-job clicks.
+   * Re-evaluated after each scoring chunk so BST can be suppressed if a strong
+   * match appears later in the window.
    */
   function evaluateBSTFromBadgeCache() {
-    // Only evaluate once per surface
-    if (prescanDone) return;
-
     var urls = Object.keys(badgeScoreCache);
-    if (urls.length < 3) return; // too few scores to evaluate
+    if (urls.length < BST_MIN_WINDOW_SIZE) return; // too few scores to evaluate
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
@@ -906,45 +918,54 @@
       var entry = badgeScoreCache[urls[i]];
       scoredCount++;
       scores.push(entry.score);
-      if (entry.score >= 8.0) strongCount++;
+      if (entry.score >= BST_STRONG_MATCH_THRESHOLD) strongCount++;
       if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
     }
 
-    // Need enough scores to be meaningful (at least 5 scored)
-    if (scoredCount < 5) return;
-
-    // Mark prescan as done — we have enough data
-    prescanDone = true;
-    prescanRunning = false;
-    prescanSearchQuery = surfaceKey;
-
-    var sortedScores = scores.slice().sort(function (a, b) { return a - b; });
-    var median = sortedScores.length > 0 ? sortedScores[Math.floor(sortedScores.length / 2)] : 0;
-
     console.debug("[Caliber][BST] evaluating from badge cache: " + scoredCount + " scores");
     console.debug("[Caliber][BST] scores: [" + scores.join(", ") + "]");
-    console.debug("[Caliber][BST] median: " + median + ", strong (>=8.0): " + strongCount);
+    console.debug("[Caliber][BST] strong (>=" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount);
     console.debug("[Caliber][BST] surface: " + surfaceKey);
 
     var suggestedTitle = null;
     var suggestionShown = false;
 
-    if (strongCount < 5) {
-      console.debug("[Caliber][BST] TRIGGER — only " + strongCount + " strong matches (need 5+) in " + scoredCount + " scored");
-      suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
-      if (suggestedTitle) {
-        console.debug("[Caliber][BST] suggestion: \"" + suggestedTitle + "\" (source: " +
-          (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary" : "adjacent role") + ")");
-        showPrescanBSTBanner(suggestedTitle);
-        suggestionShown = true;
-        prescanStoredTitle = suggestedTitle;
-      } else {
-        console.debug("[Caliber][BST] trigger fired but no valid suggestion — suppressed");
+    if (strongCount === 0) {
+      // BST TRIGGER: zero strong matches in the scored window
+      // This search surface has no pursue-worthy jobs — suggest a better search.
+      if (!prescanBSTActive) {
+        console.debug("[Caliber][BST] TRIGGER — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored");
+        suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
+        if (suggestedTitle) {
+          console.debug("[Caliber][BST] suggestion: \"" + suggestedTitle + "\" (source: " +
+            (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary" : "adjacent role") + ")");
+          showPrescanBSTBanner(suggestedTitle);
+          suggestionShown = true;
+          prescanStoredTitle = suggestedTitle;
+        } else {
+          console.debug("[Caliber][BST] trigger fired but no valid suggestion — suppressed");
+        }
       }
     } else {
-      console.debug("[Caliber][BST] healthy search — " + strongCount + " strong matches (5+ = healthy)");
+      // Strong match found — suppress/hide BST banner if it was showing
+      if (prescanBSTActive) {
+        console.debug("[Caliber][BST] strong match appeared (" + strongCount + " >= " + BST_STRONG_MATCH_THRESHOLD + "), hiding BST banner");
+        prescanBSTActive = false;
+        prescanStoredTitle = null;
+        if (shadow) {
+          var banner = shadow.getElementById("cb-recovery-banner");
+          if (banner) banner.style.display = "none";
+        }
+      } else {
+        console.debug("[Caliber][BST] healthy search — " + strongCount + " strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ")");
+      }
     }
+
+    // Mark prescan done for persistence (but re-evaluation still runs on each chunk)
+    prescanDone = true;
+    prescanRunning = false;
+    prescanSearchQuery = surfaceKey;
 
     // Persist prescan result
     chrome.runtime.sendMessage({
@@ -954,7 +975,7 @@
       strongCount: strongCount,
       scoredCount: scoredCount,
       suggestedTitle: suggestedTitle,
-      suggestionShown: suggestionShown,
+      suggestionShown: suggestionShown || prescanBSTActive,
     });
   }
 
@@ -1132,7 +1153,7 @@
     var reason = shadow.getElementById("cb-recovery-reason");
     if (banner && link) {
       banner.style.display = "";
-      if (reason) reason.textContent = "After scanning this page, there aren\u2019t enough strong matches for this search.";
+      if (reason) reason.textContent = "None of the scored jobs on this page are strong matches. Try a different search.";
       link.textContent = suggestedTitle;
       link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
       sessionSignals.suggest_shown = true;
@@ -1631,8 +1652,9 @@
       " history=" + recentScores.length + " prescanBST=" + prescanBSTActive +
       " viewed=" + sessionSignals.jobs_viewed);
 
-    // Auto-save strong-match jobs (>= 8.5) to pipeline silently
-    if (score >= 8.5) {
+    // Auto-save strong-match jobs to pipeline silently
+    // Uses PIPELINE_AUTO_SAVE_THRESHOLD (8.5), distinct from BST threshold (8.0)
+    if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
       chrome.runtime.sendMessage(
         {
           type: "CALIBER_PIPELINE_SAVE",
