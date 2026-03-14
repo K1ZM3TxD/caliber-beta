@@ -123,6 +123,41 @@ The overall visual identity is: **calm, cinematic, premium.**
 
 ---
 
+## 8. Staged Progress Treatment
+
+Processing / loading screens that represent multi-second backend work use a staged progress bar instead of a vague time estimate.
+
+- **Stages:** 20 → 40 → 60 → 80 → Complete.
+- **Bar track:** `rgba(255,255,255,0.06)`, 3px height, rounded.
+- **Bar fill:** `rgba(74,222,128,0.45)` during progress, `#4ADE80` on Complete.
+- **Label:** Muted text (`#737373`) showing percentage during progress; green accent (`#4ADE80`) for "Complete".
+- **Bar width:** Max 260px, centered.
+- **Timing:** CSS transition `width 0.6s ease` for smooth visual movement between stages.
+- The progress bar accompanies the spinner — it does not replace it.
+- Progress is presentation-only; it does not reflect literal backend percentage.
+
+---
+
+## 9. Mobile Responsive Scale
+
+All visual primitives adapt to smaller viewports via a shared responsive scale. The breakpoint boundary is Tailwind's `sm` (640px).
+
+| Token | Mobile (< 640px) | Desktop (≥ 640px) |
+|---|---|---|
+| **Page horizontal padding** | `px-4` (16px) | `px-6` (24px) |
+| **Wordmark font-size** | `1.6rem` | `2.15rem` |
+| **Wordmark letter-spacing** | `0.18em` | `0.22em` |
+| **Hero heading font-size** | `20px` | `26px` |
+| **Hero heading letter-spacing** | `0.18em` | `0.22em` |
+
+- Mobile reduces spacing and type scale proportionally — never simply truncates or hides content.
+- Letter-spacing tightens on mobile to prevent overflow and maintain rhythm.
+- Buttons and interactive elements maintain minimum 44px tap targets on mobile.
+- Horizontal button groups must use `flex-wrap` so buttons stack on narrow screens.
+- No horizontal scroll is permitted on content pages. Board/dashboard pages may use horizontal scroll for multi-column layouts.
+
+---
+
 ## Change Control
 
 Changes to this document require a BREAK+UPDATE entry in `Bootstrap/BREAK_AND_UPDATE.md`. This is a governed contract, not a living suggestion file.

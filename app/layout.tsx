@@ -30,7 +30,7 @@ export default function RootLayout({
         style={{ background: "#050505" }}
       >
         <AuthSessionProvider>
-          <div className="min-h-screen flex justify-center px-6 pb-12">
+          <div className="min-h-screen flex justify-center px-4 sm:px-6 pb-12">
             <div className="w-full max-w-[960px]">
               {children}
             </div>

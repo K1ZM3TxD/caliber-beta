@@ -553,11 +553,11 @@ export default function PipelinePage() {
       )}
 
       {!loading && (
+        <div className="overflow-x-auto pb-2">
         <div
           className="grid gap-4"
           style={{
-            gridTemplateColumns: "repeat(4, 1fr)",
-            minWidth: 0,
+            gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
           }}
         >
           {columns.map((col) => (
@@ -713,6 +713,7 @@ export default function PipelinePage() {
               </div>
             </div>
           ))}
+        </div>
         </div>
       )}
 

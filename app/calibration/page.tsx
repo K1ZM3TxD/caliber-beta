@@ -56,6 +56,42 @@ function useWordReveal(text: string, msPerChar: number = TYPE_MS, startWhen: boo
   return [words, count, count >= words.length];
 }
 
+/** Staged progress for processing screen — presentation-only timing. */
+function useStagedProgress(active: boolean, done: boolean): { percent: number; label: string; complete: boolean } {
+  const stages = [20, 40, 60, 80];
+  const NORMAL_MS = 1200;
+  const FAST_MS = 400;
+  const [idx, setIdx] = useState(0);
+  const [complete, setComplete] = useState(false);
+  const doneRef = useRef(false);
+  useEffect(() => { doneRef.current = done; }, [done]);
+  useEffect(() => {
+    if (!active) { setIdx(0); setComplete(false); return; }
+    let i = 0;
+    setIdx(0);
+    setComplete(false);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (i < stages.length - 1) {
+        i++;
+        setIdx(i);
+        timer = setTimeout(tick, doneRef.current ? FAST_MS : NORMAL_MS);
+      } else {
+        // At 80 — wait for backend done, then show complete
+        const waitDone = () => {
+          if (doneRef.current) { setComplete(true); }
+          else { timer = setTimeout(waitDone, 150); }
+        };
+        timer = setTimeout(waitDone, doneRef.current ? FAST_MS : 150);
+      }
+    };
+    timer = setTimeout(tick, NORMAL_MS);
+    return () => clearTimeout(timer);
+  }, [active]);
+  const pct = complete ? 100 : stages[idx];
+  return { percent: pct, label: complete ? "Complete" : `${pct}%`, complete };
+}
+
 type AnySession = any;
 
 type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES";
@@ -451,6 +487,10 @@ export default function CalibrationPage() {
   const [processingAttempts, setProcessingAttempts] = useState(0);
   const inFlightRef = useRef(false);
   const computeFiredRef = useRef(false);
+  // Staged progress: deferred transition support
+  const [backendDone, setBackendDone] = useState(false);
+  const deferredStepRef = useRef<UiStep | null>(null);
+  const staged = useStagedProgress(step === "PROCESSING", backendDone);
   // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
   const tagline = "Career Decision Engine";
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
@@ -511,13 +551,24 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 }
 
+  // Helper: defer step transition through staged progress when leaving PROCESSING
+  const deferOrSetStep = (newStep: UiStep) => {
+    if (newStep !== "PROCESSING") {
+      setBackendDone(true);
+      deferredStepRef.current = newStep;
+    }
+  };
+
   // Auto-advance for PROCESSING (use returned session, not stale state)
   useEffect(() => {
     if (step !== "PROCESSING") {
       setProcessingAttempts(0);
       computeFiredRef.current = false; // reset for next session / re-entry
+      setBackendDone(false);
+      deferredStepRef.current = null;
       return;
     }
+    if (backendDone) return; // stop polling once backend is done — staged progress takes over
     let attempts = 0;
     let stopped = false;
     const interval = setInterval(async () => {
@@ -532,7 +583,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       if (hasResults(session)) {
         stopped = true;
         clearInterval(interval);
-        setStep("TITLES");
+        deferOrSetStep("TITLES");
         inFlightRef.current = false;
         return;
       }
@@ -548,10 +599,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               if (hasResults(updated)) {
                 stopped = true;
                 clearInterval(interval);
-                setStep("TITLES");
+                deferOrSetStep("TITLES");
               } else {
                 // Compute returned but no results yet — let next tick re-evaluate via ADVANCE
-                setStep(getStepFromState(updated?.state, updated));
+                const next = getStepFromState(updated?.state, updated);
+                if (next !== "PROCESSING") deferOrSetStep(next);
               }
             } catch (err: any) {
               setError(displayError(err));
@@ -566,14 +618,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       if (sState.startsWith("TITLE_HYPOTHESIS") || sState.startsWith("TITLE_DIALOGUE")) {
         stopped = true;
         clearInterval(interval);
-        setStep("TITLES");
+        deferOrSetStep("TITLES");
         inFlightRef.current = false;
         return;
       }
       if (sState.startsWith("JOB_INGEST")) {
         stopped = true;
         clearInterval(interval);
-        setStep("TITLES");
+        deferOrSetStep("TITLES");
         inFlightRef.current = false;
         return;
       }
@@ -581,7 +633,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         stopped = true;
         clearInterval(interval);
         setError("Processing appears stuck. Please retry.");
-        setStep("PROCESSING");
         inFlightRef.current = false;
         return;
       }
@@ -590,11 +641,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         if (!sessionId) { inFlightRef.current = false; return; }
         const s = await postEvent({ type: "ADVANCE", sessionId });
         setSession(s);
-        setStep(getStepFromState(s?.state, s));
+        const next = getStepFromState(s?.state, s);
+        if (next !== "PROCESSING") deferOrSetStep(next);
       } catch (err: any) {
         // If error is JOB_REQUIRED, route to JOB_TEXT
         if (err?.message?.includes("JOB_REQUIRED") || err?.code === "JOB_REQUIRED") {
-          setStep("TITLES");
+          deferOrSetStep("TITLES");
         } else {
           setError(displayError(err));
         }
@@ -603,7 +655,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       }
     }, 700);
     return () => clearInterval(interval);
-  }, [step, session]);
+  }, [step, session, backendDone]);
+
+  // Transition out of PROCESSING after staged progress completes
+  useEffect(() => {
+    if (!staged.complete || !deferredStepRef.current) return;
+    const t = setTimeout(() => {
+      const target = deferredStepRef.current;
+      deferredStepRef.current = null;
+      setBackendDone(false);
+      if (target) setStep(target);
+    }, 600); // brief pause on "Complete" before transition
+    return () => clearTimeout(t);
+  }, [staged.complete]);
 
   // Spinner CSS
   const Spinner = () => (
@@ -636,7 +700,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
          is vertically centered with the tagline as visual anchor.
          Content-heavy steps use pt-[22vh] for header breathing room.
          No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
-      <div className={`relative z-10 w-full max-w-[760px] px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "" : step === "TITLES" ? "pt-[10vh]" : "pt-[22vh]"}`}>
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : "pt-[14vh] sm:pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -674,8 +738,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
-                <div style={{ minHeight: "3em", fontSize: "26px", lineHeight: 1.5 }} className="mt-8">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.22em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.35em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
+                <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
+                  <p style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
@@ -809,8 +873,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* PROMPT */}
             {step === "PROMPT" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
-                {/* Prompt question container, smaller font, more breathing room */}
-                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight flex items-center justify-center">
+                {/* Prompt question container — anchored top so second lines extend downward */}
+                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight text-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
                       <Spinner />
@@ -877,7 +941,32 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <Spinner />
                     <span className="ml-2">Processing…</span>
                   </div>
-                  <div style={{ color: "#AFAFAF", fontSize: "0.95em", marginTop: 4 }}>This can take up to ~1 minute.</div>
+                  {/* Staged progress bar */}
+                  <div style={{ width: "100%", maxWidth: 260, margin: "20px auto 0" }}>
+                    <div style={{
+                      height: 3,
+                      borderRadius: 2,
+                      backgroundColor: "rgba(255,255,255,0.06)",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${staged.percent}%`,
+                        backgroundColor: staged.complete ? "#4ADE80" : "rgba(74,222,128,0.45)",
+                        borderRadius: 2,
+                        transition: "width 0.6s ease",
+                      }} />
+                    </div>
+                    <div style={{
+                      marginTop: 10,
+                      fontSize: "0.85rem",
+                      color: staged.complete ? "#4ADE80" : "#737373",
+                      letterSpacing: "0.06em",
+                      transition: "color 0.3s ease",
+                    }}>
+                      {staged.label}
+                    </div>
+                  </div>
                   {processingAttempts > 90 ? (
                     <div className="mt-7">
                       <button
@@ -923,14 +1012,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
-              // Pattern summary context — two-sentence structure above hero title
-              const rawPatternSummary: string = (session?.synthesis?.patternSummary as string) ?? "";
-              const firstSentence = rawPatternSummary
-                .split(/(?<=[.!?])\s+/)
-                .filter((s: string) => s.trim().length > 10)[0]
-                ?.trim() ?? "";
-              const contextSentence = firstSentence || "You\u2019re most energized when your work aligns with your natural pattern.";
-              const marketLabelSentence = "The closest market label for the kind of work you\u2019re naturally aligned with is:";
+              // Scoring explanation framing — replaces old pattern summary context
+              const framingLines = [
+                "Caliber scores pattern fit, not keyword overlap.",
+                "We look at the shape of your experience \u2014 how your skills, context, and trajectory align with what a role actually demands.",
+                "Your experience maps most closely to this market label:",
+              ];
 
               // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
@@ -969,10 +1056,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
               return (
               <div className="w-full max-w-3xl pb-8">
-                {/* Pattern summary context */}
+                {/* Scoring explanation framing */}
                 <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
-                  <p className="text-lg sm:text-xl leading-snug" style={{ color: "rgba(225,225,225,0.9)", fontWeight: 500 }}>{contextSentence}</p>
-                  <p className="text-lg sm:text-xl leading-snug mt-1.5" style={{ color: "rgba(225,225,225,0.9)", fontWeight: 500 }}>{marketLabelSentence}</p>
+                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(225,225,225,0.92)", fontWeight: 500 }}>{framingLines[0]}</p>
+                  <p className="text-sm sm:text-base leading-relaxed mt-3" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>{framingLines[1]}</p>
+                  <p className="text-base sm:text-lg leading-relaxed mt-4" style={{ color: "rgba(225,225,225,0.88)", fontWeight: 500 }}>{framingLines[2]}</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -985,14 +1073,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Hero title card */}
+                {/* Hero title card — 48px visual pause after explanation */}
                 {heroTitle ? (
                   <div
-                    className="mt-10 cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
+                    className="cb-title-card rounded-2xl transition-all duration-150 cursor-pointer"
                     style={{
+                      marginTop: 48,
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: heroExpanded ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.015)",
-                      border: heroExpanded ? "1px solid rgba(74,222,128,0.35)" : "1px solid rgba(74,222,128,0.22)",
+                      border: heroExpanded ? "1px solid rgba(74,222,128,0.30)" : "1px solid rgba(74,222,128,0.18)",
                     }}
                     onClick={() => {
                       if (!heroCanExpand) return;
@@ -1001,7 +1090,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 text-center">
                       <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
-                      <div className="flex items-center justify-center gap-4 mt-5">
+                      <div className="flex items-center justify-center gap-3 sm:gap-4 mt-5 flex-wrap">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
@@ -1071,30 +1160,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <h3 className="text-sm font-semibold tracking-tight mb-2" style={{ color: "#F2F2F2" }}>Analyze real jobs as you browse</h3>
                     <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} />
                     <p className="mt-1.5 text-[10px]" style={{ color: "#555" }}>Chrome {"\u00b7"} LinkedIn {"\u00b7"} Indeed</p>
-                  </div>
-                </div>
-
-                {/* How we score this — integrated philosophy */}
-                <div className="mt-6">
-                  <div
-                    className="rounded-xl transition-all duration-150 cursor-pointer"
-                    style={{
-                      backgroundColor: expandedTitleIdx === -1 ? "rgba(255,255,255,0.045)" : "rgba(255,255,255,0.02)",
-                      border: expandedTitleIdx === -1 ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(255,255,255,0.04)",
-                    }}
-                    onClick={() => setExpandedTitleIdx(expandedTitleIdx === -1 ? null : -1)}
-                  >
-                    <div className="px-4 py-3 flex items-center justify-center gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: expandedTitleIdx === -1 ? "#999" : "#666" }}>How we score this</span>
-                      <span className="text-xs" style={{ color: "#666" }}>{expandedTitleIdx === -1 ? "\u25B4" : "\u25BE"}</span>
-                    </div>
-                    {expandedTitleIdx === -1 ? (
-                      <div className="px-4 pb-3 text-left text-sm leading-relaxed" style={{ color: "#777" }} onClick={(e) => e.stopPropagation()}>
-                        <p className="mb-1.5">Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.</p>
-                        <p className="mb-1.5">This title reflects the kind of work your background most closely matches. It may not be your last job title, but it represents where your pattern has the strongest signal.</p>
-                        <p>The goal is to help you search more effectively and assess real roles faster — not to limit what you can do.</p>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
 

@@ -144,7 +144,7 @@ export default function SignInPage() {
       <div className="relative z-10 w-full max-w-[600px] mx-auto px-4">
         <CaliberHeader />
 
-        <div className="mt-10 text-center">
+        <div className="mt-6 sm:mt-10 text-center">
           <h1 className="text-neutral-200 text-xl font-semibold tracking-tight">
             Sign in to Caliber
           </h1>

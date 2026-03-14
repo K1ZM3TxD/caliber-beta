@@ -123,6 +123,54 @@ Both are required for layout/composition tasks. The UI Constitution alone is suf
 
 ---
 
+## 8. Processing Screen Staged Progress
+
+When the calibration flow enters a processing / loading phase:
+
+1. The spinner and "Processing…" label remain centered in the Interaction Surface Zone.
+2. A thin progress bar (max-width 260px, centered) appears below the spinner with a percentage readout.
+3. Stages advance through 20 → 40 → 60 → 80 → Complete with a minimum visible duration per stage (~1.2s) so fast completions remain readable.
+4. Once the backend signals completion, remaining stages fast-forward at ~400ms each.
+5. "Complete" appears only after real backend completion, then the page transitions after a brief 600ms hold.
+6. The delay is presentation-only — it does not block backend work or alter workflow logic.
+7. All transition stability rules from §6 apply: no layout shift, fade over slide, no competing motion.
+
+---
+
+## 9. Mobile Composition Rules
+
+All spatial composition adapts to smaller viewports using Tailwind's `sm` (640px) breakpoint.
+
+### Top Padding Scale
+
+| Context | Mobile (< 640px) | Desktop (≥ 640px) |
+|---|---|---|
+| **Content steps** (PROMPT, PROCESSING) | `pt-[14vh]` | `pt-[22vh]` |
+| **Result/title pages** (TITLES) | `pt-[6vh]` | `pt-[10vh]` |
+| **Extended top** (IngestLayout) | `pt-[20vh]` | `pt-[32vh]` |
+| **Sign-in / lightweight pages** | `mt-6` | `mt-10` |
+
+- Mobile reduces top padding to reclaim vertical space for content. The wordmark still anchors the top.
+- Centered-mode pages (LANDING, RESUME) use flex centering and are unaffected by top padding scale.
+
+### Horizontal Padding
+
+- All pages: `px-4` on mobile, `px-6` on desktop (`px-4 sm:px-6`).
+- This is the constitution's minimum. Individual pages must not go below `px-4`.
+
+### Board / Multi-Column Layouts
+
+- Board layouts (pipeline) use `overflow-x-auto` on mobile with minimum column widths (`minmax(220px, 1fr)`) so the board scrolls horizontally.
+- This preserves the board metaphor while keeping columns readable.
+- Single-column content pages must never introduce horizontal scroll.
+
+### Button / CTA Stacking
+
+- Horizontal button groups must include `flex-wrap` so buttons stack vertically when viewport is too narrow.
+- Gap reduces on mobile: `gap-3` vs `gap-4` on desktop.
+
+---
+
 ## Change Control
 
 Changes to this document require a BREAK+UPDATE entry in `Bootstrap/BREAK_AND_UPDATE.md`. This is a governed contract, not a living suggestion file.
