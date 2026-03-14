@@ -18,13 +18,12 @@
   - This work is explicitly scheduled for after beta is stable and outside-user testing has started.
   - Prerequisite (event capture) is complete. Dashboard implementation is the remaining work.
 
-57. Beta release model / external testing workflow not yet defined — **PLANNED** (2026-03-14)
-  - Current risk: only one main build is pushed directly to the production domain (caliber-app.com). Every push to main is immediately live.
-  - No staging environment, preview deploy workflow, or feature-flag system is in place.
-  - Before inviting outside testers, need a release model that allows internal development iteration without breaking the live beta.
-  - Options to evaluate: Vercel preview deploy URLs, separate beta/stable extension builds, feature flags.
-  - Decision deferred until beta readiness threshold is reached (see `Bootstrap/milestones.md` for readiness criteria).
-  - Not blocking current work — this is a future PM decision.
+57. Beta release model / external testing workflow not yet defined — **RESOLVED** (2026-03-14)
+  - Two-branch release model implemented: `main` = development, `stable` = production.
+  - Vercel production deploy from `stable` branch → caliber-app.com. Preview deploys from `main`.
+  - Promotion workflow: validate on main → fast-forward merge to stable → push.
+  - No staging/preview confusion — branch separation provides the gate.
+  - See `Bootstrap/milestones.md` RELEASE MODEL section for full details.
 
 62. BST doctrine update — zero-strong-match window rule — **SHIPPED** (2026-03-14, 7b20781)
   - Old BST trigger (`strongCount < 5` / rolling window of 4) replaced with zero-strong-match window rule.
@@ -186,8 +185,9 @@
   - A sister-profile run produced only one low-scoring title with no three options/dropdown.
   - Needs investigation to determine if title scoring bands are too restrictive for certain profile types.
 
-19. Extension Phase 2: listings-page overlay — **SHIPPED** (2026-03-14)
+19. Extension Phase 2: listings-page overlay — **SHIPPED / POST-GATE** (2026-03-14)
   - Phase-2 overlay scoring shipped and stable. Extension operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on selected job.
+  - **Not a beta gate.** Overlay is valuable discovery-layer work that continues in parallel, but beta readiness is defined by five core functional gates (BST, sidecard, pipeline, sign-in/memory, tailor). Overlay completion is not required before declaring beta.
   - Badge placement: below title/company line in `.artdeco-entity-lockup__content` (normalized 27932b1). Block display, 13px/800 weight, no icon.
   - Badge discovery: all selector groups scanned with Set dedup, scroll listener re-attached on surface change, retry-poll replaces fixed delay, viewport buffer added (5133cd7).
   - Original deferral reason (scoring credibility) resolved — badge system is stable with cache, progressive scoring, and mutation observers.
@@ -329,23 +329,10 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - This must not regress. See `ENVIRONMENT_SPLIT.md` and `CALIBER_EXECUTION_CONTRACT.md` environment rules.
   - Guard: if any code change reintroduces multi-host fallback or cross-environment host permissions, treat as regression.
 
-30. Extension Phase 2 — listings-page overlay (UX contract finalized) — **BLOCKED** (2026-03-08, product initiative)
+30. Extension Phase 2 — listings-page overlay (UX contract finalized) — **SHIPPED / POST-GATE** (2026-03-14)
+  - Phase-2 overlay is shipped and stable. See #19 for current status.
+  - **Not a beta gate.** Overlay work continues as parallel improvement; does not block beta declaration.
   - UX design finalized and documented in CALIBER_CONTEXT_SUMMARY.md (Phase-2 Extension Overlay UX Contract).
-  - Implementation blocked until scoring credibility (#25) is resolved and PM explicitly unblocks.
-  - Key UX decisions locked:
-    - Listing badge: Caliber icon + color-coded score under company logo on each LinkedIn job card.
-    - Color bands: Green 8.0–10.0, Yellow 6.5–7.9, Gray 0–6.4. Exactly three bands.
-    - Loading placeholder: `[Caliber Icon] …` rendered immediately on visible job cards before scoring completes.
-    - Progressive scoring: score ~10 visible jobs first, then newly visible on scroll. Never score entire page at once.
-    - Sidecard trust header: Job Title + Company Name (location excluded, optional logo).
-    - Sidecard content: score, supports bullets, stretch bullets, bottom line. No duplicated LinkedIn metadata.
-  - Future features documented but explicitly out of Phase-2 scope:
-    - "Show only 7+ matches" filter
-    - Adaptive search suggestions
-    - Deep scoring vs preview scoring experiment
-    - Next/previous job navigation
-    - Sidebar tools (resume tailoring, interview prep)
-  - Supersedes #19 (original Phase 2 entry, now captured with full UX contract).
 
 ---
 

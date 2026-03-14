@@ -5,19 +5,29 @@ Milestone — Beta Release Readiness + Post-Beta Product Metrics (PLANNED)
 STATUS: FUTURE — not active. Current stabilization and action-layer work must complete first.
 
 BETA DEFINITION:
-- "Beta" means the core user flow is stable enough for outside users to use without PM hand-holding:
-  calibration → extension install → score discovery on LinkedIn → strong-match action → pipeline/tailor
+- "Beta" means the core functional loop is stable enough for outside users to use without PM hand-holding:
+  calibration → extension install → sidecard scoring on LinkedIn → BST recovery → pipeline → tailor resume
 - Beta is NOT "feature complete." It is "stable enough for meaningful outside testing."
+- Overlay scoring (discovery badges on search result cards) is valuable but NOT required for beta launch. Overlay work may continue in parallel as a post-gate improvement.
 - Once beta threshold is reached, the project shifts modes:
   - No major feature expansion
   - Focus: stability, user observation/testing, bug fixing, release/testing workflow
   - New features are queued and developed on branches, not shipped to the live build
 
+BETA READINESS GATES (all five must be met before declaring beta):
+1. **BST working** — Better Search Title fires reliably and suggests useful recovery titles.
+2. **Sidecard stable** — Extension sidecard renders correctly, scores jobs, and handles all score states without layout instability.
+3. **Pipeline solid** — Pipeline board persists entries, supports stage movement, and does not lose data.
+4. **Sign-in / memory operational** — User sessions persist across browser restarts; pipeline and calibration data are durable.
+5. **Tailor resume works** — Resume tailoring generates useful output, copy/download functional, no fabrication.
+
 BETA READINESS QUESTIONS (PM must answer YES to all before declaring beta):
-- Is the extension stable enough for repeated real use across multiple LinkedIn sessions?
-- Is the core flow (calibration → extension → scoring → tailor → pipeline) understandable without PM guidance?
+- Do all five gates above pass in a real end-to-end user flow?
+- Is the core flow (calibration → extension → sidecard scoring → BST → tailor → pipeline) understandable without PM guidance?
 - Are major regressions low enough that outside testing produces useful feedback (not just bug reports about broken basics)?
 - Is the extension installable and activatable by a non-technical user following the /extension page instructions?
+
+NOTE: Overlay scoring (discovery badges) is NOT a beta gate. It is active improvement work that may ship during or after beta, but does not block beta declaration.
 
 RELEASE MODEL (implemented 2026-03-14):
 - Two-branch model active: `main` = development iteration, `stable` = production deploy.
@@ -50,6 +60,25 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 - Telemetry is non-blocking: failures never break user-facing flows.
 - This event layer is the prerequisite for all future metrics/dashboard work.
 - Dashboard and cohort analysis remain future work — not included in this implementation.
+
+---
+
+BREAK + UPDATE — 2026-03-14 (Beta Gate Resequencing: Overlay Deblocked)
+---
+DONE:
+- Overlay scoring removed from beta launch gate — beta readiness now defined by five core functional gates
+- Beta gates locked: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works
+- Overlay remains active parallel work — not cancelled, just not a beta blocker
+- Stable-branch release model confirmed as locked: `main` = development, `stable` = production
+- All Bootstrap docs updated to reflect new beta gate definition and remove stale overlay-blocking wording
+
+BLOCKED:
+- Sign-in / memory (#51 account prompt) not yet implemented — this is the next major gate to close
+
+NEXT:
+- Implement sign-in / durable session persistence (beta gate 4)
+- Validate all five beta gates in a real end-to-end flow
+- Continue overlay work in parallel without blocking beta declaration
 
 ---
 

@@ -2,18 +2,24 @@
 
 > **Role:** Full project history and session decisions. For a compact current-state reload, see `Bootstrap/CALIBER_ACTIVE_STATE.md`. For the canonical system loader, see `CALIBER_SYSTEM.md`.
 
-## Project Status (2026-03-14, Phase-2 Overlay Scoring Shipped)
+## Project Status (2026-03-14, Beta Gate Resequenced)
 
-**Phase-2 overlay scoring is shipped and stable.** Extension now operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on the selected job. Badge system includes stable card identity, session score cache, progressive chunked scoring, scroll/mutation listeners, and BST evaluation from badge cache. Eight lifecycle/stability bugs were found and fixed during stabilization.
+**Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Phase-2 overlay scoring is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. Extension operates as a two-layer surface: discovery badges on search result cards + decision sidecard on selected job.
 
-**Queued next (soft-locked in order):**
-1. Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe
-2. Add post-save confirmation / action state in sidecard
-3. Add account prompt for durable pipeline saving
-4. Continue pipeline/action-layer refinement only after the above are stable
+**Beta gates status:**
+1. BST working — IN VALIDATION (doctrine updated, zero-strong-match window rule)
+2. Sidecard stable — IN VALIDATION (collapsed height resolved, fetch stability fixed)
+3. Pipeline solid — FUNCTIONAL (board implemented, needs product validation)
+4. Sign-in / memory — NOT YET IMPLEMENTED (next major work item)
+5. Tailor resume — FUNCTIONAL (needs end-to-end validation)
+
+**Parallel (non-blocking):**
+- Overlay scoring — shipped and stable, continues to improve, not a beta gate
+- Auto-save strong matches → post-save confirmation — enhancements, not gates
 
 **Future (after beta stabilization):**
-- Beta readiness definition established — see `Bootstrap/milestones.md` for threshold criteria and readiness questions.
+- Beta readiness definition updated (2026-03-14) — five-gate model. See `Bootstrap/milestones.md` for gates and readiness questions.
+- Overlay scoring is post-gate parallel work. Shipped and stable but not required for beta declaration.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0.
 - **Telemetry instrumentation is shipped (2026-03-14).** Lightweight event capture via `POST /api/events` and `data/telemetry_events.jsonl`. Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Non-blocking, fire-and-forget. This is the prerequisite layer for TTSM and all future product metrics.
 - Two-branch release model implemented (2026-03-14): `main` = development iteration, `stable` = production deploy. Vercel production deploys from `stable` → caliber-app.com. Preview deploys from `main`. Promotion: validate on main → fast-forward merge to stable → push.
@@ -42,7 +48,7 @@
 - Extension v0.8.5 deployed (ZIP rebuilt with overlay badge system and fetch stability fixes).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
+- Next priorities: close remaining beta gates (sign-in/memory is the top item) → validate all five gates → declare beta. Overlay and auto-save work continue in parallel without blocking.
 
 **Real User Flow:**
 ```
@@ -193,10 +199,10 @@ Structured feedback collection active across extension and web app.
 
 ## Session Decisions (2026-03-14, Beta Definition + Post-Beta Metrics Roadmap)
 
-- **Beta defined operationally.** Beta = core user flow stable enough for outside users without PM hand-holding. Not "feature complete" — "testable by real people." Readiness questions documented in milestones.md. PM must answer all YES before declaring beta.
+- **Beta defined operationally (updated 2026-03-14).** Beta = five core functional gates all passing: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Overlay scoring is NOT a beta gate — it is parallel improvement work. PM must answer readiness questions before declaring beta.
 - **Post-beta metrics planned.** Primary metric: Time-to-Strong-Match (TTSM). Supporting: Strong Match Rate, Pipeline Save Rate, Tailor Usage Rate, Calibration Completion Rate. All deferred until beta is stable and outside testing has started.
 - **Release model gap resolved (2026-03-14).** Two-branch model implemented: `main` = development, `stable` = production. Vercel production deploy from `stable`. Preview deploys from `main`. Every push to main is no longer immediately live for outside testers.
-- **No metrics work during current stabilization.** Metrics instrumentation and dashboard are explicitly post-beta. Current focus remains on action-layer completion (auto-save → post-save → account prompt).
+- **No metrics work during current stabilization.** Metrics instrumentation and dashboard are explicitly post-beta. Current focus remains on closing beta gates (sign-in/memory is the next major item).
 
 ## Session Decisions (2026-03-14, Phase-2 Overlay Scoring Shipped)
 

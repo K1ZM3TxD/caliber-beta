@@ -5,7 +5,7 @@
 ---
 
 ## Current Phase
-**Overlay shipped + BST updated — approaching beta readiness.** Phase-2 overlay scoring is shipped and stable. Extension now operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on the selected job. BST doctrine updated to zero-strong-match window rule (2026-03-14). The project is in a validation-driven sequenced pipeline — each main step is soft-locked behind completion of the previous step. Small, narrow UI bug squashes may proceed at any time without breaking the sequence.
+**Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Overlay scoring (discovery badges) is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. The project is in a validation-driven sequenced pipeline. Production deploys from `stable` branch; development on `main`.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
@@ -13,7 +13,7 @@
 None currently in flight. Sidecard collapsed height (#48) resolved (2026-03-11). Badge placement normalized (27932b1). Badge discovery coverage fixed (5133cd7). BST trigger doctrine updated (7b20781).
 
 ## Top Blocker
-**Action-layer completion.** Sidecard sizing is stable. Next queued step is auto-save strong-match jobs (score >= 8.5) into pipeline, followed by post-save confirmation and account prompt. These are soft-locked in order.
+**Sign-in / memory (beta gate 4).** BST and sidecard stability are in validation. Pipeline is functional. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Overlay work continues in parallel but does not block beta.
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
@@ -79,23 +79,23 @@ calibration → results page → /extension → download ZIP → install in Chro
 ```
 `/extension` must always serve the current extension build — it is the user-facing install path.
 
-## Locked Task Order (Stabilization Phase — updated 2026-03-14)
+## Locked Task Order (Beta Gate Focus — updated 2026-03-14)
 
-These steps are soft-locked in order. Each main step is treated as blocked by the previous main step until that previous step is validated complete.
+Beta gates are the priority. Each gate must be validated before declaring beta. Overlay work is non-blocking and may proceed in parallel.
+
+**Beta Gates (must all pass):**
+1. **BST working** — IN VALIDATION (doctrine updated 2026-03-14, zero-strong-match window rule)
+2. **Sidecard stable** — IN VALIDATION (collapsed height #48 resolved 2026-03-11, fetch stability fixed v0.8.5)
+3. **Pipeline solid** — FUNCTIONAL (board implemented, DnD, fit scores; product validation ongoing)
+4. **Sign-in / memory operational** — NOT YET IMPLEMENTED (next major work item)
+5. **Tailor resume works** — FUNCTIONAL (copy/download, retry-on-error; needs end-to-end validation)
+
+**Parallel (non-blocking):**
+- Overlay scoring (discovery badges) — shipped and stable, continues to improve, not a beta gate
+- Auto-save strong-match jobs into pipeline — enhancement, not a gate
+- Post-save confirmation in sidecard — enhancement, not a gate
 
 **Exception:** Small UI bug squashes may be handled at any time if they are narrow, local, and do not break sequencing.
-
-1. ~~**Fix extension scorecard collapsed sizing stability**~~ — **DONE** (2026-03-11, #48 resolved)
-2. ~~**Restore / verify Better Search Title trigger behavior**~~ — **DONE** (2026-03-14, doctrine updated to zero-strong-match window rule, 7b20781)
-3. **Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe** — QUEUED (next up)
-   - Blocked by: step 2 validated complete
-4. **Add post-save confirmation / action state in sidecard** — QUEUED
-   - Blocked by: step 3 validated complete
-5. **Add account prompt for durable pipeline saving** — QUEUED
-   - Blocked by: step 4 validated complete
-6. **Continue pipeline/action-layer refinement** — QUEUED
-   - Only after steps 1–5 are stable
-   - Includes: CTA noise control, pipeline board validation, shared shell decision
 
 ### Previous task order (historical)
 - ~~Recompose global Caliber shell from approved visual primitives~~ — ATTEMPTED (three-zone framing tried, rolled back to a211182 baseline)
@@ -156,20 +156,20 @@ Do not re-sequence without new blocking evidence.
 - #15 Bottom line paragraph repetition (OPEN)
 
 ## Next PM Decision Needed
-1. **Sidecard collapsed sizing** — validate the fix once it lands; confirm no visual jumping between scored jobs in collapsed state.
-2. **Better Search Title verification** — test trigger with 4 low-scoring jobs in a real extension flow after sidecard sizing is stable.
-3. **Auto-save threshold** — confirm score >= 8.5 as the auto-save threshold for pipeline entry (distinct from the 8.0 tailor CTA threshold).
-4. **Account prompt design** — decide account/auth requirements for durable pipeline saving before implementing.
-5. **Shared shell framework** — deferred to step 6; decide after action-layer stabilization.
-6. **Pipeline board model** — deferred to step 6; validate 4-column board after action-layer basics are stable.
+1. **Sign-in / memory implementation** — decide auth approach (NextAuth, simple token, etc.) for durable pipeline and calibration persistence. This is beta gate 4.
+2. **Beta gate validation** — run end-to-end flow validating all five gates before declaring beta.
+3. **Auto-save threshold** — confirm score >= 8.5 as the auto-save threshold for pipeline entry (enhancement, not gate).
+4. **Shared shell framework** — deferred; decide after beta gates are met.
+5. **Pipeline board model** — deferred; validate 4-column board after beta gates are met.
 
 ## Future Planning Notes (not active tasks)
 
-**Beta readiness definition (2026-03-14):**
-- Beta = core flow stable enough for outside users without PM guidance. Not "feature complete."
+**Beta readiness definition (updated 2026-03-14):**
+- Beta = five core functional gates all passing. Not "feature complete."
+- Gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works.
+- Overlay scoring is NOT a beta gate. It is shipped and continues as parallel improvement work.
 - PM must answer readiness questions (documented in `Bootstrap/milestones.md`) before declaring beta.
 - Once declared, project shifts to stability/testing mode — no major feature expansion on main.
-- This decision is upcoming but not yet active. Current active work is action-layer completion (auto-save → post-save → account prompt).
 
 **Release model (implemented 2026-03-14):**
 - Two-branch model active: `main` = development iteration, `stable` = production deploy target.
@@ -186,4 +186,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-14 (stable branch release model implemented, extension v0.8.5 — approaching beta readiness)_
+_Last updated: 2026-03-14 (beta gate resequenced — overlay deblocked, five-gate model locked, stable branch = production)_

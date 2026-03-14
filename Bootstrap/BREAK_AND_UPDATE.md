@@ -79,6 +79,43 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-14 — Beta Gate Resequencing: Overlay Deblocked + Stable Branch Locked
+
+**What changed:**
+- Overlay scoring removed from beta launch gate. Beta readiness is now defined by five core functional gates:
+  1. Better Search Title (BST) works reliably
+  2. Sidecard is stable
+  3. Pipeline is solid
+  4. Sign-in / memory is operational
+  5. Tailor resume works
+- Overlay remains valuable discovery-layer work and may continue in parallel — it is not cancelled, just not a beta blocker.
+- Stable-branch release model confirmed as the locked production model: `main` = development, `stable` = production (caliber-app.com).
+- All docs updated to reflect the new beta gate and to remove stale wording implying overlay completion is required before beta.
+
+**Why it changed:**
+- PM scope decision: beta readiness should be defined by the core functional loop (calibration → sidecard scoring → BST → pipeline → tailor → sign-in), not by the overlay discovery layer. Overlay adds value but is not required for a meaningful outside-user beta test.
+- The stable-branch release model was already implemented but some docs still contained stale references to single-main-build or implied overlay was on the critical path.
+
+**What is now expected:**
+- Beta can be declared when all five gates are met — overlay completion is not required.
+- Overlay work continues as a parallel improvement track, not as a blocking prerequisite.
+- Production deploys from `stable` branch only. Development on `main`. No stale "every push to main is live" wording.
+- Beta readiness questions in milestones.md updated to reflect the five-gate definition.
+
+**What is explicitly no longer expected:**
+- Overlay scoring listed as a prerequisite for beta launch.
+- Docs implying that overlay must be complete/stable before beta is declared.
+- Any wording suggesting production still deploys from `main`.
+
+**Risk / fallout:**
+- Low — this is a scope/sequencing decision, not a code change. Overlay continues to be worked on.
+- Outside beta testers will use sidecard-only scoring initially. Overlay badges are a future enhancement to the beta experience, not a gate.
+
+**Proof target:**
+- All five Bootstrap docs updated. No remaining wording implies overlay is beta-blocking or production deploys from main.
+
+**Files touched:** Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md, Bootstrap/CALIBER_ACTIVE_STATE.md, Bootstrap/CALIBER_CONTEXT_SUMMARY.md, Bootstrap/CALIBER_ISSUES_LOG.md
+
 ### 2026-03-14 — Stable Branch Release Model
 
 **What changed:**
