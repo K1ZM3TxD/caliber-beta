@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.5";
+  const PANEL_VERSION = "0.8.6";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -535,7 +535,7 @@
   //   Badge color bands: green (8.0+), yellow (6.5–7.9), gray (<6.5)
   //
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
-  var BST_MIN_WINDOW_SIZE = 3;            // minimum scored cards before BST can evaluate
+  var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
   var SCORE_CEILING_OUT_OF_SCOPE = 5.0;   // hard cap for clearly out-of-scope job families
 
@@ -603,6 +603,7 @@
   var badgeBatchStartTime = 0;           // Date.now() when current batch started (stale-lock detection)
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var badgeScanInterval = null;          // periodic fallback scan interval
+  var bstShowDebounce = null;            // debounce timer for BST banner show (prevents flicker)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
   var BADGE_BATCH_TIMEOUT_MS = 15000;   // max time to wait for a batch response
 
@@ -1092,27 +1093,56 @@
       ", prescanBSTActive: " + prescanBSTActive);
     console.debug("[Caliber][diag][BST] score window: [" + scores.join(", ") + "]");
 
-    var suggestedTitle = null;
-    var suggestionShown = false;
-
     if (strongCount === 0) {
       // BST TRIGGER: zero strong matches in the scored window
       // This search surface has no pursue-worthy jobs — suggest a better search.
-      if (!prescanBSTActive) {
-        console.debug("[Caliber][diag][BST] TRIGGER — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored, query: \"" + currentQuery + "\"");
-        suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
-        if (suggestedTitle) {
-          console.debug("[Caliber][BST] suggestion: \"" + suggestedTitle + "\" (source: " +
-            (bestCalibrationTitle && !titlesEquivalent(bestCalibrationTitle, currentQuery) ? "calibration primary" : "adjacent role") + ")");
-          showPrescanBSTBanner(suggestedTitle);
-          suggestionShown = true;
-          prescanStoredTitle = suggestedTitle;
-        } else {
-          console.debug("[Caliber][BST] trigger fired but no valid suggestion — suppressed");
-        }
+      // Debounce the show to prevent flicker when scoring chunks arrive in quick
+      // succession (a strong match in the next chunk would cancel the pending show).
+      if (!prescanBSTActive && !bstShowDebounce) {
+        console.debug("[Caliber][diag][BST] TRIGGER (deferred) — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored, query: \"" + currentQuery + "\"");
+        var deferredCalibTitle = bestCalibrationTitle;
+        var deferredNearby = bestNearbyRoles;
+        var deferredQuery = currentQuery;
+        bstShowDebounce = setTimeout(function () {
+          bstShowDebounce = null;
+          // Re-verify no strong match has appeared since scheduling
+          var reUrls = Object.keys(badgeScoreCache);
+          var reStrong = 0;
+          for (var ri = 0; ri < reUrls.length; ri++) {
+            if (badgeScoreCache[reUrls[ri]].score >= BST_STRONG_MATCH_THRESHOLD) reStrong++;
+          }
+          if (reStrong > 0 || prescanBSTActive) {
+            console.debug("[Caliber][diag][BST] deferred show cancelled — strong match appeared during debounce");
+            return;
+          }
+          var title = determinePrescanSuggestion(deferredCalibTitle, deferredNearby, deferredQuery);
+          if (title) {
+            console.debug("[Caliber][BST] suggestion: \"" + title + "\" (source: " +
+              (deferredCalibTitle && !titlesEquivalent(deferredCalibTitle, deferredQuery) ? "calibration primary" : "adjacent role") + ")");
+            showPrescanBSTBanner(title);
+            prescanStoredTitle = title;
+            // Persist updated state with banner shown
+            chrome.runtime.sendMessage({
+              type: "CALIBER_PRESCAN_STATE_SAVE",
+              surfaceKey: getSearchSurfaceKey(),
+              query: deferredQuery,
+              strongCount: 0,
+              scoredCount: reUrls.length,
+              suggestedTitle: title,
+              suggestionShown: true,
+            });
+          } else {
+            console.debug("[Caliber][BST] deferred trigger — no valid suggestion, suppressed");
+          }
+        }, 800);
       }
     } else {
-      // Strong match found — suppress/hide BST banner if it was showing
+      // Strong match found — immediately cancel pending show and hide existing banner
+      if (bstShowDebounce) {
+        clearTimeout(bstShowDebounce);
+        bstShowDebounce = null;
+        console.debug("[Caliber][diag][BST] cancelled pending BST show — strong match arrived");
+      }
       if (prescanBSTActive) {
         console.debug("[Caliber][diag][BST] SUPPRESS — strong match appeared (" + strongCount + " >= " + BST_STRONG_MATCH_THRESHOLD + "), hiding BST banner");
         prescanBSTActive = false;
@@ -1131,15 +1161,15 @@
     prescanRunning = false;
     prescanSearchQuery = surfaceKey;
 
-    // Persist prescan result
+    // Persist prescan result (BST show state is updated by the debounced callback separately)
     chrome.runtime.sendMessage({
       type: "CALIBER_PRESCAN_STATE_SAVE",
       surfaceKey: surfaceKey,
       query: currentQuery,
       strongCount: strongCount,
       scoredCount: scoredCount,
-      suggestedTitle: suggestedTitle,
-      suggestionShown: suggestionShown || prescanBSTActive,
+      suggestedTitle: prescanStoredTitle,
+      suggestionShown: prescanBSTActive,
     });
   }
 
@@ -1439,6 +1469,10 @@
     prescanSearchQuery = "";
     prescanBSTActive = false;
     prescanStoredTitle = null;
+    if (bstShowDebounce) {
+      clearTimeout(bstShowDebounce);
+      bstShowDebounce = null;
+    }
     if (shadow) {
       var banner = shadow.getElementById("cb-recovery-banner");
       if (banner) banner.style.display = "none";
