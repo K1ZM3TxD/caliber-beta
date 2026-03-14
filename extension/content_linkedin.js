@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.4";
+  const PANEL_VERSION = "0.8.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -832,6 +832,9 @@
 
     // Safety timeout: if background doesn't respond (service worker unloaded),
     // reset badgeBatchRunning so the queue isn't permanently blocked.
+    // Keep loading badges visible (don't remove them) — they'll be retried or
+    // restored from cache. Removing badges on timeout caused the "briefly appear
+    // then disappear" regression.
     clearTimeout(badgeBatchTimeout);
     badgeBatchTimeout = setTimeout(function () {
       if (badgeBatchRunning) {
@@ -839,16 +842,10 @@
           "s) — resetting lock, releasing " + chunk.length + " cards for retry");
         badgeBatchRunning = false;
         badgeBatchStartTime = 0;
-        // Remove loading badges for timed-out cards and allow retry
+        // Release cards for retry but KEEP loading badges visible
         for (var t = 0; t < chunk.length; t++) {
           if (chunk[t].id && !badgeScoreCache[chunk[t].id]) {
-            badgeScoredIds.delete(chunk[t].id);  // allow retry
-            var card = findCardById(chunk[t].id);
-            if (card) {
-              badgeInjecting = true;
-              try { var b = card.querySelector("[" + BADGE_ATTR + "]"); if (b) b.remove(); }
-              finally { badgeInjecting = false; }
-            }
+            badgeScoredIds.delete(chunk[t].id);  // allow retry on next scan
           }
         }
         if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 500);
@@ -874,13 +871,12 @@
 
       if (chrome.runtime.lastError) {
         console.warn("[Caliber][diag][score] chunk transport error:", chrome.runtime.lastError.message,
-          "— releasing " + chunk.length + " cards for retry");
+          "— releasing " + chunk.length + " cards for retry (badges kept)");
         // Release failed cards so they can be retried on next scan
+        // Keep loading badges visible — don't remove them
         for (var f = 0; f < chunk.length; f++) {
           if (chunk[f].id && !badgeScoreCache[chunk[f].id]) {
             badgeScoredIds.delete(chunk[f].id);
-            var fc = findCardById(chunk[f].id);
-            if (fc) { badgeInjecting = true; try { var fb = fc.querySelector("[" + BADGE_ATTR + "]"); if (fb) fb.remove(); } finally { badgeInjecting = false; } }
           }
         }
         if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
@@ -888,12 +884,10 @@
       }
       if (!resp || !resp.ok || !Array.isArray(resp.results)) {
         console.warn("[Caliber][diag][score] chunk scoring failed:", resp && resp.error,
-          "— releasing " + chunk.length + " cards for retry");
+          "— releasing " + chunk.length + " cards for retry (badges kept)");
         for (var g = 0; g < chunk.length; g++) {
           if (chunk[g].id && !badgeScoreCache[chunk[g].id]) {
             badgeScoredIds.delete(chunk[g].id);
-            var gc = findCardById(chunk[g].id);
-            if (gc) { badgeInjecting = true; try { var gb = gc.querySelector("[" + BADGE_ATTR + "]"); if (gb) gb.remove(); } finally { badgeInjecting = false; } }
           }
         }
         if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
@@ -939,19 +933,9 @@
             rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
           });
         } else {
-          // Remove loading badge on error and release from scoredIds for retry
+          // Release from scoredIds for retry but keep loading badge visible
           if (entry.id) badgeScoredIds.delete(entry.id);
-          var errCard = entry.id ? findCardById(entry.id) : null;
-          if (errCard) {
-            badgeInjecting = true;
-            try {
-              var badge = errCard.querySelector("[" + BADGE_ATTR + "]");
-              if (badge) badge.remove();
-            } finally {
-              badgeInjecting = false;
-            }
-          }
-          console.debug("[Caliber][diag][score] item error (released for retry): " + entry.title + " → " + result.error +
+          console.debug("[Caliber][diag][score] item error (released for retry, badge kept): " + entry.title + " → " + result.error +
             (entry.id ? " (" + entry.id + ")" : ""));
         }
       }

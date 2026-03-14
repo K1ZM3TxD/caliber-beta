@@ -90,9 +90,16 @@ async function probeCaliberTabsForSession() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
+    console.debug("[Caliber][bg] CALIBER_FIT_API received (" + (msg.jobText || "").length + " chars)");
     ensureSessionThenFit(msg.jobText)
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+      .then((data) => {
+        console.debug("[Caliber][bg] sidecard score complete: " + (data.score_0_to_10 || "?"));
+        sendResponse({ ok: true, data });
+      })
+      .catch((err) => {
+        console.error("[Caliber][bg] sidecard score failed: " + err.message);
+        sendResponse({ ok: false, error: err.message });
+      });
     return true;
   }
   if (msg.type === "CALIBER_FEEDBACK") {
@@ -174,11 +181,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // Discover session once for the whole batch
         const info = await discoverSession();
         if (!info.sessionId || !info.profileComplete) {
+          console.warn("[Caliber][bg][prescan] no active session for batch");
           sendResponse({ ok: false, error: "No active calibration session.", results: [] });
           return;
         }
         const results = [];
         const jobs = Array.isArray(msg.jobs) ? msg.jobs : [];
+        console.debug("[Caliber][bg][prescan] scoring batch of " + jobs.length + " jobs");
         for (const job of jobs) {
           try {
             const data = await callFitAPI(job.jobText, info.sessionId, { prescan: true });
@@ -190,12 +199,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               hrcBand: (data.hiring_reality_check && data.hiring_reality_check.band) || null,
               ok: true,
             });
+            console.debug("[Caliber][bg][prescan] scored: " + (job.title || "?") + " → " + (data.score_0_to_10 || 0));
           } catch (err) {
             results.push({ title: job.title || "", score: 0, ok: false, error: err.message });
+            console.warn("[Caliber][bg][prescan] item error: " + (job.title || "?") + " → " + err.message);
           }
         }
+        console.debug("[Caliber][bg][prescan] batch complete: " + results.filter(r => r.ok).length + "/" + results.length + " succeeded");
         sendResponse({ ok: true, results });
       } catch (err) {
+        console.error("[Caliber][bg][prescan] batch failed: " + err.message);
         sendResponse({ ok: false, error: err.message, results: [] });
       }
     })();
@@ -563,45 +576,80 @@ async function tryRestoreSession(sessionId) {
 }
 
 async function callFitAPI(jobText, sessionId, options) {
+  const isPrescan = !!(options && options.prescan);
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
-  if (options && options.prescan) body.prescan = true;
+  if (isPrescan) body.prescan = true;
 
-  // Include session backup inline for serverless resilience — avoids
-  // multi-Lambda mismatch where restore PUT and fit POST hit different instances.
-  const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
-  if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
-    body.sessionBackup = backupStore.caliberSessionBackup;
-  }
-
-  let resp = await fetch(API_BASE + "/api/extension/fit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  // If session not found (401) and we didn't have inline backup, try restoring separately
-  if (resp.status === 401 && sessionId && !body.sessionBackup) {
-    const restored = await tryRestoreSession(sessionId);
-    if (restored) {
-      resp = await fetch(API_BASE + "/api/extension/fit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  // Include session backup only on sidecard (non-prescan) calls for serverless
+  // resilience. Prescan/badge calls skip backup to keep payloads small and fast.
+  if (!isPrescan) {
+    const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
+    if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
+      body.sessionBackup = backupStore.caliberSessionBackup;
     }
   }
 
-  const data = await resp.json();
+  const label = isPrescan ? "prescan" : "sidecard";
+  const timeout = isPrescan ? 12000 : 25000;
+  console.debug("[Caliber][bg][fetch][" + label + "] POST /api/extension/fit (" + (jobText || "").length + " chars)");
+
+  let resp;
+  try {
+    resp = await fetch(API_BASE + "/api/extension/fit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch (fetchErr) {
+    console.error("[Caliber][bg][fetch][" + label + "] network error: " + fetchErr.message);
+    throw new Error("Network error: " + fetchErr.message);
+  }
+
+  // If session not found (401), try restoring from backup then retry
+  if (resp.status === 401 && sessionId) {
+    console.debug("[Caliber][bg][fetch][" + label + "] 401 — attempting session restore");
+    const restored = await tryRestoreSession(sessionId);
+    if (restored) {
+      // Retry with inline backup for resilience
+      if (!body.sessionBackup) {
+        const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
+        if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
+          body.sessionBackup = backupStore.caliberSessionBackup;
+        }
+      }
+      try {
+        resp = await fetch(API_BASE + "/api/extension/fit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeout),
+        });
+      } catch (retryErr) {
+        console.error("[Caliber][bg][fetch][" + label + "] retry network error: " + retryErr.message);
+        throw new Error("Network error on retry: " + retryErr.message);
+      }
+    }
+  }
+
+  let data;
+  try {
+    data = await resp.json();
+  } catch (parseErr) {
+    console.error("[Caliber][bg][fetch][" + label + "] response parse error: " + resp.status);
+    throw new Error("API returned invalid response (status " + resp.status + ")");
+  }
+
   if (!resp.ok) {
-    // Translate session/pipeline errors into a clean user-facing message
-    // so raw internal strings like "SUBMIT_JOB_TEXT failed" never surface.
+    console.warn("[Caliber][bg][fetch][" + label + "] API error " + resp.status + ": " + (data.error || ""));
     if (resp.status === 401 || /session|pipeline|SUBMIT_JOB/i.test(data.error || "")) {
       throw new Error("No active calibration found. Complete your calibration on Caliber first.");
     }
     throw new Error(data.error || "API error " + resp.status);
   }
 
+  console.debug("[Caliber][bg][fetch][" + label + "] success (score=" + (data.score_0_to_10 || "?") + ")");
   if (data.calibrationId) {
     await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
   }
