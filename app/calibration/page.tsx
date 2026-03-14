@@ -239,6 +239,7 @@ function truncateToSentences(text: string, n: number): string {
 export default function CalibrationPage() {
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+    const [whyFitsOpen, setWhyFitsOpen] = useState(false);
     function handleCopyTitle(idx: number, title: string) {
       navigator.clipboard.writeText(title);
       setCopiedIndex(idx);
@@ -1053,6 +1054,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 .slice(0, 1);
 
               const heroTitle = titlesToRender[0] ?? null;
+              const heroBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3.filter((b: string) => b && b.trim()) : [];
+              const heroSummary: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
+              const heroHasWhyContent = heroBullets.length > 0 || heroSummary.length > 0;
 
               return (
               <div className="w-full max-w-3xl pb-8">
@@ -1105,6 +1109,41 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
                       >Search on LinkedIn</a>
                     </div>
+                  </div>
+                ) : null}
+
+                {/* Why this fits — slim dropdown */}
+                {heroTitle && heroHasWhyContent ? (
+                  <div
+                    className="mt-6 rounded-lg transition-colors duration-150"
+                    style={{
+                      backgroundColor: whyFitsOpen ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.02)",
+                      border: whyFitsOpen ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.05)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setWhyFitsOpen(!whyFitsOpen)}
+                      className="w-full flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+                      style={{ background: "none", border: "none" }}
+                    >
+                      <span className="text-[13px] font-medium" style={{ color: "#999" }}>Why this fits</span>
+                      <span className="text-xs" style={{ color: "#666" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
+                    </button>
+                    {whyFitsOpen ? (
+                      <div className="px-5 pb-4">
+                        <div className="border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                          {heroBullets.length > 0 ? (
+                            <ul className="text-sm leading-relaxed pl-4 space-y-0.5" style={{ color: "#A0A0A0", listStyleType: "disc", textAlign: "left" }}>
+                              {heroBullets.map((b: string, i: number) => <li key={i}>{b}</li>)}
+                            </ul>
+                          ) : null}
+                          {heroSummary ? (
+                            <p className={`text-[13px] leading-relaxed ${heroBullets.length > 0 ? "mt-2" : ""}`} style={{ color: "#888", textAlign: "left" }}>{heroSummary}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
