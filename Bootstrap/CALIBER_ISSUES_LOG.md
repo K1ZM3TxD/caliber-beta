@@ -26,11 +26,27 @@
   - Decision deferred until beta readiness threshold is reached (see `Bootstrap/milestones.md` for readiness criteria).
   - Not blocking current work — this is a future PM decision.
 
+62. BST doctrine update — zero-strong-match window rule — **SHIPPED** (2026-03-14, 7b20781)
+  - Old BST trigger (`strongCount < 5` / rolling window of 4) replaced with zero-strong-match window rule.
+  - New rule: fires when zero jobs in badge cache score >= 8.0, minimum window of 5 scored jobs.
+  - BST is re-evaluable per chunk — banner auto-hides if a strong match appears in a later batch.
+  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `PIPELINE_AUTO_SAVE_THRESHOLD = 8.5`.
+  - Banner copy updated to reflect new behavior.
+
+61. Badge discovery coverage fix — **SHIPPED** (2026-03-14, 5133cd7)
+  - Some visible cards missed scores until click triggered secondary population.
+  - Four root causes fixed: (1) scroll listener lost after surface change — re-attaches on surface switch, (2) early break after first matching selector group — all groups now scanned with Set dedup, (3) fixed initial delay replaced with retry-poll, (4) no viewport buffer — buffer added for off-screen cards about to scroll in.
+
+60. Badge placement normalization — **SHIPPED** (2026-03-14, 27932b1)
+  - Inline score badge moved from afterend of logo container to beforeend of content area (below title/company).
+  - Selector renamed: `CARD_LOGO_SELECTORS` → `CARD_CONTENT_SELECTORS` targeting `.artdeco-entity-lockup__content` with fallbacks.
+  - Badge styling: block display, 13px font, 800 weight, −0.03em tracking, no diamond icon, no background — matches sidecard typographic feel.
+
 56. Overlay job scoring instability risks — **MITIGATED** (2026-03-14)
   - Phase-2 overlay badges inject DOM elements into LinkedIn's job card listing, which LinkedIn can rerender at any time.
   - Three risk categories identified and mitigated:
     1. **DOM rerender duplication:** LinkedIn replaces card DOM nodes during virtual scroll. Mitigation: `MutationObserver` with debounce restores badges from cache; `badgeInjecting` flag prevents self-triggered mutations.
-    2. **Badge placement drift:** Logo containers can change selectors across LinkedIn A/B tests. Mitigation: 4 fallback selectors in `CARD_LOGO_SELECTORS`, with prepend-to-card fallback if none match.
+    2. **Badge placement drift:** Content containers can change selectors across LinkedIn A/B tests. Mitigation: multiple fallback selectors in `CARD_CONTENT_SELECTORS`, with prepend-to-card fallback if none match.
     3. **Progressive scoring race conditions:** Batch responses can arrive after surface change or deactivation. Mitigation: `badgeBatchGeneration` counter invalidates stale responses; `active` guard in `processBadgeQueue()` prevents zombie processing.
   - Additional mitigations: scroll listener stored handler ref for clean detach, surface key normalization to prevent false cache invalidation, same-surface URL change detection with badge restoration.
   - Status: all three risk categories mitigated with tested code. Ongoing monitoring needed as LinkedIn changes their DOM structure.
@@ -73,10 +89,11 @@
   - Bullet circles aligned with explicit top: 0 positioning.
   - Collapsed card height is now stable across all score states.
 
-44. Better Search Title trigger verification — **QUEUED** (2026-03-11, updated)
-  - Rolling window fix shipped in ec32fe6: minimum entries changed from 3 to 4, diagnostic logging added for empty calibration_title/nearby_roles.
-  - Needs real-flow verification: 4 low-scoring jobs in sequence should trigger the recovery banner.
-  - Soft-lock: blocked by #48 (sidecard sizing) validated complete.
+44. Better Search Title trigger — **UPDATED** (2026-03-14, doctrine changed)
+  - **Old rule (superseded):** Rolling window of last 4 scored jobs; 3/4 below 6.5 and none >= 7.5.
+  - **New rule (2026-03-14, 7b20781):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — banner auto-hides if a strong match appears in a later batch.
+  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`.
+  - Threshold separation: 8.0 = discovery strong-match (BST suppression), 8.5 = pipeline auto-save (`PIPELINE_AUTO_SAVE_THRESHOLD`). These must not be conflated.
 
 49. Auto-save strong-match jobs into pipeline — **QUEUED** (2026-03-11)
   - Jobs scoring >= 8.5 should be auto-saved into the pipeline with canonical URL dedupe.
@@ -169,11 +186,11 @@
   - A sister-profile run produced only one low-scoring title with no three options/dropdown.
   - Needs investigation to determine if title scoring bands are too restrictive for certain profile types.
 
-19. Extension Phase 2: listings-page overlay — **DEFERRED** (2026-03-08, product initiative)
-  - Target: render fit scores next to job posts on LinkedIn/Indeed listings pages.
-  - Explicitly blocked until scoring credibility is resolved and stable beta is intentionally frozen.
-  - Phase 2 direction clarified (2026-03-08): persistent results-list overlay, score badges on job cards, sidebar as decision console, clicked-job controls active sidebar details.
-  - Not current scope. See CALIBER_CONTEXT_SUMMARY.md Deferred / Later section.
+19. Extension Phase 2: listings-page overlay — **SHIPPED** (2026-03-14)
+  - Phase-2 overlay scoring shipped and stable. Extension operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on selected job.
+  - Badge placement: below title/company line in `.artdeco-entity-lockup__content` (normalized 27932b1). Block display, 13px/800 weight, no icon.
+  - Badge discovery: all selector groups scanned with Set dedup, scroll listener re-attached on surface change, retry-poll replaces fixed delay, viewport buffer added (5133cd7).
+  - Original deferral reason (scoring credibility) resolved — badge system is stable with cache, progressive scoring, and mutation observers.
 
 20. Title rows may render without expandable detail — **OPEN** (2026-03-06, regression risk)
   - Intended behavior: each recommended title row is expandable with a ~2-sentence summary and 3 explanatory bullet points (see `PROJECT_OVERVIEW.md`).

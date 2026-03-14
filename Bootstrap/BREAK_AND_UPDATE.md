@@ -79,6 +79,30 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-14 — Docs Truth Pass (Badge + BST + Overlay Alignment)
+
+**What changed:**
+- All Bootstrap docs aligned to shipped code truth: CALIBER_ACTIVE_STATE.md, CALIBER_CONTEXT_SUMMARY.md, CALIBER_ISSUES_LOG.md.
+- BST doctrine updated everywhere from old "3/4 below 6.5, none >= 7.5" to new "zero 8.0+ in window of 5" rule.
+- Badge placement description updated from "next to company logo" / `CARD_LOGO_SELECTORS` to "below title/company" / `CARD_CONTENT_SELECTORS`.
+- Discovery layer stability improvements documented (scroll listener lifecycle, selector scanning, retry-poll, viewport buffer).
+- Issue #19 (Phase-2 overlay) updated from DEFERRED to SHIPPED. New issues #60–62 added for badge placement, discovery fix, BST doctrine.
+- Task order updated: steps 1–2 marked DONE, step 3 (auto-save) is next queued.
+- Product Surface Priority corrected: sidecard is "primary decision surface" not "primary discovery surface."
+- Extension version references updated from v0.6.0 to v0.8.0.
+
+**Why it changed:**
+- Three implementation commits (27932b1, 5133cd7, 7b20781) shipped code changes that docs did not yet reflect. Stale docs create reload drift for PM sessions.
+
+**What is now expected:**
+- Bootstrap docs accurately describe the two-layer extension surface (discovery badges + decision sidecard), current BST trigger behavior, and current task sequencing.
+- PM sessions reloading from CALIBER_ACTIVE_STATE.md will see current state without needing to cross-reference code.
+
+**What is explicitly no longer expected:**
+- Old BST trigger rule (3/4 below 6.5, none >= 7.5) is superseded and should not be referenced.
+- `CARD_LOGO_SELECTORS` is no longer the badge placement selector — use `CARD_CONTENT_SELECTORS`.
+- Issue #19 is no longer DEFERRED — Phase-2 overlay is shipped.
+
 ### 2026-03-14 — Beta Readiness + Telemetry Instrumentation
 
 **What changed:**

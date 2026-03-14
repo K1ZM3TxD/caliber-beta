@@ -5,15 +5,15 @@
 ---
 
 ## Current Phase
-**Stabilization / debug-before-expansion phase.** Extension sidecard, calibration results copy, and Better Search Title trigger all received recent fixes that must be validated stable before new action-layer work begins. The project is in a validation-driven sequenced pipeline — each main step is soft-locked behind completion of the previous step. Small, narrow UI bug squashes may proceed at any time without breaking the sequence.
+**Overlay shipped + BST updated — approaching beta readiness.** Phase-2 overlay scoring is shipped and stable. Extension now operates as a two-layer surface: discovery badges on LinkedIn search result cards + decision sidecard on the selected job. BST doctrine updated to zero-strong-match window rule (2026-03-14). The project is in a validation-driven sequenced pipeline — each main step is soft-locked behind completion of the previous step. Small, narrow UI bug squashes may proceed at any time without breaking the sequence.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
 ## Active Current Fix
-**Extension sidecard collapsed height stability.** The sidecard currently changes height between scored jobs even when all collapsible sections are closed. Collapsed card height should remain fixed; the card should only expand when a collapsible section is opened. Different score states, label lengths, or optional rows (e.g., Stretch Factors absent) should not change the collapsed height. This is in flight — not yet complete.
+None currently in flight. Sidecard collapsed height (#48) resolved (2026-03-11). Badge placement normalized (27932b1). Badge discovery coverage fixed (5133cd7). BST trigger doctrine updated (7b20781).
 
 ## Top Blocker
-**Sidecard sizing instability blocks further action-layer work.** Until the collapsed sidecard height is locked, the extension UX feels unstable during job browsing. This must be resolved before auto-save, account prompt, or pipeline expansion work begins.
+**Action-layer completion.** Sidecard sizing is stable. Next queued step is auto-save strong-match jobs (score >= 8.5) into pipeline, followed by post-save confirmation and account prompt. These are soft-locked in order.
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
@@ -30,14 +30,14 @@
 - Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download, tightened spacing.
 - Pipeline board enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus.
-- Extension ZIP v0.6.0 rebuilt with latest source (packaging refresh — label fix, BST thresholds, LinkedIn updates).
+- Extension ZIP v0.8.0 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, and BST doctrine update.
 - Extension sidecard is compact, decision-first layout with:
   - Two-column header: company + job title (left), fit score + decision badge (right)
   - Hiring Reality Check (collapsible, with band badge)
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.6.0 built, zipped, and deployed.
+- Extension v0.8.0 built, zipped, and deployed.
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
 - Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
@@ -79,19 +79,15 @@ calibration → results page → /extension → download ZIP → install in Chro
 ```
 `/extension` must always serve the current extension build — it is the user-facing install path.
 
-## Locked Task Order (Stabilization Phase — 2026-03-11)
+## Locked Task Order (Stabilization Phase — updated 2026-03-14)
 
 These steps are soft-locked in order. Each main step is treated as blocked by the previous main step until that previous step is validated complete.
 
 **Exception:** Small UI bug squashes may be handled at any time if they are narrow, local, and do not break sequencing.
 
-1. **Fix extension scorecard collapsed sizing stability** — ACTIVE (in flight)
-   - Collapsed sidecard height must remain fixed across all score states
-   - Card should only expand when a collapsible section is opened
-2. **Restore / verify Better Search Title trigger behavior** — QUEUED
-   - Rolling window fix shipped (ec32fe6); needs real-flow verification
-   - Blocked by: step 1 validated complete
-3. **Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe** — QUEUED
+1. ~~**Fix extension scorecard collapsed sizing stability**~~ — **DONE** (2026-03-11, #48 resolved)
+2. ~~**Restore / verify Better Search Title trigger behavior**~~ — **DONE** (2026-03-14, doctrine updated to zero-strong-match window rule, 7b20781)
+3. **Auto-save strong-match jobs (score >= 8.5) into pipeline with canonical URL dedupe** — QUEUED (next up)
    - Blocked by: step 2 validated complete
 4. **Add post-save confirmation / action state in sidecard** — QUEUED
    - Blocked by: step 3 validated complete
@@ -123,7 +119,8 @@ It answers: "What title should I search to find better-fit jobs?"
 
 Behavior:
 - Renders as a recovery banner **above** the sidecard (not inside it)
-- Appears only when weak-fit trigger fires (3/4 recent scores < 6.5, none >= 7.5)
+- **Trigger (updated 2026-03-14):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch.
+- Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`
 - Suggested title is the clickable control — links directly to LinkedIn search
 - Suggests calibration primary title first, then adjacent search-surface titles
 - Never suggests exact listing titles or employer-specific phrasing
@@ -132,15 +129,18 @@ Behavior:
 Do not re-sequence without new blocking evidence.
 
 ## Product Surface Priority
-1. **Extension sidecard** — primary discovery surface; strong matches (8.0+) trigger action workflow
+1. **Extension sidecard** — primary decision surface; strong matches (8.0+) trigger action workflow
 2. **Tailor + Pipeline (web app)** — strong-match action layer: resume tailoring and pipeline board
 3. **Extension reliability** — handshake, session discovery (known friction, not blocking)
 4. **Calibration page** — stable launchpad, no further expansion planned
 
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
-- #48 Extension sidecard collapsed height instability — **ACTIVE** (in flight; current fix target)
-- #44 Better Search Title trigger verification needed — **QUEUED** (rolling window fix shipped ec32fe6; needs real-flow verification; blocked by #48)
-- #49 Auto-save strong-match jobs into pipeline — **QUEUED** (blocked by #44)
+- #48 Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
+- #44 Better Search Title trigger — **UPDATED** (doctrine changed to zero-strong-match window, 2026-03-14)
+- #60 Badge placement normalization — **SHIPPED** (27932b1)
+- #61 Badge discovery coverage fix — **SHIPPED** (5133cd7)
+- #62 BST doctrine update (zero-strong-match window) — **SHIPPED** (7b20781)
+- #49 Auto-save strong-match jobs into pipeline — **QUEUED** (next up)
 - #50 Post-save confirmation / action state in sidecard — **QUEUED** (blocked by #49)
 - #51 Account prompt for durable pipeline saving — **QUEUED** (blocked by #50)
 - #41 Visual shell drift / inconsistent composition — **REOPENED** (deferred to step 6)
@@ -184,4 +184,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-11 (stabilization phase — debug/polish before action-layer expansion, soft-locked task sequencing)_
+_Last updated: 2026-03-14 (overlay shipped, BST doctrine updated, badge placement normalized, discovery coverage fixed — approaching beta readiness)_

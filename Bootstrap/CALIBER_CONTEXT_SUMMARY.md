@@ -42,7 +42,7 @@
 - Extension v0.8.0 deployed (ZIP rebuilt with overlay badge system).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: validate sidecard collapsed sizing → verify BST trigger → auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
+- Next priorities: auto-save strong-match jobs → post-save confirmation → account prompt → pipeline/action-layer refinement. Soft-locked in order; small UI bug squashes allowed at any time.
 
 **Real User Flow:**
 ```
@@ -105,15 +105,15 @@ Job-fit evaluation lives exclusively in the browser extension sidecard.
 ## Current Extension Sidecard (2026-03-14, canonical)
 
 The extension operates as a two-layer evaluation surface:
-- **Discovery layer (listings):** Score badges injected directly into LinkedIn search result cards. Each card shows a color-coded fit score (Green 8.0+ / Yellow 6.5–7.9 / Gray 0–6.4) next to the company logo. Progressive scoring via chunked API batches. Scroll and MutationObserver detect new/rerendered cards. Cache restores badges instantly on return navigation.
+- **Discovery layer (listings):** Score badges injected below the title/company line in LinkedIn search result cards. Each card shows a color-coded fit score (Green 8.0+ / Yellow 6.5–7.9 / Gray 0–6.4). Progressive scoring via chunked API batches. Scroll, MutationObserver, and viewport buffering detect new/rerendered cards. Badge target uses `CARD_CONTENT_SELECTORS` with multiple fallbacks. Cache restores badges instantly on return navigation.
 - **Decision layer (sidecard):** Full evaluation panel for the selected job. Fit score, Hiring Reality Check, supports/stretch/bottom line, nearby roles, feedback controls.
 
-The sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content.
+The sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content. (**Note:** #48 resolved 2026-03-11; ongoing validation confirms stability.)
 
 **Structure (top to bottom):**
 
 *Above the sidecard (conditional):*
-0. **Better Search Title recovery banner** — appears only when weak-fit trigger fires. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
+0. **Better Search Title recovery banner** — appears when zero jobs in the badge cache score >= 8.0 (minimum 5 scored). Re-evaluable per chunk. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
 
 *Inside the sidecard:*
 1. **Header bar** — Caliber logo + refresh + close button
@@ -133,7 +133,7 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 
 Better Search Title is a **Search Surface Recovery Mechanism**. It answers the user question: "What title should I search to find better-fit jobs?"
 
-**Trigger:** Rolling window of the last 4 scored jobs. If 3/4 score below 6.5 and none score at or above 7.5, the feature activates.
+**Trigger (updated 2026-03-14):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`.
 
 **UX:**
 - Recovery banner renders **above** the sidecard, not inside it.
