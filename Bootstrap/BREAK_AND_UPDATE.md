@@ -79,6 +79,38 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-14 — Beta Readiness + Telemetry Instrumentation
+
+**What changed:**
+- PM established telemetry instrumentation as a prerequisite for beta launch (new enforcement invariant added to kernel.md).
+- Beta readiness definition formalized with four concrete threshold questions that must all be answered YES before declaring beta.
+- Telemetry event capture implemented: 6 events across extension and web app, append-only JSONL storage, non-blocking.
+
+**Why it changed:**
+- Outside-user beta testing without product data is anecdotal-only feedback. Telemetry ensures TTSM and conversion metrics are capturable from day one.
+- Beta readiness was previously undefined — formalizing threshold questions prevents premature launch.
+
+**What is now expected:**
+- Telemetry is active and capturing events before any outside user receives beta access.
+- PM answers all four beta readiness questions affirmatively before declaring beta.
+- Event data accumulates at `data/telemetry_events.jsonl` for future dashboard/analysis work.
+
+**What is explicitly no longer expected:**
+- Launching beta without telemetry instrumentation active.
+- Relying purely on qualitative/anecdotal feedback for beta testing.
+- Building a metrics dashboard before beta is stable (dashboard is explicitly post-beta).
+
+**Risk / fallout:**
+- Low — telemetry is fire-and-forget with swallowed errors. No user-facing flow depends on it.
+- JSONL file growth needs monitoring over time (no rotation/archival yet).
+
+**Proof target:**
+- POST /api/events returns 200 for valid events with correct CORS headers.
+- Extension emits search_surface_opened on activation; job_score_rendered on badge apply; job_opened, strong_match_viewed, pipeline_save during sidecard flow.
+- Web app emits tailor_used after successful resume generation.
+
+**Files touched:** lib/telemetry_store.ts, app/api/events/route.ts, extension/content_linkedin.js, extension/background.js, app/tailor/page.tsx, Bootstrap/milestones.md, Bootstrap/kernel.md, Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/CALIBER_ACTIVE_STATE.md, Bootstrap/CALIBER_ISSUES_LOG.md, Bootstrap/CALIBER_CONTEXT_SUMMARY.md
+
 ### 2026-03-13 — Defer Alternate Career-Signal Uploads Until Post-Beta
 
 **What changed:**

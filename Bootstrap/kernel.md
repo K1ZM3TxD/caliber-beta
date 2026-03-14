@@ -57,6 +57,14 @@ Older calibration-core steps (anchors, overlap/gap, mechanical title producer) a
 
 Narrative synthesis and dialogue mode will be enabled after score+summary.
 
+## Beta Telemetry Invariant
+
+- Telemetry event capture must be active before beta launches to outside users.
+- Beta testing without instrumentation is not permitted — outside-user sessions must generate usable product data from day one.
+- Telemetry is non-blocking: event capture failures must never break user-facing flows.
+- Initial event set: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
+- New events may be added; existing events must not be removed without PM approval.
+
 ## Scoring Context Invariant
 
 Caliber uses two scoring contexts:

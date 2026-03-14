@@ -55,6 +55,26 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 
 ---
 
+BREAK + UPDATE — 2026-03-14 (Beta Readiness + Telemetry Instrumentation)
+---
+DONE:
+- Beta readiness definition formalized: four threshold questions PM must answer YES to before declaring beta (see milestone block above)
+- PM decision: telemetry event capture is a prerequisite for beta launch — outside-user testing must start with usable product data
+- Telemetry instrumentation implemented (commit e835fcb): POST /api/events endpoint, lib/telemetry_store.ts, append-only JSONL at data/telemetry_events.jsonl
+- Six events wired: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used
+- Extension emits 5 events (content_linkedin.js → background.js relay); web app emits tailor_used (app/tailor/page.tsx)
+- All telemetry is non-blocking / fire-and-forget — failures never break user-facing flows
+
+BLOCKED:
+- None
+
+NEXT:
+- Begin beta stability testing with telemetry instrumentation active
+- Monitor telemetry_events.jsonl for event flow validation during real usage
+- Resume action-layer pipeline: auto-save strong matches → post-save confirmation → account prompt
+
+---
+
 BREAK + UPDATE — 2026-03-14 (Phase-2 Overlay Scoring — LinkedIn Job Card Badges)
 ---
 DONE:
