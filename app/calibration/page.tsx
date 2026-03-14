@@ -685,7 +685,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className={`fixed inset-0 flex justify-center ${(step === "LANDING" || step === "RESUME") ? "items-center" : "items-start"} overflow-y-auto`} style={{ background: '#050505' }}>
+    <div className={`fixed inset-0 flex justify-center ${(step === "LANDING" || step === "RESUME") ? "items-center" : "items-start"} overflow-y-auto`} style={{ background: '#050505', scrollbarGutter: 'stable' }}>
       {/* Subtle ambient glow */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
