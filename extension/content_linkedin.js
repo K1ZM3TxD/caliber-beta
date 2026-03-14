@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.1";
+  const PANEL_VERSION = "0.8.2";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -552,8 +552,11 @@
   var badgeBatchQueue = [];              // pending cards waiting to be scored
   var badgeBatchRunning = false;         // is a batch currently in-flight?
   var badgeBatchGeneration = 0;          // incremented on clear; stale responses discarded
+  var badgeBatchTimeout = null;          // safety timeout to reset badgeBatchRunning
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
+  var badgeScanInterval = null;          // periodic fallback scan interval
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
+  var BADGE_BATCH_TIMEOUT_MS = 45000;   // max time to wait for a batch response
 
   // LinkedIn card logo/image-area selectors (badge renders below company icon)
   var CARD_LOGO_SELECTORS = [
@@ -659,11 +662,29 @@
 
   /**
    * Stamp a card element with its stable job identity.
-   * Returns the job ID string. If already stamped, returns existing ID.
+   * Returns the job ID string. If already stamped AND the identity still matches
+   * the DOM content, returns existing ID. Otherwise re-stamps (handles LinkedIn
+   * DOM recycling where the same <li> gets new job content).
    */
   function stampCard(cardEl) {
     var existing = cardEl.getAttribute(JOB_ID_ATTR);
-    if (existing) return existing;
+    if (existing) {
+      // Validate: does the stamped ID still match the current card content?
+      var currentId = cardJobId(cardEl);
+      if (currentId === existing) return existing;
+      // Stale stamp — LinkedIn recycled this DOM node with new job content
+      console.debug("[Caliber][badges] recycled card detected: " + existing + " → " + currentId);
+      // Remove stale badge before re-stamping
+      badgeInjecting = true;
+      try {
+        var staleBadge = cardEl.querySelector("[" + BADGE_ATTR + "]");
+        if (staleBadge) staleBadge.remove();
+      } finally {
+        badgeInjecting = false;
+      }
+      cardEl.setAttribute(JOB_ID_ATTR, currentId);
+      return currentId;
+    }
     var id = cardJobId(cardEl);
     cardEl.setAttribute(JOB_ID_ATTR, id);
     return id;
@@ -740,8 +761,31 @@
     if (!active || badgeBatchRunning || badgeBatchQueue.length === 0) return;
 
     var chunk = badgeBatchQueue.splice(0, BADGE_CHUNK_SIZE);
-    var batchId = ++badgeBatchGeneration;
+    var batchGen = badgeBatchGeneration;  // capture current generation (don't increment)
     badgeBatchRunning = true;
+
+    // Safety timeout: if background doesn't respond (service worker unloaded),
+    // reset badgeBatchRunning so the queue isn't permanently blocked.
+    clearTimeout(badgeBatchTimeout);
+    badgeBatchTimeout = setTimeout(function () {
+      if (badgeBatchRunning) {
+        console.debug("[Caliber][badges] batch timeout — resetting badgeBatchRunning");
+        badgeBatchRunning = false;
+        // Remove loading badges for timed-out cards
+        for (var t = 0; t < chunk.length; t++) {
+          if (chunk[t].id && !badgeScoreCache[chunk[t].id]) {
+            badgeScoredIds.delete(chunk[t].id);  // allow retry
+            var card = findCardById(chunk[t].id);
+            if (card) {
+              badgeInjecting = true;
+              try { var b = card.querySelector("[" + BADGE_ATTR + "]"); if (b) b.remove(); }
+              finally { badgeInjecting = false; }
+            }
+          }
+        }
+        if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 500);
+      }
+    }, BADGE_BATCH_TIMEOUT_MS);
 
     console.debug("[Caliber][badges] scoring chunk of " + chunk.length +
       " (remaining in queue: " + badgeBatchQueue.length + ")");
@@ -751,9 +795,10 @@
       jobs: chunk.map(function (c) { return { jobText: c.jobText, title: c.title }; }),
     }, function (resp) {
       badgeBatchRunning = false;
+      clearTimeout(badgeBatchTimeout);
 
       // Discard stale response if badges were cleared while in-flight
-      if (batchId !== badgeBatchGeneration) {
+      if (batchGen !== badgeBatchGeneration) {
         console.debug("[Caliber][badges] discarding stale batch response (generation mismatch)");
         return;
       }
@@ -1013,7 +1058,7 @@
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
-      if (el && el.scrollHeight > el.clientHeight) return el;
+      if (el) return el;  // attach even if not yet scrollable — it will become scrollable
     }
     return null;
   }
@@ -1028,7 +1073,7 @@
       clearTimeout(badgeScrollTimer);
       badgeScrollTimer = setTimeout(function () {
         scanAndBadgeVisibleCards();
-      }, 400);
+      }, 350);
     };
     // Listen on window (catches some scroll configurations)
     window.addEventListener("scroll", badgeScrollHandler, { passive: true });
@@ -1038,8 +1083,20 @@
       badgeInnerScrollEl.addEventListener("scroll", badgeScrollHandler, { passive: true });
       console.debug("[Caliber][badges] scroll listener attached (window + inner container)");
     } else {
-      console.debug("[Caliber][badges] scroll listener attached (window only)");
+      console.debug("[Caliber][badges] scroll listener attached (window only, will retry inner)");
+      // Retry finding inner container after LinkedIn finishes rendering
+      setTimeout(function () {
+        if (!badgeInnerScrollEl && badgeScrollAttached && badgeScrollHandler) {
+          badgeInnerScrollEl = findLinkedInScrollContainer();
+          if (badgeInnerScrollEl) {
+            badgeInnerScrollEl.addEventListener("scroll", badgeScrollHandler, { passive: true });
+            console.debug("[Caliber][badges] inner scroll container found on retry");
+          }
+        }
+      }, 4000);
     }
+    // Start periodic fallback scan (catches any cards missed by scroll/observer)
+    startBadgeScanInterval();
   }
 
   /** Detach the scroll listener and reset its flag. */
@@ -1053,7 +1110,27 @@
       badgeScrollHandler = null;
     }
     clearTimeout(badgeScrollTimer);
+    clearTimeout(badgeBatchTimeout);
     badgeScrollAttached = false;
+    stopBadgeScanInterval();
+  }
+
+  /** Start periodic scan interval (safety net for scroll/observer gaps). */
+  function startBadgeScanInterval() {
+    if (badgeScanInterval) return;
+    badgeScanInterval = setInterval(function () {
+      if (!active || !isSearchResultsPage()) return;
+      scanAndBadgeVisibleCards();
+    }, 5000);  // every 5s, scan for new/recycled cards
+    console.debug("[Caliber][badges] periodic scan interval started (5s)");
+  }
+
+  /** Stop periodic scan interval. */
+  function stopBadgeScanInterval() {
+    if (badgeScanInterval) {
+      clearInterval(badgeScanInterval);
+      badgeScanInterval = null;
+    }
   }
 
   /** Attach a MutationObserver on the results list to restore badges after rerenders. */
@@ -1076,7 +1153,7 @@
         restoreBadgesFromCache();
         // Also pick up any brand-new cards that appeared
         scanAndBadgeVisibleCards();
-      }, 500);
+      }, 300);
     });
     badgeListObserver.observe(listEl, { childList: true, subtree: true });
     console.debug("[Caliber][badges] list MutationObserver attached");
@@ -1685,6 +1762,33 @@
         recentScores = resp.history;
       }
     });
+
+    // Backfill inline badge from sidecard score.
+    // When a user clicks a job and the sidecard scores it, update the badge
+    // cache and inject/update the badge on the corresponding list card.
+    (function backfillBadgeFromSidecard() {
+      if (!isSearchResultsPage()) return;
+      // Extract job ID from current URL
+      var urlMatch = location.href.match(/\/jobs\/view\/(\d+)/);
+      var sidecardJobId = urlMatch ? "job-" + urlMatch[1] : null;
+      if (!sidecardJobId) return;
+      // Update badge cache
+      badgeScoreCache[sidecardJobId] = {
+        score: score,
+        calibrationTitle: data.calibration_title || "",
+        nearbyRoles: data.nearby_roles || [],
+      };
+      // Find the card in the list and inject/update badge
+      var cardEl = findCardById(sidecardJobId);
+      if (cardEl) {
+        ensureBadgeStyles();
+        setBadgeOnCard(cardEl, "scored", score);
+      }
+      // Also mark as scored so it's not re-queued
+      badgeScoredIds.add(sidecardJobId);
+      // Re-evaluate BST with the new score
+      evaluateBSTFromBadgeCache();
+    })();
 
     // Telemetry: strong_match_viewed (score >= 8.0)
     if (score >= 8.0) {
