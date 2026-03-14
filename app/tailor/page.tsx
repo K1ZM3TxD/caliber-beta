@@ -76,6 +76,20 @@ function TailorInner() {
       if (!data.ok) throw new Error(data.error || "Generation failed");
       setTailoredText(data.tailoredText);
       setStatus("done");
+      // Telemetry: tailor_used (fire-and-forget)
+      fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "tailor_used",
+          source: "web",
+          sessionId: prep.sessionId,
+          jobTitle: prep.jobTitle,
+          company: prep.company,
+          jobUrl: prep.jobUrl,
+          score: prep.score,
+        }),
+      }).catch(() => {});
     } catch (err: unknown) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Generation failed");

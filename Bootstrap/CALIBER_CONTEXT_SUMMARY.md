@@ -15,8 +15,9 @@
 **Future (after beta stabilization):**
 - Beta readiness definition established — see `Bootstrap/milestones.md` for threshold criteria and readiness questions.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0.
+- **Telemetry instrumentation is shipped (2026-03-14).** Lightweight event capture via `POST /api/events` and `data/telemetry_events.jsonl`. Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Non-blocking, fire-and-forget. This is the prerequisite layer for TTSM and all future product metrics.
 - Release/testing workflow must evolve beyond a single main build before outside-user testing begins. Options (preview deploys, separate extension builds, feature flags) deferred until beta threshold is reached.
-- No metrics instrumentation or dashboard work before beta is stable.
+- Dashboard and cohort analysis remain future work.
 
 **Recent completed fixes (this session):**
 - Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)
@@ -179,6 +180,14 @@ Structured feedback collection active across extension and web app.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 - Phase 2 overlay flow: navigate LinkedIn search results → score badges appear on visible cards → scroll triggers progressive scoring → BST evaluates from accumulated badge cache.
+
+## Session Decisions (2026-03-14, Lightweight Product Telemetry)
+
+- **Telemetry instrumentation shipped before beta.** PM decision: event capture must be live before outside-user testing starts so beta generates usable product data from day one.
+- **Six events instrumented:** search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Events fire from extension (via background.js relay) and web app (direct fetch).
+- **TTSM is the primary metric this supports.** Time-to-Strong-Match = time from search_surface_opened to first strong_match_viewed (score >= 8.0) on the same surface.
+- **Non-blocking by design.** All telemetry calls are fire-and-forget with swallowed errors. No user-facing flow depends on telemetry success.
+- **No dashboard yet.** Event capture only. Analysis, aggregation, and visualization are future work.
 
 ## Session Decisions (2026-03-14, Beta Definition + Post-Beta Metrics Roadmap)
 

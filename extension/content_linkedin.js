@@ -352,6 +352,24 @@
     lastFeedbackData = null;
   }
 
+  /**
+   * Emit a telemetry event via background.js → POST /api/events.
+   * Fire-and-forget: never blocks, swallows all errors.
+   */
+  function emitTelemetry(event, fields) {
+    try {
+      var payload = { event: event, source: "extension" };
+      if (fields) {
+        for (var k in fields) {
+          if (Object.prototype.hasOwnProperty.call(fields, k)) payload[k] = fields[k];
+        }
+      }
+      chrome.runtime.sendMessage({ type: "CALIBER_TELEMETRY", payload: payload }, function () {
+        if (chrome.runtime.lastError) { /* swallow */ }
+      });
+    } catch (e) { /* swallow */ }
+  }
+
   function getSearchKeywords() {
     try { return new URL(location.href).searchParams.get("keywords") || ""; }
     catch (e) { return ""; }
@@ -739,6 +757,13 @@
           }
           console.debug("[Caliber][badges] scored: " + entry.title + " → " + result.score +
             (entry.id ? " (" + entry.id + ")" : ""));
+          // Telemetry: badge score rendered on card
+          emitTelemetry("job_score_rendered", {
+            surfaceKey: getSearchSurfaceKey(),
+            jobId: entry.id || null,
+            jobTitle: entry.title || null,
+            score: result.score,
+          });
         } else {
           // Remove loading badge on error
           var errCard = entry.id ? findCardById(entry.id) : null;
@@ -1567,6 +1592,17 @@
       }
     });
 
+    // Telemetry: strong_match_viewed (score >= 8.0)
+    if (score >= 8.0) {
+      emitTelemetry("strong_match_viewed", {
+        surfaceKey: getSearchSurfaceKey(),
+        jobTitle: lastJobMeta.title || null,
+        company: lastJobMeta.company || null,
+        jobUrl: location.href,
+        score: score,
+      });
+    }
+
     // Behavioral signal tracking
     sessionSignals.jobs_viewed++;
     if (score < 6) sessionSignals.scores_below_6++;
@@ -1588,6 +1624,14 @@
         function (resp) {
           if (resp && resp.ok) {
             console.debug("[Caliber] auto-saved strong match to pipeline (score=" + score + ")");
+            // Telemetry: pipeline_save from auto-save
+            emitTelemetry("pipeline_save", {
+              surfaceKey: getSearchSurfaceKey(),
+              jobTitle: lastJobMeta.title || null,
+              company: lastJobMeta.company || null,
+              jobUrl: location.href,
+              score: score,
+            });
           } else {
             console.debug("[Caliber] auto-save skipped or failed:", resp && resp.error);
           }
@@ -1681,6 +1725,13 @@
 
       // Capture job metadata from the page for the card header
       lastJobMeta = extractJobMeta();
+      // Telemetry: job opened for scoring
+      emitTelemetry("job_opened", {
+        surfaceKey: getSearchSurfaceKey(),
+        jobTitle: lastJobMeta.title || null,
+        company: lastJobMeta.company || null,
+        jobUrl: location.href,
+      });
 
       const text = await waitForJobDescription(8000);
       if (!text || text.length < MIN_SCORE_CHARS) {
@@ -1751,6 +1802,8 @@
           chrome.runtime.sendMessage({ type: "CALIBER_SCORE_HISTORY_CLEAR" });
           // Clear stale badges from previous surface
           clearAllBadges();
+          // Telemetry: new search surface
+          emitTelemetry("search_surface_opened", { surfaceKey: currentKey });
           console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history + badges");
           // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
@@ -1828,6 +1881,10 @@
     var text = extractJobText();
     if (text && text.length >= MIN_SCORE_CHARS) {
       scoreCurrentJob(true);
+    }
+    // Emit search_surface_opened on activation if on a search page
+    if (isSearchResultsPage()) {
+      emitTelemetry("search_surface_opened", { surfaceKey: getSearchSurfaceKey() });
     }
     // Trigger pre-scan of visible job cards on search results pages
     // Badge scoring handles both badges AND BST prescan evaluation

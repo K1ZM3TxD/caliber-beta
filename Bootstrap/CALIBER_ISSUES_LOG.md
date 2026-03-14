@@ -3,12 +3,20 @@
 
 ## Current Open Issues
 
+59. Product telemetry event instrumentation — **SHIPPED** (2026-03-14)
+  - Lightweight event capture implemented before beta release so outside-user testing generates usable product data from day one.
+  - POST /api/events endpoint accepts events from extension and web app. Storage: append-only JSONL at `data/telemetry_events.jsonl`.
+  - Six events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
+  - Non-blocking: all telemetry is fire-and-forget with swallowed errors. No user-facing flow depends on telemetry.
+  - Primary metric supported: Time-to-Strong-Match (TTSM).
+  - Dashboard / analysis layer remains future work. This issue covers event capture only.
+
 58. Product metrics / analytics dashboard not yet implemented — **PLANNED / POST-BETA** (2026-03-14)
-  - No product instrumentation or metrics collection exists in the current build.
+  - Telemetry event capture layer is now shipped (#59). No dashboard or analysis UI exists yet.
   - First key product metric: **Time-to-Strong-Match (TTSM)** — elapsed time from opening a job search surface to first viewed job with score >= 8.0.
   - Supporting metrics planned: Strong Match Rate, Pipeline Save Rate, Tailor Usage Rate, Calibration Completion Rate.
   - This work is explicitly scheduled for after beta is stable and outside-user testing has started.
-  - No implementation during current stabilization/action-layer phase.
+  - Prerequisite (event capture) is complete. Dashboard implementation is the remaining work.
 
 57. Beta release model / external testing workflow not yet defined — **PLANNED** (2026-03-14)
   - Current risk: only one main build is pushed directly to the production domain (caliber-app.com). Every push to main is immediately live.

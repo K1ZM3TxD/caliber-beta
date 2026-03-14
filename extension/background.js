@@ -107,6 +107,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "CALIBER_TELEMETRY") {
+    // Fire-and-forget: never block caller, swallow all errors
+    fetch(API_BASE + "/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg.payload),
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+    // Respond immediately — don't wait for network
+    sendResponse({ ok: true });
+    return false;
+  }
   if (msg.type === "CALIBER_SESSION_DISCOVER") {
     discoverSession()
       .then((info) => sendResponse({ ok: true, ...info }))

@@ -43,6 +43,16 @@ POST-BETA METRICS DASHBOARD:
 - Implementation approach: instrumentation layer added to existing API endpoints and extension events. No separate analytics service until volume justifies it.
 - Dashboard is a web app page (likely /metrics or /admin/metrics), not a third-party tool.
 
+TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
+- PM decision: telemetry event capture implemented before beta release so outside-user testing starts with usable product data.
+- Lightweight append-only JSONL event log at `data/telemetry_events.jsonl`.
+- POST /api/events endpoint accepts events from both extension and web app.
+- Initial event set: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
+- Each event includes: timestamp, sessionId, surfaceKey, job identity fields, score, source (extension/web).
+- Telemetry is non-blocking: failures never break user-facing flows.
+- This event layer is the prerequisite for all future metrics/dashboard work.
+- Dashboard and cohort analysis remain future work — not included in this implementation.
+
 ---
 
 BREAK + UPDATE — 2026-03-14 (Phase-2 Overlay Scoring — LinkedIn Job Card Badges)

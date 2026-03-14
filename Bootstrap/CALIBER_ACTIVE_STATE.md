@@ -177,9 +177,10 @@ Do not re-sequence without new blocking evidence.
 - Decision deferred until beta readiness threshold is reached.
 
 **Post-beta product metrics (2026-03-14):**
-- Product instrumentation and metrics dashboard planned for after beta is stable.
-- Primary metric: Time-to-Strong-Match (TTSM) — time from search surface open to first job scored >= 8.0.
-- No instrumentation work before beta stabilizes.
+- Telemetry event instrumentation shipped (2026-03-14). Lightweight append-only JSONL capture via `POST /api/events`.
+- Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
+- Primary future metric supported: Time-to-Strong-Match (TTSM) — time from search surface open to first job scored >= 8.0.
+- Dashboard and cohort analysis remain future work — event capture only for now.
 
 ---
 
