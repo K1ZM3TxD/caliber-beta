@@ -366,12 +366,27 @@
     catch (e) { return ""; }
   }
 
-  // ─── Pre-scan State ───────────────────────────────────────
+  // ─── Pre-scan State (durable via chrome.storage.local) ────
 
   let prescanDone = false;       // has prescan completed for current search query?
   let prescanRunning = false;    // is prescan currently in progress?
   let prescanSearchQuery = "";   // query for which prescan was last completed
   let prescanBSTActive = false;  // is a prescan-triggered BST banner currently showing?
+  let prescanStoredTitle = null;  // suggested title from durable state (for banner restore)
+
+  // Load persisted prescan state on script init
+  chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_GET" }, function (resp) {
+    if (resp && resp.ok && resp.state && resp.state.done) {
+      var currentQuery = getSearchKeywords().trim().toLowerCase();
+      if (resp.state.query === currentQuery) {
+        prescanDone = true;
+        prescanSearchQuery = getSearchKeywords();
+        prescanBSTActive = resp.state.suggestionShown || false;
+        prescanStoredTitle = resp.state.suggestedTitle || null;
+        console.debug("[Caliber][prescan] restored durable state for query: " + currentQuery);
+      }
+    }
+  });
 
   // ─── Pre-scan: Job Card Detection ─────────────────────────
 
@@ -466,6 +481,10 @@
       return;
     }
     if (prescanDone && prescanSearchQuery === currentQuery) {
+      // Restore banner from durable state if suggestion was shown previously
+      if (prescanStoredTitle && !prescanBSTActive) {
+        showPrescanBSTBanner(prescanStoredTitle);
+      }
       console.debug("[Caliber][prescan] already completed for query: " + currentQuery);
       return;
     }
@@ -478,6 +497,7 @@
     prescanDone = false;
     prescanSearchQuery = currentQuery;
     prescanBSTActive = false;
+    prescanStoredTitle = null;
 
     // Hide any previous prescan banner
     if (shadow) {
@@ -564,17 +584,33 @@
         console.debug("[Caliber][prescan] weak fits (< 7.0): " + weakCount + " of " + scoredCount + " scored");
 
         // Evaluate trigger: 5 or more weak fits
+        var suggestedTitle = null;
+        var suggestionShown = false;
         if (weakCount >= 5) {
           console.debug("[Caliber][prescan] TRIGGER FIRED — " + weakCount + " weak fits in " + scoredCount + " scored jobs");
-          var suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
+          suggestedTitle = determinePrescanSuggestion(bestCalibrationTitle, bestNearbyRoles, currentQuery);
           if (suggestedTitle) {
             showPrescanBSTBanner(suggestedTitle);
+            suggestionShown = true;
+            prescanStoredTitle = suggestedTitle;
           } else {
             console.debug("[Caliber][prescan] trigger fired but all suggestions match current query — suppressed");
           }
         } else {
           console.debug("[Caliber][prescan] trigger NOT fired — " + weakCount + " weak fits (need 5+) in " + scoredCount + " scored jobs");
         }
+
+        // Persist prescan result to durable storage
+        chrome.runtime.sendMessage({
+          type: "CALIBER_PRESCAN_STATE_SAVE",
+          query: currentQuery,
+          weakCount: weakCount,
+          scoredCount: scoredCount,
+          suggestedTitle: suggestedTitle,
+          suggestionShown: suggestionShown,
+        }, function () {
+          console.debug("[Caliber][prescan] state persisted for query: " + currentQuery);
+        });
       });
     }, 2500); // Wait 2.5s for LinkedIn cards to finish rendering
   }
@@ -622,10 +658,15 @@
     prescanRunning = false;
     prescanSearchQuery = "";
     prescanBSTActive = false;
+    prescanStoredTitle = null;
     if (shadow) {
       var banner = shadow.getElementById("cb-recovery-banner");
       if (banner) banner.style.display = "none";
     }
+    // Clear durable state so new search gets a fresh scan
+    chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_CLEAR" }, function () {
+      console.debug("[Caliber][prescan] durable state cleared");
+    });
   }
 
   // ─── Panel Creation ───────────────────────────────────────
@@ -1155,7 +1196,7 @@
       company: lastJobMeta.company || null,
       jobTitle: lastJobMeta.title || null,
       hrcBand: hrcBand,
-      suggestedTitle: suggestedTitle || null,
+      suggestedTitle: data.calibration_title || null,
     };
 
     // Reset feedback UI for new result (unless already given in this session)

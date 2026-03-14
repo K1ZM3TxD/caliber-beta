@@ -221,6 +221,43 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "CALIBER_PRESCAN_STATE_SAVE") {
+    (async () => {
+      try {
+        const key = String(msg.query || "").trim().toLowerCase();
+        const entry = {
+          query: key,
+          done: true,
+          weakCount: Number(msg.weakCount) || 0,
+          scoredCount: Number(msg.scoredCount) || 0,
+          suggestedTitle: msg.suggestedTitle || null,
+          suggestionShown: !!msg.suggestionShown,
+          ts: Date.now(),
+        };
+        await chrome.storage.local.set({ caliberPrescanState: entry });
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+  if (msg.type === "CALIBER_PRESCAN_STATE_GET") {
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberPrescanState"]);
+        sendResponse({ ok: true, state: store.caliberPrescanState || null });
+      } catch (err) {
+        sendResponse({ ok: false, state: null });
+      }
+    })();
+    return true;
+  }
+  if (msg.type === "CALIBER_PRESCAN_STATE_CLEAR") {
+    chrome.storage.local.remove("caliberPrescanState");
+    sendResponse({ ok: true });
+    return false;
+  }
   if (msg.type === "CALIBER_OPEN_PIPELINE") {
     chrome.tabs.create({ url: API_BASE + "/pipeline" });
     sendResponse({ ok: true });
