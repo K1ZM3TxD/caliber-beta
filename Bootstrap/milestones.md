@@ -1,5 +1,50 @@
 ---
 
+Milestone — Beta Release Readiness + Post-Beta Product Metrics (PLANNED)
+---
+STATUS: FUTURE — not active. Current stabilization and action-layer work must complete first.
+
+BETA DEFINITION:
+- "Beta" means the core user flow is stable enough for outside users to use without PM hand-holding:
+  calibration → extension install → score discovery on LinkedIn → strong-match action → pipeline/tailor
+- Beta is NOT "feature complete." It is "stable enough for meaningful outside testing."
+- Once beta threshold is reached, the project shifts modes:
+  - No major feature expansion
+  - Focus: stability, user observation/testing, bug fixing, release/testing workflow
+  - New features are queued and developed on branches, not shipped to the live build
+
+BETA READINESS QUESTIONS (PM must answer YES to all before declaring beta):
+- Is the extension stable enough for repeated real use across multiple LinkedIn sessions?
+- Is the core flow (calibration → extension → scoring → tailor → pipeline) understandable without PM guidance?
+- Are major regressions low enough that outside testing produces useful feedback (not just bug reports about broken basics)?
+- Is the extension installable and activatable by a non-technical user following the /extension page instructions?
+
+RELEASE MODEL FOLLOW-UP:
+- Current limitation: there is only one main build, pushed directly to the production domain (caliber-app.com).
+- This means every push to main is immediately live for any outside tester.
+- Future need: support outside-user beta testing while preserving internal development iteration.
+- Options to evaluate (not yet decided):
+  - Preview/staging deploy URLs (Vercel preview branches)
+  - Separate beta vs stable extension builds
+  - Feature flags for gating incomplete work
+- This decision is deferred until beta readiness is reached — no premature infrastructure.
+
+POST-BETA METRICS DASHBOARD:
+- This work begins AFTER beta is stable and outside-user testing has started. Not before.
+- Primary metric: Time-to-Strong-Match (TTSM)
+  - Definition: elapsed time from opening a job search surface to first viewed job with score >= 8.0
+  - Measures how quickly Caliber helps a user find a strong-fit job
+  - Lower is better; baseline to be established from first beta cohort
+- Supporting metrics:
+  - Strong Match Rate — percentage of scored jobs that reach >= 8.0
+  - Pipeline Save Rate — percentage of strong matches that get saved to pipeline
+  - Tailor Usage Rate — percentage of pipeline entries where user generates a tailored resume
+  - Calibration Completion Rate — percentage of users who complete calibration (resume + prompts → title)
+- Implementation approach: instrumentation layer added to existing API endpoints and extension events. No separate analytics service until volume justifies it.
+- Dashboard is a web app page (likely /metrics or /admin/metrics), not a third-party tool.
+
+---
+
 BREAK + UPDATE — 2026-03-14 (Phase-2 Overlay Scoring — LinkedIn Job Card Badges)
 ---
 DONE:

@@ -163,6 +163,24 @@ Do not re-sequence without new blocking evidence.
 5. **Shared shell framework** — deferred to step 6; decide after action-layer stabilization.
 6. **Pipeline board model** — deferred to step 6; validate 4-column board after action-layer basics are stable.
 
+## Future Planning Notes (not active tasks)
+
+**Beta readiness definition (2026-03-14):**
+- Beta = core flow stable enough for outside users without PM guidance. Not "feature complete."
+- PM must answer readiness questions (documented in `Bootstrap/milestones.md`) before declaring beta.
+- Once declared, project shifts to stability/testing mode — no major feature expansion on main.
+- This decision is upcoming but not yet active. Current active work is action-layer completion (auto-save → post-save → account prompt).
+
+**Release/testing model (2026-03-14):**
+- Current reality: single main build pushed to production domain. Every push is immediately live.
+- Before inviting outside testers, need a plan for safe iteration (preview deploys, separate builds, or feature flags).
+- Decision deferred until beta readiness threshold is reached.
+
+**Post-beta product metrics (2026-03-14):**
+- Product instrumentation and metrics dashboard planned for after beta is stable.
+- Primary metric: Time-to-Strong-Match (TTSM) — time from search surface open to first job scored >= 8.0.
+- No instrumentation work before beta stabilizes.
+
 ---
 
 _Last updated: 2026-03-11 (stabilization phase — debug/polish before action-layer expansion, soft-locked task sequencing)_

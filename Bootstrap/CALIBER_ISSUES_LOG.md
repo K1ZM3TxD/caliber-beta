@@ -3,6 +3,21 @@
 
 ## Current Open Issues
 
+58. Product metrics / analytics dashboard not yet implemented — **PLANNED / POST-BETA** (2026-03-14)
+  - No product instrumentation or metrics collection exists in the current build.
+  - First key product metric: **Time-to-Strong-Match (TTSM)** — elapsed time from opening a job search surface to first viewed job with score >= 8.0.
+  - Supporting metrics planned: Strong Match Rate, Pipeline Save Rate, Tailor Usage Rate, Calibration Completion Rate.
+  - This work is explicitly scheduled for after beta is stable and outside-user testing has started.
+  - No implementation during current stabilization/action-layer phase.
+
+57. Beta release model / external testing workflow not yet defined — **PLANNED** (2026-03-14)
+  - Current risk: only one main build is pushed directly to the production domain (caliber-app.com). Every push to main is immediately live.
+  - No staging environment, preview deploy workflow, or feature-flag system is in place.
+  - Before inviting outside testers, need a release model that allows internal development iteration without breaking the live beta.
+  - Options to evaluate: Vercel preview deploy URLs, separate beta/stable extension builds, feature flags.
+  - Decision deferred until beta readiness threshold is reached (see `Bootstrap/milestones.md` for readiness criteria).
+  - Not blocking current work — this is a future PM decision.
+
 56. Overlay job scoring instability risks — **MITIGATED** (2026-03-14)
   - Phase-2 overlay badges inject DOM elements into LinkedIn's job card listing, which LinkedIn can rerender at any time.
   - Three risk categories identified and mitigated:

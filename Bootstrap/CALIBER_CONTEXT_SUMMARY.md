@@ -12,6 +12,12 @@
 3. Add account prompt for durable pipeline saving
 4. Continue pipeline/action-layer refinement only after the above are stable
 
+**Future (after beta stabilization):**
+- Beta readiness definition established — see `Bootstrap/milestones.md` for threshold criteria and readiness questions.
+- Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0.
+- Release/testing workflow must evolve beyond a single main build before outside-user testing begins. Options (preview deploys, separate extension builds, feature flags) deferred until beta threshold is reached.
+- No metrics instrumentation or dashboard work before beta is stable.
+
 **Recent completed fixes (this session):**
 - Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)
 - Extension tailor banner state logic fixed: no premature "Opened ✓", pipeline routing (6fad8b7)
@@ -173,6 +179,13 @@ Structured feedback collection active across extension and web app.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 - Phase 2 overlay flow: navigate LinkedIn search results → score badges appear on visible cards → scroll triggers progressive scoring → BST evaluates from accumulated badge cache.
+
+## Session Decisions (2026-03-14, Beta Definition + Post-Beta Metrics Roadmap)
+
+- **Beta defined operationally.** Beta = core user flow stable enough for outside users without PM hand-holding. Not "feature complete" — "testable by real people." Readiness questions documented in milestones.md. PM must answer all YES before declaring beta.
+- **Post-beta metrics planned.** Primary metric: Time-to-Strong-Match (TTSM). Supporting: Strong Match Rate, Pipeline Save Rate, Tailor Usage Rate, Calibration Completion Rate. All deferred until beta is stable and outside testing has started.
+- **Release model gap acknowledged.** Current single-main-build workflow means every push is immediately live. Need a safer model before inviting outside testers. Options documented but decision deferred.
+- **No metrics work during current stabilization.** Metrics instrumentation and dashboard are explicitly post-beta. Current focus remains on action-layer completion (auto-save → post-save → account prompt).
 
 ## Session Decisions (2026-03-14, Phase-2 Overlay Scoring Shipped)
 
