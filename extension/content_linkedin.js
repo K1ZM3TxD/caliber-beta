@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.0";
+  const PANEL_VERSION = "0.9.1";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -534,6 +534,13 @@
   //     pipeline. Separate from BST; do not conflate.
   //   Badge color bands: green (8.0+), yellow (6.0–7.9), red (<6.0)
   //
+  // Pre-read scoring architecture (v0.9.1):
+  //   Scoring runs silently in the background regardless of whether badge
+  //   DOM elements are rendered. BST is driven by the scored window, not
+  //   badge visibility. Set BADGES_VISIBLE = false to hide overlay badges
+  //   while keeping the scoring pipeline and BST evaluation active.
+  //
+  var BADGES_VISIBLE = true;              // render badge DOM on cards (false = silent scoring only)
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
   var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this
@@ -827,6 +834,7 @@
 
   /** Inject or update a badge on a single card element. */
   function setBadgeOnCard(cardEl, state, score) {
+    if (!BADGES_VISIBLE) return;  // silent scoring mode — skip DOM writes
     badgeInjecting = true;
     try {
       var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
@@ -1053,7 +1061,7 @@
       return;
     }
 
-    ensureBadgeStyles();
+    if (BADGES_VISIBLE) ensureBadgeStyles();
 
     // Bind cache to current surface on first scan
     var currentSurface = getSearchSurfaceKey();
@@ -1145,20 +1153,24 @@
   }
 
   /**
-   * Evaluate BST trigger from accumulated badge scores and search-surface classification.
+   * Evaluate BST trigger from the silent pre-read scored window.
    *
-   * Trigger rule (v0.8.8):
-   *   1. Classify the search QUERY against the calibration title:
-   *      - "aligned" → query matches calibration title / nearby role / keyword overlap
-   *      - "out-of-scope" → query is in a different known role family or zero keyword overlap
-   *      - "ambiguous" → insufficient signal either way
-   *   2. Decision:
-   *      - aligned → SUPPRESS (mediocre batch on a valid search is not a recovery situation)
-   *      - out-of-scope → TRIGGER (user is searching in the wrong domain)
-   *      - ambiguous → TRIGGER only if genuinely weak (no strong matches AND avg < 6.0)
+   * Architecture (v0.9.1 — score-evidence-primary):
+   *   Primary signal: the pre-read scored window in badgeScoreCache.
+   *   - If the window contains at least one genuine aligned strong match
+   *     (score >= 8.0, already domain-guardrailed), BST is SUPPRESSED.
+   *   - If the window contains zero strong matches, BST can TRIGGER.
    *
-   * Re-evaluated after each scoring chunk so BST can be suppressed if the
-   * classification changes (e.g., calibration title arrives in a later chunk).
+   *   Secondary context: query classification (aligned / out-of-scope / ambiguous).
+   *   - out-of-scope + weak window → trigger confidently
+   *   - aligned + weak first batch → still depends on scored evidence
+   *   - ambiguous → resolved through scored evidence
+   *
+   *   The domain-mismatch guardrail (applyDomainMismatchGuardrail) already
+   *   caps out-of-scope job scores to 5.0, so any score >= 8.0 in the cache
+   *   is inherently a genuine aligned strong match. No additional filtering.
+   *
+   * Re-evaluated after each scoring chunk so BST can appear/hide dynamically.
    */
   function evaluateBSTFromBadgeCache() {
     var urls = Object.keys(badgeScoreCache);
@@ -1169,7 +1181,9 @@
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
-    var strongCount = 0;
+    var strongCount = 0;        // scores >= 8.0 (genuine aligned — guardrail ensures this)
+    var mismatchCount = 0;      // jobs with isRoleFamilyMismatch = true
+    var alignedCount = 0;       // jobs NOT mismatched (aligned or unknown)
     var scoredCount = 0;
     var maxScore = 0;
     var scoreSum = 0;
@@ -1186,6 +1200,12 @@
       if (entry.score >= BST_STRONG_MATCH_THRESHOLD) strongCount++;
       if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
+      // Count aligned vs mismatched jobs in the window
+      if (entry.calibrationTitle && entry.title && isRoleFamilyMismatch(entry.title, entry.calibrationTitle)) {
+        mismatchCount++;
+      } else {
+        alignedCount++;
+      }
     }
 
     // Fallback: if badge cache didn't yield a calibration title, try recentScores
@@ -1200,47 +1220,54 @@
 
     var avgScore = scoredCount > 0 ? scoreSum / scoredCount : 0;
 
-    // ── Surface classification ──
+    // ── Secondary context: query classification ──
     var classification = classifySearchSurface(currentQuery, bestCalibrationTitle, bestNearbyRoles);
     var surfaceClass = classification.surfaceClass;
     var classificationReason = classification.reason;
 
+    // ── Primary decision: driven by scored window evidence ──
     var shouldTrigger;
     var triggerReason;
-    if (surfaceClass === "aligned" && strongCount > 0) {
-      // User is searching in their calibrated domain AND at least one
-      // visible job scored >= 8.0. This is a genuinely strong surface.
+
+    if (strongCount > 0) {
+      // PRIMARY: at least one genuine strong match on the visible surface.
+      // Domain-mismatch guardrail already caps out-of-scope jobs to 5.0,
+      // so any score >= 8.0 in the cache is a genuine aligned strong match.
       shouldTrigger = false;
-      triggerReason = "aligned query + strong match present (" + strongCount + " ≥ " + BST_STRONG_MATCH_THRESHOLD + ")";
-    } else if (surfaceClass === "aligned" && strongCount === 0) {
-      // Aligned query but NO visible job scored >= 8.0. This page is
-      // mediocre — PM rule: no 8.0+ means not a strong surface.
-      shouldTrigger = true;
-      triggerReason = "aligned query but no strong match (max " + maxScore.toFixed(1) + ", 0 ≥ " + BST_STRONG_MATCH_THRESHOLD + ")";
+      triggerReason = "pre-read window has " + strongCount + " genuine strong match" + (strongCount > 1 ? "es" : "") +
+        " (≥" + BST_STRONG_MATCH_THRESHOLD + ") — surface is productive";
     } else if (surfaceClass === "out-of-scope") {
-      // User is searching in a clearly different domain. Recovery needed.
+      // SECONDARY BOOST: no strong matches + query is clearly out-of-scope.
+      // Trigger confidently — the user is in the wrong job family.
       shouldTrigger = true;
-      triggerReason = "out-of-scope query — wrong family, recovery needed";
+      triggerReason = "no strong matches + out-of-scope query (" + classificationReason + ") — recovery needed";
+    } else if (surfaceClass === "aligned") {
+      // No strong matches but query looks aligned. This is a weak aligned
+      // surface — BST should fire to suggest better search terms.
+      shouldTrigger = true;
+      triggerReason = "no strong matches on aligned surface (max " + maxScore.toFixed(1) +
+        ", avg " + avgScore.toFixed(1) + ") — recovery still needed";
     } else {
-      // Ambiguous — fall back to score distribution as tiebreaker.
-      // Trigger only when genuinely weak: no strong matches AND low average.
-      shouldTrigger = strongCount === 0 && avgScore < BST_AMBIGUOUS_AVG_CEILING;
+      // Ambiguous query — resolve through scored evidence.
+      // Trigger only when genuinely weak: low average confirms poor surface.
+      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING;
       triggerReason = shouldTrigger
-        ? "ambiguous query + weak scores (avg " + avgScore.toFixed(1) + ", 0 strong)"
-        : "ambiguous query but acceptable scores (avg " + avgScore.toFixed(1) + ", " + strongCount + " strong)";
+        ? "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")"
+        : "no strong matches + ambiguous query but acceptable avg (" + avgScore.toFixed(1) + " ≥ " + BST_AMBIGUOUS_AVG_CEILING + ") — holding";
     }
 
     // ── Diagnostic logging ──
     console.debug("[Caliber][BST] ── evaluation ──");
     console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
     console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\"");
-    console.debug("[Caliber][BST]   surfaceClass: " + surfaceClass);
-    console.debug("[Caliber][BST]   classificationReason: " + classificationReason);
-    console.debug("[Caliber][BST]   window: [" + scores.join(", ") + "]");
-    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1) +
-      ", strong(≥" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount);
+    console.debug("[Caliber][BST]   pre-read window: [" + scores.map(function(s) { return s.toFixed(1); }).join(", ") + "]");
+    console.debug("[Caliber][BST]   genuineStrongCount: " + strongCount + " (≥" + BST_STRONG_MATCH_THRESHOLD + ")");
+    console.debug("[Caliber][BST]   alignedJobs: " + alignedCount + ", mismatchedJobs: " + mismatchCount);
+    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1));
+    console.debug("[Caliber][BST]   queryClassification: " + surfaceClass + " (" + classificationReason + ")");
     console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
     console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
+    console.debug("[Caliber][BST]   badgesVisible: " + BADGES_VISIBLE);
 
     if (shouldTrigger) {
       // BST TRIGGER — debounce the show to prevent flicker.
@@ -1251,19 +1278,20 @@
         var deferredSurfaceClass = surfaceClass;
         bstShowDebounce = setTimeout(function () {
           bstShowDebounce = null;
-          // Re-classify — calibration data may have arrived during debounce
+          // Re-check: has scored evidence changed during debounce?
+          var reUrls = Object.keys(badgeScoreCache);
+          var reStrongCount = 0;
           var reCalibTitle = deferredCalibTitle;
-          if (!reCalibTitle) {
-            var reUrls = Object.keys(badgeScoreCache);
-            for (var ri = 0; ri < reUrls.length; ri++) {
-              if (badgeScoreCache[reUrls[ri]].calibrationTitle) {
-                reCalibTitle = badgeScoreCache[reUrls[ri]].calibrationTitle;
-              }
+          for (var ri = 0; ri < reUrls.length; ri++) {
+            if (badgeScoreCache[reUrls[ri]].score >= BST_STRONG_MATCH_THRESHOLD) reStrongCount++;
+            if (!reCalibTitle && badgeScoreCache[reUrls[ri]].calibrationTitle) {
+              reCalibTitle = badgeScoreCache[reUrls[ri]].calibrationTitle;
             }
           }
-          var reResult = classifySearchSurface(deferredQuery, reCalibTitle, deferredNearby);
-          if (reResult.surfaceClass === "aligned" || prescanBSTActive) {
-            console.debug("[Caliber][BST] deferred show cancelled — reclassified as " + reResult.surfaceClass + " (" + reResult.reason + ")");
+          // Primary check: if a strong match appeared during debounce, cancel
+          if (reStrongCount > 0 || prescanBSTActive) {
+            console.debug("[Caliber][BST] deferred show cancelled — " +
+              (reStrongCount > 0 ? "strong match appeared during debounce (" + reStrongCount + ")" : "banner already active"));
             return;
           }
 
