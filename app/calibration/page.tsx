@@ -704,7 +704,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className={`fixed inset-0 flex justify-center ${(step === "LANDING" || step === "RESUME") ? "items-center" : "items-start"} overflow-y-auto`} style={{ background: '#050505', scrollbarGutter: 'stable' }}>
+    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: '#050505', scrollbarGutter: 'stable' }}>
       {/* Subtle ambient glow */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
@@ -714,11 +714,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           zIndex: 0,
         }}
       />
-      {/* Layout rule: LANDING uses flex centering (items-center on parent) so the hero group
-         is vertically centered with the tagline as visual anchor.
-         Content-heavy steps use pt-[22vh] for header breathing room.
+      {/* Layout rule: LANDING and RESUME use my-auto to vertically center within
+         the scrollable viewport. Content-heavy steps use fixed top padding.
          No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
-      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : "pt-[14vh] sm:pt-[22vh]"}`}>
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : "pt-[14vh] sm:pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
