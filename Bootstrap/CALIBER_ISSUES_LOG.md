@@ -3,6 +3,22 @@
 
 ## Current Open Issues
 
+64. BST trigger + calibration session reliability in LinkedIn extension — **IN PROGRESS** (2026-03-15)
+  - Beta validation revealed BST not appearing when expected across multiple search scenarios.
+  - Root causes identified:
+    1. **Session not ready when scoring starts**: `runSearchPrescan()` fires 2s after activation, but `discoverSession()` in background fails if session handoff from Caliber tab hasn't completed. Badge batch returns `{ ok: false }`, so `evaluateBSTFromBadgeCache()` is never called.
+    2. **No session-ready notification**: After `CALIBER_SESSION_HANDOFF` completes, LinkedIn content scripts are not notified. Scoring stalls until periodic scan retries, which also fail.
+    3. **No-session batch error causes rapid fail loop**: On failure, `processBadgeQueue()` retries next chunk in 200ms (same no-session error), burning through the queue with no useful work.
+    4. **Missing calibration title disables guardrail**: Without `calibration_title` in API response, `isRoleFamilyMismatch()` returns false, letting out-of-scope jobs (e.g., bartender) score 6/10 instead of being capped to 5.0.
+  - Fixes applied:
+    - Session pre-check with exponential backoff before badge scoring starts.
+    - `CALIBER_SESSION_READY` broadcast from background.js to LinkedIn tabs after handoff.
+    - No-session batch errors now use 5s backoff (was 200ms) and re-queue the chunk.
+    - `lastKnownCalibrationTitle` fallback ensures guardrail fires even when API omits calibration_title.
+    - Diagnostic logging added throughout session hydration, BST evaluation, and scoring pipeline.
+  - BST doctrine preserved: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger if no strong AND avg < 6.0.
+  - Files changed: `extension/content_linkedin.js`, `extension/background.js`.
+
 63. Score color band normalization — **SHIPPED** (v0.8.9, e4669d0)
   - Score color bands locked across all four rendering locations (badge, sidecard score, badge CSS, decision label).
   - Green (#4ADE80): 8.0–10.0 (Strong Fit). Yellow (#FBBF24): 6.0–7.9 (Stretch). Red (#EF4444): 0–5.9 (Skip).

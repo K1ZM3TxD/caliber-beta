@@ -10,7 +10,7 @@
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
 ## Active Current Fix
-None currently in flight. Sidecard collapsed height (#48) resolved (2026-03-11). Badge placement normalized (27932b1). Badge discovery coverage fixed (5133cd7). BST trigger doctrine updated (7b20781).
+BST trigger + session reliability fix (#64) in progress (2026-03-15). Root causes: session not ready before scoring, no session-ready notification to content scripts, rapid fail loop on no-session batch, missing calibration title disabling guardrail. Fixes applied to `extension/content_linkedin.js` and `extension/background.js`. Awaiting live validation.
 
 ## Top Blocker
 **Sign-in / memory (beta gate 4).** BST and sidecard stability are in validation. Pipeline is functional. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Overlay work continues in parallel but does not block beta.

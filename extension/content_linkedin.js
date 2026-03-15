@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.2";
+  const PANEL_VERSION = "0.9.3";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -413,6 +413,13 @@
   let prescanSearchQuery = "";   // query for which prescan was last completed
   let prescanBSTActive = false;  // is a prescan-triggered BST banner currently showing?
   let prescanStoredTitle = null;  // suggested title from durable state (for banner restore)
+
+  // ─── Session Readiness State ──────────────────────────────
+  var sessionReady = false;          // has a valid session been confirmed?
+  var sessionCheckAttempts = 0;      // retry counter for session pre-check
+  var sessionCheckMax = 8;           // max retries (8 × escalating delay ≈ 40s)
+  var sessionCheckTimer = null;      // timer for session retry
+  var lastKnownCalibrationTitle = ""; // fallback calibration title from any successful scoring
 
   // Load persisted prescan state on script init
   chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_GET" }, function (resp) {
@@ -978,14 +985,26 @@
         return;
       }
       if (!resp || !resp.ok || !Array.isArray(resp.results)) {
+        // Detect no-session error specifically — use longer backoff to let session hydrate
+        var isNoSession = resp && resp.errorType === "no_session";
+        var retryDelay = isNoSession ? 5000 : 200;
         console.warn("[Caliber][diag][score] chunk scoring failed:", resp && resp.error,
+          (isNoSession ? " [NO SESSION — backoff " + retryDelay + "ms]" : ""),
           "— releasing " + chunk.length + " cards for retry (badges kept)");
+        if (isNoSession) {
+          sessionReady = false;
+          console.warn("[Caliber][session][diag] session lost during scoring — marking sessionReady=false");
+        }
         for (var g = 0; g < chunk.length; g++) {
           if (chunk[g].id && !badgeScoreCache[chunk[g].id]) {
             badgeScoredIds.delete(chunk[g].id);
           }
         }
-        if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, 200);
+        // On no-session, also re-queue the current chunk's cards for retry
+        if (isNoSession) {
+          badgeBatchQueue = chunk.concat(badgeBatchQueue);
+        }
+        if (active && badgeBatchQueue.length > 0) setTimeout(processBadgeQueue, retryDelay);
         return;
       }
 
@@ -995,20 +1014,32 @@
         if (!entry) continue;
 
         if (result.ok) {
+          // Track calibration title for fallback guardrail
+          if (result.calibrationTitle) {
+            lastKnownCalibrationTitle = result.calibrationTitle;
+          }
+
           // Apply out-of-scope ceiling before caching
+          // Fall back to lastKnownCalibrationTitle when API omits calibration_title
+          // (stale session or serverless cold-start without full context)
+          var effectiveCalibTitle = result.calibrationTitle || lastKnownCalibrationTitle || "";
           var rawBadgeScore = result.score;
           var badgeScore = applyDomainMismatchGuardrail(
             rawBadgeScore,
             result.hrcBand || null,
             entry.title || "",
-            result.calibrationTitle || ""
+            effectiveCalibTitle
           );
+          if (!result.calibrationTitle && lastKnownCalibrationTitle) {
+            console.debug("[Caliber][session][diag] scoring result missing calibrationTitle — " +
+              "using cached fallback: \"" + lastKnownCalibrationTitle + "\"");
+          }
           // Cache the score by job ID
           if (entry.id) {
             badgeScoreCache[entry.id] = {
               score: badgeScore,
               title: entry.title || "",
-              calibrationTitle: result.calibrationTitle || "",
+              calibrationTitle: effectiveCalibTitle,
               nearbyRoles: result.nearbyRoles || [],
             };
           }
@@ -1036,7 +1067,15 @@
         }
       }
 
+      // Batch succeeded — session is confirmed working
+      if (!sessionReady) {
+        sessionReady = true;
+        console.debug("[Caliber][session][diag] sessionReady confirmed via successful batch scoring");
+      }
+
       // After each chunk, check if BST should fire (from accumulated badge scores)
+      console.debug("[Caliber][BST][diag] invoking evaluateBSTFromBadgeCache after chunk — cache size: " +
+        Object.keys(badgeScoreCache).length);
       evaluateBSTFromBadgeCache();
 
       // Process next chunk
@@ -1173,6 +1212,8 @@
    * Re-evaluated after each scoring chunk so BST can appear/hide dynamically.
    */
   function evaluateBSTFromBadgeCache() {
+    console.debug("[Caliber][BST][diag] evaluateBSTFromBadgeCache() invoked — sessionReady=" + sessionReady +
+      ", lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
     var urls = Object.keys(badgeScoreCache);
     if (urls.length < BST_MIN_WINDOW_SIZE) {
       console.debug("[Caliber][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
@@ -1570,6 +1611,41 @@
   }
 
   /**
+   * Pre-check session availability before starting badge scoring.
+   * Polls background for a valid session with exponential backoff.
+   * On success, starts badge scanning. On exhaustion, starts anyway (will fail gracefully).
+   */
+  function checkSessionThenStartScoring() {
+    chrome.runtime.sendMessage({ type: "CALIBER_SESSION_DISCOVER" }, function (resp) {
+      if (chrome.runtime.lastError) {
+        console.warn("[Caliber][session][diag] session discover transport error:", chrome.runtime.lastError.message);
+      }
+      if (resp && resp.ok && resp.sessionId && resp.profileComplete) {
+        sessionReady = true;
+        sessionCheckAttempts = 0;
+        console.log("[Caliber][session][diag] session confirmed: " + resp.sessionId +
+          ", profileComplete: " + resp.profileComplete + ", state: " + (resp.state || "?"));
+        startBadgeScanningWithRetry();
+      } else {
+        sessionCheckAttempts++;
+        var reason = resp ? ("sessionId=" + (resp.sessionId || "none") +
+          ", profileComplete=" + !!resp.profileComplete + ", error=" + (resp.error || "none")) : "no response";
+        if (sessionCheckAttempts < sessionCheckMax) {
+          var delay = Math.min(2000 * Math.pow(1.5, sessionCheckAttempts - 1), 10000);
+          console.warn("[Caliber][session][diag] session not ready (attempt " + sessionCheckAttempts +
+            "/" + sessionCheckMax + "): " + reason + " — retry in " + Math.round(delay) + "ms");
+          clearTimeout(sessionCheckTimer);
+          sessionCheckTimer = setTimeout(checkSessionThenStartScoring, delay);
+        } else {
+          console.warn("[Caliber][session][diag] session not available after " + sessionCheckMax +
+            " attempts: " + reason + " — starting scoring anyway (will fail gracefully)");
+          startBadgeScanningWithRetry();
+        }
+      }
+    });
+  }
+
+  /**
    * Kick off the search prescan.
    * Badge scoring IS the prescan — this just ensures badge scanning is running.
    * BST evaluation happens automatically in evaluateBSTFromBadgeCache() after scores arrive.
@@ -1611,8 +1687,16 @@
 
     console.debug("[Caliber][prescan] prescan delegated to badge scoring pipeline for surface: " + surfaceKey);
 
-    // Badge scoring handles all API calls — BST evaluates from badge cache after each chunk
-    startBadgeScanningWithRetry();
+    // Pre-check session availability before starting badge scoring.
+    // If session is already confirmed, skip straight to scoring.
+    if (sessionReady) {
+      console.debug("[Caliber][session][diag] session already confirmed, starting badge scoring immediately");
+      startBadgeScanningWithRetry();
+    } else {
+      sessionCheckAttempts = 0;
+      clearTimeout(sessionCheckTimer);
+      checkSessionThenStartScoring();
+    }
   }
 
   /**
@@ -2525,6 +2609,8 @@
   function activatePanel() {
     if (active) { scoreCurrentJob(true); return; }
     active = true;
+    console.log("[Caliber][session][diag] activatePanel() — sessionReady=" + sessionReady +
+      ", isSearchPage=" + isSearchResultsPage() + ", url=" + location.href.substring(0, 80));
     chrome.storage.local.set({ caliberPanelEnabled: true });
     showIdle();
     startWatching();
@@ -2552,6 +2638,9 @@
     recentScores = [];
     resetSessionSignals();
     resetPrescanState();
+    // Clear session check timer but preserve sessionReady (session is still valid)
+    clearTimeout(sessionCheckTimer);
+    sessionCheckAttempts = 0;
   }
 
   // Auto-activate unless user explicitly dismissed
@@ -2569,6 +2658,30 @@
     if (msg.type === "ACTIVATE_PANEL") {
       activatePanel();
       sendResponse({ activated: true });
+      return false;
+    }
+    if (msg.type === "CALIBER_SESSION_READY") {
+      console.log("[Caliber][session][diag] CALIBER_SESSION_READY received from background");
+      sessionReady = true;
+      // Cancel any pending session retry — session is now available
+      clearTimeout(sessionCheckTimer);
+      sessionCheckAttempts = 0;
+      // If badge scanning hasn't started yet (was waiting for session), start it now
+      if (active && isSearchResultsPage() && !badgeScrollAttached) {
+        console.debug("[Caliber][session][diag] session ready — initiating badge scanning");
+        startBadgeScanningWithRetry();
+      }
+      // If badge scoring was queued but stalled due to no-session failures, kick it
+      if (active && badgeBatchQueue.length > 0 && !badgeBatchRunning) {
+        console.debug("[Caliber][session][diag] session ready — resuming queued badge scoring (" + badgeBatchQueue.length + " in queue)");
+        processBadgeQueue();
+      }
+      // If we have scores but BST hasn't evaluated yet, run it now
+      if (active && Object.keys(badgeScoreCache).length >= BST_MIN_WINDOW_SIZE && !prescanDone) {
+        console.debug("[Caliber][session][diag] session ready — running deferred BST evaluation");
+        evaluateBSTFromBadgeCache();
+      }
+      sendResponse({ ok: true });
       return false;
     }
   });

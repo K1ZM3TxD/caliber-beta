@@ -49,6 +49,24 @@ async function injectIntoJobTabs() {
   }
 }
 
+/**
+ * Notify all open LinkedIn job tabs that a calibration session is now available.
+ * Called after successful session handoff or discovery so content scripts can
+ * start/restart badge scoring without waiting for periodic retry.
+ */
+async function notifyLinkedInTabsSessionReady() {
+  try {
+    const tabs = await chrome.tabs.query({ url: "https://www.linkedin.com/jobs/*" });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        chrome.tabs.sendMessage(tab.id, { type: "CALIBER_SESSION_READY" });
+        console.debug("[Caliber][bg][session] notified LinkedIn tab " + tab.id + " of session ready");
+      } catch { /* tab may not have content script */ }
+    }
+  } catch { /* query failure */ }
+}
+
 chrome.runtime.onInstalled.addListener(() => { injectIntoCaliberTabs(); injectIntoJobTabs(); });
 chrome.runtime.onStartup.addListener(() => { injectIntoCaliberTabs(); injectIntoJobTabs(); });
 
@@ -181,10 +199,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // Discover session once for the whole batch
         const info = await discoverSession();
         if (!info.sessionId || !info.profileComplete) {
-          console.warn("[Caliber][bg][prescan] no active session for batch");
-          sendResponse({ ok: false, error: "No active calibration session.", results: [] });
+          console.warn("[Caliber][bg][prescan] no active session for batch — sessionId: " +
+            (info.sessionId || "(none)") + ", profileComplete: " + !!info.profileComplete);
+          sendResponse({ ok: false, error: "No active calibration session.", errorType: "no_session", results: [] });
           return;
         }
+        console.debug("[Caliber][bg][prescan] session ready: " + info.sessionId + ", profileComplete: " + info.profileComplete);
         const results = [];
         const jobs = Array.isArray(msg.jobs) ? msg.jobs : [];
         console.debug("[Caliber][bg][prescan] scoring batch of " + jobs.length + " jobs");
@@ -344,6 +364,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         toStore.caliberSessionBackup = msg.sessionBackup;
       }
       chrome.storage.local.set(toStore);
+      console.debug("[Caliber][bg][session] handoff stored: " + sid);
+      // Notify LinkedIn tabs that session is now available
+      notifyLinkedInTabsSessionReady();
       sendResponse({ ok: true });
     } else {
       sendResponse({ ok: false });
@@ -424,9 +447,12 @@ async function trySessionEndpoint(storedId, sessionBackup) {
 }
 
 async function discoverSession() {
+  console.debug("[Caliber][bg][session] discoverSession() invoked");
   const store = await chrome.storage.local.get(["caliberSessionId", "caliberSessionBackup"]);
   let storedId = store.caliberSessionId;
   let sessionBackup = store.caliberSessionBackup || null;
+  console.debug("[Caliber][bg][session] stored sessionId: " + (storedId || "(none)") +
+    ", hasBackup: " + !!sessionBackup);
 
   // If no stored session, probe open Caliber tabs FIRST (before server discovery).
   // This handles the fresh-install race: extension installed while Caliber tab is

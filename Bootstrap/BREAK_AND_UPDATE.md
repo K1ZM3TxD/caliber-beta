@@ -79,6 +79,39 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — BST Trigger + Session Reliability Fix (#64)
+
+**What changed:**
+- BST was not firing during beta validation due to four interrelated reliability failures in the extension session hydration and scoring pipeline.
+- Four fixes applied:
+  1. **Session pre-check with backoff**: `runSearchPrescan()` now polls for session readiness (via `CALIBER_SESSION_DISCOVER`) with exponential backoff (up to 8 attempts, ~40s) before starting badge scoring. Previously, scoring started unconditionally 2s after activation and silently failed with no retry.
+  2. **Session-ready broadcast**: `background.js` now sends `CALIBER_SESSION_READY` message to all open LinkedIn job tabs after a successful `CALIBER_SESSION_HANDOFF`. Content scripts listen for this and immediately start/resume badge scoring without waiting for periodic scan.
+  3. **No-session backoff**: When a prescan batch fails with "no session" error, the retry delay is now 5s (was 200ms). The failed chunk is re-queued instead of burned. Prevents rapid fail-loop that exhausted the queue with no work done.
+  4. **Calibration title fallback for guardrail**: `lastKnownCalibrationTitle` is tracked across all scoring batches. When the API omits `calibration_title` (stale session), the cached title is used for `isRoleFamilyMismatch()` / `applyDomainMismatchGuardrail()`. This prevents out-of-scope jobs like "bartender" from receiving inflated 6/10 scores.
+- Diagnostic logging added: session hydration status, BST evaluation invocation, calibration title presence, surface classification, strongCount/avgScore/min-window state.
+
+**Why it changed:**
+- Beta validation showed BST not appearing on clearly out-of-scope searches ("bartender"), aligned searches with no strong matches, and ambiguous searches. User had to manually refresh LinkedIn to get Caliber session to load. Bartender jobs scored ~6/10 with "High" hiring reality — clear sign of missing calibration context.
+
+**What is now expected:**
+- BST banner appears above sidecard on out-of-scope, aligned-no-strong, and ambiguous-weak searches.
+- BST suppresses when aligned search has ≥1 strong match (score ≥ 8.0).
+- Scoring starts only after session is confirmed (or after 8-attempt timeout).
+- Session handoff from Caliber tab triggers immediate scoring on LinkedIn tabs.
+- Out-of-scope roles are capped to 5.0 even when API response is missing calibration title.
+
+**What is NOT expected:**
+- Scoring no longer fires blindly 2s after activation without session check.
+- No-session batch failures no longer cause 200ms rapid retry loops.
+- Out-of-scope jobs cannot receive >5.0 scores when calibration context is missing.
+
+**Files changed:**
+- `extension/content_linkedin.js`
+- `extension/background.js`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+
 ### 2026-03-15 — BST Surface Classification + Score Color Band Lock (v0.8.7→v0.8.9)
 
 **What changed:**
