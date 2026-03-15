@@ -1070,7 +1070,7 @@
           if (entry.id) {
             badgeScoreCache[entry.id] = {
               score: badgeScore,
-              title: entry.title || "",
+              title: sanitizeJobTitle(entry.title),
               calibrationTitle: effectiveCalibTitle,
               nearbyRoles: result.nearbyRoles || [],
             };
@@ -1901,6 +1901,7 @@
    * If suggestedTitle is null, shows a generic recovery message without a link.
    */
   function showPrescanBSTBanner(suggestedTitle) {
+    suggestedTitle = sanitizeJobTitle(suggestedTitle);
     getOrCreatePanel();
     prescanBSTActive = true;
     prescanSurfaceBanner = null; // BST overrides surface-quality banner
@@ -1941,6 +1942,7 @@
    * Content: "{strongCount} strong matches · Best: {bestTitle} ({bestScore})"
    */
   function showSurfaceQualityBanner(strongCount, bestTitle, bestScore) {
+    bestTitle = sanitizeJobTitle(bestTitle);
     getOrCreatePanel();
     // Hide BST if active
     prescanBSTActive = false;
@@ -2358,6 +2360,41 @@
     return na === nb;
   }
 
+  /**
+   * Sanitize a job title scraped from LinkedIn cards.
+   * Strips: duplicated title segments ("Sr. PM Sr. PM" → "Sr. PM"),
+   * "with verification" suffix, and trailing LinkedIn badge metadata.
+   */
+  function sanitizeJobTitle(raw) {
+    if (!raw) return "";
+    var t = raw.trim();
+    // Strip "with verification" suffix (LinkedIn badge metadata)
+    t = t.replace(/\s+with\s+verification\s*$/i, "").trim();
+    // Strip trailing badge text like "· 2nd", "· 3rd+", "· Promoted", "· Reposted", "· Actively recruiting"
+    t = t.replace(/\s*·\s*(1st|2nd|3rd\+?|Promoted|Reposted|Actively\s+recruiting|Easy\s+Apply)\s*$/i, "").trim();
+    // Detect and remove exact-duplicate halves: "Title Title" → "Title"
+    // Only if the title is long enough to plausibly contain a duplicate
+    if (t.length >= 6) {
+      var half = Math.floor(t.length / 2);
+      // Try matching the first half repeated, allowing whitespace in between
+      var firstHalf = t.substring(0, half).trim();
+      var secondHalf = t.substring(half).trim();
+      if (firstHalf.length > 2 && firstHalf === secondHalf) {
+        t = firstHalf;
+      } else {
+        // Also try splitting on double-space or common separator
+        var words = t.split(/\s+/);
+        if (words.length >= 4 && words.length % 2 === 0) {
+          var mid = words.length / 2;
+          var first = words.slice(0, mid).join(" ");
+          var second = words.slice(mid).join(" ");
+          if (first === second) t = first;
+        }
+      }
+    }
+    return t;
+  }
+
   /** Check if a candidate BST title was already suggested or already searched this session. */
   function bstTitleAlreadySeen(title) {
     if (!title) return false;
@@ -2483,25 +2520,12 @@
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = "";
 
-    // Nearby roles (only for stretch/skip)
-    var nearbySection = shadow.getElementById("cb-nearby-section");
-    var nearbyList = shadow.getElementById("cb-nearby");
+    // Nearby roles: show as recovery banner above sidecard (not inside sidecard)
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
-      nearbySection.style.display = "";
-      nearbyList.innerHTML = "";
-      for (var i = 0; i < data.nearby_roles.length; i++) {
-        var role = data.nearby_roles[i];
-        var li = document.createElement("li");
-        var link = document.createElement("a");
-        link.textContent = role.title;
-        link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(role.title);
-        link.target = "_self";
-        link.className = "cb-nearby-link";
-        li.appendChild(link);
-        nearbyList.appendChild(li);
+      var bestNearby = data.nearby_roles[0];
+      if (bestNearby && bestNearby.title) {
+        showPrescanBSTBanner(bestNearby.title);
       }
-    } else {
-      nearbySection.style.display = "none";
     }
 
     // Tailor Resume banner (above sidecard, 7.0+ only, suppressed if already in pipeline)
@@ -2565,7 +2589,7 @@
       // Update badge cache
       badgeScoreCache[sidecardJobId] = {
         score: score,
-        title: lastJobMeta.title || "",
+        title: sanitizeJobTitle(lastJobMeta.title),
         calibrationTitle: data.calibration_title || "",
         nearbyRoles: data.nearby_roles || [],
       };
@@ -3067,15 +3091,7 @@
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
     '      </div>',
     '    </div>',
-    '    <div id="cb-nearby-section" class="cb-collapsible cb-nearby-section" style="display:none">',
-    '      <button class="cb-collapse-toggle" type="button">',
-    '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span>\u2192 Better nearby roles</span>',
-    '      </button>',
-    '      <div class="cb-collapse-body">',
-    '        <ul id="cb-nearby" class="cb-nearby-list"></ul>',
-    '      </div>',
-    '    </div>',
+
     // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
@@ -3310,20 +3326,7 @@
     "  content: '\\2022'; position: absolute; left: 0; color: #4ADE80; font-weight: 700;",
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
-    // Nearby roles
-    ".cb-nearby-section {",
-    "  background: rgba(255,255,255,0.04); border-radius: 6px;",
-    "  padding: 0 6px; margin-top: 1px;",
-    "}",
-    ".cb-nearby-section .cb-collapse-toggle { color: #60A5FA; }",
-    ".cb-nearby-list { list-style: none; padding-bottom: 3px; }",
-    ".cb-nearby-list li { padding: 1px 0; font-size: 10px; }",
-    ".cb-nearby-link {",
-    "  color: #93C5FD; text-decoration: none; cursor: pointer;",
-    "  border-bottom: 1px solid rgba(147,197,253,0.25);",
-    "  transition: color 0.15s, border-color 0.15s;",
-    "}",
-    ".cb-nearby-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+
     // Tailor Resume above-sidecard banner
     ".cb-tailor-banner {",
     "  width: 320px; background: #0F2318;",
