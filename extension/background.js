@@ -9,43 +9,6 @@ let resolvedBase = API_BASE;
 // Derive the Caliber origin from the API_BASE URL (e.g. "http://localhost:3000")
 const CALIBER_ORIGIN = new URL(API_BASE).origin;
 
-// ─── Fit API Request Queue ──────────────────────────────────
-// Serializes all calls to /api/extension/fit so only one is in-flight at a time.
-// Prevents concurrent requests from overwhelming Vercel serverless functions
-// and racing on session state. Sidecard calls get priority over prescan.
-const fitQueue = [];
-let fitInFlight = false;
-
-function enqueueFitCall(fn, priority) {
-  return new Promise((resolve, reject) => {
-    const entry = { fn, resolve, reject, priority: priority || "normal" };
-    if (priority === "high") {
-      // Insert before all normal-priority items
-      const idx = fitQueue.findIndex(e => e.priority !== "high");
-      if (idx === -1) fitQueue.push(entry);
-      else fitQueue.splice(idx, 0, entry);
-    } else {
-      fitQueue.push(entry);
-    }
-    drainFitQueue();
-  });
-}
-
-async function drainFitQueue() {
-  if (fitInFlight || fitQueue.length === 0) return;
-  fitInFlight = true;
-  const entry = fitQueue.shift();
-  try {
-    const result = await entry.fn();
-    entry.resolve(result);
-  } catch (err) {
-    entry.reject(err);
-  } finally {
-    fitInFlight = false;
-    drainFitQueue();
-  }
-}
-
 // ─── Proactive Session Handoff on Install/Startup ───────────
 // After fresh install, extension refresh, or browser restart, content scripts
 // are NOT re-injected into existing tabs. We must proactively inject into any
@@ -145,8 +108,12 @@ async function probeCaliberTabsForSession() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
-    console.debug("[Caliber][bg] CALIBER_FIT_API received (" + (msg.jobText || "").length + " chars)");
-    ensureSessionThenFit(msg.jobText)
+    const sessionId = msg.sessionId || null;
+    console.debug("[Caliber][bg] CALIBER_FIT_API received (" + (msg.jobText || "").length + " chars, session=" + (sessionId || "discover") + ")");
+    const fitFn = sessionId
+      ? callFitAPI(msg.jobText, sessionId)
+      : ensureSessionThenFit(msg.jobText);
+    fitFn
       .then((data) => {
         console.debug("[Caliber][bg] sidecard score complete: " + (data.score_0_to_10 || "?"));
         sendResponse({ ok: true, data });
@@ -674,15 +641,6 @@ async function tryRestoreSession(sessionId) {
 
 async function callFitAPI(jobText, sessionId, options) {
   const isPrescan = !!(options && options.prescan);
-  const priority = isPrescan ? "normal" : "high";
-
-  return enqueueFitCall(async () => {
-    return _callFitAPIInner(jobText, sessionId, options);
-  }, priority);
-}
-
-async function _callFitAPIInner(jobText, sessionId, options) {
-  const isPrescan = !!(options && options.prescan);
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
   if (isPrescan) body.prescan = true;
@@ -699,17 +657,26 @@ async function _callFitAPIInner(jobText, sessionId, options) {
   const timeout = isPrescan ? 12000 : 25000;
   console.debug("[Caliber][bg][fetch][" + label + "] POST /api/extension/fit (" + (jobText || "").length + " chars)");
 
+  // Retry with backoff for transient network errors ("Failed to fetch")
   let resp;
-  try {
-    resp = await fetch(API_BASE + "/api/extension/fit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeout),
-    });
-  } catch (fetchErr) {
-    console.error("[Caliber][bg][fetch][" + label + "] network error: " + fetchErr.message);
-    throw new Error("Network error: " + fetchErr.message);
+  var maxAttempts = isPrescan ? 1 : 3;
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      resp = await fetch(API_BASE + "/api/extension/fit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeout),
+      });
+      break; // success — exit retry loop
+    } catch (fetchErr) {
+      console.warn("[Caliber][bg][fetch][" + label + "] attempt " + attempt + "/" + maxAttempts + " failed: " + fetchErr.message);
+      if (attempt >= maxAttempts) {
+        throw new Error("Network error: " + fetchErr.message);
+      }
+      // Backoff: 1.5s, 3s
+      await new Promise(r => setTimeout(r, attempt * 1500));
+    }
   }
 
   // If session not found (401), try restoring from backup then retry
@@ -759,4 +726,4 @@ async function _callFitAPIInner(jobText, sessionId, options) {
     await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
   }
   return data;
-} // end _callFitAPIInner
+}

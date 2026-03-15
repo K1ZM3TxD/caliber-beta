@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.6q";
+  const PANEL_VERSION = "0.9.6r";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -2771,7 +2771,7 @@
 
       const data = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
-          { type: "CALIBER_FIT_API", jobText: text },
+          { type: "CALIBER_FIT_API", jobText: text, sessionId: sessionInfo.sessionId || undefined },
           (response) => {
             if (chrome.runtime.lastError) {
               reject(new Error(chrome.runtime.lastError.message));
