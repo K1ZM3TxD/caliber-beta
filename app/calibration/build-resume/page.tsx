@@ -143,7 +143,7 @@ export default function BuildResumePage() {
 
   /* ─── Render ─── */
   return (
-    <IngestLayout maxWidth="600px" centered>
+    <IngestLayout maxWidth="600px">
       <CaliberHeader className="mb-6" />
 
       {/* ── INTRO ── */}
