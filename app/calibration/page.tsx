@@ -755,7 +755,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div className="w-full flex flex-col items-center">
+              <div className="w-full flex flex-col items-center" style={{ minHeight: "280px" }}>
 
             {/* LANDING */}
             {step === "LANDING" ? (
