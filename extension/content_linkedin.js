@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.1";
+  const PANEL_VERSION = "0.9.2";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1258,12 +1258,13 @@
 
     // ── Diagnostic logging ──
     console.debug("[Caliber][BST] ── evaluation ──");
+    console.debug("[Caliber][BST]   scoreWindowSize: " + scoredCount);
     console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
     console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\"");
     console.debug("[Caliber][BST]   pre-read window: [" + scores.map(function(s) { return s.toFixed(1); }).join(", ") + "]");
     console.debug("[Caliber][BST]   genuineStrongCount: " + strongCount + " (≥" + BST_STRONG_MATCH_THRESHOLD + ")");
     console.debug("[Caliber][BST]   alignedJobs: " + alignedCount + ", mismatchedJobs: " + mismatchCount);
-    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1));
+    console.debug("[Caliber][BST]   maxScore: " + maxScore.toFixed(1) + ", avgScore: " + avgScore.toFixed(1));
     console.debug("[Caliber][BST]   queryClassification: " + surfaceClass + " (" + classificationReason + ")");
     console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
     console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
@@ -1453,10 +1454,11 @@
         badgeBatchStartTime = 0;
       }
       scanAndBadgeVisibleCards();
-      // Periodic BST re-evaluation from cached scores (catches stalled batch processing)
-      evaluateBSTFromBadgeCache();
-    }, 3000);  // every 3s: scan for new/recycled cards, re-evaluate BST
-    console.debug("[Caliber][diag] periodic scan interval started (3s, includes BST re-eval)");
+      // BST evaluation removed from periodic interval — it now fires only
+      // from scoring-completion events (processBadgeQueue + sidecard backfill)
+      // to avoid evaluating before scores exist.
+    }, 3000);  // every 3s: scan for new/recycled cards
+    console.debug("[Caliber][diag] periodic scan interval started (3s)");
   }
 
   /** Stop periodic scan interval. */
