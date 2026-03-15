@@ -9,6 +9,43 @@ let resolvedBase = API_BASE;
 // Derive the Caliber origin from the API_BASE URL (e.g. "http://localhost:3000")
 const CALIBER_ORIGIN = new URL(API_BASE).origin;
 
+// ─── Fit API Request Queue ──────────────────────────────────
+// Serializes all calls to /api/extension/fit so only one is in-flight at a time.
+// Prevents concurrent requests from overwhelming Vercel serverless functions
+// and racing on session state. Sidecard calls get priority over prescan.
+const fitQueue = [];
+let fitInFlight = false;
+
+function enqueueFitCall(fn, priority) {
+  return new Promise((resolve, reject) => {
+    const entry = { fn, resolve, reject, priority: priority || "normal" };
+    if (priority === "high") {
+      // Insert before all normal-priority items
+      const idx = fitQueue.findIndex(e => e.priority !== "high");
+      if (idx === -1) fitQueue.push(entry);
+      else fitQueue.splice(idx, 0, entry);
+    } else {
+      fitQueue.push(entry);
+    }
+    drainFitQueue();
+  });
+}
+
+async function drainFitQueue() {
+  if (fitInFlight || fitQueue.length === 0) return;
+  fitInFlight = true;
+  const entry = fitQueue.shift();
+  try {
+    const result = await entry.fn();
+    entry.resolve(result);
+  } catch (err) {
+    entry.reject(err);
+  } finally {
+    fitInFlight = false;
+    drainFitQueue();
+  }
+}
+
 // ─── Proactive Session Handoff on Install/Startup ───────────
 // After fresh install, extension refresh, or browser restart, content scripts
 // are NOT re-injected into existing tabs. We must proactively inject into any
@@ -637,17 +674,25 @@ async function tryRestoreSession(sessionId) {
 
 async function callFitAPI(jobText, sessionId, options) {
   const isPrescan = !!(options && options.prescan);
+  const priority = isPrescan ? "normal" : "high";
+
+  return enqueueFitCall(async () => {
+    return _callFitAPIInner(jobText, sessionId, options);
+  }, priority);
+}
+
+async function _callFitAPIInner(jobText, sessionId, options) {
+  const isPrescan = !!(options && options.prescan);
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
   if (isPrescan) body.prescan = true;
 
-  // Include session backup only on sidecard (non-prescan) calls for serverless
-  // resilience. Prescan/badge calls skip backup to keep payloads small and fast.
-  if (!isPrescan) {
-    const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
-    if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
-      body.sessionBackup = backupStore.caliberSessionBackup;
-    }
+  // Include session backup for serverless resilience. Sidecard calls always
+  // include it. Prescan calls include it too (avoids 401 → restore → retry
+  // cycle on cold Lambdas that don't have the session).
+  const backupStore = await chrome.storage.local.get(["caliberSessionBackup"]);
+  if (backupStore.caliberSessionBackup && backupStore.caliberSessionBackup.sessionId === sessionId) {
+    body.sessionBackup = backupStore.caliberSessionBackup;
   }
 
   const label = isPrescan ? "prescan" : "sidecard";
@@ -714,4 +759,4 @@ async function callFitAPI(jobText, sessionId, options) {
     await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
   }
   return data;
-}
+} // end _callFitAPIInner

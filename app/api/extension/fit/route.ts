@@ -3,6 +3,9 @@ import { storeGet, storeLatest, storeImport } from "@/lib/calibration_store";
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 
+// Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
+export const maxDuration = 30;
+
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
 function corsHeaders(req: NextRequest): Record<string, string> {
