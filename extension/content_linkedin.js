@@ -723,6 +723,8 @@
   var badgeInjecting = false;            // true while we're writing badges (skip observer)
   var badgeScanInterval = null;          // periodic fallback scan interval
   var bstShowDebounce = null;            // debounce timer for BST banner show (prevents flicker)
+  var bstSuggestedTitles = {};           // session memory: titles already suggested (normalized→true)
+  var bstSearchedQueries = {};           // session memory: queries the user has searched (normalized→true)
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
   var BADGE_BATCH_TIMEOUT_MS = 15000;   // max time to wait for a batch response
 
@@ -1252,6 +1254,7 @@
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
+    bstMarkSearched(currentQuery);  // record this query to prevent BST from suggesting it later
     var strongCount = 0;        // scores >= 7.0 (genuine aligned — guardrail ensures this)
     var mismatchCount = 0;      // jobs with isRoleFamilyMismatch = true
     var alignedCount = 0;       // jobs NOT mismatched (aligned or unknown)
@@ -1460,14 +1463,14 @@
             if (title) titleSource = "recentScores fallback";
           }
           // Final fallback: use lastKnownCalibrationTitle (from session backup or prior scoring)
-          if (!title && lastKnownCalibrationTitle && !titlesEquivalent(lastKnownCalibrationTitle, deferredQuery)) {
+          if (!title && lastKnownCalibrationTitle && !titlesEquivalent(lastKnownCalibrationTitle, deferredQuery) && !bstTitleAlreadySeen(lastKnownCalibrationTitle)) {
             title = lastKnownCalibrationTitle;
             titleSource = "lastKnownCalibrationTitle";
           }
           // Final fallback: use lastKnownNearbyRoles
           if (!title && lastKnownNearbyRoles.length > 0) {
             for (var nr = 0; nr < lastKnownNearbyRoles.length; nr++) {
-              if (lastKnownNearbyRoles[nr].title && !titlesEquivalent(lastKnownNearbyRoles[nr].title, deferredQuery)) {
+              if (lastKnownNearbyRoles[nr].title && !titlesEquivalent(lastKnownNearbyRoles[nr].title, deferredQuery) && !bstTitleAlreadySeen(lastKnownNearbyRoles[nr].title)) {
                 title = lastKnownNearbyRoles[nr].title;
                 titleSource = "lastKnownNearbyRoles";
                 break;
@@ -1476,8 +1479,11 @@
           }
 
           console.debug("[Caliber][BST]   titleSource: " + titleSource + ", title: " + (title ? "\"" + title + "\"" : "(none)"));
+          console.debug("[Caliber][BST-LOOP] suggestedSoFar: " + JSON.stringify(Object.keys(bstSuggestedTitles)) +
+            ", searchedSoFar: " + JSON.stringify(Object.keys(bstSearchedQueries)));
 
           if (title) {
+            bstMarkSuggested(title);
             console.debug("[Caliber][BST] SHOW — suggestion: \"" + title + "\" (source: " + titleSource +
               ", class: " + deferredSurfaceClass + ")");
             showPrescanBSTBanner(title);
@@ -1865,7 +1871,7 @@
   function getCalibrationTitleFallback(currentQuery) {
     for (var i = recentScores.length - 1; i >= 0; i--) {
       var ct = recentScores[i].calibrationTitle;
-      if (ct && !titlesEquivalent(ct, currentQuery)) return ct;
+      if (ct && !titlesEquivalent(ct, currentQuery) && !bstTitleAlreadySeen(ct)) return ct;
     }
     return null;
   }
@@ -1875,14 +1881,14 @@
    * Hierarchy: calibration primary title > adjacent/nearby roles > null
    */
   function determinePrescanSuggestion(calibrationTitle, nearbyRoles, currentQuery) {
-    // Primary: calibration primary title
-    if (calibrationTitle && !titlesEquivalent(calibrationTitle, currentQuery)) {
+    // Primary: calibration primary title (skip if equivalent to query OR already seen)
+    if (calibrationTitle && !titlesEquivalent(calibrationTitle, currentQuery) && !bstTitleAlreadySeen(calibrationTitle)) {
       return calibrationTitle;
     }
-    // Secondary: adjacent/nearby roles from calibration
+    // Secondary: adjacent/nearby roles from calibration (skip seen titles)
     if (nearbyRoles && nearbyRoles.length > 0) {
       for (var i = 0; i < nearbyRoles.length; i++) {
-        if (nearbyRoles[i].title && !titlesEquivalent(nearbyRoles[i].title, currentQuery)) {
+        if (nearbyRoles[i].title && !titlesEquivalent(nearbyRoles[i].title, currentQuery) && !bstTitleAlreadySeen(nearbyRoles[i].title)) {
           return nearbyRoles[i].title;
         }
       }
@@ -2350,6 +2356,29 @@
     var na = a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     var nb = b.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     return na === nb;
+  }
+
+  /** Check if a candidate BST title was already suggested or already searched this session. */
+  function bstTitleAlreadySeen(title) {
+    if (!title) return false;
+    var norm = title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return !!bstSuggestedTitles[norm] || !!bstSearchedQueries[norm];
+  }
+
+  /** Record a title as suggested this session (prevents re-suggesting). */
+  function bstMarkSuggested(title) {
+    if (!title) return;
+    var norm = title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    bstSuggestedTitles[norm] = true;
+    console.debug("[Caliber][BST-LOOP] marked suggested: \"" + title + "\" (norm: \"" + norm + "\")");
+  }
+
+  /** Record a query the user has searched (prevents suggesting it back). */
+  function bstMarkSearched(query) {
+    if (!query) return;
+    var norm = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    bstSearchedQueries[norm] = true;
+    console.debug("[Caliber][BST-LOOP] marked searched: \"" + query + "\" (norm: \"" + norm + "\")");
   }
 
   // checkWeakSearchPattern removed — BST is now triggered by visible-page scan, not per-click history

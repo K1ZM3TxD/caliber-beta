@@ -584,6 +584,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
     let stopped = false;
     const interval = setInterval(async () => {
       if (inFlightRef.current) return;
+      // SGD gate: pause polling when detected signals await user choice
+      const _ds = (session as any)?.detectedSignals;
+      const _idc = (session as any)?.includeDetectedSignals;
+      if (Array.isArray(_ds) && _ds.length > 0 && _idc == null) {
+        console.debug("[SGD-GATE] Detected signals awaiting user choice — polling paused");
+        return;
+      }
       inFlightRef.current = true;
       attempts++;
       setProcessingAttempts(attempts);
