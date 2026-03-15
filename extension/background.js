@@ -381,10 +381,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           const titleRec = msg.sessionBackup.synthesis && msg.sessionBackup.synthesis.titleRecommendation;
           const primaryTitle = (titleRec && titleRec.primary_title && titleRec.primary_title.title) || "";
           const adjTitles = (titleRec && Array.isArray(titleRec.adjacent_titles)) ? titleRec.adjacent_titles : [];
+          // Fall back to all title candidates when adjacent_titles is empty
+          const allTitles = (titleRec && Array.isArray(titleRec.titles)) ? titleRec.titles : [];
+          const titlePool = adjTitles.length > 0
+            ? adjTitles
+            : allTitles.filter(t => t.title !== primaryTitle);
           if (primaryTitle) {
             toStore.caliberCalibrationTitle = primaryTitle;
-            toStore.caliberNearbyRoles = adjTitles.slice(0, 3).map(t => ({ title: t.title || "" }));
-            console.debug("[Caliber][bg][session] extracted calibration title from backup: \"" + primaryTitle + "\"");
+            toStore.caliberNearbyRoles = titlePool.slice(0, 3).map(t => ({ title: t.title || "" }));
+            console.debug("[Caliber][bg][session] extracted calibration title from backup: \"" + primaryTitle +
+              "\", nearbyRoles: " + toStore.caliberNearbyRoles.length);
           }
         } catch (e) {
           console.debug("[Caliber][bg][session] unable to extract calibration title from backup: " + e.message);

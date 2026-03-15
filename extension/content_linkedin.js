@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.4";
+  const PANEL_VERSION = "0.9.5";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -561,7 +561,7 @@
   //   badge visibility. Set BADGES_VISIBLE = false to hide overlay badges
   //   while keeping the scoring pipeline and BST evaluation active.
   //
-  var BADGES_VISIBLE = true;              // render badge DOM on cards (false = silent scoring only)
+  var BADGES_VISIBLE = false;             // render badge DOM on cards (false = silent scoring only)
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
   var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this
@@ -1275,7 +1275,8 @@
         mismatchCount++;
       } else {
         alignedCount++;
-     
+      }
+    }
 
     // Count how many scored job titles share a cluster with the calibration title.
     // Used to detect ambiguous queries landing on entirely foreign job surfaces.
@@ -1290,7 +1291,6 @@
           sameClusterCount++;
         }
       }
-    } }
     }
 
     // Fallback: if badge cache didn't yield a calibration title, try recentScores
@@ -1346,16 +1346,35 @@
       // Ambiguous query — resolve through scored + cluster evidence.
       // Primary: low average confirms poor surface.
       // Secondary: if calibration title has a known cluster but ZERO scored
-      // job titles share it, the surface is effectively foreign (e.g. searching
-      // "specialist" when calibrated as "Product Manager" — most results are
-      // unrelated specialties). Trigger BST for recovery.
+      // job titles share it, the surface is effectively foreign.
+      // Tertiary: if NEITHER side has a known cluster (both unrecognised)
+      // AND query has zero keyword overlap with calibration title, the
+      // user is almost certainly on a foreign surface (e.g., "specialist"
+      // when calibrated as "Business Operations Designer").
       var noClusterOverlap = calClusterForEvidence && sameClusterCount === 0 && scoredCount >= BST_MIN_WINDOW_SIZE;
-      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING || noClusterOverlap;
+      var bothUnclusteredNoOverlap = false;
+      if (!calClusterForEvidence && bestCalibrationTitle && currentQuery) {
+        var aqWords = currentQuery.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var acWords = bestCalibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var ambOverlap = 0;
+        for (var aw = 0; aw < aqWords.length; aw++) {
+          for (var ac = 0; ac < acWords.length; ac++) {
+            if (aqWords[aw] === acWords[ac]) { ambOverlap++; break; }
+          }
+        }
+        bothUnclusteredNoOverlap = aqWords.length > 0 && ambOverlap === 0;
+      }
+      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING || noClusterOverlap || bothUnclusteredNoOverlap;
       if (shouldTrigger) {
-        triggerReason = noClusterOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING
-          ? "no strong matches + ambiguous query + zero job titles in calibration cluster (" + calClusterForEvidence +
-            ") despite avg " + avgScore.toFixed(1) + " — surface is foreign"
-          : "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")";
+        if (noClusterOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING) {
+          triggerReason = "no strong matches + ambiguous query + zero job titles in calibration cluster (" + calClusterForEvidence +
+            ") despite avg " + avgScore.toFixed(1) + " — surface is foreign";
+        } else if (bothUnclusteredNoOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING) {
+          triggerReason = "no strong matches + ambiguous query + zero keyword overlap with calTitle \"" +
+            bestCalibrationTitle + "\" (no clusters) despite avg " + avgScore.toFixed(1) + " — surface is foreign";
+        } else {
+          triggerReason = "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")";
+        }
       } else {
         triggerReason = "no strong matches + ambiguous query but acceptable avg (" + avgScore.toFixed(1) +
           " ≥ " + BST_AMBIGUOUS_AVG_CEILING + ") + " + sameClusterCount + " jobs share calibration cluster — holding";
@@ -2005,12 +2024,35 @@
         " (job: \"" + (jobTitle || "") + "\", cal: \"" + (calibrationTitle || "") + "\")");
       return ceiling;
     }
+    // Tier 3: job title is in a known cluster but calibration title is NOT in
+    // any cluster AND they share zero keyword overlap. This catches cases like
+    // job="Bartender" (hospitality) + calTitle="Business Operations Designer"
+    // (no cluster match). Without this, the guardrail silently passes 6-7 scores.
+    if (calibrationTitle && jobTitle && score > ceiling) {
+      var jobCluster = getClusterForTitle(jobTitle);
+      var calCluster = getClusterForTitle(calibrationTitle);
+      if (jobCluster && !calCluster) {
+        var jWords = jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var cWords = calibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var overlapCount = 0;
+        for (var ow = 0; ow < jWords.length; ow++) {
+          for (var cw = 0; cw < cWords.length; cw++) {
+            if (jWords[ow] === cWords[cw]) { overlapCount++; break; }
+          }
+        }
+        if (overlapCount === 0) {
+          console.debug("[Caliber][diag][ceiling] cluster-vs-unrecognised cap: " + score + " → " + ceiling +
+            " (job: \"" + jobTitle + "\" [" + jobCluster + "], cal: \"" + calibrationTitle + "\" [no cluster], 0 overlap)");
+          return ceiling;
+        }
+      }
+    }
     // Diagnostic: surface when guardrail can't evaluate due to missing context
     if (!calibrationTitle && score > ceiling) {
-      var jobCluster = jobTitle ? getClusterForTitle(jobTitle) : null;
-      if (jobCluster) {
+      var diagJobCluster = jobTitle ? getClusterForTitle(jobTitle) : null;
+      if (diagJobCluster) {
         console.warn("[Caliber][diag][ceiling] GUARDRAIL GAP: job \"" + (jobTitle || "") +
-          "\" (cluster: " + jobCluster + ") scored " + score + " but no calibrationTitle available to compare — " +
+          "\" (cluster: " + diagJobCluster + ") scored " + score + " but no calibrationTitle available to compare — " +
           "score passes uncapped. lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
       }
     }

@@ -4,23 +4,22 @@
 ## Current Open Issues
 
 65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15)
-  - Follow-up to #64. BST is partially working but three failure modes remain:
-    1. **BST banner renders without suggestion title**: `determinePrescanSuggestion()` returns null when `bestCalibrationTitle` is empty (not persisted across page loads) and `recentScores` is empty. Banner shows generic "try a different search" with no clickable link.
-    2. **Out-of-scope "bartender" search not triggering BST + inflated scores**: `applyDomainMismatchGuardrail` can't detect role-family mismatch when `effectiveCalibTitle` is empty. Scores pass through uncapped at 6-7. Classification may still detect out-of-scope via cluster matching, but without a suggestion title the banner is useless.
-    3. **Ambiguous "specialist" search not triggering BST**: Classified as "ambiguous" correctly, but uncapped scores average ≥6.0 (the `BST_AMBIGUOUS_AVG_CEILING`), so BST suppressed. No secondary signal to detect that zero job titles share the calibration cluster.
-  - Root causes:
-    - `lastKnownCalibrationTitle` was session-only (not persisted to chrome.storage.local).
-    - Session backup contains `synthesis.titleRecommendation` but it was never extracted during CALIBER_SESSION_HANDOFF.
-    - Ambiguous trigger lacked cluster-alignment evidence as secondary signal.
-  - Fixes applied:
-    - **Calibration title persistence**: background.js extracts `calibrationTitle` + `nearbyRoles` from session backup on handoff, stores in chrome.storage.local. Content script loads on init. Persisted whenever set from scoring results.
-    - **Session discover enrichment**: `CALIBER_SESSION_DISCOVER` response now includes `calibrationTitle` + `nearbyRoles` from stored session context.
-    - **BST suggestion fallback chain extended**: badge cache → recentScores → lastKnownCalibrationTitle → lastKnownNearbyRoles (4-level fallback).
-    - **Ambiguous cluster-alignment trigger**: For ambiguous surfaces, BST now also triggers when the calibration title has a known cluster but ZERO scored job titles share it (surface is foreign regardless of avg score).
-    - **Guardrail gap diagnostic**: `applyDomainMismatchGuardrail` now logs a warning when calibrationTitle is missing and a clustered job passes uncapped.
-    - Enhanced diagnostic logging: classifier input/output, calibration title source, nearby roles, sameClusterCount, calCluster.
-  - BST doctrine preserved with one additive rule: ambiguous trigger now fires on `avgScore < 6.0 OR (calCluster known AND sameClusterCount === 0)`.
-  - Files changed: `extension/content_linkedin.js`, `extension/background.js`.
+  - Follow-up to #64. Multiple rounds of live testing (v0.9.3→v0.9.4→v0.9.5).
+
+  **Round 1 (v0.9.3→v0.9.4):**
+  - Three failure modes: BST banner without suggestion title, "bartender" not triggering BST + inflated scores, "specialist" not triggering BST.
+  - Root causes: `lastKnownCalibrationTitle` not persisted, session backup `titleRecommendation` not extracted on handoff, ambiguous trigger lacked cluster-alignment evidence.
+  - v0.9.4 fixes: calibration title persistence, session discover enrichment, 4-level BST suggestion fallback chain, ambiguous cluster-alignment trigger, guardrail gap diagnostic.
+
+  **Round 2 (v0.9.4 live test → v0.9.5):**
+  - Four failures persisted:
+    1. **BST suggestion still empty**: On calibrated-title search, BST fires but shows "try different search" with no suggested title. Root cause: `adjacent_titles` from synthesis is usually empty (cross-cluster + score >= 6.2 filter too strict). Both server API and background backup extraction only used `adjacent_titles`. Fix: fall back to `titleRec.titles` (all top-3 enriched candidates) when adjacent_titles is empty.
+    2. **Overlay badges still visible**: `BADGES_VISIBLE` was true. Fix: set to `false` (silent scoring only — pipeline + BST still run).
+    3. **"Bartender" inflated scores + no BST**: User's calTitle (e.g. "Business Operations Designer") doesn't match any ROLE_FAMILY_CLUSTERS → `isRoleFamilyMismatch` returns false → guardrail doesn't fire. Fix: added Tier 3 guardrail — job in known cluster + calTitle NOT in any cluster + zero keyword overlap → cap to 5.0.
+    4. **"Specialist" no BST**: Both "specialist" and calTitle have no cluster → `calClusterForEvidence = null` → `noClusterOverlap` skipped → ambiguous trigger only checks avgScore < 6.0 (fails with inflated scores). Fix: added `bothUnclusteredNoOverlap` tertiary trigger — when neither query nor calTitle has a known cluster AND zero keyword overlap → trigger BST.
+  - Also fixed: brace/structure bug in `evaluateBSTFromBadgeCache` — cluster evidence counting code was accidentally nested inside for-loop's else branch. Now runs after the loop.
+  - Files changed: `extension/content_linkedin.js`, `extension/background.js`, `app/api/extension/fit/route.ts`.
+  - BST doctrine update: ambiguous trigger fires on `avgScore < 6.0 OR noClusterOverlap OR bothUnclusteredNoOverlap`.
 
 64. BST trigger + calibration session reliability in LinkedIn extension — **SHIPPED** (2026-03-15)
   - Beta validation revealed BST not appearing when expected across multiple search scenarios.

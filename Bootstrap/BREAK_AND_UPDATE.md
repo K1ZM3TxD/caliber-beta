@@ -79,6 +79,34 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — BST v0.9.5: Adjacent Title Fallback, Silent Scoring, Guardrail Tier 3 (#65 round 2)
+
+**What changed:**
+- Live testing of v0.9.4 revealed four persisting failures. All fixed in v0.9.5:
+  1. **Adjacent title fallback for BST suggestion**: `adjacent_titles` from synthesis is usually empty (cross-cluster + score >= 6.2 filter). Server API (`route.ts`) and background.js backup extraction now fall back to `titleRec.titles` (all top-3 enriched candidates) when `adjacent_titles` is empty. BST suggestion chain can now always find a concrete title.
+  2. **BADGES_VISIBLE = false**: Overlay badges hidden until beta launch. Scoring pipeline + BST continue silently.
+  3. **Tier 3 guardrail (cluster-vs-unclustered)**: When job title is in a known ROLE_FAMILY_CLUSTER but calibration title is NOT in any cluster AND zero keyword overlap → cap to `SCORE_CEILING_OUT_OF_SCOPE` (5.0). Catches "Bartender" (hospitality) vs "Business Operations Designer" (no cluster).
+  4. **bothUnclusteredNoOverlap tertiary BST trigger**: When NEITHER the search query NOR the calibration title maps to any cluster AND zero keyword overlap → trigger BST regardless of avgScore. Catches "specialist" vs any unclustered calTitle.
+- Also fixed: brace/structure bug in `evaluateBSTFromBadgeCache` — cluster evidence counting code was accidentally nested inside for-loop's else branch. Now runs after the loop.
+
+**Why it changed:**
+- v0.9.4 live test showed: BST banner said "try different search" with no suggested title (adjacent_titles empty), overlay still rendering score badges on cards, "bartender" scores 6-7 uncapped (calTitle not in any cluster → guardrail missed), "specialist" no BST (both unclustered → cluster logic bypassed).
+
+**What is now expected:**
+- BST banner always shows a concrete suggested title when triggered (primary cal title, adjacent role, or candidate from titles array).
+- Overlay badges are invisible; scoring pipeline runs silently in background.
+- "Bartender"-type searches (job in known cluster, calTitle in no cluster) cap to 5.0 and trigger BST.
+- "Specialist"-type searches (neither side in any cluster, zero overlap) trigger BST.
+- Ambiguous BST trigger: `avgScore < 6.0 || noClusterOverlap || bothUnclusteredNoOverlap`.
+
+**What is NOT expected:**
+- BST banner with no suggestion except on very first install before any calibration data.
+- Visible overlay badges on LinkedIn job cards.
+- Uncapped scores for clearly out-of-scope searches when calTitle is unclustered.
+- Ambiguous queries suppressing BST when no keyword overlap exists between query and calTitle.
+
+**Files touched:** `extension/content_linkedin.js`, `extension/background.js`, `extension/manifest.json`, `app/api/extension/fit/route.ts`, `lib/extension_config.ts`, `public/caliber-extension-beta-v0.9.5.zip`, `Bootstrap/CALIBER_ISSUES_LOG.md`, `Bootstrap/CALIBER_ACTIVE_STATE.md`, `Bootstrap/BREAK_AND_UPDATE.md`
+
 ### 2026-03-15 — BST Suggestion Rendering + Classification Edge Cases (#65)
 
 **What changed:**

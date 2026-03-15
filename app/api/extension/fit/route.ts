@@ -129,8 +129,15 @@ export async function POST(req: NextRequest) {
     // Extract calibration titles for search suggestions
     const titleRec = session.synthesis?.titleRecommendation;
     const primaryTitle = titleRec?.primary_title?.title ?? "";
+    // Return adjacent titles first; fall back to all top candidates when
+    // adjacent_titles is empty (happens when no cross-cluster alternative
+    // scores >= 6.2). This ensures the extension always has suggestion titles.
     const adjTitles = titleRec?.adjacent_titles ?? [];
-    const nearbyRoles = adjTitles.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
+    const allTitles = (titleRec as any)?.titles ?? [];
+    const titlePool = adjTitles.length > 0
+      ? adjTitles
+      : allTitles.filter((t: { title: string }) => t.title !== primaryTitle);
+    const nearbyRoles = titlePool.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
 
     const res = NextResponse.json({
       score_0_to_10: alignment.score ?? 0,
