@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.6";
+  const PANEL_VERSION = "0.8.7";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -536,6 +536,7 @@
   //
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
+  var BST_WEAK_SURFACE_CEILING = 7.0;     // if maxScore < this, surface is classified "weak"
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
   var SCORE_CEILING_OUT_OF_SCOPE = 5.0;   // hard cap for clearly out-of-scope job families
 
@@ -913,6 +914,7 @@
           if (entry.id) {
             badgeScoreCache[entry.id] = {
               score: badgeScore,
+              title: entry.title || "",
               calibrationTitle: result.calibrationTitle || "",
               nearbyRoles: result.nearbyRoles || [],
             };
@@ -1067,14 +1069,18 @@
   function evaluateBSTFromBadgeCache() {
     var urls = Object.keys(badgeScoreCache);
     if (urls.length < BST_MIN_WINDOW_SIZE) {
-      console.debug("[Caliber][diag][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
+      console.debug("[Caliber][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
       return;
     }
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
-    var strongCount = 0;
+    var strongCount = 0;           // raw count of scores >= 8.0
+    var genuineStrongCount = 0;    // scores >= 8.0 that are NOT role-family mismatches
     var scoredCount = 0;
+    var mismatchCount = 0;         // jobs detected as role-family mismatch
+    var maxScore = 0;
+    var scoreSum = 0;
     var scores = [];
     var bestCalibrationTitle = "";
     var bestNearbyRoles = [];
@@ -1083,45 +1089,92 @@
       var entry = badgeScoreCache[urls[i]];
       scoredCount++;
       scores.push(entry.score);
+      scoreSum += entry.score;
+      if (entry.score > maxScore) maxScore = entry.score;
       if (entry.score >= BST_STRONG_MATCH_THRESHOLD) strongCount++;
-      if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
+      if (entry.calibrationTitle) {
+        bestCalibrationTitle = entry.calibrationTitle;
+        if (entry.title && isRoleFamilyMismatch(entry.title, entry.calibrationTitle)) {
+          mismatchCount++;
+          // Don't count mismatched jobs as genuine strong matches
+          if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
+            // flukey high score on wrong-family job — not genuine
+          } else {
+            // not strong anyway
+          }
+        } else if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
+          genuineStrongCount++;
+        }
+      } else if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
+        // No calibration title to compare — count as genuine (benefit of doubt)
+        genuineStrongCount++;
+      }
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
     }
 
-    console.debug("[Caliber][diag][BST] evaluating — window: " + scoredCount + " scores, strong(>=" +
-      BST_STRONG_MATCH_THRESHOLD + "): " + strongCount + ", surface: " + surfaceKey +
-      ", prescanBSTActive: " + prescanBSTActive);
-    console.debug("[Caliber][diag][BST] score window: [" + scores.join(", ") + "]");
+    var avgScore = scoredCount > 0 ? scoreSum / scoredCount : 0;
+    var mismatchRatio = scoredCount > 0 ? mismatchCount / scoredCount : 0;
+    var isWeakSurface = (maxScore < BST_WEAK_SURFACE_CEILING) ||
+                        (mismatchRatio >= 0.6) ||
+                        (genuineStrongCount === 0 && avgScore < 6.0);
 
-    if (strongCount === 0) {
-      // BST TRIGGER: zero strong matches in the scored window
-      // This search surface has no pursue-worthy jobs — suggest a better search.
+    // BST trigger uses genuineStrongCount: mismatched jobs with flukey high scores
+    // do not suppress recovery. Only real same-family strong matches suppress BST.
+    var shouldTrigger = genuineStrongCount === 0;
+
+    // ── Diagnostic logging (required by spec) ──
+    console.debug("[Caliber][BST] ── evaluation ──");
+    console.debug("[Caliber][BST]   window: [" + scores.join(", ") + "]");
+    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1));
+    console.debug("[Caliber][BST]   strong(≥" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount +
+      ", genuineStrong: " + genuineStrongCount +
+      ", mismatch: " + mismatchCount + "/" + scoredCount +
+      " (" + (mismatchRatio * 100).toFixed(0) + "%)");
+    console.debug("[Caliber][BST]   weakSurface: " + isWeakSurface +
+      ", surface: " + surfaceKey + ", query: \"" + currentQuery + "\"");
+    console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS") +
+      " (prescanBSTActive: " + prescanBSTActive + ")");
+
+    if (shouldTrigger) {
+      // BST TRIGGER: zero genuine strong matches in the scored window.
       // Debounce the show to prevent flicker when scoring chunks arrive in quick
-      // succession (a strong match in the next chunk would cancel the pending show).
+      // succession (a genuine strong match in the next chunk would cancel the pending show).
       if (!prescanBSTActive && !bstShowDebounce) {
-        console.debug("[Caliber][diag][BST] TRIGGER (deferred) — 0 strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + ") in " + scoredCount + " scored, query: \"" + currentQuery + "\"");
         var deferredCalibTitle = bestCalibrationTitle;
         var deferredNearby = bestNearbyRoles;
         var deferredQuery = currentQuery;
+        var deferredIsWeak = isWeakSurface;
         bstShowDebounce = setTimeout(function () {
           bstShowDebounce = null;
-          // Re-verify no strong match has appeared since scheduling
+          // Re-verify no genuine strong match has appeared since scheduling
           var reUrls = Object.keys(badgeScoreCache);
-          var reStrong = 0;
+          var reGenuine = 0;
           for (var ri = 0; ri < reUrls.length; ri++) {
-            if (badgeScoreCache[reUrls[ri]].score >= BST_STRONG_MATCH_THRESHOLD) reStrong++;
+            var re = badgeScoreCache[reUrls[ri]];
+            if (re.score >= BST_STRONG_MATCH_THRESHOLD) {
+              var isMismatch = re.title && re.calibrationTitle && isRoleFamilyMismatch(re.title, re.calibrationTitle);
+              if (!isMismatch) reGenuine++;
+            }
           }
-          if (reStrong > 0 || prescanBSTActive) {
-            console.debug("[Caliber][diag][BST] deferred show cancelled — strong match appeared during debounce");
+          if (reGenuine > 0 || prescanBSTActive) {
+            console.debug("[Caliber][BST] deferred show cancelled — genuine strong match appeared during debounce (" + reGenuine + ")");
             return;
           }
+          // Determine suggestion title with fallback chain
           var title = determinePrescanSuggestion(deferredCalibTitle, deferredNearby, deferredQuery);
+          var titleSource = "none";
           if (title) {
-            console.debug("[Caliber][BST] suggestion: \"" + title + "\" (source: " +
-              (deferredCalibTitle && !titlesEquivalent(deferredCalibTitle, deferredQuery) ? "calibration primary" : "adjacent role") + ")");
+            titleSource = (deferredCalibTitle && !titlesEquivalent(deferredCalibTitle, deferredQuery)) ? "calibration primary" : "adjacent role";
+          } else {
+            // Fallback: calibration title from recentScores history
+            title = getCalibrationTitleFallback(deferredQuery);
+            if (title) titleSource = "recentScores fallback";
+          }
+          if (title) {
+            console.debug("[Caliber][BST] SHOW — suggestion: \"" + title + "\" (source: " + titleSource +
+              ", weakSurface: " + deferredIsWeak + ")");
             showPrescanBSTBanner(title);
             prescanStoredTitle = title;
-            // Persist updated state with banner shown
             chrome.runtime.sendMessage({
               type: "CALIBER_PRESCAN_STATE_SAVE",
               surfaceKey: getSearchSurfaceKey(),
@@ -1132,19 +1185,30 @@
               suggestionShown: true,
             });
           } else {
-            console.debug("[Caliber][BST] deferred trigger — no valid suggestion, suppressed");
+            console.debug("[Caliber][BST] SHOW (generic) — no suggestion title available, showing generic recovery");
+            showPrescanBSTBanner(null);
+            prescanStoredTitle = null;
+            chrome.runtime.sendMessage({
+              type: "CALIBER_PRESCAN_STATE_SAVE",
+              surfaceKey: getSearchSurfaceKey(),
+              query: deferredQuery,
+              strongCount: 0,
+              scoredCount: reUrls.length,
+              suggestedTitle: null,
+              suggestionShown: true,
+            });
           }
         }, 800);
       }
     } else {
-      // Strong match found — immediately cancel pending show and hide existing banner
+      // Genuine strong match found — immediately cancel pending show and hide existing banner
       if (bstShowDebounce) {
         clearTimeout(bstShowDebounce);
         bstShowDebounce = null;
-        console.debug("[Caliber][diag][BST] cancelled pending BST show — strong match arrived");
+        console.debug("[Caliber][BST] cancelled pending show — genuine strong match arrived (" + genuineStrongCount + ")");
       }
       if (prescanBSTActive) {
-        console.debug("[Caliber][diag][BST] SUPPRESS — strong match appeared (" + strongCount + " >= " + BST_STRONG_MATCH_THRESHOLD + "), hiding BST banner");
+        console.debug("[Caliber][BST] SUPPRESS — genuine strong match appeared (" + genuineStrongCount + "), hiding banner");
         prescanBSTActive = false;
         prescanStoredTitle = null;
         if (shadow) {
@@ -1152,7 +1216,7 @@
           if (banner) banner.style.display = "none";
         }
       } else {
-        console.debug("[Caliber][diag][BST] healthy — " + strongCount + " strong matches (>= " + BST_STRONG_MATCH_THRESHOLD + "), BST suppressed");
+        console.debug("[Caliber][BST] healthy — " + genuineStrongCount + " genuine strong matches, BST suppressed");
       }
     }
 
@@ -1166,7 +1230,7 @@
       type: "CALIBER_PRESCAN_STATE_SAVE",
       surfaceKey: surfaceKey,
       query: currentQuery,
-      strongCount: strongCount,
+      strongCount: genuineStrongCount,
       scoredCount: scoredCount,
       suggestedTitle: prescanStoredTitle,
       suggestionShown: prescanBSTActive,
@@ -1424,6 +1488,18 @@
   }
 
   /**
+   * Fallback: get calibration title from recentScores history when
+   * badge cache entries don't have it (e.g., API omitted calibration_title).
+   */
+  function getCalibrationTitleFallback(currentQuery) {
+    for (var i = recentScores.length - 1; i >= 0; i--) {
+      var ct = recentScores[i].calibrationTitle;
+      if (ct && !titlesEquivalent(ct, currentQuery)) return ct;
+    }
+    return null;
+  }
+
+  /**
    * Determine the best title suggestion from prescan results.
    * Hierarchy: calibration primary title > adjacent/nearby roles > null
    */
@@ -1445,6 +1521,7 @@
 
   /**
    * Show the Better Search Title banner from search-surface scan results.
+   * If suggestedTitle is null, shows a generic recovery message without a link.
    */
   function showPrescanBSTBanner(suggestedTitle) {
     getOrCreatePanel();
@@ -1452,14 +1529,22 @@
     var banner = shadow.getElementById("cb-recovery-banner");
     var link = shadow.getElementById("cb-recovery-link");
     var reason = shadow.getElementById("cb-recovery-reason");
-    if (banner && link) {
+    if (banner) {
       banner.style.display = "";
       if (reason) reason.textContent = "None of the scored jobs on this page are strong matches. Try a different search.";
-      link.textContent = suggestedTitle;
-      link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+      if (link) {
+        if (suggestedTitle) {
+          link.textContent = suggestedTitle;
+          link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+          link.style.display = "";
+          link.onclick = function () { sessionSignals.suggest_clicked = true; };
+        } else {
+          // Generic recovery: no specific title to suggest
+          link.style.display = "none";
+        }
+      }
       sessionSignals.suggest_shown = true;
-      link.onclick = function () { sessionSignals.suggest_clicked = true; };
-      console.debug("[Caliber][prescan] BST banner shown, suggested title: \"" + suggestedTitle + "\"");
+      console.debug("[Caliber][BST] banner shown" + (suggestedTitle ? ", suggested: \"" + suggestedTitle + "\"" : " (generic, no suggestion)"));
     }
   }
 
@@ -1962,6 +2047,7 @@
       // Update badge cache
       badgeScoreCache[sidecardJobId] = {
         score: score,
+        title: lastJobMeta.title || "",
         calibrationTitle: data.calibration_title || "",
         nearbyRoles: data.nearby_roles || [],
       };
