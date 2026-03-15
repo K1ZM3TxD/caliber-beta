@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.5";
+  const PANEL_VERSION = "0.9.6";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -2995,7 +2995,7 @@
     '</div>',
     '<div class="cb-panel">',
     '  <div class="cb-header">',
-    '    <span class="cb-logo">Caliber</span>',
+    '    <span class="cb-logo">Caliber</span><span class="cb-version">v' + PANEL_VERSION + '</span>',
     '    <div class="cb-header-controls">',
     '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
@@ -3178,6 +3178,7 @@
     "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
+    ".cb-version { font-size: 8px; color: #444; margin-left: 4px; font-weight: 400; }",
     ".cb-header-controls { display: flex; align-items: center; gap: 2px; }",
     ".cb-refresh-btn {",
     "  background: none; border: none; color: #555; font-size: 14px;",
