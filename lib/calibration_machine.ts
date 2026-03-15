@@ -873,6 +873,18 @@ const SIGNAL_LABEL_MAP: Record<string, string> = {
   discovery: "Problem Discovery",
   hypothesis: "Hypothesis Testing",
   experiment: "Experimentation",
+  // Behavioral / generalist / interpersonal
+  entrepreneur: "Entrepreneurship",
+  interact: "Interpersonal Engagement",
+  learning: "Learning Agility",
+  resourceful: "Resourcefulness",
+  adapt: "Adaptability",
+  innovat: "Innovation",
+  delegat: "Delegation",
+  accountab: "Accountability",
+  versatil: "Versatility",
+  investigat: "Investigation & Analysis",
+  marketing: "Marketing & Go-to-Market",
 }
 
 // Terms too generic to be meaningful signal labels on their own
@@ -895,6 +907,9 @@ const GENERIC_TERMS = new Set([
   "develop", "development", "support", "report", "reporting",
   "review", "testing", "improve", "improving", "drive", "driving",
   "lead", "leading", "deliver", "delivering", "ensure", "ensuring",
+  "taking", "creating", "making", "working", "figuring", "talking",
+  "solving", "helping", "getting", "staying", "doing", "sharing",
+  "solution", "understanding", "handling", "organizing", "achieving",
 ])
 
 function formatSignalLabel(term: string): string | null {
@@ -949,8 +964,8 @@ function detectAdditionalSignals(session: CalibrationSession): string[] {
           anchorDebug.push(`${anchor.term}(n:${anchor.count})→${label}`)
         }
       }
-      // Verbs with higher count indicate strong behavioral pattern
-      if (anchor.kind === "verb" && anchor.count >= 3) {
+      // Verbs with count >= 2 indicate behavioral pattern absent from resume
+      if (anchor.kind === "verb" && anchor.count >= 2) {
         const label = findSignalLabel(anchor.term) ?? formatSignalLabel(anchor.term)
         if (label && !detected.has(label)) {
           detected.set(label, { label, confidence: anchor.count, source: "anchor_verb" })
