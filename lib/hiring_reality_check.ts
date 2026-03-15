@@ -65,14 +65,24 @@ function extractRequirements(jobText: string): ExtractedRequirements {
   const reqSection = extractRequirementSection(jobText);
   const textToScan = reqSection || jobText;
 
+  // Strip benefits sections before domain scanning to prevent false signals
+  const textForDomain = stripBenefitsSection(textToScan);
+
   for (const pat of HARD_CREDENTIAL_PATTERNS) {
     const m = textToScan.match(pat);
     if (m) hardCredentials.push(m[0]);
   }
 
   for (const pat of DOMAIN_PATTERNS) {
-    const m = textToScan.match(pat);
+    const m = textForDomain.match(pat);
     if (m) domainRequirements.push(m[0]);
+  }
+
+  // Post-filter: if "insurance" matched but every occurrence is benefits context
+  // (e.g. "health insurance", "insurance benefits"), remove the false signal
+  const insuranceIdx = domainRequirements.findIndex(d => /\binsurance\b/i.test(d));
+  if (insuranceIdx >= 0 && isInsuranceBenefitsOnly(textToScan)) {
+    domainRequirements.splice(insuranceIdx, 1);
   }
 
   const yearsMatch = textToScan.match(YEARS_PATTERN) || textToScan.match(YEARS_CONTEXT_PATTERN);
@@ -98,11 +108,52 @@ function extractRequirementSection(text: string): string | null {
   for (const marker of markers) {
     const idx = text.search(marker);
     if (idx >= 0) {
-      // Take up to ~2000 chars after the marker
-      return text.slice(idx, idx + 2000);
+      // Take up to ~2000 chars after the marker, truncate at any benefits section
+      const chunk = text.slice(idx, idx + 2000);
+      return stripBenefitsSection(chunk);
     }
   }
   return null;
+}
+
+// ── Benefits section filtering ──────────────────────────────────────────────
+
+const BENEFITS_SECTION_MARKERS: RegExp[] = [
+  /\n\s*(?:benefits|employee\s+benefits|our\s+benefits)\s*[:\-\n]/i,
+  /\n\s*(?:benefits|perks)\s+(?:and|&)\s+(?:benefits|perks)\s*[:\-\n]/i,
+  /\n\s*what\s+we\s+offer\b/i,
+  /\n\s*compensation\s+(?:and|&)\s+benefits\b/i,
+  /\n\s*total\s+rewards?\b/i,
+  /\n\s*why\s+(?:work|join)\b/i,
+  /\n\s*we\s+offer\s*[:\-\n]/i,
+];
+
+/** Strip benefits/perks section text to prevent false domain signals. */
+function stripBenefitsSection(text: string): string {
+  let cutIdx = text.length;
+  for (const marker of BENEFITS_SECTION_MARKERS) {
+    const idx = text.search(marker);
+    if (idx > 0 && idx < cutIdx) cutIdx = idx;
+  }
+  return text.slice(0, cutIdx);
+}
+
+/**
+ * Check if "insurance" only appears in benefits-related phrases, not as a domain
+ * requirement. Catches inline benefits language that survives section stripping.
+ */
+function isInsuranceBenefitsOnly(text: string): boolean {
+  let cleaned = text;
+  // Remove benefits-context: "health insurance", "dental insurance", etc.
+  cleaned = cleaned.replace(
+    /\b(?:health|medical|dental|vision|life|disability|supplemental|voluntary|group|pet)\s+insurance\b/gi, " "
+  );
+  // Remove benefits-context: "insurance benefits", "insurance coverage", etc.
+  cleaned = cleaned.replace(
+    /\binsurance\s+(?:benefits?|coverage|plans?|options?|packages?|programs?|polic(?:y|ies)|premiums?|enrollment|provided|included|offered|available)\b/gi, " "
+  );
+  // If "insurance" no longer appears, every mention was benefits-only
+  return !/\binsurance\b/i.test(cleaned);
 }
 
 // ── Resume matching ─────────────────────────────────────────────────────────
@@ -234,3 +285,10 @@ export function computeHiringRealityCheck(jobText: string, resumeText: string): 
 
   return { band, reason: topReason };
 }
+
+// Test-only exports
+export const _testing = {
+  extractRequirements,
+  stripBenefitsSection,
+  isInsuranceBenefitsOnly,
+};
