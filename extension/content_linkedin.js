@@ -725,6 +725,7 @@
   var bstShowDebounce = null;            // debounce timer for BST banner show (prevents flicker)
   var bstSuggestedTitles = {};           // session memory: titles already suggested (normalized→true)
   var bstSearchedQueries = {};           // session memory: queries the user has searched (normalized→true)
+  var initialSurfaceResolved = false;    // true once initial visible-card scoring pass completes
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
   var BADGE_BATCH_TIMEOUT_MS = 15000;   // max time to wait for a batch response
 
@@ -1245,11 +1246,25 @@
    */
   function evaluateBSTFromBadgeCache() {
     console.debug("[Caliber][BST][diag] evaluateBSTFromBadgeCache() invoked — sessionReady=" + sessionReady +
+      ", initialSurfaceResolved=" + initialSurfaceResolved +
       ", lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
     var urls = Object.keys(badgeScoreCache);
     if (urls.length < BST_MIN_WINDOW_SIZE) {
       console.debug("[Caliber][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
       return;
+    }
+
+    // Gate: don't render BST until the initial visible-card scoring pass has drained.
+    // This prevents premature BST on the first chunk when strong matches may still be in-flight.
+    if (!initialSurfaceResolved) {
+      if (badgeBatchQueue.length > 0) {
+        console.debug("[Caliber][BST] skip — initial surface scoring still in progress (queue: " +
+          badgeBatchQueue.length + ", cache: " + urls.length + ")");
+        return;
+      }
+      // Queue is drained — initial pass complete, resolve the surface
+      initialSurfaceResolved = true;
+      console.debug("[Caliber][BST] initial surface resolved (" + urls.length + " scores) — proceeding with first evaluation");
     }
 
     var surfaceKey = getSearchSurfaceKey();
@@ -1825,24 +1840,20 @@
     // Previous regression: early return here prevented badge scanning from
     // ever starting when durable prescan state was loaded on page reload.
     if (prescanDone && prescanSearchQuery === surfaceKey) {
-      // Restore banner from durable state if suggestion was shown previously
-      if (prescanStoredTitle && !prescanBSTActive) {
-        showPrescanBSTBanner(prescanStoredTitle);
-      } else if (prescanSurfaceBanner && !prescanBSTActive) {
-        showSurfaceQualityBanner(prescanSurfaceBanner.strongCount, prescanSurfaceBanner.bestTitle, prescanSurfaceBanner.bestScore);
-      }
-      console.debug("[Caliber][prescan] evaluation already completed for surface: " + surfaceKey + " — starting badge scanning");
-      startBadgeScanningWithRetry();
-      return;
+      // Durable state exists for this surface, but on refresh the badge cache is empty.
+      // Don't restore stale banners — fall through to fresh scoring which will
+      // produce the correct banner after the initial surface resolves.
+      console.debug("[Caliber][prescan] durable state found for surface: " + surfaceKey + " — re-evaluating from fresh scores");
     }
 
-    // Reset prescan state for new surface
+    // Reset prescan state for new/refreshed surface
     prescanRunning = true;
     prescanDone = false;
     prescanSearchQuery = surfaceKey;
     prescanBSTActive = false;
     prescanStoredTitle = null;
     prescanSurfaceBanner = null;
+    initialSurfaceResolved = false;
 
     // Hide any previous prescan banner
     if (shadow) {
@@ -1992,6 +2003,7 @@
     prescanBSTActive = false;
     prescanStoredTitle = null;
     prescanSurfaceBanner = null;
+    initialSurfaceResolved = false;
     if (bstShowDebounce) {
       clearTimeout(bstShowDebounce);
       bstShowDebounce = null;
