@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeGet, storeLatest, storeImport } from "@/lib/calibration_store";
-import { dispatchCalibrationEvent } from "@/lib/calibration_machine";
+import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 
 // Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
@@ -20,6 +20,13 @@ function corsHeaders(req: NextRequest): Record<string, string> {
   return {};
 }
 
+/** Helper: build a JSON response with CORS headers always attached. */
+function jsonResponse(req: NextRequest, data: Record<string, unknown>, status: number) {
+  const res = NextResponse.json(data, { status });
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+  return res;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -27,10 +34,7 @@ export async function POST(req: NextRequest) {
     const isPrescan = body.prescan === true;
     const minLength = isPrescan ? 80 : 200;
     if (jobText.length < minLength) {
-      return NextResponse.json(
-        { error: `Job description too short (need ≥${minLength} characters).` },
-        { status: 400 }
-      );
+      return jsonResponse(req, { error: `Job description too short (need ≥${minLength} characters).` }, 400);
     }
 
     // Resolve session: explicit sessionId or fall back to most recent
@@ -38,10 +42,7 @@ export async function POST(req: NextRequest) {
     if (!sessionId) {
       const latest = storeLatest();
       if (!latest) {
-        return NextResponse.json(
-          { error: "No active Caliber session. Complete your profile on Caliber first." },
-          { status: 401 }
-        );
+        return jsonResponse(req, { error: "No active Caliber session. Complete your profile on Caliber first." }, 401);
       }
       sessionId = latest.sessionId;
     }
@@ -56,110 +57,35 @@ export async function POST(req: NextRequest) {
     }
 
     if (!session) {
-      return NextResponse.json(
-        { error: "Session not found. Log into Caliber and complete your profile first." },
-        { status: 401 }
-      );
+      return jsonResponse(req, { error: "Session not found. Log into Caliber and complete your profile first." }, 401);
     }
 
     // Session must have completed encoding (personVector locked)
     if (!session.personVector?.values || !session.personVector.locked) {
-      return NextResponse.json(
-        { error: "Profile incomplete. Finish the calibration prompts on Caliber first." },
-        { status: 400 }
-      );
+      return jsonResponse(req, { error: "Profile incomplete. Finish the calibration prompts on Caliber first." }, 400);
     }
 
-    // Drive through the job-fit pipeline: SUBMIT_JOB_TEXT → ADVANCE loops → COMPUTE_ALIGNMENT_OUTPUT
-    // (mirrors the frontend flow in app/calibration/page.tsx)
+    // ── Direct scoring path ──────────────────────────────────────
+    // Bypass the state machine entirely. The state machine is for the
+    // calibration flow; for scoring a job we only need personVector + jobText.
+    // This is faster (no file I/O, no state mutations) and eliminates the
+    // session-state corruption that caused "Failed to fetch" on cold Lambdas.
+    const personVector = session.personVector.values as number[];
 
-    // Step 0: Auto-advance session to a SUBMIT_JOB_TEXT-capable state.
-    // When a session is imported from backup on a cold-start Lambda, it can be
-    // in any intermediate state (PATTERN_SYNTHESIS, ENCODING_RITUAL, etc.).
-    // We ADVANCE until SUBMIT_JOB_TEXT is allowed, or we run out of attempts.
-    const JOB_READY_STATES = new Set([
-      "TITLE_DIALOGUE", "JOB_INGEST", "ALIGNMENT_OUTPUT", "TERMINAL_COMPLETE",
-    ]);
-    let curState = String(session.state ?? "");
-    let advAttempts = 0;
-    while (!JOB_READY_STATES.has(curState) && advAttempts < 20) {
-      // TITLE_HYPOTHESIS needs TITLE_FEEDBACK, not ADVANCE
-      if (curState === "TITLE_HYPOTHESIS" || curState.startsWith("TITLE_DIALOGUE")) {
-        const fb = await dispatchCalibrationEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" } as any);
-        if (fb.ok && fb.session) {
-          curState = String(fb.session.state ?? "");
-          session = storeGet(sessionId) ?? session;
-        } else {
-          break;
-        }
-      } else {
-        const adv = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
-        if (adv.ok && adv.session) {
-          curState = String(adv.session.state ?? "");
-          session = storeGet(sessionId) ?? session;
-        } else {
-          break;
-        }
-      }
-      advAttempts++;
+    const seam = runIntegrationSeam({ jobText, experienceVector: personVector });
+    if (!seam.ok) {
+      return jsonResponse(req, { error: seam.error.message }, 400);
     }
 
-    // Step 1: Submit job text
-    let result = await dispatchCalibrationEvent({
-      type: "SUBMIT_JOB_TEXT",
-      sessionId,
-      jobText,
-    } as any);
-
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: `Pipeline error (state=${curState}): ${(result as any).error?.detail ?? "SUBMIT_JOB_TEXT failed"}` },
-        { status: 500 }
-      );
-    }
-
-    // Step 2: Advance until ALIGNMENT_OUTPUT or TERMINAL_COMPLETE
-    let s = result.session!;
-    let ticks = 0;
-    while (ticks < 12) {
-      const st = String(s.state ?? "");
-      if (st === "ALIGNMENT_OUTPUT" || st === "TERMINAL_COMPLETE") break;
-      const adv = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
-      if (!adv.ok) break;
-      s = adv.session!;
-      ticks++;
-    }
-
-    // Step 3: Compute alignment output
-    if (String(s.state) === "ALIGNMENT_OUTPUT") {
-      const comp = await dispatchCalibrationEvent({
-        type: "COMPUTE_ALIGNMENT_OUTPUT",
-        sessionId,
-      } as any);
-      if (comp.ok && comp.session) s = comp.session;
-    }
-
-    // Step 4: Extract results
-    const r = s.result;
-    if (!r?.alignment) {
-      return NextResponse.json(
-        { error: "Fit computation did not produce results. Try again." },
-        { status: 500 }
-      );
-    }
-
-    const alignment = r.alignment as any;
+    const alignment = seam.result.alignment as any;
 
     // Compute Hiring Reality Check (screening likelihood)
     const resumeText = session.resume?.rawText ?? "";
-    const hiringCheck = computeHiringRealityCheck(body.jobText, resumeText);
+    const hiringCheck = computeHiringRealityCheck(jobText, resumeText);
 
     // Extract calibration titles for search suggestions
     const titleRec = session.synthesis?.titleRecommendation;
     const primaryTitle = titleRec?.primary_title?.title ?? "";
-    // Return adjacent titles first; fall back to all top candidates when
-    // adjacent_titles is empty (happens when no cross-cluster alternative
-    // scores >= 6.2). This ensures the extension always has suggestion titles.
     const adjTitles = titleRec?.adjacent_titles ?? [];
     const allTitles = (titleRec as any)?.titles ?? [];
     const titlePool = adjTitles.length > 0
@@ -167,7 +93,7 @@ export async function POST(req: NextRequest) {
       : allTitles.filter((t: { title: string }) => t.title !== primaryTitle);
     const nearbyRoles = titlePool.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
 
-    const res = NextResponse.json({
+    return jsonResponse(req, {
       score_0_to_10: alignment.score ?? 0,
       supports_fit: alignment.supports_fit ?? [],
       stretch_factors: alignment.stretch_factors ?? [],
@@ -180,17 +106,10 @@ export async function POST(req: NextRequest) {
       sourceUrl: body.sourceUrl ?? null,
       nearby_roles: nearbyRoles,
       calibration_title: primaryTitle,
-      signal_preference: (r as any).signalPreference ?? null,
-    });
-    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
-    return res;
+      signal_preference: null,
+    }, 200);
   } catch (e: any) {
-    const res = NextResponse.json(
-      { error: e?.message ?? "Internal error" },
-      { status: 500 }
-    );
-    for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
-    return res;
+    return jsonResponse(req, { error: e?.message ?? "Internal error" }, 500);
   }
 }
 
