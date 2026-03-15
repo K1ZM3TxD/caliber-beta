@@ -2023,6 +2023,24 @@
     var hrcBand = (hrc && hrc.band) ? hrc.band : null;
     var score = applyDomainMismatchGuardrail(rawScore, hrcBand, lastJobMeta.title || "", data.calibration_title || "");
     lastScoredScore = score;
+
+    // If client-side role-family mismatch capped the score, override HRC to
+    // reflect the actual reason — the server HRC may show "High" because
+    // the job had no real domain requirements after benefits filtering.
+    var roleMismatch = isRoleFamilyMismatch(lastJobMeta.title || "", data.calibration_title || "");
+    if (roleMismatch && score < rawScore) {
+      hrc = { band: "Unlikely", reason: "Role-family mismatch — job is in a different career family" };
+      hrcBand = "Unlikely";
+      console.log("[Caliber][HRC] override: role-family mismatch detected",
+        { jobTitle: lastJobMeta.title, calibrationTitle: data.calibration_title,
+          serverBand: (data.hiring_reality_check && data.hiring_reality_check.band) || null,
+          serverReason: (data.hiring_reality_check && data.hiring_reality_check.reason) || null,
+          overrideBand: "Unlikely", overrideReason: hrc.reason });
+    } else {
+      console.log("[Caliber][HRC] server result:",
+        { band: hrcBand, reason: (hrc && hrc.reason) || null, roleMismatch: roleMismatch });
+    }
+
     // Display score is the rounded integer — label and color derive from this
     // so the user never sees a mismatch (e.g. displayed "6" but label "Skip").
     var displayScore = Math.round(score);

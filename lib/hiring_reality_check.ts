@@ -67,12 +67,22 @@ function extractRequirements(jobText: string): ExtractedRequirements {
 
   // Strip benefits sections before domain scanning to prevent false signals
   const textForDomain = stripBenefitsSection(textToScan);
+  // Track whether any benefits section was stripped (may have happened in
+  // extractRequirementSection, in the second pass here, or both).
+  const benefitsDetected = hasBenefitsSection(jobText);
 
   for (const pat of HARD_CREDENTIAL_PATTERNS) {
     const m = textToScan.match(pat);
     if (m) hardCredentials.push(m[0]);
   }
 
+  // Scan ORIGINAL job text for domain terms to detect benefits-only occurrences
+  const rawDomainHits: string[] = [];
+  for (const pat of DOMAIN_PATTERNS) {
+    const mRaw = jobText.match(pat);
+    if (mRaw) rawDomainHits.push(mRaw[0]);
+  }
+  // Scan benefits-stripped text for actual domain requirements
   for (const pat of DOMAIN_PATTERNS) {
     const m = textForDomain.match(pat);
     if (m) domainRequirements.push(m[0]);
@@ -81,9 +91,19 @@ function extractRequirements(jobText: string): ExtractedRequirements {
   // Post-filter: if "insurance" matched but every occurrence is benefits context
   // (e.g. "health insurance", "insurance benefits"), remove the false signal
   const insuranceIdx = domainRequirements.findIndex(d => /\binsurance\b/i.test(d));
-  if (insuranceIdx >= 0 && isInsuranceBenefitsOnly(textToScan)) {
+  const insuranceFilteredOut = insuranceIdx >= 0 && isInsuranceBenefitsOnly(jobText);
+  if (insuranceFilteredOut) {
     domainRequirements.splice(insuranceIdx, 1);
   }
+
+  // Diagnostic: benefits vs domain separation
+  const benefitsOnlyTerms = rawDomainHits.filter(t => !domainRequirements.includes(t));
+  console.log("[caliber][HRC] domain extraction:", {
+    benefitsSectionDetected: benefitsDetected,
+    benefitsOnlyTerms: benefitsOnlyTerms.length > 0 ? benefitsOnlyTerms : "none",
+    domainRequirements: domainRequirements.length > 0 ? domainRequirements : "none",
+    insuranceContextFilter: insuranceFilteredOut ? "removed (benefits-only)" : "n/a",
+  });
 
   const yearsMatch = textToScan.match(YEARS_PATTERN) || textToScan.match(YEARS_CONTEXT_PATTERN);
   if (yearsMatch) yearsRequirements.push(yearsMatch[0]);
@@ -136,6 +156,11 @@ function stripBenefitsSection(text: string): string {
     if (idx > 0 && idx < cutIdx) cutIdx = idx;
   }
   return text.slice(0, cutIdx);
+}
+
+/** Check whether text contains a recognizable benefits section header. */
+function hasBenefitsSection(text: string): boolean {
+  return BENEFITS_SECTION_MARKERS.some(m => m.test(text));
 }
 
 /**
@@ -283,6 +308,7 @@ export function computeHiringRealityCheck(jobText: string, resumeText: string): 
     if (band === "Unlikely") band = "Possible";
   }
 
+  console.log("[caliber][HRC] final decision:", { band, reason: topReason, penalty, domainMissing: match.domainMissing });
   return { band, reason: topReason };
 }
 
