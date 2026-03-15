@@ -3,6 +3,21 @@
 
 ## Current Open Issues
 
+67. Surface-quality banner in BST slot — **SHIPPED** (2026-03-15)
+  - BST slot shows surface-quality banner when loaded search surface has ≥1 job scoring ≥7.0.
+  - Content: "{count} strong matches · Best: {title} ({score})". Green accent, checkmark icon.
+  - Suppresses BST when active. Normal BST recovery when zero strong matches.
+  - Durable state persistence. Debounce upgrade for mid-scoring strong match detection.
+  - Files: `extension/content_linkedin.js`, `extension/background.js`.
+
+66. Detected signals choice in calibration progress flow — **SHIPPED** (2026-03-15)
+  - Calibration PROCESSING screen now detects professional signals from prompt answers not clearly expressed in resume.
+  - Shows compact UI module with explicit yes/no choice. No hidden default (`includeDetectedSignals` starts null).
+  - `detectAdditionalSignals()` compares prompt vs resume keyword frequency + anchor extraction. Up to 5 labels.
+  - `SET_SIGNAL_PREFERENCE` event persists choice. `COMPUTE_ALIGNMENT_OUTPUT` annotates result with signal preference metadata.
+  - Extension fit API includes `signal_preference` in response.
+  - Files: `lib/calibration_types.ts`, `lib/calibration_machine.ts`, `app/calibration/page.tsx`, `app/api/extension/fit/route.ts`.
+
 65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15)
   - Follow-up to #64. Multiple rounds of live testing (v0.9.3→v0.9.4→v0.9.5).
 

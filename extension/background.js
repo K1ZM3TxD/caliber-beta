@@ -304,6 +304,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           scoredCount: Number(msg.scoredCount) || 0,
           suggestedTitle: msg.suggestedTitle || null,
           suggestionShown: !!msg.suggestionShown,
+          surfaceBanner: msg.surfaceBanner || null,
           ts: Date.now(),
         };
         await chrome.storage.local.set({ caliberPrescanState: entry });

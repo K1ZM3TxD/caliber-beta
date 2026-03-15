@@ -11,8 +11,11 @@
 
 ## Active Current Fix
 BST suggestion rendering + surface classification edge cases (#65) in progress (2026-03-15). Two rounds of live testing.
+- **v0.9.6-surface** (surface-quality banner, 2026-03-15): BST slot now shows a surface-quality banner when the loaded search surface has ≥1 job scoring ≥7.0. Content: "{count} strong matches · Best: {title} ({score})". BST suppressed when surface-quality banner is active. Normal BST recovery if no jobs score ≥7. Banner data persisted to durable state. Green accent styling.
+- **v0.9.6-signals** (detected signals choice, 2026-03-15): Calibration PROCESSING screen detects professional signals from prompt answers not clearly expressed in the resume. Explicit yes/no choice. No hidden default.
+- **v0.9.5-t** (threshold recalibration, 2026-03-15): Action thresholds lowered 8.0→7.0. Six-band score labels. Decimal score display.
 - **v0.9.4 fixes**: calibration title persistence, session discover enrichment, 4-level suggestion fallback, cluster-alignment secondary trigger.
-- **v0.9.5 fixes** (live test of v0.9.4 revealed 4 persisting failures): (1) BST suggestion still empty — `adjacent_titles` from synthesis usually empty due to strict cross-cluster filter; server API + background extraction now fall back to `titleRec.titles` (all top-3 candidates). (2) Overlay badges still visible — `BADGES_VISIBLE` set to false (silent scoring only). (3) "Bartender" inflated scores + no BST — added Tier 3 guardrail: job in known cluster + calTitle NOT in any cluster + zero keyword overlap → cap to 5.0. (4) "Specialist" no BST — added `bothUnclusteredNoOverlap` tertiary trigger for when neither side has a cluster and zero keyword overlap. Also fixed brace/structure bug in evaluateBSTFromBadgeCache (cluster evidence code was nested inside for-loop's else branch).
+- **v0.9.5 fixes** (live test of v0.9.4 revealed 4 persisting failures): (1) BST suggestion still empty. (2) Overlay badges still visible. (3) "Bartender" inflated scores. (4) "Specialist" no BST. All fixed in v0.9.5.
 - Files changed: `extension/content_linkedin.js`, `extension/background.js`, `app/api/extension/fit/route.ts`.
 
 ## Top Blocker
@@ -42,10 +45,10 @@ BST suggestion rendering + surface classification edge cases (#65) in progress (
   - Stretch factors (yellow toggle, collapsible with bullet count)
 - Extension v0.8.9 built, zipped, and deployed.
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
-- Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
+- Strong-match contextual card (7.0+) renders above sidecard — triggers “Tailor resume for this job” workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
 - Pipeline dedupe is based on canonical/normalized job URL.
-- Extension suppresses the 8.0+ tailor CTA for jobs already present in the user's pipeline (baseline CTA noise control).
+- Extension suppresses the 7.0+ tailor CTA for jobs already present in the user's pipeline (baseline CTA noise control).
 - Tailor page recomposed (2026-03-11): "Tailor Resume" is the primary heading, job title/company card appears first, pipeline confirmation banner is secondary/below, CaliberHeader removed from this page.
 - Pipeline rebuilt as 4-column board (2026-03-11): Resume Prep → Submitted → Interview Prep → Interview. Cards are moveable between columns. Legacy stages auto-map to board columns. NOTE: code is implemented; product-level validation of the board model is active/next.
 - Global layout max-width widened to 960px for board; tailor/build-resume self-constrain to 600px.

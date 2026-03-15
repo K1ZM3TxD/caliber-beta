@@ -79,6 +79,85 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — Surface-Quality Banner in BST Slot (v0.9.6-surface)
+
+**What changed:**
+- When the loaded LinkedIn search surface contains ≥1 job scoring ≥7.0, the BST slot now shows a surface-quality banner: "{count} strong matches · Best: {title} ({score})" instead of the BST recovery banner.
+- Banner uses the existing `cb-recovery-banner` DOM slot with a green accent variant class (`cb-surface-quality`). Icon switches from search to checkmark.
+- Best job is selected as the highest scoring job on the loaded surface (first encountered on tie).
+- Surface-quality banner data persisted to durable prescan state via `surfaceBanner` field in `CALIBER_PRESCAN_STATE_SAVE`. Restored on page reload.
+- When BST was pending (800ms debounce) and strong matches appear during debounce, the deferred callback now shows the surface-quality banner instead of silently cancelling.
+- If no jobs score ≥7, normal BST recovery behavior applies unchanged.
+
+**Why it changed:**
+- Users need immediate page-level guidance: "Is this search surface worth exploring?" and "What should I click first?" The BST slot was silently suppressed on healthy surfaces, providing no positive signal. The surface-quality banner gives fast, actionable intelligence before the user scans individual cards.
+
+**What is now expected:**
+- Search pages with ≥1 job scoring ≥7: surface-quality banner appears with strong match count + best job title + score.
+- Search pages with 0 jobs scoring ≥7: normal BST recovery banner appears.
+- Banner updates as more jobs are scored on the surface (re-evaluated on each scoring batch).
+- Banner restores from durable state on page reload.
+
+**What is NOT expected:**
+- BST recovery banner and surface-quality banner appearing simultaneously.
+- Surface-quality banner appearing before minimum scoring window (5 jobs).
+- Any change to overlay badge system, scoring model, or pipeline thresholds.
+
+**Files touched:** `extension/content_linkedin.js`, `extension/background.js`, `Bootstrap/CALIBER_ACTIVE_STATE.md`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/CALIBER_ISSUES_LOG.md`
+
+### 2026-03-15 — Detected Signals Choice in Calibration Progress Flow (v0.9.6-signals)
+
+**What changed:**
+- Calibration PROCESSING screen now detects professional signals from prompt answers that are not clearly expressed in the resume, and presents an explicit yes/no choice to include them in the evaluation.
+- New `detectAdditionalSignals()` function compares keyword frequency in prompts vs resume text, using `SIGNAL_LABEL_MAP` (~20 keywords → human-readable labels) and cross-source anchor extraction.
+- Detection runs inside `synthesizeOnce()` during ENCODING_RITUAL → PATTERN_SYNTHESIS transition. Results stored as `detectedSignals` (string[]) and `includeDetectedSignals` (boolean | null) on CalibrationSession.
+- New `SET_SIGNAL_PREFERENCE` event type added to CalibrationEvent union. Allowed in states ENCODING_RITUAL through TERMINAL_COMPLETE. Handler validates boolean input and persists choice.
+- UI module appears on PROCESSING screen below the progress bar when `detectedSignals.length > 0`. Shows signal labels, two buttons ("Yes, include them" / "No, use resume only"), confirmation text after choice. No hidden default — starts null.
+- `COMPUTE_ALIGNMENT_OUTPUT` annotates result contract with `signalPreference` metadata (detectedSignals + includeDetectedSignals).
+- Extension fit API (`/api/extension/fit`) passes `signal_preference` in response payload.
+
+**Why it changed:**
+- Users' prompt answers frequently reveal professional signals (e.g., "Product System Design", "Workflow Automation") that their resume doesn't clearly express. These signals already influence the personVector, but users had no visibility or control. This makes the detection explicit and gives users agency over their evaluation basis.
+
+**What is now expected:**
+- PROCESSING screen shows detected signals card when signals are found.
+- User must explicitly choose yes or no — no default assumption.
+- Choice persisted on session and annotated on scoring output.
+- Extension fit response includes `signal_preference` field.
+
+**What is NOT expected:**
+- Detected signals silently influencing scoring without user awareness.
+- Automatic inclusion or exclusion without explicit choice.
+- Signal detection blocking calibration progress (choice is non-blocking).
+
+**Files touched:** `lib/calibration_types.ts`, `lib/calibration_machine.ts`, `app/calibration/page.tsx`, `app/api/extension/fit/route.ts`, `Bootstrap/CALIBER_ACTIVE_STATE.md`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`
+
+### 2026-03-15 — Action Threshold Recalibration + Score-Band Labels (v0.9.5-t)
+
+**What changed:**
+- User testing revealed scoring distribution centers strong matches at 7–7.5, not 8–9. Lowered action thresholds from 8.0 to 7.0 and added six-band score interpretation labels to the sidecard.
+- BST_STRONG_MATCH_THRESHOLD: 8.0 → 7.0. BST recovery banner now triggers only when zero jobs ≥7 in the evaluation window.
+- Pipeline/tailor banner threshold: 8.0 → 7.0. "Tailor resume for this job" CTA appears for any score ≥7.
+- Telemetry strong_match_viewed threshold: 8.0 → 7.0.
+- Sidecard score display: integer → 1-decimal (e.g., "7.2"), score color green threshold 8→7. Separator changed from "/10" to em dash.
+- Six-band score label replaces old 3-label system: Excellent Match (9–10), Very Strong Match (8–9), Strong Partial Match (7–8), Viable Stretch (6–7), Adjacent Background (5–6), Poor Fit (<5).
+- PIPELINE_AUTO_SAVE_THRESHOLD unchanged (8.5). Overlay badge system unchanged. BST classification logic unchanged. Scoring model unchanged.
+
+**Why it changed:**
+- Users see 7.x scores that are legitimately strong matches, but pipeline trigger did not appear (≥8 gate). BST fired too aggressively. Created perception that the system is failing even when matches are good.
+
+**What is now expected:**
+- Score ≥7 triggers pipeline/tailor banner and suppresses BST.
+- Score <7 hides pipeline button; BST behavior unchanged.
+- Sidecard shows decimal score with band label (e.g., "7.2 — Strong Partial Match").
+
+**What is NOT expected:**
+- Pipeline button appearing for scores <7.
+- BST suppression requiring ≥8 strong matches.
+- Integer score display in sidecard.
+
+**Files touched:** `extension/content_linkedin.js`, `Bootstrap/CALIBER_ACTIVE_STATE.md`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`
+
 ### 2026-03-15 — BST v0.9.5: Adjacent Title Fallback, Silent Scoring, Guardrail Tier 3 (#65 round 2)
 
 **What changed:**

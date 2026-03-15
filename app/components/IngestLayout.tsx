@@ -10,8 +10,6 @@ interface IngestLayoutProps {
   maxWidth?: string;
   /** Show the hero surface band behind the content zone */
   showHeroSurface?: boolean;
-  /** Vertically center the content block (hero-style composition) */
-  centered?: boolean;
 }
 
 /**
@@ -26,35 +24,7 @@ export default function IngestLayout({
   extendedTop = false,
   maxWidth = "760px",
   showHeroSurface = false,
-  centered = false,
 }: IngestLayoutProps) {
-  // Centered mode matches the calibration landing/resume shell exactly:
-  // same #050505 background, same subtle top glow, flex-centered content.
-  if (centered) {
-    return (
-      <div
-        className="fixed inset-0 flex justify-center items-center overflow-y-auto"
-        style={{ background: "#050505" }}
-      >
-        <div
-          className="pointer-events-none fixed inset-x-0 top-0"
-          style={{
-            height: "50vh",
-            background:
-              "radial-gradient(ellipse 100% 70% at 50% -20%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
-            zIndex: 0,
-          }}
-        />
-        <div
-          className="relative z-10 w-full px-4 sm:px-6 pb-16"
-          style={{ maxWidth, minHeight: 420 }}
-        >
-          {children}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className="fixed inset-0"
@@ -114,7 +84,7 @@ export default function IngestLayout({
       {/* Scrollable content layer */}
       <div className="relative z-10 h-full overflow-y-auto flex justify-center">
         <div
-          className={`w-full px-4 sm:px-6 pb-16 ${extendedTop ? "pt-[20vh] sm:pt-[32vh]" : "pt-[14vh] sm:pt-[22vh]"}`}
+          className={`w-full px-6 pb-16 ${extendedTop ? "pt-[32vh]" : "pt-[22vh]"}`}
           style={{ maxWidth }}
         >
           {children}

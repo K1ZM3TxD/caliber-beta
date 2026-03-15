@@ -57,7 +57,8 @@ export type CalibrationEvent =
   | { type: "COMPUTE_ALIGNMENT_OUTPUT"; sessionId: string }
   | { type: "RERUN_TITLES"; sessionId: string; clarificationsText: string }
   | { type: "RESET_SESSION"; sessionId: string }
-  | { type: "ENCODING_COMPLETE"; sessionId: string };
+  | { type: "ENCODING_COMPLETE"; sessionId: string }
+  | { type: "SET_SIGNAL_PREFERENCE"; sessionId: string; includeDetectedSignals: boolean };
 
 // History entry for session
 // NOTE: calibration_machine.pushHistory stores { at: nowIso(), ..., event: string }
@@ -159,6 +160,12 @@ export interface CalibrationSession {
   consolidationRitual?: CalibrationConsolidationRitual;
   synthesis?: CalibrationSynthesis;
   job?: CalibrationJob;
+
+  // Detected signals from prompt answers not clearly expressed in resume.
+  // Populated during ENCODING_RITUAL → PATTERN_SYNTHESIS synthesis.
+  detectedSignals?: string[];
+  // User's explicit choice: true = include in scoring, false = resume only, null/undefined = not yet chosen.
+  includeDetectedSignals?: boolean | null;
 
   // Result object (shape defined elsewhere)
   result?: any;

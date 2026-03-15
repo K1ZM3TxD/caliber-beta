@@ -252,6 +252,7 @@ export default function CalibrationPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumeUploading, setResumeUploading] = useState(false);
+  const [signalPrefBusy, setSignalPrefBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resumeAttemptedRef = useRef(false);
 
@@ -398,6 +399,16 @@ export default function CalibrationPage() {
     } finally {
       setBusy(false);
     }
+  }
+  async function setSignalPreference(include: boolean) {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) return;
+    setSignalPrefBusy(true);
+    try {
+      const s = await postEvent({ type: "SET_SIGNAL_PREFERENCE", sessionId, includeDetectedSignals: include } as any);
+      setSession(s);
+    } catch (_) { /* non-blocking — preference is best-effort */ }
+    finally { setSignalPrefBusy(false); }
   }
     // Titles UI state
     const [titleFeedback, setTitleFeedback] = useState("");
@@ -975,6 +986,83 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       {staged.label}
                     </div>
                   </div>
+
+                  {/* Detected signals choice */}
+                  {(session as any)?.detectedSignals?.length > 0 ? (
+                    <div style={{
+                      marginTop: 28,
+                      padding: "16px 20px",
+                      borderRadius: 8,
+                      backgroundColor: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      opacity: 1,
+                      transition: "opacity 0.4s ease",
+                    }}>
+                      {(session as any)?.includeDetectedSignals == null ? (
+                        <>
+                          <div style={{ fontSize: "0.85rem", color: "#CFCFCF", marginBottom: 8, fontWeight: 500 }}>
+                            Additional signals detected
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "#737373", marginBottom: 12, lineHeight: 1.5 }}>
+                            Your answers suggest experience not clearly expressed in your resume:
+                          </div>
+                          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 14px 0" }}>
+                            {((session as any).detectedSignals as string[]).map((s: string) => (
+                              <li key={s} style={{ fontSize: "0.8rem", color: "#A3A3A3", padding: "2px 0" }}>
+                                <span style={{ color: "#4ADE80", marginRight: 6 }}>·</span>{s}
+                              </li>
+                            ))}
+                          </ul>
+                          <div style={{ fontSize: "0.78rem", color: "#737373", marginBottom: 14 }}>
+                            Include these in your evaluation?
+                          </div>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              type="button"
+                              disabled={signalPrefBusy}
+                              onClick={() => setSignalPreference(true)}
+                              style={{
+                                fontSize: "0.8rem",
+                                padding: "6px 14px",
+                                borderRadius: 6,
+                                border: "1px solid rgba(74,222,128,0.4)",
+                                backgroundColor: "transparent",
+                                color: "#4ADE80",
+                                cursor: signalPrefBusy ? "not-allowed" : "pointer",
+                                opacity: signalPrefBusy ? 0.5 : 1,
+                              }}
+                            >
+                              Yes, include them
+                            </button>
+                            <button
+                              type="button"
+                              disabled={signalPrefBusy}
+                              onClick={() => setSignalPreference(false)}
+                              style={{
+                                fontSize: "0.8rem",
+                                padding: "6px 14px",
+                                borderRadius: 6,
+                                border: "1px solid rgba(255,255,255,0.10)",
+                                backgroundColor: "transparent",
+                                color: "#737373",
+                                cursor: signalPrefBusy ? "not-allowed" : "pointer",
+                                opacity: signalPrefBusy ? 0.5 : 1,
+                              }}
+                            >
+                              No, use resume only
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "0.82rem", color: (session as any).includeDetectedSignals ? "#4ADE80" : "#737373" }}>
+                          {(session as any).includeDetectedSignals
+                            ? "✓ Additional signals included in evaluation"
+                            : "Evaluation will use resume signals only"}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
                   {processingAttempts > 90 ? (
                     <div className="mt-7">
                       <button

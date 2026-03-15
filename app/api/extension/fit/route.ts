@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
       sourceUrl: body.sourceUrl ?? null,
       nearby_roles: nearbyRoles,
       calibration_title: primaryTitle,
+      signal_preference: (r as any).signalPreference ?? null,
     });
     for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
     return res;

@@ -794,6 +794,222 @@ function buildDeterministicPatternSummary(v: PersonVector6): string {
   return blockLines.join("\n\n")
 }
 
+// ─── Detected Signals ─────────────────────────────────────
+// Identify meaningful professional signals present in the user's prompt
+// answers that are NOT clearly expressed in the uploaded resume.
+// These are surfaced to the user for explicit inclusion/exclusion.
+//
+// Algorithm:
+//   1. Anchor-based gap detection (primary): extract lexical anchors from
+//      prompt answers only vs resume only; find terms present in prompts
+//      but absent from resume.
+//   2. Keyword dictionary scan (supplement): match expanded professional
+//      keyword dictionary against prompt text vs resume text.
+//   Both methods feed a confidence-weighted map. Top 5 highest-confidence
+//   signals are returned.
+
+const SIGNAL_LABEL_MAP: Record<string, string> = {
+  // System / architecture
+  architecture: "Systems Architecture",
+  platform: "Platform Engineering",
+  infrastructure: "Infrastructure Design",
+  scalab: "Scalability Design",
+  reliab: "Reliability Engineering",
+  resilien: "System Resilience",
+  observab: "Observability",
+  // Process / workflow
+  workflow: "Workflow Design",
+  automation: "Process Automation",
+  cadence: "Operating Cadence",
+  playbook: "Playbook Construction",
+  operational: "Operational Design",
+  runbook: "Operational Runbooks",
+  postmortem: "Incident Learning",
+  // Decision / ownership
+  ownership: "Ownership & Accountability",
+  authority: "Authority Structuring",
+  priorit: "Prioritization Frameworks",
+  tradeoff: "Trade-off Analysis",
+  // Stakeholder / communication
+  stakeholder: "Stakeholder Management",
+  alignment: "Stakeholder Alignment",
+  executive: "Executive Communication",
+  storytell: "Strategic Storytelling",
+  facilitat: "Facilitation",
+  negotiat: "Negotiation",
+  consensus: "Consensus Building",
+  // Measurement / incentive
+  measurement: "Measurement Design",
+  incentive: "Incentive Architecture",
+  // Scope / constraint
+  constraint: "Constraint Construction",
+  ambiguity: "Ambiguity Resolution",
+  complexity: "Complexity Management",
+  // Diagnostic / problem-solving
+  diagnostic: "Diagnostic Problem-Solving",
+  diagnos: "Diagnostic Problem-Solving",
+  troubleshoot: "Troubleshooting",
+  rootcause: "Root Cause Analysis",
+  // Strategy / planning
+  strateg: "Strategic Planning",
+  roadmap: "Roadmap Development",
+  // Leadership / development
+  mentor: "Mentoring & Development",
+  coaching: "Team Coaching",
+  onboard: "Onboarding Design",
+  // Delivery / execution
+  shipping: "Shipping Discipline",
+  migration: "Migration Planning",
+  moderniz: "Modernization",
+  // Collaboration / influence
+  collaborat: "Cross-Team Collaboration",
+  advocacy: "Internal Advocacy",
+  // Domain-specific depth
+  forecasting: "Forecasting",
+  modeling: "Analytical Modeling",
+  governance: "Governance Design",
+  compliance: "Compliance Frameworks",
+  retention: "Retention Design",
+  discovery: "Problem Discovery",
+  hypothesis: "Hypothesis Testing",
+  experiment: "Experimentation",
+}
+
+// Terms too generic to be meaningful signal labels on their own
+const GENERIC_TERMS = new Set([
+  "work", "time", "make", "made", "just", "like", "know", "need",
+  "want", "good", "best", "more", "most", "very", "much", "well",
+  "thing", "part", "way", "lot", "able", "get", "got", "use",
+  "used", "using", "keep", "take", "took", "come", "came", "give",
+  "gave", "feel", "felt", "find", "found", "think", "thought",
+  "help", "helped", "start", "started", "move", "moved", "run",
+  "running", "set", "going", "went", "done", "doing", "being",
+  "look", "looking", "new", "first", "last", "long", "high",
+  "right", "end", "day", "year", "role", "job", "task", "project",
+  "team", "people", "person", "company", "org", "level", "type",
+  "area", "point", "issue", "problem", "place", "step", "kind",
+  "case", "effort", "result", "side", "line", "idea", "focus",
+  "bit", "something", "everything", "anything", "nothing",
+  "process", "system", "design", "data", "change", "plan",
+  "planning", "build", "building", "manage", "management",
+  "develop", "development", "support", "report", "reporting",
+  "review", "testing", "improve", "improving", "drive", "driving",
+  "lead", "leading", "deliver", "delivering", "ensure", "ensuring",
+])
+
+function formatSignalLabel(term: string): string | null {
+  if (GENERIC_TERMS.has(term)) return null
+  if (term.length < 4) return null
+  return term.charAt(0).toUpperCase() + term.slice(1)
+}
+
+function detectAdditionalSignals(session: CalibrationSession): string[] {
+  const resumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : ""
+
+  // Collect all prompt answer text
+  const promptParts: string[] = []
+  for (let i = 1; i <= 5; i++) {
+    const a = session.prompts[i]?.answer
+    if (typeof a === "string" && a.trim().length > 0) promptParts.push(a.trim())
+    const ca = session.prompts[i]?.clarifier?.answer
+    if (typeof ca === "string" && ca.trim().length > 0) promptParts.push(ca.trim())
+  }
+  const promptText = promptParts.join(" ")
+  if (promptText.length === 0) {
+    console.log("[caliber] signal_gap: reason=NO_PROMPT_TEXT")
+    return []
+  }
+
+  const detected = new Map<string, { label: string; confidence: number; source: string }>()
+
+  // Build a simple word set from resume for fast "absent" checks
+  const resumeWords = new Set(
+    resumeText.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(w => w.length >= 3)
+  )
+
+  // ── Method 1: Anchor-based gap detection (primary) ──
+  // Extract anchors from prompt-only vs resume-only to find the gap.
+  const anchorDebug: string[] = []
+  try {
+    const promptAnchors = extractLexicalAnchors({ resumeText: "", promptAnswersText: promptText })
+    const resumeAnchors = extractLexicalAnchors({ resumeText, promptAnswersText: "" })
+    const resumeAnchorTerms = new Set(resumeAnchors.combined.map(a => a.term))
+
+    for (const anchor of promptAnchors.combined) {
+      // Skip if present as a resume anchor (repeated term in resume)
+      if (resumeAnchorTerms.has(anchor.term)) continue
+      // Skip if the word appears anywhere in resume text
+      if (resumeWords.has(anchor.term)) continue
+
+      // Nouns with count >= 2 are strong domain signals
+      if (anchor.kind === "noun" && anchor.count >= 2) {
+        const label = findSignalLabel(anchor.term) ?? formatSignalLabel(anchor.term)
+        if (label && !detected.has(label)) {
+          detected.set(label, { label, confidence: anchor.count, source: "anchor_noun" })
+          anchorDebug.push(`${anchor.term}(n:${anchor.count})→${label}`)
+        }
+      }
+      // Verbs with higher count indicate strong behavioral pattern
+      if (anchor.kind === "verb" && anchor.count >= 3) {
+        const label = findSignalLabel(anchor.term) ?? formatSignalLabel(anchor.term)
+        if (label && !detected.has(label)) {
+          detected.set(label, { label, confidence: anchor.count, source: "anchor_verb" })
+          anchorDebug.push(`${anchor.term}(v:${anchor.count})→${label}`)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[caliber] signal_gap: anchor extraction failed", e)
+  }
+
+  // ── Method 2: Keyword dictionary scan (supplement) ──
+  // Match expanded dictionary against prompt vs resume text.
+  const promptNorm = promptText.toLowerCase()
+  const resumeNorm = resumeText.toLowerCase()
+  const keywordDebug: string[] = []
+
+  for (const [keyword, label] of Object.entries(SIGNAL_LABEL_MAP)) {
+    if (detected.has(label)) continue
+    const re = new RegExp("\\b" + keyword, "gi")
+    const promptHits = (promptNorm.match(re) || []).length
+    const resumeHits = (resumeNorm.match(re) || []).length
+    // Gap: present in prompts, absent from resume
+    if (promptHits >= 1 && resumeHits === 0) {
+      detected.set(label, { label, confidence: promptHits, source: "keyword" })
+      keywordDebug.push(`${keyword}(p:${promptHits})→${label}`)
+    }
+  }
+
+  // Sort by confidence descending, take top 5
+  const result = Array.from(detected.values())
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 5)
+    .map(d => d.label)
+
+  // Structured debug logging
+  console.log("[caliber] signal_gap_detection:", JSON.stringify({
+    trigger: result.length > 0,
+    reason: result.length > 0 ? "GAP_FOUND" : "NO_GAP",
+    total_candidates: detected.size,
+    selected: result.length,
+    signals: result,
+    anchor_hits: anchorDebug,
+    keyword_hits: keywordDebug,
+  }))
+
+  return result
+}
+
+/** Match a term against SIGNAL_LABEL_MAP via exact key or prefix overlap. */
+function findSignalLabel(term: string): string | null {
+  if (SIGNAL_LABEL_MAP[term]) return SIGNAL_LABEL_MAP[term]
+  for (const [keyword, label] of Object.entries(SIGNAL_LABEL_MAP)) {
+    if (term.startsWith(keyword) && term.length <= keyword.length + 4) return label
+    if (keyword.startsWith(term) && keyword.length <= term.length + 4) return label
+  }
+  return null
+}
+
 // Hybrid synthesis: LLM semantic (strict) -> deterministic fallback
 async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationSession> {
   if (session.synthesis?.patternSummary && session.synthesis?.operateBest && session.synthesis?.loseEnergy) return session
@@ -887,8 +1103,14 @@ async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationS
     console.warn("[caliber] title recommendation generation failed", e)
   }
 
+  // Detect additional professional signals from prompt answers
+  // not clearly expressed in the resume.
+  const detectedSignals = detectAdditionalSignals(session)
+
   return {
     ...session,
+    detectedSignals: detectedSignals.length > 0 ? detectedSignals : undefined,
+    includeDetectedSignals: detectedSignals.length > 0 ? session.includeDetectedSignals ?? null : undefined,
     synthesis: {
       patternSummary,
       operateBest,
@@ -972,13 +1194,13 @@ const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]
   PROMPT_5_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
   CONSOLIDATION_PENDING: ["ADVANCE"],
   CONSOLIDATION_RITUAL: ["ADVANCE"],
-  ENCODING_RITUAL: ["ADVANCE"],
-  PATTERN_SYNTHESIS: ["ADVANCE"],
-  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK"],
-  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT"],
-  JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
-  ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT"],
-  TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT"],
+  ENCODING_RITUAL: ["ADVANCE", "SET_SIGNAL_PREFERENCE"],
+  PATTERN_SYNTHESIS: ["ADVANCE", "SET_SIGNAL_PREFERENCE"],
+  TITLE_HYPOTHESIS: ["ADVANCE", "TITLE_FEEDBACK", "SET_SIGNAL_PREFERENCE"],
+  TITLE_DIALOGUE: ["ADVANCE", "TITLE_FEEDBACK", "SUBMIT_JOB_TEXT", "SET_SIGNAL_PREFERENCE"],
+  JOB_INGEST: ["ADVANCE", "SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT", "SET_SIGNAL_PREFERENCE"],
+  ALIGNMENT_OUTPUT: ["ADVANCE", "COMPUTE_ALIGNMENT_OUTPUT", "SUBMIT_JOB_TEXT", "SET_SIGNAL_PREFERENCE"],
+  TERMINAL_COMPLETE: ["SUBMIT_JOB_TEXT", "COMPUTE_ALIGNMENT_OUTPUT", "SET_SIGNAL_PREFERENCE"],
   PROCESSING: [],
   ERROR: [],
 }
@@ -1383,6 +1605,14 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           stretchLoad: seam.result.stretchLoad,
         })
 
+        // Annotate result with signal preference metadata
+        if (session.detectedSignals && session.detectedSignals.length > 0) {
+          ;(contract as any).signalPreference = {
+            detectedSignals: session.detectedSignals,
+            includeDetectedSignals: session.includeDetectedSignals ?? null,
+          }
+        }
+
         const to: CalibrationState = "TERMINAL_COMPLETE"
         session = {
           ...session,
@@ -1396,6 +1626,19 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
       case "ENCODING_COMPLETE": {
         // Kept for compatibility; encoding is now guarded + run as part of ENCODING_RITUAL ADVANCE.
         return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is not a public event in v1 flow")
+      }
+
+      case "SET_SIGNAL_PREFERENCE": {
+        const include = (event as any).includeDetectedSignals
+        if (typeof include !== "boolean") {
+          return bad("MISSING_REQUIRED_FIELD", "includeDetectedSignals must be a boolean")
+        }
+        session = {
+          ...session,
+          includeDetectedSignals: include,
+        }
+        storeSet(session)
+        return { ok: true, session }
       }
 
       default:

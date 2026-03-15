@@ -63,6 +63,64 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 
 ---
 
+BREAK + UPDATE — 2026-03-15 (Surface-Quality Banner in BST Slot, v0.9.6-surface)
+---
+DONE:
+- BST slot shows surface-quality banner when loaded surface has ≥1 job scoring ≥7.0
+- Banner content: "{count} strong matches · Best: {title} ({score})"
+- Green accent variant of recovery banner with checkmark icon
+- Best job tracking in `evaluateBSTFromBadgeCache` scoring loop
+- Durable state persistence via `surfaceBanner` field in prescan state
+- Debounce upgrade: strong matches during BST debounce trigger surface-quality banner
+- Normal BST recovery behavior preserved when zero strong matches
+
+BLOCKED:
+- None
+
+NEXT:
+- Live validation: verify banner appears on healthy surfaces with strong matches
+- Verify BST still fires correctly on weak surfaces
+- Verify banner updates as more jobs are scored
+
+---
+
+BREAK + UPDATE — 2026-03-15 (Detected Signals Choice in Calibration Progress Flow, v0.9.6-signals)
+---
+DONE:
+- `detectAdditionalSignals()` function compares prompt vs resume keyword frequency + cross-source anchors, returns up to 5 human-readable labels
+- Detection runs in `synthesizeOnce()` during ENCODING_RITUAL → PATTERN_SYNTHESIS transition
+- `SET_SIGNAL_PREFERENCE` event added to CalibrationEvent union; allowed ENCODING_RITUAL through TERMINAL_COMPLETE
+- PROCESSING screen UI module shows detected signals with explicit yes/no choice (no hidden default)
+- `COMPUTE_ALIGNMENT_OUTPUT` annotates result with `signalPreference` metadata
+- Extension fit API passes `signal_preference` in response
+
+BLOCKED:
+- None
+
+NEXT:
+- Live validation: verify signal detection triggers for profiles with prompt-heavy signals
+- Verify UI module renders correctly on PROCESSING screen and preference persists
+- Future: use signal preference to adjust personVector weighting or recompute resume-only vector
+
+---
+
+BREAK + UPDATE — 2026-03-15 (Action Threshold Recalibration + Score-Band Labels, v0.9.5-t)
+---
+DONE:
+- Action thresholds lowered from 8.0 to 7.0: BST_STRONG_MATCH_THRESHOLD, pipeline/tailor banner, telemetry strong_match_viewed
+- Sidecard score display changed: integer → 1-decimal, "/10" → em dash separator, six-band label system
+- Band labels: Excellent Match (9–10), Very Strong Match (8–9), Strong Partial Match (7–8), Viable Stretch (6–7), Adjacent Background (5–6), Poor Fit (<5)
+- Overlay badge system and auto-save threshold (8.5) intentionally unchanged
+
+BLOCKED:
+- None
+
+NEXT:
+- Live validation: verify BST suppression at 7.0+, pipeline button at 7.0+, band labels render correctly
+- Continue closing remaining beta gates
+
+---
+
 BREAK + UPDATE — 2026-03-15 (BST Surface Classification + Score Color Band Lock, v0.8.7→v0.8.9)
 ---
 DONE:

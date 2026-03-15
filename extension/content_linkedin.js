@@ -413,6 +413,7 @@
   let prescanSearchQuery = "";   // query for which prescan was last completed
   let prescanBSTActive = false;  // is a prescan-triggered BST banner currently showing?
   let prescanStoredTitle = null;  // suggested title from durable state (for banner restore)
+  let prescanSurfaceBanner = null; // stored surface-quality banner data {strongCount, bestTitle, bestScore}
 
   // ─── Session Readiness State ──────────────────────────────
   var sessionReady = false;          // has a valid session been confirmed?
@@ -444,6 +445,7 @@
         prescanSearchQuery = currentKey;
         prescanBSTActive = resp.state.suggestionShown || false;
         prescanStoredTitle = resp.state.suggestedTitle || null;
+        prescanSurfaceBanner = resp.state.surfaceBanner || null;
         console.debug("[Caliber][prescan] restored durable state for surface: " + currentKey);
       } else {
         // Stale state from different search surface — clear it
@@ -549,7 +551,7 @@
   // ─── Phase 2: Job Card Score Badges ───────────────────────
   //
   // Threshold reference (do not merge these thresholds):
-  //   BST_STRONG_MATCH_THRESHOLD (8.0) — discovery guidance: BST fires when
+  //   BST_STRONG_MATCH_THRESHOLD (7.0) — discovery guidance: BST fires when
   //     the recent-window has zero jobs at this score or above.
   //   PIPELINE_AUTO_SAVE_THRESHOLD (8.5) — action workflow: auto-save to
   //     pipeline. Separate from BST; do not conflate.
@@ -562,7 +564,7 @@
   //   while keeping the scoring pipeline and BST evaluation active.
   //
   var BADGES_VISIBLE = false;             // render badge DOM on cards (false = silent scoring only)
-  var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
+  var BST_STRONG_MATCH_THRESHOLD = 7.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
   var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
@@ -1225,7 +1227,7 @@
    * Architecture (v0.9.1 — score-evidence-primary):
    *   Primary signal: the pre-read scored window in badgeScoreCache.
    *   - If the window contains at least one genuine aligned strong match
-   *     (score >= 8.0, already domain-guardrailed), BST is SUPPRESSED.
+   *     (score >= 7.0, already domain-guardrailed), BST is SUPPRESSED.
    *   - If the window contains zero strong matches, BST can TRIGGER.
    *
    *   Secondary context: query classification (aligned / out-of-scope / ambiguous).
@@ -1234,7 +1236,7 @@
    *   - ambiguous → resolved through scored evidence
    *
    *   The domain-mismatch guardrail (applyDomainMismatchGuardrail) already
-   *   caps out-of-scope job scores to 5.0, so any score >= 8.0 in the cache
+   *   caps out-of-scope job scores to 5.0, so any score >= 7.0 in the cache
    *   is inherently a genuine aligned strong match. No additional filtering.
    *
    * Re-evaluated after each scoring chunk so BST can appear/hide dynamically.
@@ -1250,7 +1252,7 @@
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
-    var strongCount = 0;        // scores >= 8.0 (genuine aligned — guardrail ensures this)
+    var strongCount = 0;        // scores >= 7.0 (genuine aligned — guardrail ensures this)
     var mismatchCount = 0;      // jobs with isRoleFamilyMismatch = true
     var alignedCount = 0;       // jobs NOT mismatched (aligned or unknown)
     var sameClusterCount = 0;   // jobs whose title shares cluster with calibration title
@@ -1260,6 +1262,8 @@
     var scores = [];
     var bestCalibrationTitle = "";
     var bestNearbyRoles = [];
+    var bestJobTitle = "";
+    var bestJobScore = 0;
 
     for (var i = 0; i < urls.length; i++) {
       var entry = badgeScoreCache[urls[i]];
@@ -1267,7 +1271,13 @@
       scores.push(entry.score);
       scoreSum += entry.score;
       if (entry.score > maxScore) maxScore = entry.score;
-      if (entry.score >= BST_STRONG_MATCH_THRESHOLD) strongCount++;
+      if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
+        strongCount++;
+        if (entry.score > bestJobScore) {
+          bestJobScore = entry.score;
+          bestJobTitle = entry.title || "";
+        }
+      }
       if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
       // Count aligned vs mismatched jobs in the window
@@ -1327,10 +1337,11 @@
     if (strongCount > 0) {
       // PRIMARY: at least one genuine strong match on the visible surface.
       // Domain-mismatch guardrail already caps out-of-scope jobs to 5.0,
-      // so any score >= 8.0 in the cache is a genuine aligned strong match.
+      // so any score >= 7.0 in the cache is a genuine aligned strong match.
+      // Show surface-quality banner instead of BST.
       shouldTrigger = false;
       triggerReason = "pre-read window has " + strongCount + " genuine strong match" + (strongCount > 1 ? "es" : "") +
-        " (≥" + BST_STRONG_MATCH_THRESHOLD + ") — surface is productive";
+        " (≥" + BST_STRONG_MATCH_THRESHOLD + ") — surface is productive, showing surface-quality banner";
     } else if (surfaceClass === "out-of-scope") {
       // SECONDARY BOOST: no strong matches + query is clearly out-of-scope.
       // Trigger confidently — the user is in the wrong job family.
@@ -1417,10 +1428,25 @@
               reCalibTitle = badgeScoreCache[reUrls[ri]].calibrationTitle;
             }
           }
-          // Primary check: if a strong match appeared during debounce, cancel
+          // Primary check: if a strong match appeared during debounce, cancel BST and show surface-quality banner
           if (reStrongCount > 0 || prescanBSTActive) {
             console.debug("[Caliber][BST] deferred show cancelled — " +
               (reStrongCount > 0 ? "strong match appeared during debounce (" + reStrongCount + ")" : "banner already active"));
+            if (reStrongCount > 0 && !prescanBSTActive) {
+              // Show surface-quality banner with best job from the fresh re-check
+              var reBestTitle = "";
+              var reBestScore = 0;
+              for (var rb = 0; rb < reUrls.length; rb++) {
+                var rbe = badgeScoreCache[reUrls[rb]];
+                if (rbe.score >= BST_STRONG_MATCH_THRESHOLD && rbe.score > reBestScore) {
+                  reBestScore = rbe.score;
+                  reBestTitle = rbe.title || "";
+                }
+              }
+              showSurfaceQualityBanner(reStrongCount, reBestTitle, reBestScore);
+              prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: reBestTitle, bestScore: reBestScore };
+              console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong");
+            }
             return;
           }
 
@@ -1469,24 +1495,41 @@
             scoredCount: Object.keys(badgeScoreCache).length,
             suggestedTitle: prescanStoredTitle,
             suggestionShown: true,
+            surfaceBanner: prescanSurfaceBanner,
           });
         }, 800);
       }
     } else {
-      // BST SUPPRESS — cancel pending show and hide existing banner
+      // BST SUPPRESS — cancel pending show and hide existing BST banner
       if (bstShowDebounce) {
         clearTimeout(bstShowDebounce);
         bstShowDebounce = null;
         console.debug("[Caliber][BST] cancelled pending show — " + triggerReason);
       }
       if (prescanBSTActive) {
-        console.debug("[Caliber][BST] SUPPRESS — hiding banner — " + triggerReason);
+        console.debug("[Caliber][BST] SUPPRESS — hiding BST banner — " + triggerReason);
         prescanBSTActive = false;
         prescanStoredTitle = null;
         if (shadow) {
           var banner = shadow.getElementById("cb-recovery-banner");
           if (banner) banner.style.display = "none";
         }
+      }
+
+      // Surface-quality banner: show when strong matches exist on the loaded surface
+      if (strongCount > 0 && bestJobTitle) {
+        showSurfaceQualityBanner(strongCount, bestJobTitle, bestJobScore);
+        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bestJobTitle, bestScore: bestJobScore };
+        console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, best: \"" + bestJobTitle + "\" (" + bestJobScore.toFixed(1) + ")");
+      } else if (strongCount > 0) {
+        // Strong matches exist but no title available — still show count-only banner
+        showSurfaceQualityBanner(strongCount, "", bestJobScore);
+        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: bestJobScore };
+        console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong matches");
+      } else if (prescanSurfaceBanner) {
+        // No strong matches anymore — hide surface-quality banner
+        hideSurfaceQualityBanner();
+        prescanSurfaceBanner = null;
       }
     }
 
@@ -1504,6 +1547,7 @@
       scoredCount: scoredCount,
       suggestedTitle: prescanStoredTitle,
       suggestionShown: prescanBSTActive,
+      surfaceBanner: prescanSurfaceBanner,
     });
   }
 
@@ -1778,6 +1822,8 @@
       // Restore banner from durable state if suggestion was shown previously
       if (prescanStoredTitle && !prescanBSTActive) {
         showPrescanBSTBanner(prescanStoredTitle);
+      } else if (prescanSurfaceBanner && !prescanBSTActive) {
+        showSurfaceQualityBanner(prescanSurfaceBanner.strongCount, prescanSurfaceBanner.bestTitle, prescanSurfaceBanner.bestScore);
       }
       console.debug("[Caliber][prescan] evaluation already completed for surface: " + surfaceKey + " — starting badge scanning");
       startBadgeScanningWithRetry();
@@ -1790,6 +1836,7 @@
     prescanSearchQuery = surfaceKey;
     prescanBSTActive = false;
     prescanStoredTitle = null;
+    prescanSurfaceBanner = null;
 
     // Hide any previous prescan banner
     if (shadow) {
@@ -1850,11 +1897,18 @@
   function showPrescanBSTBanner(suggestedTitle) {
     getOrCreatePanel();
     prescanBSTActive = true;
+    prescanSurfaceBanner = null; // BST overrides surface-quality banner
     var banner = shadow.getElementById("cb-recovery-banner");
     var link = shadow.getElementById("cb-recovery-link");
     var reason = shadow.getElementById("cb-recovery-reason");
+    var label = shadow.getElementById("cb-recovery-label");
     if (banner) {
       banner.style.display = "";
+      banner.className = "cb-recovery-banner"; // restore default class (remove surface-quality)
+      // Restore search icon in case it was swapped to checkmark
+      var icon = banner.querySelector(".cb-recovery-icon");
+      if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>';
+      if (label) label.style.display = "";
       if (reason) {
         reason.textContent = suggestedTitle
           ? "None of the scored jobs on this page are strong matches for your calibration."
@@ -1876,19 +1930,70 @@
     }
   }
 
+  /**
+   * Show surface-quality banner in the BST slot when the loaded surface has strong matches.
+   * Content: "{strongCount} strong matches · Best: {bestTitle} ({bestScore})"
+   */
+  function showSurfaceQualityBanner(strongCount, bestTitle, bestScore) {
+    getOrCreatePanel();
+    // Hide BST if active
+    prescanBSTActive = false;
+    prescanStoredTitle = null;
+
+    var banner = shadow.getElementById("cb-recovery-banner");
+    var reason = shadow.getElementById("cb-recovery-reason");
+    var link = shadow.getElementById("cb-recovery-link");
+    var label = shadow.getElementById("cb-recovery-label");
+    if (banner) {
+      banner.style.display = "";
+      banner.className = "cb-recovery-banner cb-surface-quality";
+      // Replace icon with green checkmark
+      var icon = banner.querySelector(".cb-recovery-icon");
+      if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+      if (reason) {
+        var text = strongCount + " strong match" + (strongCount > 1 ? "es" : "");
+        if (bestTitle) {
+          text += " \u00B7 Best: " + bestTitle + " (" + bestScore.toFixed(1) + ")";
+        }
+        reason.textContent = text;
+      }
+      if (label) label.style.display = "none";
+      if (link) link.style.display = "none";
+    }
+  }
+
+  /** Hide surface-quality banner (restores BST slot to hidden state). */
+  function hideSurfaceQualityBanner() {
+    if (!shadow) return;
+    var banner = shadow.getElementById("cb-recovery-banner");
+    if (banner) {
+      banner.style.display = "none";
+      banner.className = "cb-recovery-banner";
+      // Restore search icon
+      var icon = banner.querySelector(".cb-recovery-icon");
+      if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>';
+      var label = shadow.getElementById("cb-recovery-label");
+      if (label) label.style.display = "";
+    }
+  }
+
   function resetPrescanState() {
     prescanDone = false;
     prescanRunning = false;
     prescanSearchQuery = "";
     prescanBSTActive = false;
     prescanStoredTitle = null;
+    prescanSurfaceBanner = null;
     if (bstShowDebounce) {
       clearTimeout(bstShowDebounce);
       bstShowDebounce = null;
     }
     if (shadow) {
       var banner = shadow.getElementById("cb-recovery-banner");
-      if (banner) banner.style.display = "none";
+      if (banner) {
+        banner.style.display = "none";
+        banner.className = "cb-recovery-banner";
+      }
     }
     // Clear durable state so new search gets a fresh scan
     chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_CLEAR" }, function () {
@@ -2002,9 +2107,12 @@
   // ─── Decision Label ───────────────────────────────────────
 
   function getDecision(score) {
-    if (score >= 8.0) return { label: "Strong Fit", cls: "cb-decision-strong" };
-    if (score >= 6.0) return { label: "Stretch", cls: "cb-decision-stretch" };
-    return { label: "Skip", cls: "cb-decision-skip" };
+    if (score >= 9.0) return { label: "Excellent Match", cls: "cb-decision-excellent" };
+    if (score >= 8.0) return { label: "Very Strong Match", cls: "cb-decision-vstrong" };
+    if (score >= 7.0) return { label: "Strong Partial Match", cls: "cb-decision-strong" };
+    if (score >= 6.0) return { label: "Viable Stretch", cls: "cb-decision-stretch" };
+    if (score >= 5.0) return { label: "Adjacent Background", cls: "cb-decision-adjacent" };
+    return { label: "Poor Fit", cls: "cb-decision-skip" };
   }
 
   // ─── Domain-Mismatch Score Guardrail ─────────────────────
@@ -2275,15 +2383,15 @@
         { band: hrcBand, reason: (hrc && hrc.reason) || null, roleMismatch: roleMismatch });
     }
 
-    // Display score is the rounded integer — label and color derive from this
-    // so the user never sees a mismatch (e.g. displayed "6" but label "Skip").
-    var displayScore = Math.round(score);
+    // Display score rounded to 1 decimal — label and color derive from this
+    // so the user never sees a mismatch between displayed score and band label.
+    var displayScore = Math.round(score * 10) / 10;
     var decision = getDecision(displayScore);
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = displayScore;
-    scoreEl.style.color = displayScore >= 8 ? "#4ADE80" : displayScore >= 6 ? "#FBBF24" : "#EF4444";
+    scoreEl.textContent = displayScore.toFixed(1);
+    scoreEl.style.color = displayScore >= 7 ? "#4ADE80" : displayScore >= 6 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
@@ -2367,10 +2475,10 @@
       nearbySection.style.display = "none";
     }
 
-    // Tailor Resume banner (above sidecard, 8.0+ only, suppressed if already in pipeline)
+    // Tailor Resume banner (above sidecard, 7.0+ only, suppressed if already in pipeline)
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
-      if (score >= 8.0) {
+      if (score >= 7.0) {
         // Reset banner to default state for the new job
         var tailorBtn = shadow.getElementById("cb-tailor-btn");
         var pipelineLink = shadow.getElementById("cb-tailor-pipeline");
@@ -2472,8 +2580,8 @@
       evaluateBSTFromBadgeCache();
     })();
 
-    // Telemetry: strong_match_viewed (score >= 8.0)
-    if (score >= 8.0) {
+    // Telemetry: strong_match_viewed (score >= 7.0)
+    if (score >= 7.0) {
       emitTelemetry("strong_match_viewed", {
         surfaceKey: getSearchSurfaceKey(),
         jobTitle: lastJobMeta.title || null,
@@ -2852,7 +2960,7 @@
     '  <span class="cb-recovery-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></span>',
     '  <div class="cb-recovery-body">',
     '    <div id="cb-recovery-reason" class="cb-recovery-reason"></div>',
-    '    <div class="cb-recovery-label">Try this title instead</div>',
+    '    <div id="cb-recovery-label" class="cb-recovery-label">Try this title instead</div>',
     '    <a id="cb-recovery-link" class="cb-recovery-link" target="_self"></a>',
     '  </div>',
     '</div>',
@@ -2885,7 +2993,7 @@
     '    <div class="cb-toprow">',
     '      <div class="cb-score-row">',
     '        <span id="cb-score" class="cb-score-num">\u2014</span>',
-    '        <span class="cb-score-of">/10</span>',
+    '        <span class="cb-score-sep">\u2014</span>',
     '        <span id="cb-decision" class="cb-decision"></span>',
     '      </div>',
     '      <div id="cb-jobtitle" class="cb-job-title"></div>',
@@ -3015,6 +3123,10 @@
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
     ".cb-recovery-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    // Surface-quality banner variant (green accent when strong matches exist)
+    ".cb-surface-quality { border-color: rgba(74,222,128,0.3); }",
+    ".cb-surface-quality .cb-recovery-icon { color: #4ADE80; }",
+    ".cb-surface-quality .cb-recovery-reason { font-size: 11px; color: #D1D5DB; font-weight: 500; margin-bottom: 0; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
     "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
@@ -3085,13 +3197,16 @@
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 3px; }",
     ".cb-score-num { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }",
-    ".cb-score-of { font-size: 11px; font-weight: 500; color: #555; }",
+    ".cb-score-sep { font-size: 18px; font-weight: 300; color: #555; margin: 0 2px; }",
     ".cb-decision {",
     "  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;",
-    "  letter-spacing: 0.01em; margin-left: 6px;",
+    "  letter-spacing: 0.01em;",
     "}",
-    ".cb-decision-strong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
+    ".cb-decision-excellent { background: rgba(74,222,128,0.2); color: #4ADE80; }",
+    ".cb-decision-vstrong { background: rgba(74,222,128,0.15); color: #4ADE80; }",
+    ".cb-decision-strong { background: rgba(74,222,128,0.12); color: #6EE7A0; }",
     ".cb-decision-stretch { background: rgba(251,191,36,0.15); color: #FBBF24; }",
+    ".cb-decision-adjacent { background: rgba(251,191,36,0.10); color: #D4A017; }",
     ".cb-decision-skip { background: rgba(239,68,68,0.15); color: #EF4444; }",
     ".cb-job-title {",
     "  font-size: 12px; font-weight: 700; color: #F2F2F2;",
