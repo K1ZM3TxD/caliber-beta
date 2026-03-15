@@ -79,6 +79,54 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — BST Surface Classification + Score Color Band Lock (v0.8.7→v0.8.9)
+
+**What changed:**
+- BST trigger doctrine replaced: the "zero-strong-match window" rule (fire when zero jobs score >= 8.0 in cache) is superseded by **query-level surface classification** via `classifySearchSurface(query, calibrationTitle, nearbyRoles)`.
+- `classifySearchSurface()` returns one of three classifications: `"aligned"` / `"out-of-scope"` / `"ambiguous"`. BST decision tree:
+  - **aligned + strongCount > 0** → SUPPRESS (user is on a good surface with real strong matches)
+  - **aligned + strongCount === 0** → TRIGGER (right surface but no strong match yet — recovery needed)
+  - **out-of-scope** → TRIGGER (wrong job family entirely — recovery needed)
+  - **ambiguous** → TRIGGER only if strongCount === 0 AND avgScore < 6.0
+- Classification steps: (1) titleEquivalent check, (2) nearbyRole match, (3) ≥50% keyword overlap, (4) ROLE_FAMILY_CLUSTERS comparison via `getClusterForTitle()`, (5) query-in-known-cluster with no overlap → out-of-scope, (6) else → ambiguous.
+- Score color bands locked across all four rendering locations (badge, sidecard score, badge CSS, decision label):
+  - **Green (#4ADE80):** 8.0–10.0 (Strong Fit)
+  - **Yellow (#FBBF24):** 6.0–7.9 (Stretch)
+  - **Red (#EF4444):** 0–5.9 (Skip)
+- Old gray badge class removed — replaced with red for scores below 6.0.
+- Extension version bumped from v0.8.5 to v0.8.9 across three rounds of live-validation fixes.
+
+**Why it changed:**
+- v0.8.7: The zero-strong-match rule couldn't distinguish between "wrong job family with flukey high scores" and "right family, just no 8.0+ yet." `genuineStrongCount` approach introduced but couldn't classify titles not in any ROLE_FAMILY_CLUSTERS (e.g., "Business Operations Designer").
+- v0.8.8: Live validation showed false positive (BST on "Business Operations Designer" — an aligned surface) and false negative (no BST on "bartender" — an out-of-scope surface). Root cause: per-job mismatch detection fails for unrecognized titles. Fix: moved classification from per-job to per-query level.
+- v0.8.9: Live validation showed BST suppressed on aligned surfaces even when no visible job scored >= 8.0. Fix: aligned surfaces now require strongCount > 0 to suppress. Also fixed score color inconsistency (score 5 was showing yellow instead of red).
+
+**What is now expected:**
+- BST fires reliably on out-of-scope search surfaces (e.g., bartender when calibrated for software engineering).
+- BST fires on aligned surfaces that have zero strong matches (recovery still needed).
+- BST is suppressed on aligned surfaces only when at least one job scores >= 8.0.
+- Score colors are consistent across all rendering locations: green >= 8.0, yellow >= 6.0, red < 6.0.
+- Decision labels: Strong Fit >= 8.0, Stretch >= 6.0, Skip < 6.0.
+
+**What is explicitly no longer expected:**
+- "Zero-strong-match window" as the BST trigger rule.
+- Per-job `isRoleFamilyMismatch()` as the primary BST classification mechanism (still used as score ceiling guardrail).
+- Gray badge color for low scores — replaced with red.
+- Yellow badge for scores in 6.0–6.4 range was previously gray — now correctly yellow.
+
+**Risk / fallout:**
+- Low — surface classification is additive logic on top of existing badge cache. No API changes.
+- Edge case: titles not matching any ROLE_FAMILY_CLUSTERS keyword fall to "ambiguous" — conservative trigger behavior (fires if no strong matches AND avg < 6.0).
+- Three rapid version bumps (v0.8.7→v0.8.9) during live validation — all pushed and stable.
+
+**Proof target:**
+- BST fires on "bartender" surface when calibrated for software engineering.
+- BST does NOT fire on "Business Operations Designer" when calibrated for a business operations role.
+- BST fires on aligned surface with zero 8.0+ scores.
+- Score 5.0 renders red in all four locations. Score 6.5 renders yellow. Score 8.5 renders green.
+
+**Files touched:** extension/content_linkedin.js, extension/manifest.json, lib/extension_config.ts, Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md, Bootstrap/CALIBER_ACTIVE_STATE.md, Bootstrap/CALIBER_CONTEXT_SUMMARY.md, Bootstrap/CALIBER_ISSUES_LOG.md
+
 ### 2026-03-14 — Beta Gate Resequencing: Overlay Deblocked + Stable Branch Locked
 
 **What changed:**

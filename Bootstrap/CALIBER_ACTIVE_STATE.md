@@ -30,14 +30,14 @@ None currently in flight. Sidecard collapsed height (#48) resolved (2026-03-11).
 - Upload page simplified (2026-03-11): redundant heading removed, layout spacing tightened.
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download, tightened spacing.
 - Pipeline board enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus.
-- Extension ZIP v0.8.5 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, BST doctrine update, and fetch stability fixes.
+- Extension ZIP v0.8.9 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, BST surface-classification trigger, score color band lock, and fetch stability fixes.
 - Extension sidecard is compact, decision-first layout with:
   - Two-column header: company + job title (left), fit score + decision badge (right)
   - Hiring Reality Check (collapsible, with band badge)
   - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-- Extension v0.8.5 built, zipped, and deployed.
+- Extension v0.8.9 built, zipped, and deployed.
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
 - Strong-match contextual card (8.0+) renders above sidecard — triggers "Tailor resume for this job" workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
@@ -84,7 +84,7 @@ calibration → results page → /extension → download ZIP → install in Chro
 Beta gates are the priority. Each gate must be validated before declaring beta. Overlay work is non-blocking and may proceed in parallel.
 
 **Beta Gates (must all pass):**
-1. **BST working** — IN VALIDATION (doctrine updated 2026-03-14, zero-strong-match window rule)
+1. **BST working** — IN VALIDATION (surface-classification trigger shipped v0.8.9, replaces zero-strong-match window rule)
 2. **Sidecard stable** — IN VALIDATION (collapsed height #48 resolved 2026-03-11, fetch stability fixed v0.8.5)
 3. **Pipeline solid** — FUNCTIONAL (board implemented, DnD, fit scores; product validation ongoing)
 4. **Sign-in / memory operational** — NOT YET IMPLEMENTED (next major work item)
@@ -119,8 +119,13 @@ It answers: "What title should I search to find better-fit jobs?"
 
 Behavior:
 - Renders as a recovery banner **above** the sidecard (not inside it)
-- **Trigger (updated 2026-03-14):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch.
-- Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`
+- **Trigger (updated 2026-03-15, v0.8.9):** Uses query-level surface classification via `classifySearchSurface(query, calibrationTitle, nearbyRoles)` which returns `"aligned"` / `"out-of-scope"` / `"ambiguous"`. Decision tree:
+  - **aligned + strongCount > 0** → SUPPRESS (good surface with real strong matches)
+  - **aligned + strongCount === 0** → TRIGGER (right surface but no strong match yet)
+  - **out-of-scope** → TRIGGER (wrong job family entirely)
+  - **ambiguous** → TRIGGER only if strongCount === 0 AND avgScore < 6.0
+- Evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch.
+- Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`
 - Suggested title is the clickable control — links directly to LinkedIn search
 - Suggests calibration primary title first, then adjacent search-surface titles
 - Never suggests exact listing titles or employer-specific phrasing
@@ -136,10 +141,10 @@ Do not re-sequence without new blocking evidence.
 
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
 - #48 Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
-- #44 Better Search Title trigger — **UPDATED** (doctrine changed to zero-strong-match window, 2026-03-14)
+- #44 Better Search Title trigger — **UPDATED** (surface-classification trigger v0.8.9, supersedes zero-strong-match window)
 - #60 Badge placement normalization — **SHIPPED** (27932b1)
 - #61 Badge discovery coverage fix — **SHIPPED** (5133cd7)
-- #62 BST doctrine update (zero-strong-match window) — **SHIPPED** (7b20781)
+- #62 BST doctrine update — **SHIPPED** (surface-classification trigger v0.8.9, supersedes zero-strong-match window)
 - #49 Auto-save strong-match jobs into pipeline — **QUEUED** (next up)
 - #50 Post-save confirmation / action state in sidecard — **QUEUED** (blocked by #49)
 - #51 Account prompt for durable pipeline saving — **QUEUED** (blocked by #50)
@@ -186,4 +191,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-14 (beta gate resequenced — overlay deblocked, five-gate model locked, stable branch = production)_
+_Last updated: 2026-03-15 (BST surface-classification trigger + score color bands locked, extension v0.8.9)_

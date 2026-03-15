@@ -63,6 +63,25 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 
 ---
 
+BREAK + UPDATE — 2026-03-15 (BST Surface Classification + Score Color Band Lock, v0.8.7→v0.8.9)
+---
+DONE:
+- BST trigger doctrine replaced: "zero-strong-match window" rule superseded by query-level surface classification via `classifySearchSurface()`
+- Surface classification returns aligned / out-of-scope / ambiguous; BST decision tree uses classification + strongCount
+- Aligned surfaces require strongCount > 0 to suppress BST (no false suppression on weak aligned surfaces)
+- Score color bands locked across all four rendering locations: Green 8.0+ (#4ADE80) / Yellow 6.0–7.9 (#FBBF24) / Red 0–5.9 (#EF4444)
+- Old gray badge class removed, replaced with red
+- Extension version v0.8.9 (three rounds of live-validation fixes: v0.8.7 → v0.8.8 → v0.8.9)
+
+BLOCKED:
+- None — surface classification and color bands are shipped and stable
+
+NEXT:
+- Validate BST surface classification across diverse calibration profiles
+- Continue closing remaining beta gates (sign-in/memory is the next major item)
+
+---
+
 BREAK + UPDATE — 2026-03-14 (Beta Gate Resequencing: Overlay Deblocked)
 ---
 DONE:
@@ -137,7 +156,7 @@ DONE:
 - BST evaluation migrated to badge cache: `evaluateBSTFromBadgeCache()` replaces separate prescan — badge scoring IS the prescan
 - 8 lifecycle/stability bugs fixed: surface key normalization, scroll listener lifecycle, observer debounce leak, batch generation counter for stale responses, active guard on processBadgeQueue, cache surface empty-string check, style element parentNode check, same-surface URL change badge restoration
 - Loading placeholder format: `[diamond icon] …` — matches Caliber brand
-- Score color bands: Green (8.0+), Yellow (6.5–7.9), Gray (0–6.4)
+- Score color bands (updated v0.8.9): Green (8.0+), Yellow (6.0–7.9), Red (0–5.9)
 - Self-mutation guard: `badgeInjecting` flag prevents MutationObserver from re-triggering during badge writes
 
 BLOCKED:

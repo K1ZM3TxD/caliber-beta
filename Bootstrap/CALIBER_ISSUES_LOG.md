@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+63. Score color band normalization — **SHIPPED** (v0.8.9, e4669d0)
+  - Score color bands locked across all four rendering locations (badge, sidecard score, badge CSS, decision label).
+  - Green (#4ADE80): 8.0–10.0 (Strong Fit). Yellow (#FBBF24): 6.0–7.9 (Stretch). Red (#EF4444): 0–5.9 (Skip).
+  - Old gray badge class removed — replaced with red for scores below 6.0.
+  - Previous inconsistency: score 5.0 rendered yellow/orange in some locations, gray in others.
+  - Decision labels locked: Strong Fit >= 8.0, Stretch >= 6.0, Skip < 6.0.
+
 59. Product telemetry event instrumentation — **SHIPPED** (2026-03-14)
   - Lightweight event capture implemented before beta release so outside-user testing generates usable product data from day one.
   - POST /api/events endpoint accepts events from extension and web app. Storage: append-only JSONL at `data/telemetry_events.jsonl`.
@@ -25,12 +32,14 @@
   - No staging/preview confusion — branch separation provides the gate.
   - See `Bootstrap/milestones.md` RELEASE MODEL section for full details.
 
-62. BST doctrine update — zero-strong-match window rule — **SHIPPED** (2026-03-14, 7b20781)
-  - Old BST trigger (`strongCount < 5` / rolling window of 4) replaced with zero-strong-match window rule.
-  - New rule: fires when zero jobs in badge cache score >= 8.0, minimum window of 5 scored jobs.
-  - BST is re-evaluable per chunk — banner auto-hides if a strong match appears in a later batch.
-  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `PIPELINE_AUTO_SAVE_THRESHOLD = 8.5`.
-  - Banner copy updated to reflect new behavior.
+62. BST trigger — surface-classification model — **SHIPPED** (v0.8.7→v0.8.9)
+  - **Old rule (superseded):** Zero-strong-match window — fires when zero jobs in badge cache score >= 8.0, minimum window of 5.
+  - **New rule (v0.8.9):** Query-level surface classification via `classifySearchSurface(query, calibrationTitle, nearbyRoles)` returning aligned / out-of-scope / ambiguous.
+  - Decision tree: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger if no strong AND avg < 6.0.
+  - Classification steps: titleEquivalent → nearbyRole match → keyword overlap → cluster comparison → fallback.
+  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
+  - Three rounds of live validation: v0.8.7 (genuineStrong approach), v0.8.8 (surface classification), v0.8.9 (aligned-surface strongCount gate).
+  - Commits: fbcf06c (v0.8.7), 7ec39fd (v0.8.8), e4669d0 (v0.8.9).
 
 61. Badge discovery coverage fix — **SHIPPED** (2026-03-14, 5133cd7)
   - Some visible cards missed scores until click triggered secondary population.
@@ -88,10 +97,11 @@
   - Bullet circles aligned with explicit top: 0 positioning.
   - Collapsed card height is now stable across all score states.
 
-44. Better Search Title trigger — **UPDATED** (2026-03-14, doctrine changed)
+44. Better Search Title trigger — **UPDATED** (surface-classification trigger v0.8.9)
   - **Old rule (superseded):** Rolling window of last 4 scored jobs; 3/4 below 6.5 and none >= 7.5.
-  - **New rule (2026-03-14, 7b20781):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — banner auto-hides if a strong match appears in a later batch.
-  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`.
+  - **Intermediate rule (superseded):** Zero-strong-match window — fires when zero jobs score >= 8.0 in cache of 5+.
+  - **Current rule (v0.8.9):** Query-level surface classification via `classifySearchSurface()`. Aligned surfaces with strongCount > 0 suppress BST; all other conditions may trigger.
+  - Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
   - Threshold separation: 8.0 = discovery strong-match (BST suppression), 8.5 = pipeline auto-save (`PIPELINE_AUTO_SAVE_THRESHOLD`). These must not be conflated.
 
 49. Auto-save strong-match jobs into pipeline — **QUEUED** (2026-03-11)

@@ -7,7 +7,7 @@
 **Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Phase-2 overlay scoring is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. Extension operates as a two-layer surface: discovery badges on search result cards + decision sidecard on selected job.
 
 **Beta gates status:**
-1. BST working — IN VALIDATION (doctrine updated, zero-strong-match window rule)
+1. BST working — IN VALIDATION (surface-classification trigger shipped v0.8.9)
 2. Sidecard stable — IN VALIDATION (collapsed height resolved, fetch stability fixed)
 3. Pipeline solid — FUNCTIONAL (board implemented, needs product validation)
 4. Sign-in / memory — NOT YET IMPLEMENTED (next major work item)
@@ -45,7 +45,7 @@
 - Pipeline enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus. Code is complete; product validation deferred to step 6.
 - Shell visual baseline anchored to commit a211182. Shared shell framework not yet locked; deferred to step 6.
 - Pipeline board is intentionally anti-CRM. No subtasks, notes, timelines, or due dates.
-- Extension v0.8.5 deployed (ZIP rebuilt with overlay badge system and fetch stability fixes).
+- Extension v0.8.9 deployed (ZIP rebuilt with overlay badge system, BST surface-classification trigger, score color band lock, and fetch stability fixes).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
 - Next priorities: close remaining beta gates (sign-in/memory is the top item) → validate all five gates → declare beta. Overlay and auto-save work continue in parallel without blocking.
@@ -113,7 +113,7 @@ Job-fit evaluation lives exclusively in the browser extension sidecard.
 ## Current Extension Sidecard (2026-03-14, canonical)
 
 The extension operates as a two-layer evaluation surface:
-- **Discovery layer (listings):** Score badges injected below the title/company line in LinkedIn search result cards. Each card shows a color-coded fit score (Green 8.0+ / Yellow 6.5–7.9 / Gray 0–6.4). Progressive scoring via chunked API batches. Scroll, MutationObserver, and viewport buffering detect new/rerendered cards. Badge target uses `CARD_CONTENT_SELECTORS` with multiple fallbacks. Cache restores badges instantly on return navigation.
+- **Discovery layer (listings):** Score badges injected below the title/company line in LinkedIn search result cards. Each card shows a color-coded fit score (Green 8.0+ / Yellow 6.0–7.9 / Red 0–5.9). Progressive scoring via chunked API batches. Scroll, MutationObserver, and viewport buffering detect new/rerendered cards. Badge target uses `CARD_CONTENT_SELECTORS` with multiple fallbacks. Cache restores badges instantly on return navigation.
 - **Decision layer (sidecard):** Full evaluation panel for the selected job. Fit score, Hiring Reality Check, supports/stretch/bottom line, nearby roles, feedback controls.
 
 The sidecard is the primary decision surface. Compact, decision-first layout. Collapsed height is stable across all score states — all collapsible section toggles render regardless of content. (**Note:** #48 resolved 2026-03-11; ongoing validation confirms stability.)
@@ -121,7 +121,7 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 **Structure (top to bottom):**
 
 *Above the sidecard (conditional):*
-0. **Better Search Title recovery banner** — appears when zero jobs in the badge cache score >= 8.0 (minimum 5 scored). Re-evaluable per chunk. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
+0. **Better Search Title recovery banner** — appears when surface classification determines the user needs recovery (out-of-scope surface, or aligned surface with zero strong matches). Uses query-level `classifySearchSurface()` returning aligned/out-of-scope/ambiguous. Minimum 5 scored jobs. Re-evaluable per chunk. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
 
 *Inside the sidecard:*
 1. **Header bar** — Caliber logo + refresh + close button
@@ -135,13 +135,13 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 9. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
 
 **Dimensions:** 380px wide, 520px max height, 240px min height (results body).
-**Version:** v0.8.0.
+**Version:** v0.8.9.
 
 ## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
 
 Better Search Title is a **Search Surface Recovery Mechanism**. It answers the user question: "What title should I search to find better-fit jobs?"
 
-**Trigger (updated 2026-03-14):** Fires when zero jobs in the badge cache score >= 8.0, evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`.
+**Trigger (updated 2026-03-15, v0.8.9):** Uses query-level surface classification via `classifySearchSurface()`. Returns aligned/out-of-scope/ambiguous. Decision: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger if no strong AND avg < 6.0. Evaluated after minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
 
 **UX:**
 - Recovery banner renders **above** the sidecard, not inside it.
@@ -282,7 +282,7 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 
 **Listing Badge:** Each LinkedIn job card displays a Caliber badge (icon + color-coded score) under the company logo.
 - Format: `[Caliber Icon] Score` — e.g. 🟢 8.4
-- Color bands: Green (8.0–10.0, strong fit) · Yellow (6.5–7.9, possible fit) · Gray (0–6.4, skip)
+- Color bands (updated v0.8.9): Green (8.0–10.0, strong fit) · Yellow (6.0–7.9, stretch) · Red (0–5.9, skip)
 - Exactly three bands. No additional tiers.
 
 **Loading Placeholder:** When a job card becomes visible, immediately render `[Caliber Icon] …` before scoring completes. Replace with final badge when done. Purpose: eliminate perceived latency and signal scoring in progress.
