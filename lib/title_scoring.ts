@@ -586,10 +586,41 @@ export interface TitleRecommendation {
  */
 export function generateTitleRecommendation(
   resumeText: string,
-  promptAnswers: string[]
+  promptAnswers: string[],
+  anchorBoosts?: Map<string, number>
 ): { candidates: Array<{ title: string; score: number }>; recommendation: TitleRecommendation } {
   const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
-  const enriched = applyGroundingPenalty(scoreEnriched(anchorMap), anchorMap);
+  // Apply optional anchor boosts (e.g. from SGD signal injection).
+  // These bypass the normal weight cap of 5 to allow signals to shift scores.
+  if (anchorBoosts) {
+    for (const [term, boost] of anchorBoosts) {
+      const current = anchorMap.get(term) ?? 0;
+      anchorMap.set(term, Math.min(7, current + boost));
+    }
+  }
+  let enriched = applyGroundingPenalty(scoreEnriched(anchorMap), anchorMap);
+
+  // When anchor boosts are present, apply a direct signal-affinity adjustment.
+  // Titles whose required/optional terms overlap with boosted terms get a
+  // small score bump. This ensures signal injection can shift competitive
+  // rankings even when the leading title is already at reqCov cap.
+  if (anchorBoosts && anchorBoosts.size > 0) {
+    const boostedTerms = new Set(anchorBoosts.keys());
+    enriched = enriched.map(c => {
+      const sig = SIGS[c.title];
+      if (!sig) return c;
+      let bonus = 0;
+      for (const t of sig.required) {
+        if (boostedTerms.has(t)) bonus += 0.25;
+      }
+      for (const t of sig.optional) {
+        if (boostedTerms.has(t)) bonus += 0.15;
+      }
+      bonus = Math.min(1.2, bonus); // cap: signals can shift but not dominate
+      if (bonus <= 0) return c;
+      return { ...c, score: Math.min(9.9, Math.round((c.score + bonus) * 10) / 10) };
+    }).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  }
   const top3 = selectTwoPlusOne(enriched);
 
   const primary = top3[0];

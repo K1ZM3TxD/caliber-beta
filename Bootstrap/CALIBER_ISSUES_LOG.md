@@ -3,14 +3,16 @@
 
 ## Current Open Issues
 
-71. SGD scoring-keyword injection + result page display — **SHIPPED** (2026-03-15)
-  - Validation proved that prior signal injection (issue 70) did NOT actually change calibration title output.
-  - Root cause: signal labels like "Procurement Exposure" get tokenized into individual words that don't match the title scoring vocabulary. extractBroadTokens requires count >= 2 and works with canonicalized single tokens from SCORING_VOCAB.
-  - Fix: SIGNAL_SCORING_KEYWORDS dictionary maps ~100 signal labels → arrays of actual scoring vocabulary terms (e.g. "Stakeholder Coordination" → ["stakeholder","coordination","collaboration","communication"]). Keywords repeated 2x to pass count≥2 gate. Fallback tokenizer for unmapped labels.
-  - SET_SIGNAL_PREFERENCE handler captures baseline title, generates augmented title, logs before/after comparison as JSON.
-  - Result page now shows "Signals influencing this calibration: X · Y · Z" in green accent when user selected Yes and signals exist.
-  - NO selection preserves original behavior with no title re-generation.
-  - Files: `lib/calibration_machine.ts`, `app/calibration/page.tsx`.
+71. SGD anchor-boost injection + result page display — **SHIPPED** (2026-03-15)
+  - Validation proved that prior signal injection (text-based, issue 70) did NOT change calibration title output because multi-word labels don't map through extractBroadTokens, and the anchor weight cap of 5 prevents score shifts for already-well-represented terms.
+  - Fix: Two-layer approach in generateTitleRecommendation:
+    (a) SIGNAL_SCORING_KEYWORDS dictionary maps ~100 signal labels → scoring-vocabulary terms. These become anchorBoosts applied directly to the anchor weight map (bypassing normal cap 5, max 7).
+    (b) Signal-affinity bonus: titles with required/optional term overlap with boosted terms get +0.25/required, +0.15/optional (capped at 1.2 total). This shifts competitive rankings even when the leader is at reqCov cap.
+  - Jen validation: Partnerships Manager score 8.4→9.0 with YES, secondary candidates shifted (Account Manager 6.9→7.5, Marketing Operations Manager appeared at 8.2). Title stays same for Jen because signals reinforce existing match — correct behavior.
+  - Result page shows "Signals influencing this calibration: X · Y · Z" in green accent text.
+  - Yes/No buttons on PROCESSING screen centered.
+  - NO selection preserves original behavior.
+  - Files: `lib/calibration_machine.ts`, `lib/title_scoring.ts`, `app/calibration/page.tsx`.
 
 70. SGD signal normalization + calibration title influence — **SHIPPED** (2026-03-15)
   - Detected signals previously appeared as raw tokens (e.g. “Buying”, “Drained”, “Fatiguing”).

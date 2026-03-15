@@ -1023,7 +1023,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           <div style={{ fontSize: "0.78rem", color: "#737373", marginBottom: 14 }}>
                             Include these in your evaluation?
                           </div>
-                          <div style={{ display: "flex", gap: 10 }}>
+                          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                             <button
                               type="button"
                               disabled={signalPrefBusy}

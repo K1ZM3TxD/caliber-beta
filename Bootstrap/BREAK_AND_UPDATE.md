@@ -79,31 +79,34 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
-### 2026-03-15 — SGD Scoring-Keyword Injection Fix + Result Display
+### 2026-03-15 — SGD Anchor-Boost Injection + Result Display
 
 **What changed:**
-- Validation proved prior signal injection (issue 70) did NOT change title output. Root cause: multi-word signal labels don't tokenize to scoring vocabulary terms.
-- New SIGNAL_SCORING_KEYWORDS dictionary (~100 entries) maps signal labels → actual scoring vocab terms. Keywords repeated 2x to pass extractBroadTokens count≥2 gate.
+- Prior text-injection approach (issue 70, commit a06dec0) did NOT change title output. Root cause: multi-word signal labels don't map through extractBroadTokens, and anchor weight cap of 5 prevents score shifts.
+- New two-layer approach: (a) anchorBoosts map applied directly to anchor weights in generateTitleRecommendation (bypassing cap 5, max 7), (b) signal-affinity bonus adds +0.25/required and +0.15/optional term overlap (capped 1.2) to post-scoring title scores.
+- SIGNAL_SCORING_KEYWORDS dictionary (~100 entries) maps signal labels → scoring-vocabulary terms.
 - SET_SIGNAL_PREFERENCE handler captures baseline title, logs before/after JSON comparison.
 - Result page shows "Signals influencing this calibration: X · Y · Z" when user selected Yes.
+- Yes/No buttons on PROCESSING screen centered.
 
 **Why it changed:**
-- Prior implementation injected label text that the scoring pipeline couldn't match. The feature was cosmetic — Yes/No had identical output.
+- Prior text-injection was cosmetic — Yes/No produced identical output. Weight cap at 5 and reqCov cap at 1.0 prevented any score shift.
 
 **What is now expected:**
-- Yes → scoring keywords derived from signals enter title generation anchor weights. Title output may shift.
+- Yes → anchor boosts + affinity bonus shift title scores. Jen: 8.4→9.0, secondary candidates reshuffled.
 - No → no title re-generation, no signals displayed.
 - Result page shows included signals in green accent text below "Why this fits" dropdown.
-- Console logs `sgd_title_influence` and `sgd_title_influence_result` JSON for validation.
+- Console logs `sgd_title_influence` (with anchorBoosts) and `sgd_title_influence_result` JSON.
+- Yes/No buttons centered on PROCESSING screen.
 
 **What is no longer expected:**
-- Signal label text injected directly into title generation (doesn't work with scoring vocab).
+- Text-based signal injection into prompt answers (doesn't work with scoring pipeline caps).
 
 **Risk / fallout:**
-- Title may change more noticeably when signals are included. This is the intended and correct behavior.
+- Scores shift when signals included. Primary title may or may not change depending on whether signals reinforce or diverge from resume match.
 
 **Proof:**
-- TypeScript build clean (exit 0). Pre-existing test failures unchanged (2 in signal_classification.test.ts).
+- TypeScript build clean. Tests: 72/74 pass (same 2 pre-existing failures). Jen validation: score 8.4→9.0, candidates shifted, title stays same (signals reinforce existing match).
 
 ---
 

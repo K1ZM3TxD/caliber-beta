@@ -41,7 +41,7 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [ ] Score band labels render correctly across all score ranges
 
 IMPLEMENTATION LOG:
-- 2026-03-15: SGD scoring-keyword injection fix — SIGNAL_SCORING_KEYWORDS maps ~100 labels → scoring vocab terms. Prior label-text injection was ineffective. Result page now shows "Signals influencing this calibration" when user selected Yes. Files: `lib/calibration_machine.ts`, `app/calibration/page.tsx`.
+- 2026-03-15: SGD anchor-boost injection — two-layer approach: anchorBoosts map (bypass weight cap) + signal-affinity bonus (+0.25/req, +0.15/opt, cap 1.2). Jen: score 8.4→9.0, candidates shifted. Result page shows included signals. Yes/No buttons centered. Files: `lib/calibration_machine.ts`, `lib/title_scoring.ts`, `app/calibration/page.tsx`.
 
 ---
 

@@ -1876,38 +1876,29 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               if (typeof ca === "string" && ca.trim().length > 0) answers.push(ca.trim())
             }
 
-            // Map signal labels → scoring-relevant keywords that the title
-            // scoring vocabulary can actually match. Each keyword is repeated
-            // 2x so it registers in extractBroadTokens (count >= 2 gate).
-            const scoringKeywords: string[] = []
+            // Build anchor boosts from signal labels.
+            // Each signal maps to scoring-vocabulary keywords via signalToScoringKeywords.
+            // Boosts are applied directly to the anchor weight map, bypassing the
+            // normal weight cap of 5, so signals actually shift title scores.
+            const anchorBoosts = new Map<string, number>()
+            const allScoringKeywords: string[] = []
             for (const signal of session.detectedSignals) {
               const kws = signalToScoringKeywords(signal)
               for (const kw of kws) {
-                scoringKeywords.push(kw, kw) // repeat for count >= 2
+                allScoringKeywords.push(kw)
+                anchorBoosts.set(kw, (anchorBoosts.get(kw) ?? 0) + 1)
               }
             }
-
-            // 30% weight cap: signal keywords must not exceed 30% of combined text.
-            const totalPromptChars = answers.reduce((sum, a) => sum + a.length, 0)
-            const signalText = scoringKeywords.join(" ")
-            const maxSignalChars = Math.floor(totalPromptChars * 0.43) // 0.43 of existing ≈ 30% of combined
-            const cappedSignalText = signalText.length <= maxSignalChars
-              ? signalText
-              : signalText.slice(0, maxSignalChars)
-
-            const augmentedAnswers = [...answers, cappedSignalText]
 
             console.log("[caliber] sgd_title_influence:", JSON.stringify({
               includeDetectedSignals: true,
               detectedSignals: session.detectedSignals,
-              scoringKeywords: [...new Set(scoringKeywords)],
-              totalPromptChars,
-              signalTextChars: signalText.length,
-              cappedToChars: cappedSignalText.length,
+              scoringKeywords: [...new Set(allScoringKeywords)],
+              anchorBoosts: Object.fromEntries(anchorBoosts),
               baselineTitle,
             }))
 
-            const titleResult = generateTitleRecommendation(resumeText, augmentedAnswers)
+            const titleResult = generateTitleRecommendation(resumeText, answers, anchorBoosts)
 
             const newTitle = titleResult.recommendation.primary_title.title
             const titleChanged = newTitle !== baselineTitle
