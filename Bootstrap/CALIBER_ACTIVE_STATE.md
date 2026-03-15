@@ -10,7 +10,7 @@
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
 ## Active Current Fix
-BST trigger + session reliability fix (#64) in progress (2026-03-15). Root causes: session not ready before scoring, no session-ready notification to content scripts, rapid fail loop on no-session batch, missing calibration title disabling guardrail. Fixes applied to `extension/content_linkedin.js` and `extension/background.js`. Awaiting live validation.
+BST suggestion rendering + surface classification edge cases (#65) in progress (2026-03-15). Follow-up to #64. Three failures: (1) BST banner rendering without suggested title due to empty calibration context, (2) out-of-scope searches like "bartender" getting inflated 6-7 scores and not triggering BST, (3) ambiguous searches like "specialist" not triggering BST despite no strong matches. Root cause: calibration title not persisted across page loads, not extracted from session backup, ambiguous trigger lacks cluster-alignment evidence. Fixes: calibration title persistence chain, session discover enrichment, 4-level suggestion fallback, cluster-alignment secondary trigger for ambiguous surfaces.
 
 ## Top Blocker
 **Sign-in / memory (beta gate 4).** BST and sidecard stability are in validation. Pipeline is functional. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Overlay work continues in parallel but does not block beta.

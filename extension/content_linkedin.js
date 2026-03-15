@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.3";
+  const PANEL_VERSION = "0.9.4";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -420,6 +420,20 @@
   var sessionCheckMax = 8;           // max retries (8 × escalating delay ≈ 40s)
   var sessionCheckTimer = null;      // timer for session retry
   var lastKnownCalibrationTitle = ""; // fallback calibration title from any successful scoring
+  var lastKnownNearbyRoles = [];        // fallback nearby roles from session backup or scoring
+
+  // Load persisted calibration context from chrome.storage.local so BST has
+  // a suggestion title immediately, even before the first scoring batch returns.
+  chrome.storage.local.get(["caliberCalibrationTitle", "caliberNearbyRoles"], function (data) {
+    if (data.caliberCalibrationTitle && !lastKnownCalibrationTitle) {
+      lastKnownCalibrationTitle = data.caliberCalibrationTitle;
+      console.debug("[Caliber][session][diag] loaded persisted calibrationTitle: \"" + lastKnownCalibrationTitle + "\"");
+    }
+    if (Array.isArray(data.caliberNearbyRoles) && data.caliberNearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
+      lastKnownNearbyRoles = data.caliberNearbyRoles;
+      console.debug("[Caliber][session][diag] loaded persisted nearbyRoles: " + lastKnownNearbyRoles.length + " entries");
+    }
+  });
 
   // Load persisted prescan state on script init
   chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_GET" }, function (resp) {
@@ -628,6 +642,9 @@
     if (!query) return { surfaceClass: "ambiguous", reason: "no query available" };
 
     var hasCalTitle = !!calibrationTitle;
+    console.debug("[Caliber][BST][classify] input — query: \"" + query +
+      "\", calTitle: \"" + (calibrationTitle || "") +
+      "\", nearbyRoles: " + (nearbyRoles ? nearbyRoles.length : 0));
 
     // 1. Direct title equivalence → aligned
     if (hasCalTitle && titlesEquivalent(query, calibrationTitle)) {
@@ -1016,7 +1033,18 @@
         if (result.ok) {
           // Track calibration title for fallback guardrail
           if (result.calibrationTitle) {
+            var calTitleChanged = lastKnownCalibrationTitle !== result.calibrationTitle;
             lastKnownCalibrationTitle = result.calibrationTitle;
+            // Persist to chrome.storage.local so it survives page navigations
+            if (calTitleChanged) {
+              chrome.storage.local.set({ caliberCalibrationTitle: result.calibrationTitle });
+              console.debug("[Caliber][session][diag] persisted calibrationTitle: \"" + result.calibrationTitle + "\"");
+            }
+          }
+          // Track nearby roles
+          if (result.nearbyRoles && result.nearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
+            lastKnownNearbyRoles = result.nearbyRoles;
+            chrome.storage.local.set({ caliberNearbyRoles: result.nearbyRoles });
           }
 
           // Apply out-of-scope ceiling before caching
@@ -1225,6 +1253,7 @@
     var strongCount = 0;        // scores >= 8.0 (genuine aligned — guardrail ensures this)
     var mismatchCount = 0;      // jobs with isRoleFamilyMismatch = true
     var alignedCount = 0;       // jobs NOT mismatched (aligned or unknown)
+    var sameClusterCount = 0;   // jobs whose title shares cluster with calibration title
     var scoredCount = 0;
     var maxScore = 0;
     var scoreSum = 0;
@@ -1246,7 +1275,22 @@
         mismatchCount++;
       } else {
         alignedCount++;
+     
+
+    // Count how many scored job titles share a cluster with the calibration title.
+    // Used to detect ambiguous queries landing on entirely foreign job surfaces.
+    var calClusterForEvidence = bestCalibrationTitle ? getClusterForTitle(bestCalibrationTitle) : null;
+    if (!calClusterForEvidence && lastKnownCalibrationTitle) {
+      calClusterForEvidence = getClusterForTitle(lastKnownCalibrationTitle);
+    }
+    if (calClusterForEvidence) {
+      for (var sc = 0; sc < urls.length; sc++) {
+        var scEntry = badgeScoreCache[urls[sc]];
+        if (scEntry.title && getClusterForTitle(scEntry.title) === calClusterForEvidence) {
+          sameClusterCount++;
+        }
       }
+    } }
     }
 
     // Fallback: if badge cache didn't yield a calibration title, try recentScores
@@ -1257,6 +1301,16 @@
           break;
         }
       }
+    }
+    // Fallback: use persisted calibration title from session backup or previous scoring
+    if (!bestCalibrationTitle && lastKnownCalibrationTitle) {
+      bestCalibrationTitle = lastKnownCalibrationTitle;
+      console.debug("[Caliber][BST][diag] using lastKnownCalibrationTitle fallback: \"" + bestCalibrationTitle + "\"");
+    }
+    // Fallback: use persisted nearby roles
+    if (bestNearbyRoles.length === 0 && lastKnownNearbyRoles.length > 0) {
+      bestNearbyRoles = lastKnownNearbyRoles;
+      console.debug("[Caliber][BST][diag] using lastKnownNearbyRoles fallback: " + bestNearbyRoles.length + " entries");
     }
 
     var avgScore = scoredCount > 0 ? scoreSum / scoredCount : 0;
@@ -1289,22 +1343,36 @@
       triggerReason = "no strong matches on aligned surface (max " + maxScore.toFixed(1) +
         ", avg " + avgScore.toFixed(1) + ") — recovery still needed";
     } else {
-      // Ambiguous query — resolve through scored evidence.
-      // Trigger only when genuinely weak: low average confirms poor surface.
-      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING;
-      triggerReason = shouldTrigger
-        ? "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")"
-        : "no strong matches + ambiguous query but acceptable avg (" + avgScore.toFixed(1) + " ≥ " + BST_AMBIGUOUS_AVG_CEILING + ") — holding";
+      // Ambiguous query — resolve through scored + cluster evidence.
+      // Primary: low average confirms poor surface.
+      // Secondary: if calibration title has a known cluster but ZERO scored
+      // job titles share it, the surface is effectively foreign (e.g. searching
+      // "specialist" when calibrated as "Product Manager" — most results are
+      // unrelated specialties). Trigger BST for recovery.
+      var noClusterOverlap = calClusterForEvidence && sameClusterCount === 0 && scoredCount >= BST_MIN_WINDOW_SIZE;
+      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING || noClusterOverlap;
+      if (shouldTrigger) {
+        triggerReason = noClusterOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING
+          ? "no strong matches + ambiguous query + zero job titles in calibration cluster (" + calClusterForEvidence +
+            ") despite avg " + avgScore.toFixed(1) + " — surface is foreign"
+          : "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")";
+      } else {
+        triggerReason = "no strong matches + ambiguous query but acceptable avg (" + avgScore.toFixed(1) +
+          " ≥ " + BST_AMBIGUOUS_AVG_CEILING + ") + " + sameClusterCount + " jobs share calibration cluster — holding";
+      }
     }
 
     // ── Diagnostic logging ──
     console.debug("[Caliber][BST] ── evaluation ──");
     console.debug("[Caliber][BST]   scoreWindowSize: " + scoredCount);
     console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
-    console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\"");
+    console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\" (lastKnown: \"" + lastKnownCalibrationTitle + "\")");
+    console.debug("[Caliber][BST]   nearbyRoles: " + (bestNearbyRoles.length > 0
+      ? bestNearbyRoles.map(function(r) { return r.title; }).join(", ") : "(none)"));
     console.debug("[Caliber][BST]   pre-read window: [" + scores.map(function(s) { return s.toFixed(1); }).join(", ") + "]");
     console.debug("[Caliber][BST]   genuineStrongCount: " + strongCount + " (≥" + BST_STRONG_MATCH_THRESHOLD + ")");
-    console.debug("[Caliber][BST]   alignedJobs: " + alignedCount + ", mismatchedJobs: " + mismatchCount);
+    console.debug("[Caliber][BST]   alignedJobs: " + alignedCount + ", mismatchedJobs: " + mismatchCount +
+      ", sameClusterJobs: " + sameClusterCount + " (calCluster: " + (calClusterForEvidence || "unknown") + ")");
     console.debug("[Caliber][BST]   maxScore: " + maxScore.toFixed(1) + ", avgScore: " + avgScore.toFixed(1));
     console.debug("[Caliber][BST]   queryClassification: " + surfaceClass + " (" + classificationReason + ")");
     console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
@@ -1345,6 +1413,21 @@
           } else {
             title = getCalibrationTitleFallback(deferredQuery);
             if (title) titleSource = "recentScores fallback";
+          }
+          // Final fallback: use lastKnownCalibrationTitle (from session backup or prior scoring)
+          if (!title && lastKnownCalibrationTitle && !titlesEquivalent(lastKnownCalibrationTitle, deferredQuery)) {
+            title = lastKnownCalibrationTitle;
+            titleSource = "lastKnownCalibrationTitle";
+          }
+          // Final fallback: use lastKnownNearbyRoles
+          if (!title && lastKnownNearbyRoles.length > 0) {
+            for (var nr = 0; nr < lastKnownNearbyRoles.length; nr++) {
+              if (lastKnownNearbyRoles[nr].title && !titlesEquivalent(lastKnownNearbyRoles[nr].title, deferredQuery)) {
+                title = lastKnownNearbyRoles[nr].title;
+                titleSource = "lastKnownNearbyRoles";
+                break;
+              }
+            }
           }
 
           console.debug("[Caliber][BST]   titleSource: " + titleSource + ", title: " + (title ? "\"" + title + "\"" : "(none)"));
@@ -1623,8 +1706,18 @@
       if (resp && resp.ok && resp.sessionId && resp.profileComplete) {
         sessionReady = true;
         sessionCheckAttempts = 0;
+        // Hydrate calibration context from session discover response (extracted from backup)
+        if (resp.calibrationTitle && !lastKnownCalibrationTitle) {
+          lastKnownCalibrationTitle = resp.calibrationTitle;
+          console.debug("[Caliber][session][diag] hydrated calibrationTitle from discover: \"" + resp.calibrationTitle + "\"");
+        }
+        if (Array.isArray(resp.nearbyRoles) && resp.nearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
+          lastKnownNearbyRoles = resp.nearbyRoles;
+          console.debug("[Caliber][session][diag] hydrated nearbyRoles from discover: " + resp.nearbyRoles.length + " entries");
+        }
         console.log("[Caliber][session][diag] session confirmed: " + resp.sessionId +
-          ", profileComplete: " + resp.profileComplete + ", state: " + (resp.state || "?"));
+          ", profileComplete: " + resp.profileComplete + ", state: " + (resp.state || "?") +
+          ", calTitle: \"" + (lastKnownCalibrationTitle || "") + "\"");
         startBadgeScanningWithRetry();
       } else {
         sessionCheckAttempts++;
@@ -1743,7 +1836,11 @@
     var reason = shadow.getElementById("cb-recovery-reason");
     if (banner) {
       banner.style.display = "";
-      if (reason) reason.textContent = "None of the scored jobs on this page are strong matches. Try a different search.";
+      if (reason) {
+        reason.textContent = suggestedTitle
+          ? "None of the scored jobs on this page are strong matches for your calibration."
+          : "None of the scored jobs on this page are strong matches. Try a different search.";
+      }
       if (link) {
         if (suggestedTitle) {
           link.textContent = suggestedTitle;
@@ -1907,6 +2004,15 @@
       console.debug("[Caliber][diag][ceiling] role-family mismatch cap: " + score + " → " + ceiling +
         " (job: \"" + (jobTitle || "") + "\", cal: \"" + (calibrationTitle || "") + "\")");
       return ceiling;
+    }
+    // Diagnostic: surface when guardrail can't evaluate due to missing context
+    if (!calibrationTitle && score > ceiling) {
+      var jobCluster = jobTitle ? getClusterForTitle(jobTitle) : null;
+      if (jobCluster) {
+        console.warn("[Caliber][diag][ceiling] GUARDRAIL GAP: job \"" + (jobTitle || "") +
+          "\" (cluster: " + jobCluster + ") scored " + score + " but no calibrationTitle available to compare — " +
+          "score passes uncapped. lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
+      }
     }
     return score;
   }

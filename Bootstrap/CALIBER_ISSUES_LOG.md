@@ -3,7 +3,26 @@
 
 ## Current Open Issues
 
-64. BST trigger + calibration session reliability in LinkedIn extension — **IN PROGRESS** (2026-03-15)
+65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15)
+  - Follow-up to #64. BST is partially working but three failure modes remain:
+    1. **BST banner renders without suggestion title**: `determinePrescanSuggestion()` returns null when `bestCalibrationTitle` is empty (not persisted across page loads) and `recentScores` is empty. Banner shows generic "try a different search" with no clickable link.
+    2. **Out-of-scope "bartender" search not triggering BST + inflated scores**: `applyDomainMismatchGuardrail` can't detect role-family mismatch when `effectiveCalibTitle` is empty. Scores pass through uncapped at 6-7. Classification may still detect out-of-scope via cluster matching, but without a suggestion title the banner is useless.
+    3. **Ambiguous "specialist" search not triggering BST**: Classified as "ambiguous" correctly, but uncapped scores average ≥6.0 (the `BST_AMBIGUOUS_AVG_CEILING`), so BST suppressed. No secondary signal to detect that zero job titles share the calibration cluster.
+  - Root causes:
+    - `lastKnownCalibrationTitle` was session-only (not persisted to chrome.storage.local).
+    - Session backup contains `synthesis.titleRecommendation` but it was never extracted during CALIBER_SESSION_HANDOFF.
+    - Ambiguous trigger lacked cluster-alignment evidence as secondary signal.
+  - Fixes applied:
+    - **Calibration title persistence**: background.js extracts `calibrationTitle` + `nearbyRoles` from session backup on handoff, stores in chrome.storage.local. Content script loads on init. Persisted whenever set from scoring results.
+    - **Session discover enrichment**: `CALIBER_SESSION_DISCOVER` response now includes `calibrationTitle` + `nearbyRoles` from stored session context.
+    - **BST suggestion fallback chain extended**: badge cache → recentScores → lastKnownCalibrationTitle → lastKnownNearbyRoles (4-level fallback).
+    - **Ambiguous cluster-alignment trigger**: For ambiguous surfaces, BST now also triggers when the calibration title has a known cluster but ZERO scored job titles share it (surface is foreign regardless of avg score).
+    - **Guardrail gap diagnostic**: `applyDomainMismatchGuardrail` now logs a warning when calibrationTitle is missing and a clustered job passes uncapped.
+    - Enhanced diagnostic logging: classifier input/output, calibration title source, nearby roles, sameClusterCount, calCluster.
+  - BST doctrine preserved with one additive rule: ambiguous trigger now fires on `avgScore < 6.0 OR (calCluster known AND sameClusterCount === 0)`.
+  - Files changed: `extension/content_linkedin.js`, `extension/background.js`.
+
+64. BST trigger + calibration session reliability in LinkedIn extension — **SHIPPED** (2026-03-15)
   - Beta validation revealed BST not appearing when expected across multiple search scenarios.
   - Root causes identified:
     1. **Session not ready when scoring starts**: `runSearchPrescan()` fires 2s after activation, but `discoverSession()` in background fails if session handoff from Caliber tab hasn't completed. Badge batch returns `{ ok: false }`, so `evaluateBSTFromBadgeCache()` is never called.

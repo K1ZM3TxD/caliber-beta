@@ -79,6 +79,39 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — BST Suggestion Rendering + Classification Edge Cases (#65)
+
+**What changed:**
+- Three BST failure modes fixed — all caused by missing or empty calibration context flowing to the BST evaluation and score guardrail:
+  1. **Calibration title persistence**: `lastKnownCalibrationTitle` was session-only (lost on page navigation). Now persisted to `chrome.storage.local` as `caliberCalibrationTitle`. Loaded on content script init. Updated whenever scoring returns a new title. Background.js extracts title + nearby roles from session backup during `CALIBER_SESSION_HANDOFF` — available immediately before any scoring.
+  2. **Session discover enrichment**: `CALIBER_SESSION_DISCOVER` response now includes `calibrationTitle` and `nearbyRoles` from stored session context, so content script hydrates calibration context as soon as session is confirmed.
+  3. **BST suggestion fallback chain extended**: badge cache → recentScores → `lastKnownCalibrationTitle` → `lastKnownNearbyRoles`. Four-level fallback ensures BST banner almost always has a concrete suggested title.
+  4. **Ambiguous surface cluster-alignment trigger**: For ambiguous queries, BST now also triggers when the calibration title's cluster is known but ZERO scored job titles share that cluster. This catches "specialist"-type searches where AI scores are generous (6-7) but no jobs are actually in the user's field. Doctrine addition: `shouldTrigger = avgScore < 6.0 || (calCluster known && sameClusterCount === 0)`.
+  5. **Guardrail gap diagnostic**: `applyDomainMismatchGuardrail` now logs a WARN when calibrationTitle is empty and a clustered job title passes uncapped — makes the root cause immediately visible in console.
+- Enhanced diagnostic logging throughout: classifier inputs/outputs, calibration title sources, nearby roles, sameClusterCount, calCluster evidence.
+
+**Why it changed:**
+- Live validation after #64 showed BST partially working but missing suggestion titles (generic "try a different search"), "bartender" not triggering BST with inflated 6-7 scores, and "specialist" suppressed despite no 8.0+ matches. Root cause: calibration context didn't survive page loads and wasn't extracted from session backup.
+
+**What is now expected:**
+- BST banner always includes a concrete suggested title (calibration primary title or adjacent role) when triggered.
+- Out-of-scope searches trigger BST reliably with capped scores (when calibration context is available).
+- Ambiguous searches trigger BST when zero scored jobs share the calibration cluster, regardless of avg score.
+- Calibration title persists across page navigations and service worker restarts.
+- `CALIBER_SESSION_DISCOVER` returns calibration title + nearby roles pre-extracted from backup.
+
+**What is NOT expected:**
+- BST banner showing generic "try a different search" without a clickable suggestion (except extreme edge case: very first extension install with no calibration data yet).
+- Ambiguous queries with 6-7 avg scores suppressing BST when no jobs are in the user's role cluster.
+- `lastKnownCalibrationTitle` being empty after a page navigation when the user has previously scored jobs.
+
+**Files changed:**
+- `extension/content_linkedin.js`
+- `extension/background.js`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+
 ### 2026-03-15 — BST Trigger + Session Reliability Fix (#64)
 
 **What changed:**

@@ -145,9 +145,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
   if (msg.type === "CALIBER_SESSION_DISCOVER") {
-    discoverSession()
-      .then((info) => sendResponse({ ok: true, ...info }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    (async () => {
+      try {
+        const info = await discoverSession();
+        // Attach persisted calibration title + nearby roles so content scripts
+        // have them before the first scoring batch completes.
+        const stored = await chrome.storage.local.get(["caliberCalibrationTitle", "caliberNearbyRoles"]);
+        sendResponse({
+          ok: true,
+          ...info,
+          calibrationTitle: stored.caliberCalibrationTitle || "",
+          nearbyRoles: Array.isArray(stored.caliberNearbyRoles) ? stored.caliberNearbyRoles : [],
+        });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
     return true;
   }
   if (msg.type === "CALIBER_PIPELINE_CHECK") {
@@ -362,6 +375,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // Persist full session backup for server-side restoration
       if (msg.sessionBackup && typeof msg.sessionBackup === "object" && msg.sessionBackup.sessionId === sid) {
         toStore.caliberSessionBackup = msg.sessionBackup;
+        // Extract calibration title + nearby roles from session backup so they
+        // are available immediately (before any scoring API calls complete).
+        try {
+          const titleRec = msg.sessionBackup.synthesis && msg.sessionBackup.synthesis.titleRecommendation;
+          const primaryTitle = (titleRec && titleRec.primary_title && titleRec.primary_title.title) || "";
+          const adjTitles = (titleRec && Array.isArray(titleRec.adjacent_titles)) ? titleRec.adjacent_titles : [];
+          if (primaryTitle) {
+            toStore.caliberCalibrationTitle = primaryTitle;
+            toStore.caliberNearbyRoles = adjTitles.slice(0, 3).map(t => ({ title: t.title || "" }));
+            console.debug("[Caliber][bg][session] extracted calibration title from backup: \"" + primaryTitle + "\"");
+          }
+        } catch (e) {
+          console.debug("[Caliber][bg][session] unable to extract calibration title from backup: " + e.message);
+        }
       }
       chrome.storage.local.set(toStore);
       console.debug("[Caliber][bg][session] handoff stored: " + sid);
