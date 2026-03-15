@@ -1,8 +1,50 @@
 ---
 
+Milestone — Desktop Stabilization & Beta Readiness (ACTIVE)
+---
+STATUS: ACTIVE — entered 2026-03-15. Core SSI features implemented; validating before beta launch.
+
+PHASE DEFINITION:
+- "Desktop Stabilization" means all Signal & Surface Intelligence (SSI) subsystems are implemented and under structured validation.
+- The project does not advance to beta until every completion criterion below is met.
+- This phase replaces ad-hoc chat-based status tracking with durable documentation-driven state.
+
+GOALS:
+- Validate Signal & Surface Intelligence (SSI) end-to-end
+- Confirm extension behavior on real LinkedIn search surfaces
+- Eliminate BST title loops
+- Confirm SGD prompt logic (explicit user input before advancing)
+- Confirm pipeline threshold behavior (>=7)
+- Verify extension build stability (current version: 0.9.6)
+
+TESTING FOCUS:
+- Jen regression profile (primary — covers SGD triggering, BST loop prevention, surface intelligence)
+- Calibration ingest behavior across all 4 fixture profiles (Jen, Chris, Dingus, Fabio)
+- LinkedIn search surfaces (aligned, out-of-scope, ambiguous classifications)
+
+SSI SUBSYSTEMS UNDER VALIDATION:
+1. **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; requires explicit user choice before calibration advances.
+2. **Surface Quality Banner** — BST slot shows strong-match count + best job when surface has >=1 job scoring >=7.0.
+3. **Better Search Trigger (BST)** — surface-classification-driven recovery suggestion; must never repeat previously suggested or searched titles in a session.
+4. **BST Loop Prevention** — session-level title dedup tracking; all title selection paths filter against seen titles.
+5. **Pipeline Trigger (>=7)** — action thresholds lowered from 8.0 to 7.0; pipeline/tailor buttons fire at 7.0+.
+6. **Score Labeling** — six-band label system (Excellent Match through Poor Fit); decimal score display.
+
+COMPLETION CRITERIA (all must pass before declaring beta):
+- [ ] SGD requires explicit user input (Yes/No) before calibration advances past PATTERN_SYNTHESIS
+- [ ] BST never repeats previously suggested or previously searched titles in a session
+- [ ] Surface quality banner displays correct strong match count
+- [ ] Surface quality banner displays correct best job title and score
+- [ ] Pipeline trigger fires at score >= 7.0
+- [ ] No extension crashes during page scans on LinkedIn
+- [ ] All 4 fixture profiles (Jen, Chris, Dingus, Fabio) pass signal detection regression
+- [ ] Score band labels render correctly across all score ranges
+
+---
+
 Milestone — Beta Release Readiness + Post-Beta Product Metrics (PLANNED)
 ---
-STATUS: FUTURE — not active. Current stabilization and action-layer work must complete first.
+STATUS: FUTURE — blocked by Desktop Stabilization phase completion.
 
 BETA DEFINITION:
 - "Beta" means the core functional loop is stable enough for outside users to use without PM hand-holding:
@@ -60,6 +102,27 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 - Telemetry is non-blocking: failures never break user-facing flows.
 - This event layer is the prerequisite for all future metrics/dashboard work.
 - Dashboard and cohort analysis remain future work — not included in this implementation.
+
+---
+
+BREAK + UPDATE — 2026-03-15 (Desktop Stabilization & Beta Readiness Phase)
+---
+DONE:
+- Project formally enters Desktop Stabilization phase — all SSI subsystems implemented
+- SSI classified in kernel.md: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST)
+- New Desktop Stabilization milestone with explicit completion criteria checklist
+- CALIBER_ACTIVE_STATE.md updated: phase = Desktop Stabilization, Jen = primary regression profile
+- CALIBER_ISSUES_LOG.md updated: #68 SGD auto-advance (resolved candidate), #69 BST title loop (under validation)
+- SGD polling pause gate shipped (v0.9.6, commit 693d5b0): calibration waits for explicit user choice
+- BST session-level title dedup shipped (v0.9.6, commit 693d5b0): prevents title suggestion loops
+
+BLOCKED:
+- None
+
+NEXT:
+- Live validation of all SSI subsystems against Jen regression profile
+- Validate completion criteria checklist items
+- Close remaining beta gates after stabilization passes
 
 ---
 

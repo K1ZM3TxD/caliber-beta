@@ -3,6 +3,22 @@
 
 ## Current Open Issues
 
+69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15)
+  - BST sometimes suggested adjacent titles that led to repeated weak surfaces, creating an infinite loop.
+  - Root cause: `determinePrescanSuggestion()` and fallback chains only checked `titlesEquivalent(title, currentQuery)` — no session-level memory of previously suggested or searched titles.
+  - Fix (v0.9.6, commit `693d5b0`): Session-level tracking via `bstSuggestedTitles` / `bstSearchedQueries` objects. All title selection paths (`determinePrescanSuggestion`, fallback chains, `getCalibrationTitleFallback`) filter against seen titles. Graceful exhaustion when all candidates filtered.
+  - Expected behavior: BST must not suggest previously searched or previously suggested titles in the same session.
+  - Status: Under validation with Jen regression profile in Desktop Stabilization phase.
+  - Files: `extension/content_linkedin.js`.
+
+68. SGD auto-advance bug — **RESOLVED CANDIDATE** (2026-03-15)
+  - SGD prompt appeared during calibration PROCESSING screen but calibration progressed to PATTERN_SYNTHESIS without waiting for user input.
+  - Root cause: The PROCESSING screen's 700ms polling loop fired ADVANCE events unconditionally. When `detectAdditionalSignals()` populated `detectedSignals`, the loop advanced past the signal choice prompt.
+  - Fix (v0.9.6, commit `693d5b0`): Polling pause gate added — when `detectedSignals.length > 0` and `includeDetectedSignals == null`, polling returns early instead of firing ADVANCE. Once user clicks Yes/No (sets `includeDetectedSignals` to boolean), gate opens and polling resumes.
+  - Expected behavior: Calibration pauses until explicit Yes/No user selection on detected signals.
+  - Status: Under validation in Desktop Stabilization phase.
+  - Files: `app/calibration/page.tsx`.
+
 67. Surface-quality banner in BST slot — **SHIPPED** (2026-03-15)
   - BST slot shows surface-quality banner when loaded search surface has ≥1 job scoring ≥7.0.
   - Content: "{count} strong matches · Best: {title} ({score})". Green accent, checkmark icon.

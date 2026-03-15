@@ -5,18 +5,38 @@
 ---
 
 ## Current Phase
-**Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Overlay scoring (discovery badges) is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. The project is in a validation-driven sequenced pipeline. Production deploys from `stable` branch; development on `main`.
+**Desktop Stabilization & Beta Preparation (entered 2026-03-15).** All Signal & Surface Intelligence (SSI) subsystems are implemented. The project is now in structured validation before beta launch.
+
+SSI subsystems: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST), BST Loop Prevention, Pipeline Trigger (>=7), Score Labeling.
+
+Beta remains defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Desktop Stabilization must complete before beta gates are evaluated. Production deploys from `stable` branch; development on `main`.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
-## Active Current Fix
-BST suggestion rendering + surface classification edge cases (#65) in progress (2026-03-15). Two rounds of live testing.
-- **v0.9.6-surface** (surface-quality banner, 2026-03-15): BST slot now shows a surface-quality banner when the loaded search surface has ≥1 job scoring ≥7.0. Content: "{count} strong matches · Best: {title} ({score})". BST suppressed when surface-quality banner is active. Normal BST recovery if no jobs score ≥7. Banner data persisted to durable state. Green accent styling.
-- **v0.9.6-signals** (detected signals choice, 2026-03-15): Calibration PROCESSING screen detects professional signals from prompt answers not clearly expressed in the resume. Explicit yes/no choice. No hidden default.
-- **v0.9.5-t** (threshold recalibration, 2026-03-15): Action thresholds lowered 8.0→7.0. Six-band score labels. Decimal score display.
-- **v0.9.4 fixes**: calibration title persistence, session discover enrichment, 4-level suggestion fallback, cluster-alignment secondary trigger.
-- **v0.9.5 fixes** (live test of v0.9.4 revealed 4 persisting failures): (1) BST suggestion still empty. (2) Overlay badges still visible. (3) "Bartender" inflated scores. (4) "Specialist" no BST. All fixed in v0.9.5.
-- Files changed: `extension/content_linkedin.js`, `extension/background.js`, `app/api/extension/fit/route.ts`.
+## Active Systems Under Validation
+- **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing.
+- **Surface Quality Banner** — BST slot shows "{count} strong matches · Best: {title} ({score})" when surface has >=1 job scoring >=7.0.
+- **Better Search Trigger (BST)** — surface-classification-driven recovery suggestion with session-level title dedup preventing loops.
+- **Pipeline Trigger >=7** — action thresholds lowered from 8.0 to 7.0 for pipeline/tailor actions.
+- **Score Interpretation Labels** — six-band system: Excellent Match (9–10), Very Strong Match (8–9), Strong Partial Match (7–8), Viable Stretch (6–7), Adjacent Background (5–6), Poor Fit (<5).
+
+## Primary Regression Profile: Jen
+Jen is the primary regression profile for Desktop Stabilization. It validates:
+- SGD triggering (prompt-heavy behavioral signals not in resume)
+- BST title loop prevention (weak surfaces must not recycle titles)
+- Surface intelligence behavior (correct surface classification + banner rendering)
+- Signal detection coverage (behavioral/conversational keyword dictionary)
+
+All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regression.
+
+## Recent Implementation History
+- **v0.9.6** (2026-03-15): SGD polling pause gate + BST session-level title dedup + manifest bump. Commit `693d5b0`.
+- **v0.9.6-surface** (2026-03-15): Surface-quality banner in BST slot.
+- **v0.9.6-signals** (2026-03-15): Detected signals choice in calibration PROCESSING screen.
+- **v0.9.5-t** (2026-03-15): Action thresholds lowered 8.0→7.0. Six-band score labels. Decimal score display.
+- **v0.9.5** (2026-03-15): BST suggestion fixes (empty title, overlay badges, bartender inflation, specialist no-BST).
+- **v0.9.4** (2026-03-15): Calibration title persistence, session discover enrichment, 4-level suggestion fallback.
+- Files changed: `extension/content_linkedin.js`, `extension/background.js`, `app/api/extension/fit/route.ts`, `app/calibration/page.tsx`, `lib/calibration_machine.ts`.
 
 ## Top Blocker
 **Sign-in / memory (beta gate 4).** BST and sidecard stability are in validation. Pipeline is functional. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Overlay work continues in parallel but does not block beta.

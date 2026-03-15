@@ -65,6 +65,17 @@ Narrative synthesis and dialogue mode will be enabled after score+summary.
 - Initial event set: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
 - New events may be added; existing events must not be removed without PM approval.
 
+## Signal & Surface Intelligence (SSI) Classification
+
+SSI is the system family that reduces user cognitive load by summarizing professional signals and job-surface quality.
+
+Subsystems:
+- **Signal Gap Detection (SGD)** — compares prompt answers vs resume anchors to detect professional signals the user expressed in prompts but not in the resume. Up to 5 labels. Requires explicit user choice (Yes/No) before calibration advances.
+- **Surface Quality Banner** — evaluates the current LinkedIn search surface and displays strong-match count + best job when >=1 job scores >=7.0. Renders in BST slot with green accent.
+- **Better Search Trigger (BST)** — surface-classification-driven recovery mechanism. Suggests alternative search titles when the current surface is weak or out-of-scope. Session-level title dedup prevents suggestion loops.
+
+Purpose: Reduce user cognitive load by summarizing professional signals and job-surface quality. SSI subsystems are validated together during the Desktop Stabilization phase before beta launch.
+
 ## Scoring Context Invariant
 
 Caliber uses two scoring contexts:

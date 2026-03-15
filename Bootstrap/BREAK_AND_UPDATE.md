@@ -79,6 +79,37 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — Desktop Stabilization & Beta Readiness Phase (Documentation Pass)
+
+**What changed:**
+- Project formally enters Desktop Stabilization phase. All Signal & Surface Intelligence (SSI) subsystems are implemented and under structured validation.
+- SSI formalized as a system classification in kernel.md: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST).
+- New milestone added to milestones.md with explicit completion criteria checklist.
+- CALIBER_ACTIVE_STATE.md updated: current phase is Desktop Stabilization, active systems listed, Jen designated as primary regression profile.
+- CALIBER_ISSUES_LOG.md updated: #68 SGD auto-advance bug (resolved candidate), #69 BST title suggestion loop (under validation).
+
+**Why it changed:**
+- Development reached the point where core SSI features are implemented. Before beta launch, the project needs structured validation captured in documentation so future sessions can load the repo and immediately know project state, testing tasks, and what must pass.
+
+**What is now expected:**
+- Loading Bootstrap docs shows the project is in Desktop Stabilization phase.
+- Future PM sessions immediately understand: what features exist, what systems are under test, which profile is used for regression, what must pass before beta.
+- No additional reading from chat history is required to determine project state.
+
+**What is no longer expected:**
+- Ad-hoc chat-based status tracking for SSI validation. Status lives in documentation.
+
+**Risk / fallout:**
+- None. Documentation-only change. No code changes.
+
+**Proof:**
+- `Bootstrap/milestones.md` contains "Desktop Stabilization & Beta Readiness (ACTIVE)" with completion criteria checklist.
+- `Bootstrap/CALIBER_ACTIVE_STATE.md` shows "Desktop Stabilization & Beta Preparation" as current phase.
+- `Bootstrap/kernel.md` contains "Signal & Surface Intelligence (SSI) Classification" section.
+- `Bootstrap/CALIBER_ISSUES_LOG.md` contains issues #68 and #69.
+
+---
+
 ### 2026-03-15 — Surface-Quality Banner in BST Slot (v0.9.6-surface)
 
 **What changed:**
