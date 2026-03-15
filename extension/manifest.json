@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score [DEV]",
-  "version": "0.8.9",
+  "version": "0.9.0",
   "description": "Score how well LinkedIn jobs match your career pattern. Requires a Caliber calibration at caliber-app.com.",
   "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [

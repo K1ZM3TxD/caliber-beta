@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.9";
+  const PANEL_VERSION = "0.9.0";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -602,7 +602,7 @@
 
   /**
    * Classify the search surface relative to the user's calibration.
-   * Returns: "aligned" | "out-of-scope" | "ambiguous"
+   * Returns: { surfaceClass: "aligned"|"out-of-scope"|"ambiguous", reason: string }
    *
    * - aligned: query matches calibration title, a nearby role, or shares
    *   significant keywords with the calibration title. BST should not fire.
@@ -611,41 +611,64 @@
    * - ambiguous: not enough signal either way; defer to score distribution.
    */
   function classifySearchSurface(query, calibrationTitle, nearbyRoles) {
-    if (!query || !calibrationTitle) return "ambiguous";
+    if (!query) return { surfaceClass: "ambiguous", reason: "no query available" };
+
+    var hasCalTitle = !!calibrationTitle;
 
     // 1. Direct title equivalence → aligned
-    if (titlesEquivalent(query, calibrationTitle)) return "aligned";
+    if (hasCalTitle && titlesEquivalent(query, calibrationTitle)) {
+      return { surfaceClass: "aligned", reason: "exact title match" };
+    }
 
     // 2. Query matches a nearby role → aligned
     if (nearbyRoles && nearbyRoles.length > 0) {
       for (var i = 0; i < nearbyRoles.length; i++) {
-        if (nearbyRoles[i].title && titlesEquivalent(nearbyRoles[i].title, query)) return "aligned";
+        if (nearbyRoles[i].title && titlesEquivalent(nearbyRoles[i].title, query)) {
+          return { surfaceClass: "aligned", reason: "matches nearby role: " + nearbyRoles[i].title };
+        }
       }
     }
 
     // 3. Significant keyword overlap (≥50% of query words) → aligned
     var queryWords = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
-    var calWords = calibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+    var calWords = hasCalTitle
+      ? calibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; })
+      : [];
     var overlap = 0;
     for (var w = 0; w < queryWords.length; w++) {
       for (var c = 0; c < calWords.length; c++) {
         if (queryWords[w] === calWords[c]) { overlap++; break; }
       }
     }
-    if (queryWords.length > 0 && overlap / queryWords.length >= 0.5) return "aligned";
+    if (hasCalTitle && queryWords.length > 0 && overlap / queryWords.length >= 0.5) {
+      return { surfaceClass: "aligned", reason: "keyword overlap >= 50% (" + overlap + "/" + queryWords.length + ")" };
+    }
 
     // 4. Cluster-based comparison
     var queryCluster = getClusterForTitle(query);
-    var calCluster = getClusterForTitle(calibrationTitle);
+    var calCluster = hasCalTitle ? getClusterForTitle(calibrationTitle) : null;
     if (queryCluster && calCluster) {
-      return queryCluster === calCluster ? "aligned" : "out-of-scope";
+      if (queryCluster === calCluster) {
+        return { surfaceClass: "aligned", reason: "same cluster: " + queryCluster };
+      }
+      return { surfaceClass: "out-of-scope", reason: "cluster mismatch: query=" + queryCluster + " cal=" + calCluster };
     }
-    // Query is in a known cluster but calibration isn't (e.g., "bartender" vs
-    // "Business Operations Designer") — if no keyword overlap, it's out-of-scope.
-    if (queryCluster && !calCluster && overlap === 0) return "out-of-scope";
+    // Query is in a known cluster but calibration title is unrecognised or
+    // absent.  With zero keyword overlap this is clearly out-of-scope:
+    // a query like "bartender" (hospitality cluster) should fire BST even
+    // when we have no calibration title to compare against.
+    if (queryCluster && overlap === 0) {
+      var oosReason = hasCalTitle
+        ? "query cluster " + queryCluster + ", calibration unrecognised, zero overlap"
+        : "query cluster " + queryCluster + ", no calibration title available";
+      return { surfaceClass: "out-of-scope", reason: oosReason };
+    }
 
     // 5. Neither side clusters, insufficient keyword overlap → ambiguous
-    return "ambiguous";
+    if (!hasCalTitle) {
+      return { surfaceClass: "ambiguous", reason: "no calibration title, query not in known cluster" };
+    }
+    return { surfaceClass: "ambiguous", reason: "no cluster match, low keyword overlap (" + overlap + "/" + queryWords.length + ")" };
   }
 
   var BADGE_ATTR = "data-caliber-badge";
@@ -1178,7 +1201,9 @@
     var avgScore = scoredCount > 0 ? scoreSum / scoredCount : 0;
 
     // ── Surface classification ──
-    var surfaceClass = classifySearchSurface(currentQuery, bestCalibrationTitle, bestNearbyRoles);
+    var classification = classifySearchSurface(currentQuery, bestCalibrationTitle, bestNearbyRoles);
+    var surfaceClass = classification.surfaceClass;
+    var classificationReason = classification.reason;
 
     var shouldTrigger;
     var triggerReason;
@@ -1199,7 +1224,7 @@
     } else {
       // Ambiguous — fall back to score distribution as tiebreaker.
       // Trigger only when genuinely weak: no strong matches AND low average.
-      shouldTrigger = strongCount === 0 && avgScore < 6.0;
+      shouldTrigger = strongCount === 0 && avgScore < BST_AMBIGUOUS_AVG_CEILING;
       triggerReason = shouldTrigger
         ? "ambiguous query + weak scores (avg " + avgScore.toFixed(1) + ", 0 strong)"
         : "ambiguous query but acceptable scores (avg " + avgScore.toFixed(1) + ", " + strongCount + " strong)";
@@ -1210,11 +1235,12 @@
     console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
     console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\"");
     console.debug("[Caliber][BST]   surfaceClass: " + surfaceClass);
+    console.debug("[Caliber][BST]   classificationReason: " + classificationReason);
     console.debug("[Caliber][BST]   window: [" + scores.join(", ") + "]");
     console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1) +
       ", strong(≥" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount);
-    console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS") +
-      " — " + triggerReason);
+    console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
+    console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
 
     if (shouldTrigger) {
       // BST TRIGGER — debounce the show to prevent flicker.
@@ -1235,9 +1261,9 @@
               }
             }
           }
-          var reClass = classifySearchSurface(deferredQuery, reCalibTitle, deferredNearby);
-          if (reClass === "aligned" || prescanBSTActive) {
-            console.debug("[Caliber][BST] deferred show cancelled — reclassified as " + reClass);
+          var reResult = classifySearchSurface(deferredQuery, reCalibTitle, deferredNearby);
+          if (reResult.surfaceClass === "aligned" || prescanBSTActive) {
+            console.debug("[Caliber][BST] deferred show cancelled — reclassified as " + reResult.surfaceClass + " (" + reResult.reason + ")");
             return;
           }
 
