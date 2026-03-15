@@ -3,6 +3,15 @@
 
 ## Current Open Issues
 
+72. BST premature rendering on refresh — **ACTIVE / IN FIX** (2026-03-15)
+  - **Symptom:** On refresh, BST banner appears first on healthy surfaces (account manager, calibrated title) before being replaced by strong-match banner. On out-of-scope surfaces (bartender), BST suppresses on first load and only appears after clicking another job.
+  - **Root cause:** `evaluateBSTFromBadgeCache()` fires after every 5-card scoring chunk. With `BST_MIN_WINDOW_SIZE=5`, the very first chunk can trigger BST on partial evidence before strong matches in later chunks arrive. On refresh, durable prescan state restored stale banners before fresh scoring could override them.
+  - **Investigation note:** Strong-match count instability on refresh was investigated and RULED OUT. Counts are stable by surface (account manager 5/5, calibrated title 5/5, bartender 0/5). The bug is purely timing/state-resolution.
+  - **Fix:** `initialSurfaceResolved` gate — BST evaluation deferred until initial visible-card scoring queue fully drains. Durable-state banner restore removed; `runSearchPrescan()` always falls through to fresh scoring.
+  - **Validation required:** Must be re-validated in BOTH baseline and signal-injected calibration modes before BST can be marked passed.
+  - **Status:** Fix shipped. Post-fix validation pending in both modes.
+  - **Files:** `extension/content_linkedin.js`.
+
 71. SGD anchor-boost injection + result page display — **SHIPPED** (2026-03-15)
   - Validation proved that prior signal injection (text-based, issue 70) did NOT change calibration title output because multi-word labels don't map through extractBroadTokens, and the anchor weight cap of 5 prevents score shifts for already-well-represented terms.
   - Fix: Two-layer approach in generateTitleRecommendation:
@@ -24,7 +33,7 @@
   - When user selects “No”, behavior unchanged (resume signals only).
   - Files: `lib/calibration_machine.ts`.
 
-69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15)
+69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15) — blocked on #72 post-fix revalidation
   - BST sometimes suggested adjacent titles that led to repeated weak surfaces, creating an infinite loop.
   - Root cause: `determinePrescanSuggestion()` and fallback chains only checked `titlesEquivalent(title, currentQuery)` — no session-level memory of previously suggested or searched titles.
   - Fix (v0.9.6, commit `693d5b0`): Session-level tracking via `bstSuggestedTitles` / `bstSearchedQueries` objects. All title selection paths (`determinePrescanSuggestion`, fallback chains, `getCalibrationTitleFallback`) filter against seen titles. Graceful exhaustion when all candidates filtered.
@@ -55,7 +64,7 @@
   - Extension fit API includes `signal_preference` in response.
   - Files: `lib/calibration_types.ts`, `lib/calibration_machine.ts`, `app/calibration/page.tsx`, `app/api/extension/fit/route.ts`.
 
-65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15)
+65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15) — blocked on #72 post-fix revalidation
   - Follow-up to #64. Multiple rounds of live testing (v0.9.3→v0.9.4→v0.9.5).
 
   **Round 1 (v0.9.3→v0.9.4):**

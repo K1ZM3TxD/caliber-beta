@@ -79,6 +79,48 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — BST Initial Surface Gating (Premature Banner Fix)
+
+**What changed:**
+- BST evaluation is now gated behind an `initialSurfaceResolved` flag. BST cannot render until the initial visible-card scoring queue has fully drained.
+- Durable prescan state is no longer restored as a banner on refresh. Instead, `runSearchPrescan()` always falls through to fresh scoring, which resolves the correct banner only after the initial surface pass completes.
+- The top banner now resolves as a single deterministic state per search load — no flash or flip-flop.
+
+**Why it changed:**
+- Refresh validation showed premature BST on healthy surfaces: BST appeared first (from partial first-chunk evidence), then switched to strong-match banner once more scores arrived.
+- On out-of-scope surfaces ("bartender"), BST suppressed on first load because partial early scoring hadn't produced enough evidence, then appeared only after clicking another job.
+- Root cause: `evaluateBSTFromBadgeCache()` fired after every 5-card chunk (chunk size = `BST_MIN_WINDOW_SIZE`), so the first chunk could trigger BST before strong matches in later chunks arrived.
+
+**What is now expected:**
+- Healthy/aligned surfaces with strong matches → surface-quality banner only. No BST flash.
+- Weak/out-of-scope surfaces (e.g. "bartender") → BST recovery banner reliably on first load.
+- Refresh produces deterministic banner state for a given surface.
+- Allowed final top-banner states: surface_quality, bst_recovery, or none.
+
+**What is no longer expected:**
+- BST appearing first, then being replaced by strong-match banner on healthy surfaces.
+- BST suppressed on initial load for out-of-scope surfaces, then appearing only after clicking another job.
+- Banner flash or flip-flop on refresh.
+
+**Risk / fallout:**
+- Low. This is a timing/state-resolution fix only. No BST doctrine, threshold, or scoring changes.
+- BST is NOT fully validated yet. Post-fix validation must be run in both baseline and signal-injected calibration states.
+
+**Proof:**
+- account manager refresh → strong-match banner only (no BST flash)
+- calibrated title refresh → strong-match banner only (no BST flash)
+- bartender refresh → BST banner only (no suppress-then-appear)
+- Strong-match count stability confirmed: account manager 5/5, calibrated title 5/5, bartender 0/5.
+
+**Files touched:**
+- `extension/content_linkedin.js`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+- `Bootstrap/milestones.md`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+
+---
+
 ### 2026-03-15 — SGD Anchor-Boost Injection + Result Display
 
 **What changed:**

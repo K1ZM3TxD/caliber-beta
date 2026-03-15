@@ -108,6 +108,25 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 
 ---
 
+BREAK + UPDATE — 2026-03-15 (BST Initial Surface Gating)
+---
+DONE:
+- Identified refresh-time BST misfire as premature evaluation on partial scoring state (first chunk triggers BST before strong matches in later chunks arrive)
+- Confirmed strong-match refresh counts are stable by surface (account manager 5/5, calibrated title 5/5, bartender 0/5)
+- Confirmed SGD vector influence is validated separately
+- Implemented `initialSurfaceResolved` gate: BST evaluation deferred until initial visible-card scoring queue fully drains
+- Removed durable-state banner restore on refresh: always re-evaluate from fresh scores
+
+BLOCKED:
+- BST cannot be marked fully passed until post-fix validation is complete in both baseline and signal-injected calibration modes
+
+NEXT:
+- Re-test BST on baseline calibration state (refresh behavior across surface types)
+- Re-test BST on signal-injected calibration state (YES signals selected)
+- Proceed to sidecard validation only after BST passes in both modes
+
+---
+
 BREAK + UPDATE — 2026-03-15 (SGD Signal Normalization + Calibration Title Influence)
 ---
 DONE:
