@@ -753,10 +753,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             </div>
 
 
-            {/* Shared hero content zone — fixed minHeight keeps the flex-centered
-                 block the same height for LANDING and RESUME, preventing wordmark jump. */}
+            {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div style={{ minHeight: 420 }} className="w-full flex flex-col items-center">
+              <div className="w-full flex flex-col items-center">
 
             {/* LANDING */}
             {step === "LANDING" ? (
