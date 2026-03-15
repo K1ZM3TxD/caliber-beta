@@ -3,6 +3,15 @@
 
 ## Current Open Issues
 
+71. SGD scoring-keyword injection + result page display — **SHIPPED** (2026-03-15)
+  - Validation proved that prior signal injection (issue 70) did NOT actually change calibration title output.
+  - Root cause: signal labels like "Procurement Exposure" get tokenized into individual words that don't match the title scoring vocabulary. extractBroadTokens requires count >= 2 and works with canonicalized single tokens from SCORING_VOCAB.
+  - Fix: SIGNAL_SCORING_KEYWORDS dictionary maps ~100 signal labels → arrays of actual scoring vocabulary terms (e.g. "Stakeholder Coordination" → ["stakeholder","coordination","collaboration","communication"]). Keywords repeated 2x to pass count≥2 gate. Fallback tokenizer for unmapped labels.
+  - SET_SIGNAL_PREFERENCE handler captures baseline title, generates augmented title, logs before/after comparison as JSON.
+  - Result page now shows "Signals influencing this calibration: X · Y · Z" in green accent when user selected Yes and signals exist.
+  - NO selection preserves original behavior with no title re-generation.
+  - Files: `lib/calibration_machine.ts`, `app/calibration/page.tsx`.
+
 70. SGD signal normalization + calibration title influence — **SHIPPED** (2026-03-15)
   - Detected signals previously appeared as raw tokens (e.g. “Buying”, “Drained”, “Fatiguing”).
   - Signal normalization dictionary (SIGNAL_NORMALIZATION, 75+ entries) maps raw anchor tokens → professional labels (e.g. “Buying” → “Procurement Exposure”, “Drained” → “Energy Drain Pattern”).

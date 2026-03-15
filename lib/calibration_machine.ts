@@ -1110,6 +1110,125 @@ function findSignalLabel(term: string): string | null {
   return null
 }
 
+/**
+ * Map a normalized signal label → scoring-relevant keywords that exist in
+ * the title scoring vocabulary. These keywords are what actually move the
+ * anchor weights in generateTitleRecommendation().
+ */
+const SIGNAL_SCORING_KEYWORDS: Record<string, string[]> = {
+  // Procurement / sourcing
+  "Procurement Exposure": ["customer", "negotiation", "vendor", "pipeline"],
+  "Sourcing & Vendor Management": ["vendor", "negotiation", "operations", "process"],
+  // Coordination / communication
+  "Stakeholder Coordination": ["stakeholder", "coordination", "collaboration", "communication"],
+  "Stakeholder Liaison": ["stakeholder", "relationship", "communication", "collaboration"],
+  "Stakeholder Management": ["stakeholder", "management", "relationship", "strategy"],
+  "Stakeholder Alignment": ["stakeholder", "alignment", "strategy", "coordination"],
+  "Executive Communication": ["strategy", "communication", "stakeholder", "executive"],
+  "Conflict Resolution": ["negotiation", "stakeholder", "team", "management"],
+  "Consensus Building": ["stakeholder", "collaboration", "team", "coordination"],
+  "Facilitation": ["team", "collaboration", "coordination", "stakeholder"],
+  "Negotiation": ["negotiation", "stakeholder", "client", "strategy"],
+  // Energy / motivation patterns
+  "Energy Drain Pattern": ["process", "workflow", "operations", "tracking"],
+  "Repetitive Work Aversion": ["automate", "workflow", "process", "design"],
+  "Sustainability Awareness": ["operations", "process", "team", "strategy"],
+  // Learning / growth
+  "Learning Agility": ["research", "strategy", "development", "growth"],
+  "Professional Growth Orientation": ["development", "growth", "strategy", "team"],
+  // Leadership / direction
+  "Operational Direction": ["operations", "management", "team", "execution"],
+  "Team Supervision": ["team", "management", "operations", "execution"],
+  "Oversight & Governance": ["compliance", "governance", "operations", "management"],
+  "Mentoring & Guidance": ["team", "coaching", "onboarding", "development"],
+  "Mentoring & Development": ["team", "coaching", "onboarding", "development"],
+  "Team Coaching": ["team", "coaching", "development", "management"],
+  // Analysis / problem-solving
+  "Analytical Problem-Solving": ["analysis", "research", "assessment", "system"],
+  "Investigation & Analysis": ["investigate", "analysis", "assessment", "research"],
+  "Research & Discovery": ["research", "users", "feedback", "testing"],
+  "Evaluation & Assessment": ["assessment", "analysis", "research", "performance"],
+  "Diagnostic Problem-Solving": ["investigate", "analysis", "system", "assessment"],
+  "Troubleshooting": ["system", "technical", "analysis", "operations"],
+  "Root Cause Analysis": ["analysis", "investigate", "system", "assessment"],
+  // Communication / persuasion
+  "Presentation & Communication": ["communication", "pitch", "strategy", "stakeholder"],
+  "Persuasive Communication": ["pitch", "sale", "customer", "strategy"],
+  "Internal Advocacy": ["stakeholder", "strategy", "communication", "team"],
+  "Strategic Storytelling": ["strategy", "communication", "market", "customer"],
+  // Execution / delivery
+  "Shipping Discipline": ["delivery", "execution", "project", "planning"],
+  "Launch Execution": ["launch", "execution", "delivery", "market"],
+  "Implementation Management": ["client", "workflow", "onboarding", "process"],
+  "Deployment & Rollout": ["delivery", "execution", "system", "operations"],
+  "Migration Planning": ["system", "planning", "operations", "execution"],
+  // Strategy / planning
+  "Strategic Planning": ["strategy", "planning", "market", "research"],
+  "Forecasting": ["analysis", "planning", "performance", "budget"],
+  "Budget Management": ["budget", "planning", "reporting", "operations"],
+  "Scope Definition": ["planning", "project", "execution", "management"],
+  "Roadmap Development": ["planning", "strategy", "execution", "product"],
+  // Relationship / people
+  "Relationship Building": ["relationship", "client", "customer", "stakeholder"],
+  "Partnership Development": ["partnership", "alliance", "relationship", "strategy"],
+  "Cross-Team Collaboration": ["collaboration", "team", "coordination", "cross_functional"],
+  "Onboarding Design": ["onboarding", "client", "workflow", "documentation"],
+  "Talent Acquisition": ["team", "onboarding", "management", "recruitment"],
+  // Operations / process
+  "Process Automation": ["automate", "workflow", "process", "operations"],
+  "Process Optimization": ["process", "workflow", "operations", "improvement"],
+  "Standardization": ["standards", "documentation", "sop", "process"],
+  "Documentation & Knowledge Management": ["documentation", "sop", "standards", "process"],
+  "Workflow Design": ["workflow", "process", "automate", "operations"],
+  "Operating Cadence": ["operations", "tracking", "reporting", "process"],
+  "Playbook Construction": ["sop", "documentation", "process", "operations"],
+  "Operational Design": ["operations", "workflow", "process", "design"],
+  "Operational Runbooks": ["operations", "sop", "documentation", "process"],
+  "Incident Learning": ["operations", "analysis", "system", "process"],
+  // Entrepreneurial / creative
+  "Entrepreneurship": ["business", "strategy", "market", "growth"],
+  "Innovation": ["design", "product", "strategy", "research"],
+  "Experimentation": ["testing", "research", "design", "product"],
+  "Rapid Prototyping": ["design", "product", "testing", "development"],
+  // Adaptability / resourcefulness
+  "Adaptability": ["operations", "management", "strategy", "team"],
+  "Versatility": ["operations", "management", "team", "collaboration"],
+  "Resourcefulness": ["operations", "process", "management", "execution"],
+  // Domain-specific
+  "Ownership & Accountability": ["ownership", "management", "team", "execution"],
+  "Authority Structuring": ["management", "team", "operations", "strategy"],
+  "Prioritization Frameworks": ["planning", "execution", "management", "tracking"],
+  "Trade-off Analysis": ["analysis", "strategy", "planning", "management"],
+  "Measurement Design": ["performance", "tracking", "reporting", "analysis"],
+  "Incentive Architecture": ["performance", "strategy", "management", "operations"],
+  "Constraint Construction": ["operations", "process", "management", "planning"],
+  "Ambiguity Resolution": ["management", "strategy", "operations", "planning"],
+  "Complexity Management": ["management", "system", "operations", "strategy"],
+  "Interpersonal Engagement": ["relationship", "collaboration", "team", "stakeholder"],
+  "Governance Design": ["governance", "compliance", "operations", "management"],
+  "Compliance Frameworks": ["compliance", "governance", "operations", "management"],
+  "Retention Design": ["retention", "customer", "relationship", "strategy"],
+  "Problem Discovery": ["research", "users", "feedback", "analysis"],
+  "Hypothesis Testing": ["testing", "research", "analysis", "product"],
+  "Marketing & Go-to-Market": ["market", "strategy", "customer", "campaign"],
+  // Systems & infra
+  "Systems Architecture": ["architecture", "system", "technical", "design"],
+  "Platform Engineering": ["system", "technical", "architecture", "development"],
+  "Infrastructure Design": ["system", "technical", "architecture", "operations"],
+  "Scalability Design": ["system", "architecture", "technical", "performance"],
+  "Reliability Engineering": ["system", "operations", "technical", "performance"],
+  "System Resilience": ["system", "operations", "technical", "architecture"],
+  "Observability": ["system", "operations", "technical", "performance"],
+  "Modernization": ["system", "technical", "development", "operations"],
+}
+
+function signalToScoringKeywords(signalLabel: string): string[] {
+  const mapped = SIGNAL_SCORING_KEYWORDS[signalLabel]
+  if (mapped) return mapped
+  // Fallback: tokenize the label itself into lowercase words
+  return signalLabel.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(/\s+/).filter(w => w.length >= 3)
+}
+
 // Hybrid synthesis: LLM semantic (strict) -> deterministic fallback
 async function synthesizeOnce(session: CalibrationSession): Promise<CalibrationSession> {
   if (session.synthesis?.patternSummary && session.synthesis?.operateBest && session.synthesis?.loseEnergy) return session
@@ -1733,15 +1852,19 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         if (typeof include !== "boolean") {
           return bad("MISSING_REQUIRED_FIELD", "includeDetectedSignals must be a boolean")
         }
+
+        // Capture baseline title before any signal injection
+        const baselineTitle = session.synthesis?.marketTitle ?? null
+
         session = {
           ...session,
           includeDetectedSignals: include,
         }
 
         // When user chooses to include detected signals, re-generate title
-        // recommendation with signal terms injected into the anchor map.
+        // recommendation with signal-derived scoring keywords injected.
         // Detected signals influence direction but must not dominate:
-        // injected signal text is capped at 30% of total prompt answer volume.
+        // resume remains primary (>=70% of anchor weight).
         if (include && session.detectedSignals && session.detectedSignals.length > 0 && session.synthesis) {
           try {
             const resumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : ""
@@ -1753,33 +1876,68 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
               if (typeof ca === "string" && ca.trim().length > 0) answers.push(ca.trim())
             }
 
-            // Build synthetic signal text from detected signals.
-            // Each signal label is repeated to register in anchor extraction.
-            const signalText = session.detectedSignals.join(". ") + "."
+            // Map signal labels → scoring-relevant keywords that the title
+            // scoring vocabulary can actually match. Each keyword is repeated
+            // 2x so it registers in extractBroadTokens (count >= 2 gate).
+            const scoringKeywords: string[] = []
+            for (const signal of session.detectedSignals) {
+              const kws = signalToScoringKeywords(signal)
+              for (const kw of kws) {
+                scoringKeywords.push(kw, kw) // repeat for count >= 2
+              }
+            }
 
-            // 30% weight cap: signal text must not exceed 30% of total prompt volume.
+            // 30% weight cap: signal keywords must not exceed 30% of combined text.
             const totalPromptChars = answers.reduce((sum, a) => sum + a.length, 0)
-            const maxSignalChars = Math.floor(totalPromptChars * 0.43) // 0.43 of existing = ~30% of combined total
+            const signalText = scoringKeywords.join(" ")
+            const maxSignalChars = Math.floor(totalPromptChars * 0.43) // 0.43 of existing ≈ 30% of combined
             const cappedSignalText = signalText.length <= maxSignalChars
               ? signalText
               : signalText.slice(0, maxSignalChars)
 
             const augmentedAnswers = [...answers, cappedSignalText]
 
+            console.log("[caliber] sgd_title_influence:", JSON.stringify({
+              includeDetectedSignals: true,
+              detectedSignals: session.detectedSignals,
+              scoringKeywords: [...new Set(scoringKeywords)],
+              totalPromptChars,
+              signalTextChars: signalText.length,
+              cappedToChars: cappedSignalText.length,
+              baselineTitle,
+            }))
+
             const titleResult = generateTitleRecommendation(resumeText, augmentedAnswers)
+
+            const newTitle = titleResult.recommendation.primary_title.title
+            const titleChanged = newTitle !== baselineTitle
+
             session = {
               ...session,
               synthesis: {
                 ...session.synthesis,
                 titleCandidates: titleResult.candidates,
                 titleRecommendation: titleResult.recommendation,
-                marketTitle: titleResult.recommendation.primary_title.title,
+                marketTitle: newTitle,
               },
             }
-            console.log("[caliber] sgd_title_influence: signals_included=true, new_title=" + titleResult.recommendation.primary_title.title)
+
+            console.log("[caliber] sgd_title_influence_result:", JSON.stringify({
+              baselineTitle,
+              newTitle,
+              titleChanged,
+              topCandidates: titleResult.candidates.slice(0, 3).map(c => `${c.title}(${c.score})`),
+            }))
           } catch (e) {
             console.warn("[caliber] sgd_title_influence: re-generation failed, keeping original title", e)
           }
+        } else {
+          console.log("[caliber] sgd_title_influence:", JSON.stringify({
+            includeDetectedSignals: include,
+            detectedSignals: session.detectedSignals ?? [],
+            baselineTitle,
+            action: include ? "no_signals_to_inject" : "user_declined_signals",
+          }))
         }
 
         storeSet(session)

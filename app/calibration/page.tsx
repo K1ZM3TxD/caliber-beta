@@ -1247,6 +1247,16 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
+                {/* Signals influencing this calibration */}
+                {(session as any)?.includeDetectedSignals === true && Array.isArray((session as any)?.detectedSignals) && (session as any).detectedSignals.length > 0 ? (
+                  <div className="mt-3 flex justify-center">
+                    <p className="text-[11px] leading-relaxed" style={{ color: "rgba(74,222,128,0.5)" }}>
+                      <span style={{ fontWeight: 500 }}>Signals influencing this calibration:</span>{" "}
+                      {(session as any).detectedSignals.join(" · ")}
+                    </p>
+                  </div>
+                ) : null}
+
                 {/* Recalibrate */}
                 <div className="mt-4 flex justify-center">
                   <button

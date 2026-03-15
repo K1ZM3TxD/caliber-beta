@@ -40,6 +40,9 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [ ] All 4 fixture profiles (Jen, Chris, Dingus, Fabio) pass signal detection regression
 - [ ] Score band labels render correctly across all score ranges
 
+IMPLEMENTATION LOG:
+- 2026-03-15: SGD scoring-keyword injection fix — SIGNAL_SCORING_KEYWORDS maps ~100 labels → scoring vocab terms. Prior label-text injection was ineffective. Result page now shows "Signals influencing this calibration" when user selected Yes. Files: `lib/calibration_machine.ts`, `app/calibration/page.tsx`.
+
 ---
 
 Milestone — Beta Release Readiness + Post-Beta Product Metrics (PLANNED)

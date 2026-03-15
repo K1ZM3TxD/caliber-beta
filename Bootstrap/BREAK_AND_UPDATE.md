@@ -79,6 +79,34 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — SGD Scoring-Keyword Injection Fix + Result Display
+
+**What changed:**
+- Validation proved prior signal injection (issue 70) did NOT change title output. Root cause: multi-word signal labels don't tokenize to scoring vocabulary terms.
+- New SIGNAL_SCORING_KEYWORDS dictionary (~100 entries) maps signal labels → actual scoring vocab terms. Keywords repeated 2x to pass extractBroadTokens count≥2 gate.
+- SET_SIGNAL_PREFERENCE handler captures baseline title, logs before/after JSON comparison.
+- Result page shows "Signals influencing this calibration: X · Y · Z" when user selected Yes.
+
+**Why it changed:**
+- Prior implementation injected label text that the scoring pipeline couldn't match. The feature was cosmetic — Yes/No had identical output.
+
+**What is now expected:**
+- Yes → scoring keywords derived from signals enter title generation anchor weights. Title output may shift.
+- No → no title re-generation, no signals displayed.
+- Result page shows included signals in green accent text below "Why this fits" dropdown.
+- Console logs `sgd_title_influence` and `sgd_title_influence_result` JSON for validation.
+
+**What is no longer expected:**
+- Signal label text injected directly into title generation (doesn't work with scoring vocab).
+
+**Risk / fallout:**
+- Title may change more noticeably when signals are included. This is the intended and correct behavior.
+
+**Proof:**
+- TypeScript build clean (exit 0). Pre-existing test failures unchanged (2 in signal_classification.test.ts).
+
+---
+
 ### 2026-03-15 — SGD Signal Normalization + Calibration Title Influence
 
 **What changed:**
