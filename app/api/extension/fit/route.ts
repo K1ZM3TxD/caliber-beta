@@ -70,13 +70,38 @@ export async function POST(req: NextRequest) {
     // Drive through the job-fit pipeline: SUBMIT_JOB_TEXT → ADVANCE loops → COMPUTE_ALIGNMENT_OUTPUT
     // (mirrors the frontend flow in app/calibration/page.tsx)
 
-    // Step 1: Submit job text
-    const curState = String(session.state ?? "");
-    if (curState.startsWith("TITLE_HYPOTHESIS") || curState.startsWith("TITLE_DIALOGUE")) {
-      // Auto-advance past title feedback
-      await dispatchCalibrationEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" } as any);
+    // Step 0: Auto-advance session to a SUBMIT_JOB_TEXT-capable state.
+    // When a session is imported from backup on a cold-start Lambda, it can be
+    // in any intermediate state (PATTERN_SYNTHESIS, ENCODING_RITUAL, etc.).
+    // We ADVANCE until SUBMIT_JOB_TEXT is allowed, or we run out of attempts.
+    const JOB_READY_STATES = new Set([
+      "TITLE_DIALOGUE", "JOB_INGEST", "ALIGNMENT_OUTPUT", "TERMINAL_COMPLETE",
+    ]);
+    let curState = String(session.state ?? "");
+    let advAttempts = 0;
+    while (!JOB_READY_STATES.has(curState) && advAttempts < 20) {
+      // TITLE_HYPOTHESIS needs TITLE_FEEDBACK, not ADVANCE
+      if (curState === "TITLE_HYPOTHESIS" || curState.startsWith("TITLE_DIALOGUE")) {
+        const fb = await dispatchCalibrationEvent({ type: "TITLE_FEEDBACK", sessionId, feedback: "" } as any);
+        if (fb.ok && fb.session) {
+          curState = String(fb.session.state ?? "");
+          session = storeGet(sessionId) ?? session;
+        } else {
+          break;
+        }
+      } else {
+        const adv = await dispatchCalibrationEvent({ type: "ADVANCE", sessionId } as any);
+        if (adv.ok && adv.session) {
+          curState = String(adv.session.state ?? "");
+          session = storeGet(sessionId) ?? session;
+        } else {
+          break;
+        }
+      }
+      advAttempts++;
     }
 
+    // Step 1: Submit job text
     let result = await dispatchCalibrationEvent({
       type: "SUBMIT_JOB_TEXT",
       sessionId,
@@ -85,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: `Pipeline error: ${(result as any).error?.detail ?? "SUBMIT_JOB_TEXT failed"}` },
+        { error: `Pipeline error (state=${curState}): ${(result as any).error?.detail ?? "SUBMIT_JOB_TEXT failed"}` },
         { status: 500 }
       );
     }

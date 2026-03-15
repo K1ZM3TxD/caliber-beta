@@ -590,6 +590,7 @@ export function generateTitleRecommendation(
   anchorBoosts?: Map<string, number>
 ): { candidates: Array<{ title: string; score: number }>; recommendation: TitleRecommendation } {
   const anchorMap = extractWeightedAnchors(resumeText, promptAnswers);
+
   // Apply optional anchor boosts (e.g. from SGD signal injection).
   // These bypass the normal weight cap of 5 to allow signals to shift scores.
   if (anchorBoosts) {
