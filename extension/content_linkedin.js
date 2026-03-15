@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.8";
+  const PANEL_VERSION = "0.8.9";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -532,7 +532,7 @@
   //     the recent-window has zero jobs at this score or above.
   //   PIPELINE_AUTO_SAVE_THRESHOLD (8.5) — action workflow: auto-save to
   //     pipeline. Separate from BST; do not conflate.
-  //   Badge color bands: green (8.0+), yellow (6.5–7.9), gray (<6.5)
+  //   Badge color bands: green (8.0+), yellow (6.0–7.9), red (<6.0)
   //
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
@@ -709,7 +709,7 @@
       ".caliber-badge--loading { color: #555; font-weight: 600; }",
       ".caliber-badge--green  { color: #4ADE80; }",
       ".caliber-badge--yellow { color: #FBBF24; }",
-      ".caliber-badge--gray   { color: #888; }",
+      ".caliber-badge--red    { color: #EF4444; }",
     ].join("\n");
     document.head.appendChild(style);
   }
@@ -720,9 +720,9 @@
       return '<span class="caliber-badge caliber-badge--loading" ' + BADGE_ATTR + '>\u2026</span>';
     }
     var rounded = Math.round(score * 10) / 10;
-    var band = "gray";
+    var band = "red";
     if (rounded >= 8.0) band = "green";
-    else if (rounded >= 6.5) band = "yellow";
+    else if (rounded >= 6.0) band = "yellow";
     return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + rounded.toFixed(1) + "</span>";
   }
 
@@ -1182,11 +1182,16 @@
 
     var shouldTrigger;
     var triggerReason;
-    if (surfaceClass === "aligned") {
-      // User is searching in their calibrated domain. A mediocre batch is
-      // normal — do NOT trigger BST just because no 8.0+ appears yet.
+    if (surfaceClass === "aligned" && strongCount > 0) {
+      // User is searching in their calibrated domain AND at least one
+      // visible job scored >= 8.0. This is a genuinely strong surface.
       shouldTrigger = false;
-      triggerReason = "aligned query — calibrated family, mediocre page tolerated";
+      triggerReason = "aligned query + strong match present (" + strongCount + " ≥ " + BST_STRONG_MATCH_THRESHOLD + ")";
+    } else if (surfaceClass === "aligned" && strongCount === 0) {
+      // Aligned query but NO visible job scored >= 8.0. This page is
+      // mediocre — PM rule: no 8.0+ means not a strong surface.
+      shouldTrigger = true;
+      triggerReason = "aligned query but no strong match (max " + maxScore.toFixed(1) + ", 0 ≥ " + BST_STRONG_MATCH_THRESHOLD + ")";
     } else if (surfaceClass === "out-of-scope") {
       // User is searching in a clearly different domain. Recovery needed.
       shouldTrigger = true;
@@ -1741,8 +1746,8 @@
   // ─── Decision Label ───────────────────────────────────────
 
   function getDecision(score) {
-    if (score >= 7.5) return { label: "Strong Fit", cls: "cb-decision-strong" };
-    if (score >= 5) return { label: "Stretch", cls: "cb-decision-stretch" };
+    if (score >= 8.0) return { label: "Strong Fit", cls: "cb-decision-strong" };
+    if (score >= 6.0) return { label: "Stretch", cls: "cb-decision-stretch" };
     return { label: "Skip", cls: "cb-decision-skip" };
   }
 
@@ -1969,7 +1974,7 @@
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
     scoreEl.textContent = Math.round(score);
-    scoreEl.style.color = score >= 7.5 ? "#4ADE80" : score >= 5 ? "#FBBF24" : "#EF4444";
+    scoreEl.style.color = score >= 8.0 ? "#4ADE80" : score >= 6.0 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
