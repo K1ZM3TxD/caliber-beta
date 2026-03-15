@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.8.7";
+  const PANEL_VERSION = "0.8.8";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -536,7 +536,7 @@
   //
   var BST_STRONG_MATCH_THRESHOLD = 8.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
-  var BST_WEAK_SURFACE_CEILING = 7.0;     // if maxScore < this, surface is classified "weak"
+  var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
   var SCORE_CEILING_OUT_OF_SCOPE = 5.0;   // hard cap for clearly out-of-scope job families
 
@@ -584,6 +584,68 @@
     // Only flag mismatch when BOTH matched a cluster AND they differ
     if (jobCluster && calCluster && jobCluster !== calCluster) return true;
     return false;
+  }
+
+  /** Get the role-family cluster for a title string, or null if unrecognized. */
+  function getClusterForTitle(title) {
+    if (!title) return null;
+    var t = title.toLowerCase();
+    var clusters = Object.keys(ROLE_FAMILY_CLUSTERS);
+    for (var i = 0; i < clusters.length; i++) {
+      var keywords = ROLE_FAMILY_CLUSTERS[clusters[i]];
+      for (var k = 0; k < keywords.length; k++) {
+        if (t.indexOf(keywords[k]) !== -1) return clusters[i];
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Classify the search surface relative to the user's calibration.
+   * Returns: "aligned" | "out-of-scope" | "ambiguous"
+   *
+   * - aligned: query matches calibration title, a nearby role, or shares
+   *   significant keywords with the calibration title. BST should not fire.
+   * - out-of-scope: query belongs to a different known role-family cluster,
+   *   or has zero keyword overlap with calibration. BST should fire.
+   * - ambiguous: not enough signal either way; defer to score distribution.
+   */
+  function classifySearchSurface(query, calibrationTitle, nearbyRoles) {
+    if (!query || !calibrationTitle) return "ambiguous";
+
+    // 1. Direct title equivalence → aligned
+    if (titlesEquivalent(query, calibrationTitle)) return "aligned";
+
+    // 2. Query matches a nearby role → aligned
+    if (nearbyRoles && nearbyRoles.length > 0) {
+      for (var i = 0; i < nearbyRoles.length; i++) {
+        if (nearbyRoles[i].title && titlesEquivalent(nearbyRoles[i].title, query)) return "aligned";
+      }
+    }
+
+    // 3. Significant keyword overlap (≥50% of query words) → aligned
+    var queryWords = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+    var calWords = calibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+    var overlap = 0;
+    for (var w = 0; w < queryWords.length; w++) {
+      for (var c = 0; c < calWords.length; c++) {
+        if (queryWords[w] === calWords[c]) { overlap++; break; }
+      }
+    }
+    if (queryWords.length > 0 && overlap / queryWords.length >= 0.5) return "aligned";
+
+    // 4. Cluster-based comparison
+    var queryCluster = getClusterForTitle(query);
+    var calCluster = getClusterForTitle(calibrationTitle);
+    if (queryCluster && calCluster) {
+      return queryCluster === calCluster ? "aligned" : "out-of-scope";
+    }
+    // Query is in a known cluster but calibration isn't (e.g., "bartender" vs
+    // "Business Operations Designer") — if no keyword overlap, it's out-of-scope.
+    if (queryCluster && !calCluster && overlap === 0) return "out-of-scope";
+
+    // 5. Neither side clusters, insufficient keyword overlap → ambiguous
+    return "ambiguous";
   }
 
   var BADGE_ATTR = "data-caliber-badge";
@@ -1060,11 +1122,20 @@
   }
 
   /**
-   * Evaluate BST trigger from accumulated badge scores.
-   * Fires when the visible-job scoring window contains NO strong matches (>= 8.0).
-   * Driven entirely by discovery-layer badge scoring, not by selected-job clicks.
-   * Re-evaluated after each scoring chunk so BST can be suppressed if a strong
-   * match appears later in the window.
+   * Evaluate BST trigger from accumulated badge scores and search-surface classification.
+   *
+   * Trigger rule (v0.8.8):
+   *   1. Classify the search QUERY against the calibration title:
+   *      - "aligned" → query matches calibration title / nearby role / keyword overlap
+   *      - "out-of-scope" → query is in a different known role family or zero keyword overlap
+   *      - "ambiguous" → insufficient signal either way
+   *   2. Decision:
+   *      - aligned → SUPPRESS (mediocre batch on a valid search is not a recovery situation)
+   *      - out-of-scope → TRIGGER (user is searching in the wrong domain)
+   *      - ambiguous → TRIGGER only if genuinely weak (no strong matches AND avg < 6.0)
+   *
+   * Re-evaluated after each scoring chunk so BST can be suppressed if the
+   * classification changes (e.g., calibration title arrives in a later chunk).
    */
   function evaluateBSTFromBadgeCache() {
     var urls = Object.keys(badgeScoreCache);
@@ -1075,10 +1146,8 @@
 
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
-    var strongCount = 0;           // raw count of scores >= 8.0
-    var genuineStrongCount = 0;    // scores >= 8.0 that are NOT role-family mismatches
+    var strongCount = 0;
     var scoredCount = 0;
-    var mismatchCount = 0;         // jobs detected as role-family mismatch
     var maxScore = 0;
     var scoreSum = 0;
     var scores = [];
@@ -1092,131 +1161,129 @@
       scoreSum += entry.score;
       if (entry.score > maxScore) maxScore = entry.score;
       if (entry.score >= BST_STRONG_MATCH_THRESHOLD) strongCount++;
-      if (entry.calibrationTitle) {
-        bestCalibrationTitle = entry.calibrationTitle;
-        if (entry.title && isRoleFamilyMismatch(entry.title, entry.calibrationTitle)) {
-          mismatchCount++;
-          // Don't count mismatched jobs as genuine strong matches
-          if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
-            // flukey high score on wrong-family job — not genuine
-          } else {
-            // not strong anyway
-          }
-        } else if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
-          genuineStrongCount++;
-        }
-      } else if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
-        // No calibration title to compare — count as genuine (benefit of doubt)
-        genuineStrongCount++;
-      }
+      if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
     }
 
+    // Fallback: if badge cache didn't yield a calibration title, try recentScores
+    if (!bestCalibrationTitle) {
+      for (var rs = recentScores.length - 1; rs >= 0; rs--) {
+        if (recentScores[rs].calibrationTitle) {
+          bestCalibrationTitle = recentScores[rs].calibrationTitle;
+          break;
+        }
+      }
+    }
+
     var avgScore = scoredCount > 0 ? scoreSum / scoredCount : 0;
-    var mismatchRatio = scoredCount > 0 ? mismatchCount / scoredCount : 0;
-    var isWeakSurface = (maxScore < BST_WEAK_SURFACE_CEILING) ||
-                        (mismatchRatio >= 0.6) ||
-                        (genuineStrongCount === 0 && avgScore < 6.0);
 
-    // BST trigger uses genuineStrongCount: mismatched jobs with flukey high scores
-    // do not suppress recovery. Only real same-family strong matches suppress BST.
-    var shouldTrigger = genuineStrongCount === 0;
+    // ── Surface classification ──
+    var surfaceClass = classifySearchSurface(currentQuery, bestCalibrationTitle, bestNearbyRoles);
 
-    // ── Diagnostic logging (required by spec) ──
+    var shouldTrigger;
+    var triggerReason;
+    if (surfaceClass === "aligned") {
+      // User is searching in their calibrated domain. A mediocre batch is
+      // normal — do NOT trigger BST just because no 8.0+ appears yet.
+      shouldTrigger = false;
+      triggerReason = "aligned query — calibrated family, mediocre page tolerated";
+    } else if (surfaceClass === "out-of-scope") {
+      // User is searching in a clearly different domain. Recovery needed.
+      shouldTrigger = true;
+      triggerReason = "out-of-scope query — wrong family, recovery needed";
+    } else {
+      // Ambiguous — fall back to score distribution as tiebreaker.
+      // Trigger only when genuinely weak: no strong matches AND low average.
+      shouldTrigger = strongCount === 0 && avgScore < 6.0;
+      triggerReason = shouldTrigger
+        ? "ambiguous query + weak scores (avg " + avgScore.toFixed(1) + ", 0 strong)"
+        : "ambiguous query but acceptable scores (avg " + avgScore.toFixed(1) + ", " + strongCount + " strong)";
+    }
+
+    // ── Diagnostic logging ──
     console.debug("[Caliber][BST] ── evaluation ──");
+    console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
+    console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\"");
+    console.debug("[Caliber][BST]   surfaceClass: " + surfaceClass);
     console.debug("[Caliber][BST]   window: [" + scores.join(", ") + "]");
-    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1));
-    console.debug("[Caliber][BST]   strong(≥" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount +
-      ", genuineStrong: " + genuineStrongCount +
-      ", mismatch: " + mismatchCount + "/" + scoredCount +
-      " (" + (mismatchRatio * 100).toFixed(0) + "%)");
-    console.debug("[Caliber][BST]   weakSurface: " + isWeakSurface +
-      ", surface: " + surfaceKey + ", query: \"" + currentQuery + "\"");
+    console.debug("[Caliber][BST]   max: " + maxScore.toFixed(1) + ", avg: " + avgScore.toFixed(1) +
+      ", strong(≥" + BST_STRONG_MATCH_THRESHOLD + "): " + strongCount);
     console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS") +
-      " (prescanBSTActive: " + prescanBSTActive + ")");
+      " — " + triggerReason);
 
     if (shouldTrigger) {
-      // BST TRIGGER: zero genuine strong matches in the scored window.
-      // Debounce the show to prevent flicker when scoring chunks arrive in quick
-      // succession (a genuine strong match in the next chunk would cancel the pending show).
+      // BST TRIGGER — debounce the show to prevent flicker.
       if (!prescanBSTActive && !bstShowDebounce) {
         var deferredCalibTitle = bestCalibrationTitle;
         var deferredNearby = bestNearbyRoles;
         var deferredQuery = currentQuery;
-        var deferredIsWeak = isWeakSurface;
+        var deferredSurfaceClass = surfaceClass;
         bstShowDebounce = setTimeout(function () {
           bstShowDebounce = null;
-          // Re-verify no genuine strong match has appeared since scheduling
-          var reUrls = Object.keys(badgeScoreCache);
-          var reGenuine = 0;
-          for (var ri = 0; ri < reUrls.length; ri++) {
-            var re = badgeScoreCache[reUrls[ri]];
-            if (re.score >= BST_STRONG_MATCH_THRESHOLD) {
-              var isMismatch = re.title && re.calibrationTitle && isRoleFamilyMismatch(re.title, re.calibrationTitle);
-              if (!isMismatch) reGenuine++;
+          // Re-classify — calibration data may have arrived during debounce
+          var reCalibTitle = deferredCalibTitle;
+          if (!reCalibTitle) {
+            var reUrls = Object.keys(badgeScoreCache);
+            for (var ri = 0; ri < reUrls.length; ri++) {
+              if (badgeScoreCache[reUrls[ri]].calibrationTitle) {
+                reCalibTitle = badgeScoreCache[reUrls[ri]].calibrationTitle;
+              }
             }
           }
-          if (reGenuine > 0 || prescanBSTActive) {
-            console.debug("[Caliber][BST] deferred show cancelled — genuine strong match appeared during debounce (" + reGenuine + ")");
+          var reClass = classifySearchSurface(deferredQuery, reCalibTitle, deferredNearby);
+          if (reClass === "aligned" || prescanBSTActive) {
+            console.debug("[Caliber][BST] deferred show cancelled — reclassified as " + reClass);
             return;
           }
+
           // Determine suggestion title with fallback chain
-          var title = determinePrescanSuggestion(deferredCalibTitle, deferredNearby, deferredQuery);
+          var title = determinePrescanSuggestion(reCalibTitle, deferredNearby, deferredQuery);
           var titleSource = "none";
           if (title) {
-            titleSource = (deferredCalibTitle && !titlesEquivalent(deferredCalibTitle, deferredQuery)) ? "calibration primary" : "adjacent role";
+            titleSource = (reCalibTitle && !titlesEquivalent(reCalibTitle, deferredQuery)) ? "calibration primary" : "adjacent role";
           } else {
-            // Fallback: calibration title from recentScores history
             title = getCalibrationTitleFallback(deferredQuery);
             if (title) titleSource = "recentScores fallback";
           }
+
+          console.debug("[Caliber][BST]   titleSource: " + titleSource + ", title: " + (title ? "\"" + title + "\"" : "(none)"));
+
           if (title) {
             console.debug("[Caliber][BST] SHOW — suggestion: \"" + title + "\" (source: " + titleSource +
-              ", weakSurface: " + deferredIsWeak + ")");
+              ", class: " + deferredSurfaceClass + ")");
             showPrescanBSTBanner(title);
             prescanStoredTitle = title;
-            chrome.runtime.sendMessage({
-              type: "CALIBER_PRESCAN_STATE_SAVE",
-              surfaceKey: getSearchSurfaceKey(),
-              query: deferredQuery,
-              strongCount: 0,
-              scoredCount: reUrls.length,
-              suggestedTitle: title,
-              suggestionShown: true,
-            });
           } else {
-            console.debug("[Caliber][BST] SHOW (generic) — no suggestion title available, showing generic recovery");
+            console.debug("[Caliber][BST] SHOW (generic) — no suggestion title, class: " + deferredSurfaceClass);
             showPrescanBSTBanner(null);
             prescanStoredTitle = null;
-            chrome.runtime.sendMessage({
-              type: "CALIBER_PRESCAN_STATE_SAVE",
-              surfaceKey: getSearchSurfaceKey(),
-              query: deferredQuery,
-              strongCount: 0,
-              scoredCount: reUrls.length,
-              suggestedTitle: null,
-              suggestionShown: true,
-            });
           }
+          chrome.runtime.sendMessage({
+            type: "CALIBER_PRESCAN_STATE_SAVE",
+            surfaceKey: getSearchSurfaceKey(),
+            query: deferredQuery,
+            strongCount: 0,
+            scoredCount: Object.keys(badgeScoreCache).length,
+            suggestedTitle: prescanStoredTitle,
+            suggestionShown: true,
+          });
         }, 800);
       }
     } else {
-      // Genuine strong match found — immediately cancel pending show and hide existing banner
+      // BST SUPPRESS — cancel pending show and hide existing banner
       if (bstShowDebounce) {
         clearTimeout(bstShowDebounce);
         bstShowDebounce = null;
-        console.debug("[Caliber][BST] cancelled pending show — genuine strong match arrived (" + genuineStrongCount + ")");
+        console.debug("[Caliber][BST] cancelled pending show — " + triggerReason);
       }
       if (prescanBSTActive) {
-        console.debug("[Caliber][BST] SUPPRESS — genuine strong match appeared (" + genuineStrongCount + "), hiding banner");
+        console.debug("[Caliber][BST] SUPPRESS — hiding banner — " + triggerReason);
         prescanBSTActive = false;
         prescanStoredTitle = null;
         if (shadow) {
           var banner = shadow.getElementById("cb-recovery-banner");
           if (banner) banner.style.display = "none";
         }
-      } else {
-        console.debug("[Caliber][BST] healthy — " + genuineStrongCount + " genuine strong matches, BST suppressed");
       }
     }
 
@@ -1230,7 +1297,7 @@
       type: "CALIBER_PRESCAN_STATE_SAVE",
       surfaceKey: surfaceKey,
       query: currentQuery,
-      strongCount: genuineStrongCount,
+      strongCount: strongCount,
       scoredCount: scoredCount,
       suggestedTitle: prescanStoredTitle,
       suggestionShown: prescanBSTActive,
