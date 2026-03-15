@@ -3,6 +3,16 @@
 
 ## Current Open Issues
 
+70. SGD signal normalization + calibration title influence — **SHIPPED** (2026-03-15)
+  - Detected signals previously appeared as raw tokens (e.g. “Buying”, “Drained”, “Fatiguing”).
+  - Signal normalization dictionary (SIGNAL_NORMALIZATION, 75+ entries) maps raw anchor tokens → professional labels (e.g. “Buying” → “Procurement Exposure”, “Drained” → “Energy Drain Pattern”).
+  - Fallback: tokens not in dictionary get title-cased. SIGNAL_LABEL_MAP + SIGNAL_NORMALIZATION both checked before fallback.
+  - Dedup by normalized label prevents duplicate signals in the list.
+  - When user selects “Yes, include them”, SET_SIGNAL_PREFERENCE now re-runs `generateTitleRecommendation()` with detected signal terms injected as synthetic prompt text.
+  - 30% weight cap: injected signal text cannot exceed 30% of total prompt+signal volume.
+  - When user selects “No”, behavior unchanged (resume signals only).
+  - Files: `lib/calibration_machine.ts`.
+
 69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15)
   - BST sometimes suggested adjacent titles that led to repeated weak surfaces, creating an infinite loop.
   - Root cause: `determinePrescanSuggestion()` and fallback chains only checked `titlesEquivalent(title, currentQuery)` — no session-level memory of previously suggested or searched titles.

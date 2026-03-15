@@ -14,7 +14,7 @@ Beta remains defined by five core functional gates: (1) BST working, (2) sidecar
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
 ## Active Systems Under Validation
-- **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing.
+- **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing. Signal normalization layer converts raw tokens to professional labels. When user selects Yes, detected signals influence calibration title generation (30% weight cap).
 - **Surface Quality Banner** — BST slot shows "{count} strong matches · Best: {title} ({score})" when surface has >=1 job scoring >=7.0.
 - **Better Search Trigger (BST)** — surface-classification-driven recovery suggestion with session-level title dedup preventing loops.
 - **Pipeline Trigger >=7** — action thresholds lowered from 8.0 to 7.0 for pipeline/tailor actions.
@@ -30,6 +30,7 @@ Jen is the primary regression profile for Desktop Stabilization. It validates:
 All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regression.
 
 ## Recent Implementation History
+- **SGD normalization + title influence** (2026-03-15): Signal normalization dictionary (75+ entries) maps raw tokens to professional labels. SET_SIGNAL_PREFERENCE re-generates title recommendation when user includes signals, capped at 30% weight. File: `lib/calibration_machine.ts`.
 - **v0.9.6** (2026-03-15): SGD polling pause gate + BST session-level title dedup + manifest bump. Commit `693d5b0`.
 - **v0.9.6-surface** (2026-03-15): Surface-quality banner in BST slot.
 - **v0.9.6-signals** (2026-03-15): Detected signals choice in calibration PROCESSING screen.

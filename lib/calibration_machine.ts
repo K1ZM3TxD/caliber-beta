@@ -912,9 +912,90 @@ const GENERIC_TERMS = new Set([
   "solution", "understanding", "handling", "organizing", "achieving",
 ])
 
+// Normalization map: raw anchor tokens → professional signal labels.
+// Catches common verb/noun forms that slip through SIGNAL_LABEL_MAP.
+const SIGNAL_NORMALIZATION: Record<string, string> = {
+  // Purchasing / procurement
+  buying: "Procurement Exposure",
+  purchasing: "Procurement Exposure",
+  sourcing: "Sourcing & Vendor Management",
+  procurement: "Procurement Exposure",
+  // Negotiation / coordination
+  dealing: "Stakeholder Coordination",
+  coordinating: "Stakeholder Coordination",
+  liaising: "Stakeholder Liaison",
+  mediating: "Conflict Resolution",
+  // Energy / motivation patterns
+  drained: "Energy Drain Pattern",
+  draining: "Energy Drain Pattern",
+  fatiguing: "Repetitive Work Aversion",
+  exhausting: "Repetitive Work Aversion",
+  burnout: "Sustainability Awareness",
+  // Learning / growth
+  learning: "Learning Agility",
+  studying: "Learning Agility",
+  growing: "Professional Growth Orientation",
+  // Leadership / direction
+  directing: "Operational Direction",
+  supervising: "Team Supervision",
+  overseeing: "Oversight & Governance",
+  guiding: "Mentoring & Guidance",
+  coaching: "Team Coaching",
+  mentoring: "Mentoring & Development",
+  // Analysis / problem-solving
+  analyzing: "Analytical Problem-Solving",
+  investigating: "Investigation & Analysis",
+  researching: "Research & Discovery",
+  evaluating: "Evaluation & Assessment",
+  assessing: "Evaluation & Assessment",
+  // Communication
+  presenting: "Presentation & Communication",
+  pitching: "Persuasive Communication",
+  advocating: "Internal Advocacy",
+  storytelling: "Strategic Storytelling",
+  // Execution / delivery
+  shipping: "Shipping Discipline",
+  launching: "Launch Execution",
+  implementing: "Implementation Management",
+  deploying: "Deployment & Rollout",
+  migrating: "Migration Planning",
+  // Strategic / planning
+  strategizing: "Strategic Planning",
+  forecasting: "Forecasting",
+  budgeting: "Budget Management",
+  scoping: "Scope Definition",
+  // Relationship / people
+  networking: "Relationship Building",
+  partnering: "Partnership Development",
+  collaborating: "Cross-Team Collaboration",
+  onboarding: "Onboarding Design",
+  recruiting: "Talent Acquisition",
+  hiring: "Talent Acquisition",
+  // Operations / process
+  automating: "Process Automation",
+  streamlining: "Process Optimization",
+  optimizing: "Process Optimization",
+  standardizing: "Standardization",
+  documenting: "Documentation & Knowledge Management",
+  // Entrepreneurial / creative
+  entrepreneurial: "Entrepreneurship",
+  innovating: "Innovation",
+  experimenting: "Experimentation",
+  prototyping: "Rapid Prototyping",
+  // Adaptability
+  adapting: "Adaptability",
+  pivoting: "Adaptability",
+  versatile: "Versatility",
+  resourceful: "Resourcefulness",
+}
+
 function formatSignalLabel(term: string): string | null {
   if (GENERIC_TERMS.has(term)) return null
   if (term.length < 4) return null
+  // Check normalization dictionary first
+  const normalized = SIGNAL_NORMALIZATION[term]
+  if (normalized) return normalized
+  // Fallback: title-case the raw token
   return term.charAt(0).toUpperCase() + term.slice(1)
 }
 
@@ -995,11 +1076,15 @@ function detectAdditionalSignals(session: CalibrationSession): string[] {
     }
   }
 
-  // Sort by confidence descending, take top 5
-  const result = Array.from(detected.values())
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 5)
-    .map(d => d.label)
+  // Sort by confidence descending, deduplicate by label, take top 5
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const d of Array.from(detected.values()).sort((a, b) => b.confidence - a.confidence)) {
+    if (seen.has(d.label)) continue
+    seen.add(d.label)
+    result.push(d.label)
+    if (result.length >= 5) break
+  }
 
   // Structured debug logging
   console.log("[caliber] signal_gap_detection:", JSON.stringify({
@@ -1652,6 +1737,51 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
           ...session,
           includeDetectedSignals: include,
         }
+
+        // When user chooses to include detected signals, re-generate title
+        // recommendation with signal terms injected into the anchor map.
+        // Detected signals influence direction but must not dominate:
+        // injected signal text is capped at 30% of total prompt answer volume.
+        if (include && session.detectedSignals && session.detectedSignals.length > 0 && session.synthesis) {
+          try {
+            const resumeText = typeof session.resume?.rawText === "string" ? session.resume.rawText : ""
+            const answers: string[] = []
+            for (let i = 1; i <= 5; i++) {
+              const a = session.prompts[i]?.answer
+              if (typeof a === "string" && a.trim().length > 0) answers.push(a.trim())
+              const ca = session.prompts[i]?.clarifier?.answer
+              if (typeof ca === "string" && ca.trim().length > 0) answers.push(ca.trim())
+            }
+
+            // Build synthetic signal text from detected signals.
+            // Each signal label is repeated to register in anchor extraction.
+            const signalText = session.detectedSignals.join(". ") + "."
+
+            // 30% weight cap: signal text must not exceed 30% of total prompt volume.
+            const totalPromptChars = answers.reduce((sum, a) => sum + a.length, 0)
+            const maxSignalChars = Math.floor(totalPromptChars * 0.43) // 0.43 of existing = ~30% of combined total
+            const cappedSignalText = signalText.length <= maxSignalChars
+              ? signalText
+              : signalText.slice(0, maxSignalChars)
+
+            const augmentedAnswers = [...answers, cappedSignalText]
+
+            const titleResult = generateTitleRecommendation(resumeText, augmentedAnswers)
+            session = {
+              ...session,
+              synthesis: {
+                ...session.synthesis,
+                titleCandidates: titleResult.candidates,
+                titleRecommendation: titleResult.recommendation,
+                marketTitle: titleResult.recommendation.primary_title.title,
+              },
+            }
+            console.log("[caliber] sgd_title_influence: signals_included=true, new_title=" + titleResult.recommendation.primary_title.title)
+          } catch (e) {
+            console.warn("[caliber] sgd_title_influence: re-generation failed, keeping original title", e)
+          }
+        }
+
         storeSet(session)
         return { ok: true, session }
       }

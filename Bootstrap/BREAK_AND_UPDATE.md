@@ -79,6 +79,39 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-15 — SGD Signal Normalization + Calibration Title Influence
+
+**What changed:**
+- Signal normalization dictionary (SIGNAL_NORMALIZATION, 75+ entries) added to `lib/calibration_machine.ts`. Raw anchor tokens now map to professional labels before entering UI.
+- `formatSignalLabel()` checks normalization dict before title-case fallback.
+- Dedup by normalized label added to `detectAdditionalSignals()` result pipeline.
+- `SET_SIGNAL_PREFERENCE` handler re-generates `generateTitleRecommendation()` when user includes signals. Detected signal labels injected as synthetic prompt text with 30% weight cap.
+- When user selects No, title generation is unchanged.
+
+**Why it changed:**
+- Raw tokens ("Buying", "Drained", "Fatiguing") were not interpretable professional signals. Users could not make informed Yes/No decisions.
+- Selecting Yes had no effect on calibration output, making the feature purely cosmetic.
+
+**What is now expected:**
+- SGD signals appear as normalized professional labels (e.g. "Procurement Exposure", "Energy Drain Pattern").
+- Maximum 5 signals, deduplicated by label.
+- Yes → calibration title may shift toward detected signals (up to 30% influence).
+- No → calibration title unchanged (resume signals only).
+- Resume signals remain dominant (≥70% weight).
+
+**What is no longer expected:**
+- Raw verb/noun tokens displayed to user.
+- Yes/No selection with no effect on output.
+
+**Risk / fallout:**
+- Title may change slightly for users who include signals. This is the intended behavior.
+- No extension changes required.
+
+**Proof:**
+- TypeScript build clean. Pre-existing test results unchanged (72/74 pass, same 2 pre-existing failures in signal_classification.test.ts).
+
+---
+
 ### 2026-03-15 — Desktop Stabilization & Beta Readiness Phase (Documentation Pass)
 
 **What changed:**

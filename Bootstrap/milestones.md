@@ -105,6 +105,26 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
 
 ---
 
+BREAK + UPDATE — 2026-03-15 (SGD Signal Normalization + Calibration Title Influence)
+---
+DONE:
+- Signal normalization dictionary (SIGNAL_NORMALIZATION, 75+ entries) maps raw tokens to professional labels
+- formatSignalLabel() checks normalization dict before title-case fallback
+- Dedup by normalized label in detectAdditionalSignals() result pipeline
+- SET_SIGNAL_PREFERENCE re-generates title recommendation when user includes signals
+- Detected signal terms injected as synthetic prompt text, capped at 30% of total weight
+- Resume signals remain dominant (>=70% weight)
+
+BLOCKED:
+- None
+
+NEXT:
+- Live validation: verify signal labels display as professional terms for Jen profile
+- Live validation: verify Yes selection shifts calibration title
+- Live validation: verify No selection preserves original title
+
+---
+
 BREAK + UPDATE — 2026-03-15 (Desktop Stabilization & Beta Readiness Phase)
 ---
 DONE:
