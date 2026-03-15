@@ -704,7 +704,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex justify-center overflow-y-auto" style={{ background: '#050505', scrollbarGutter: 'stable' }}>
+    <div className="fixed inset-0 flex flex-col items-center overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
       {/* Subtle ambient glow */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
@@ -714,8 +714,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           zIndex: 0,
         }}
       />
-      {/* Layout rule: LANDING and RESUME use my-auto to vertically center within
-         the scrollable viewport. Content-heavy steps use fixed top padding.
+      {/* Layout rule: flex-col + items-center on outer = horizontal centering.
+         LANDING and RESUME use my-auto to vertically center within the viewport.
+         Content-heavy steps use fixed top padding.
          No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
       <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : "pt-[14vh] sm:pt-[22vh]"}`}>
         <style>{`
