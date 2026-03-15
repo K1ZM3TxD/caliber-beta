@@ -2023,12 +2023,15 @@
     var hrcBand = (hrc && hrc.band) ? hrc.band : null;
     var score = applyDomainMismatchGuardrail(rawScore, hrcBand, lastJobMeta.title || "", data.calibration_title || "");
     lastScoredScore = score;
-    var decision = getDecision(score);
+    // Display score is the rounded integer — label and color derive from this
+    // so the user never sees a mismatch (e.g. displayed "6" but label "Skip").
+    var displayScore = Math.round(score);
+    var decision = getDecision(displayScore);
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
-    scoreEl.textContent = Math.round(score);
-    scoreEl.style.color = score >= 8.0 ? "#4ADE80" : score >= 6.0 ? "#FBBF24" : "#EF4444";
+    scoreEl.textContent = displayScore;
+    scoreEl.style.color = displayScore >= 8 ? "#4ADE80" : displayScore >= 6 ? "#FBBF24" : "#EF4444";
 
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
