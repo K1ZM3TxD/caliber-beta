@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.9";
+  const PANEL_VERSION = "0.9.10";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -445,8 +445,10 @@
         prescanSearchQuery = currentKey;
         prescanBSTActive = resp.state.suggestionShown || false;
         prescanStoredTitle = resp.state.suggestedTitle || null;
-        prescanSurfaceBanner = resp.state.surfaceBanner || null;
-        console.debug("[Caliber][prescan] restored durable state for surface: " + currentKey);
+        // Do NOT restore prescanSurfaceBanner from durable state.
+        // Surface-quality banner must render only from fresh scoring on the
+        // current surface to avoid showing a stale "best so far" score.
+        console.debug("[Caliber][prescan] restored durable state for surface: " + currentKey + " (surfaceBanner intentionally skipped)");
       } else {
         // Stale state from different search surface — clear it
         console.debug("[Caliber][prescan] durable state is stale (different surface), clearing");
