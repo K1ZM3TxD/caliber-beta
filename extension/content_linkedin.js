@@ -2020,11 +2020,25 @@
       var icon = banner.querySelector(".cb-recovery-icon");
       if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
       if (reason) {
-        var text = strongCount + " strong match" + (strongCount > 1 ? "es" : "");
-        if (bestTitle) {
-          text += " \u00B7 Best: " + bestTitle + " (" + bestScore.toFixed(1) + ")";
+        var matchLabel = strongCount + " strong match" + (strongCount > 1 ? "es" : "");
+        var scoreHtml = bestScore ? ' <span class="cb-sq-score">' + bestScore.toFixed(1) + '</span>' : "";
+        reason.innerHTML = matchLabel + ' \u00B7 <span class="cb-sq-best-link" id="cb-sq-best-link">Best so far:</span>' + scoreHtml +
+          '<div class="cb-sq-dropdown" id="cb-sq-dropdown">' +
+          '<div class="cb-sq-dropdown-title">Why \u201Cbest so far\u201D?</div>' +
+          '<div class="cb-sq-dropdown-body">' +
+          'LinkedIn loads jobs as you scroll.<br>' +
+          'Caliber scores them as they appear.<br>' +
+          'If a stronger match appears, this banner updates.' +
+          '</div></div>';
+        // Wire up click toggle on the "Best so far" link
+        var bestLink = reason.querySelector("#cb-sq-best-link");
+        var dropdown = reason.querySelector("#cb-sq-dropdown");
+        if (bestLink && dropdown) {
+          bestLink.onclick = function (e) {
+            e.stopPropagation();
+            dropdown.classList.toggle("cb-sq-dropdown-open");
+          };
         }
-        reason.textContent = text;
       }
       if (label) label.style.display = "none";
       if (link) link.style.display = "none";
@@ -2163,6 +2177,17 @@
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
         }
       });
+    });
+
+    // Dismiss "Best so far" dropdown on any click outside it
+    shadow.addEventListener("click", function (e) {
+      var dropdown = shadow.getElementById("cb-sq-dropdown");
+      if (dropdown && dropdown.classList.contains("cb-sq-dropdown-open")) {
+        var link = shadow.getElementById("cb-sq-best-link");
+        if (e.target !== link && !dropdown.contains(e.target)) {
+          dropdown.classList.remove("cb-sq-dropdown-open");
+        }
+      }
     });
 
     return shadow;
@@ -3268,7 +3293,17 @@
     // Surface-quality banner variant (green accent when strong matches exist)
     ".cb-surface-quality { border-color: rgba(74,222,128,0.3); }",
     ".cb-surface-quality .cb-recovery-icon { color: #4ADE80; }",
-    ".cb-surface-quality .cb-recovery-reason { font-size: 11px; color: #D1D5DB; font-weight: 500; margin-bottom: 0; }",
+    ".cb-surface-quality .cb-recovery-reason { font-size: 11px; color: #D1D5DB; font-weight: 500; margin-bottom: 0; position: relative; }",
+    // "Best so far" clickable link
+    ".cb-sq-best-link { color: #93C5FD; cursor: pointer; border-bottom: 1px dashed rgba(147,197,253,0.4); }",
+    ".cb-sq-best-link:hover { color: #BFDBFE; border-color: #BFDBFE; }",
+    // Score number in green
+    ".cb-sq-score { color: #4ADE80; font-weight: 700; }",
+    // Dropdown explanation panel
+    ".cb-sq-dropdown { display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 10; width: 240px; background: #1A1F33; border: 1px solid rgba(96,165,250,0.3); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }",
+    ".cb-sq-dropdown-open { display: block; }",
+    ".cb-sq-dropdown-title { font-size: 11px; font-weight: 700; color: #93C5FD; margin-bottom: 6px; }",
+    ".cb-sq-dropdown-body { font-size: 10px; color: #A0AEC0; line-height: 1.5; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
     "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
