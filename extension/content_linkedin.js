@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.12";
+  const PANEL_VERSION = "0.9.13";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1426,6 +1426,22 @@
       }
     }
 
+    // Defense-in-depth: if the sidecard scored the selected job higher than
+    // any badge-cached entry, use it as the true page max. Handles edge cases
+    // where the sidecard entry was pruned (card scrolled off) or timing gaps.
+    if (lastScoredScore > pageMaxScore) {
+      pageMaxScore = lastScoredScore;
+      pageBestTitle = sanitizeJobTitle(lastJobMeta.title || "");
+      if (lastScoredScore >= BST_STRONG_MATCH_THRESHOLD) {
+        // Check if already counted via cache entry
+        var scUrlMatch = location.href.match(/\/jobs\/view\/(\d+)/);
+        var scInCache = scUrlMatch && badgeScoreCache["job-" + scUrlMatch[1]];
+        if (!scInCache) strongCount++;
+      }
+      console.debug("[Caliber][BST][diag] sidecard score (" + lastScoredScore.toFixed(1) +
+        ") exceeds badge cache max — elevated pageMaxScore");
+    }
+
     // Count how many scored job titles share a cluster with the calibration title.
     // Used to detect ambiguous queries landing on entirely foreign job surfaces.
     var calClusterForEvidence = bestCalibrationTitle ? getClusterForTitle(bestCalibrationTitle) : null;
@@ -1998,8 +2014,17 @@
     // Clear badge cache so the surface starts with zero cached scores.
     // This prevents stale scores from a previous run of the same query
     // from appearing in the banner before new results are scored.
+    // PRESERVE sidecard-authoritative entries — these were scored from the
+    // full job description and are higher fidelity than card-text badges.
+    // Race fix: sidecard can finish before runSearchPrescan fires (t+2s),
+    // so a full wipe would lose the high-fidelity score (e.g. 8.8 → 7.1).
+    var preservedSidecard = {};
+    for (var scKey in badgeScoreCache) {
+      if (badgeScoreCache[scKey].sidecard) preservedSidecard[scKey] = badgeScoreCache[scKey];
+    }
     badgeScoredIds.clear();
-    badgeScoreCache = {};
+    badgeScoreCache = preservedSidecard;
+    for (var psKey in preservedSidecard) badgeScoredIds.add(psKey);
     badgeCacheSurface = surfaceKey;
     badgeBatchQueue = [];
     badgeBatchGeneration++;
