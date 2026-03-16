@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.6r";
+  const PANEL_VERSION = "0.9.7";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1282,6 +1282,8 @@
     var bestNearbyRoles = [];
     var bestJobTitle = "";
     var bestJobScore = 0;
+    var pageMaxScore = 0;        // true highest score across ALL cache entries
+    var pageBestTitle = "";      // title of the true highest-score job
 
     for (var i = 0; i < urls.length; i++) {
       var entry = badgeScoreCache[urls[i]];
@@ -1289,6 +1291,11 @@
       scores.push(entry.score);
       scoreSum += entry.score;
       if (entry.score > maxScore) maxScore = entry.score;
+      // Track true page max across ALL entries (for surface banner truth)
+      if (entry.score > pageMaxScore) {
+        pageMaxScore = entry.score;
+        pageBestTitle = entry.title || "";
+      }
       if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
         strongCount++;
         if (entry.score > bestJobScore) {
@@ -1426,6 +1433,14 @@
     console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
     console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
     console.debug("[Caliber][BST]   badgesVisible: " + BADGES_VISIBLE);
+    // ── Surface-truth diagnostic (issue #73) ──
+    console.debug("[Caliber][BST][surface-truth] strongCount=" + strongCount +
+      ", pageMaxScore=" + pageMaxScore.toFixed(1) +
+      ", pageBestTitle=\"" + pageBestTitle + "\"" +
+      ", currentSelectedScore=" + (lastScoredScore || 0) +
+      ", currentQuery=\"" + currentQuery + "\"" +
+      ", bstSuggestedTitle=\"" + (prescanStoredTitle || "") + "\"" +
+      ", suppression=" + (shouldTrigger ? "none" : triggerReason));
 
     if (shouldTrigger) {
       // BST TRIGGER — debounce the show to prevent flicker.
@@ -1451,19 +1466,18 @@
             console.debug("[Caliber][BST] deferred show cancelled — " +
               (reStrongCount > 0 ? "strong match appeared during debounce (" + reStrongCount + ")" : "banner already active"));
             if (reStrongCount > 0 && !prescanBSTActive) {
-              // Show surface-quality banner with best job from the fresh re-check
-              var reBestTitle = "";
-              var reBestScore = 0;
-              for (var rb = 0; rb < reUrls.length; rb++) {
-                var rbe = badgeScoreCache[reUrls[rb]];
-                if (rbe.score >= BST_STRONG_MATCH_THRESHOLD && rbe.score > reBestScore) {
-                  reBestScore = rbe.score;
-                  reBestTitle = rbe.title || "";
+              // Show surface-quality banner with true page max from the fresh re-check
+              var rePageMax = 0;
+              var rePageBestTitle = "";
+              for (var rpm = 0; rpm < reUrls.length; rpm++) {
+                if (badgeScoreCache[reUrls[rpm]].score > rePageMax) {
+                  rePageMax = badgeScoreCache[reUrls[rpm]].score;
+                  rePageBestTitle = badgeScoreCache[reUrls[rpm]].title || "";
                 }
               }
-              showSurfaceQualityBanner(reStrongCount, reBestTitle, reBestScore);
-              prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: reBestTitle, bestScore: reBestScore };
-              console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong");
+              showSurfaceQualityBanner(reStrongCount, rePageBestTitle, rePageMax);
+              prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: rePageBestTitle, bestScore: rePageMax };
+              console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong, pageMax=" + rePageMax.toFixed(1));
             }
             return;
           }
@@ -1538,15 +1552,16 @@
       }
 
       // Surface-quality banner: show when strong matches exist on the loaded surface
-      if (strongCount > 0 && bestJobTitle) {
-        showSurfaceQualityBanner(strongCount, bestJobTitle, bestJobScore);
-        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bestJobTitle, bestScore: bestJobScore };
-        console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, best: \"" + bestJobTitle + "\" (" + bestJobScore.toFixed(1) + ")");
+      // Use true pageMaxScore/pageBestTitle (not just best strong-match) for surface truth
+      if (strongCount > 0 && pageBestTitle) {
+        showSurfaceQualityBanner(strongCount, pageBestTitle, pageMaxScore);
+        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: pageBestTitle, bestScore: pageMaxScore };
+        console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, pageMax: \"" + pageBestTitle + "\" (" + pageMaxScore.toFixed(1) + ")");
       } else if (strongCount > 0) {
         // Strong matches exist but no title available — still show count-only banner
-        showSurfaceQualityBanner(strongCount, "", bestJobScore);
-        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: bestJobScore };
-        console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong matches");
+        showSurfaceQualityBanner(strongCount, "", pageMaxScore);
+        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: pageMaxScore };
+        console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong, pageMax=" + pageMaxScore.toFixed(1));
       } else if (prescanSurfaceBanner) {
         // No strong matches anymore — hide surface-quality banner
         hideSurfaceQualityBanner();
@@ -1913,6 +1928,15 @@
    */
   function showPrescanBSTBanner(suggestedTitle) {
     suggestedTitle = sanitizeJobTitle(suggestedTitle);
+    // Self-suggestion suppression: if suggested title matches current query, do not render
+    var currentQueryForBST = getSearchKeywords();
+    if (suggestedTitle && currentQueryForBST && titlesEquivalent(suggestedTitle, currentQueryForBST)) {
+      console.debug("[Caliber][BST] self-suggestion suppressed — suggested \"" + suggestedTitle +
+        "\" is equivalent to current query \"" + currentQueryForBST + "\"");
+      console.debug("[Caliber][BST][surface-truth] suppression=self-suggestion (title=\"" + suggestedTitle +
+        "\", query=\"" + currentQueryForBST + "\")");
+      return;
+    }
     getOrCreatePanel();
     prescanBSTActive = true;
     prescanSurfaceBanner = null; // BST overrides surface-quality banner
@@ -2533,10 +2557,28 @@
     if (blSection) blSection.style.display = "";
 
     // Nearby roles: show as recovery banner above sidecard (not inside sidecard)
+    // GUARD: only show if the page-level cache has NO strong matches.
+    // On aligned surfaces with strong matches available, a single weak job click
+    // must not override the page-level BST suppression state.
     if (score < 7.5 && data.nearby_roles && data.nearby_roles.length > 0) {
-      var bestNearby = data.nearby_roles[0];
-      if (bestNearby && bestNearby.title) {
-        showPrescanBSTBanner(bestNearby.title);
+      var pageHasStrongMatches = false;
+      var cacheKeys = Object.keys(badgeScoreCache);
+      for (var sm = 0; sm < cacheKeys.length; sm++) {
+        if (badgeScoreCache[cacheKeys[sm]].score >= BST_STRONG_MATCH_THRESHOLD) {
+          pageHasStrongMatches = true;
+          break;
+        }
+      }
+      if (pageHasStrongMatches) {
+        console.debug("[Caliber][BST] sidecard weak-job BST suppressed — page has strong matches in cache");
+        console.debug("[Caliber][BST][surface-truth] suppression=page-level-strong-match-present" +
+          ", currentSelectedScore=" + score +
+          ", currentQuery=\"" + getSearchKeywords() + "\"");
+      } else {
+        var bestNearby = data.nearby_roles[0];
+        if (bestNearby && bestNearby.title) {
+          showPrescanBSTBanner(bestNearby.title);
+        }
       }
     }
 

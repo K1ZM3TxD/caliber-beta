@@ -3,6 +3,21 @@
 
 ## Current Open Issues
 
+73. BST surface-truth and self-suggestion bugs — **SHIPPED** (2026-03-16)
+  - **Symptom (3 defects from Jen validation):**
+    1. Surface Quality Banner/SM reported "best result 7.1" when true page max was 8.8 — `bestJobScore`/`bestJobTitle` only tracked highest among strong matches (≥7.0), not true page max.
+    2. On aligned surfaces with strong matches, clicking a weak job (< 7.5) caused BST to populate via `showPrescanBSTBanner(bestNearby.title)` in `showResults()`, bypassing page-level BST suppression.
+    3. BST persisted suggesting "Account Manager" when the user was already searching "Account Manager" — `showPrescanBSTBanner()` lacked a self-suggestion guard.
+  - **Root cause:** (1) Surface banner used strong-match-filtered max instead of true page max. (2) Sidecard `showResults()` called `showPrescanBSTBanner()` directly without checking page-level strong-match presence. (3) `showPrescanBSTBanner()` had no `titlesEquivalent()` check against current query.
+  - **Fix (v0.9.7):**
+    - (1) New `pageMaxScore`/`pageBestTitle` variables in `evaluateBSTFromBadgeCache()` track true highest score across ALL cache entries. Surface quality banner and debounce upgrade path both use these.
+    - (2) Sidecard weak-job BST trigger now checks `badgeScoreCache` for any score ≥ `BST_STRONG_MATCH_THRESHOLD` before allowing `showPrescanBSTBanner()`. If page has strong matches, BST is suppressed.
+    - (3) `showPrescanBSTBanner()` now calls `titlesEquivalent(suggestedTitle, currentQuery)` as first guard — returns immediately if match.
+    - Diagnostic logging: `[Caliber][BST][surface-truth]` line emitted on every evaluation with strongCount, pageMaxScore, pageBestTitle, currentSelectedScore, currentQuery, bstSuggestedTitle, suppression reason.
+  - **Preserved behavior:** Bartender/out-of-scope persistence, BST loop prevention, debounce gating, `initialSurfaceResolved` gate (issue #72).
+  - **Status:** Shipped. Validation pending with Jen regression profile.
+  - **Files:** `extension/content_linkedin.js`.
+
 72. BST premature rendering on refresh — **ACTIVE / IN FIX** (2026-03-15)
   - **Symptom:** On refresh, BST banner appears first on healthy surfaces (account manager, calibrated title) before being replaced by strong-match banner. On out-of-scope surfaces (bartender), BST suppresses on first load and only appears after clicking another job.
   - **Root cause:** `evaluateBSTFromBadgeCache()` fires after every 5-card scoring chunk. With `BST_MIN_WINDOW_SIZE=5`, the very first chunk can trigger BST on partial evidence before strong matches in later chunks arrive. On refresh, durable prescan state restored stale banners before fresh scoring could override them.
