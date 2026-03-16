@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.8";
+  const PANEL_VERSION = "0.9.9";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1341,6 +1341,23 @@
       ", initialSurfaceResolved=" + initialSurfaceResolved +
       ", lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
     var urls = Object.keys(badgeScoreCache);
+
+    // Prune orphaned cache entries: if a cached job ID's card is no longer in
+    // the DOM, the result set has changed (same query, fresh results). Remove
+    // stale entries so the banner reflects only the current visible surface.
+    var prunedCount = 0;
+    for (var pi = urls.length - 1; pi >= 0; pi--) {
+      if (!findCardById(urls[pi])) {
+        delete badgeScoreCache[urls[pi]];
+        badgeScoredIds.delete(urls[pi]);
+        urls.splice(pi, 1);
+        prunedCount++;
+      }
+    }
+    if (prunedCount > 0) {
+      console.debug("[Caliber][BST][diag] pruned " + prunedCount + " orphaned cache entries (cards no longer in DOM)");
+    }
+
     if (urls.length < BST_MIN_WINDOW_SIZE) {
       console.debug("[Caliber][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
       return;
@@ -1570,10 +1587,8 @@
                 }
               }
               // Non-regression: preserve sidecard-authoritative best if higher
-              if (prescanSurfaceBanner && prescanSurfaceBanner.bestScore > rePageMax) {
-                rePageMax = prescanSurfaceBanner.bestScore;
-                rePageBestTitle = prescanSurfaceBanner.bestTitle;
-              }
+              // Only valid when prescanSurfaceBanner is from the current scoring pass
+              // (pruned cache ensures it reflects live DOM state)
               showSurfaceQualityBanner(reStrongCount, rePageBestTitle, rePageMax);
               prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: rePageBestTitle, bestScore: rePageMax };
               console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong, pageMax=" + rePageMax.toFixed(1));
@@ -1651,18 +1666,10 @@
       }
 
       // Surface-quality banner: show when strong matches exist on the loaded surface
-      // Use true pageMaxScore/pageBestTitle (not just best strong-match) for surface truth.
-      // Non-regression: if prescanSurfaceBanner already has a higher score (from sidecard),
-      // preserve it. Badge-cache recomputation must never regress the banner.
+      // Use true pageMaxScore/pageBestTitle computed fresh from the (pruned) badge cache.
       if (strongCount > 0) {
         var bannerScore = pageMaxScore;
         var bannerTitle = pageBestTitle;
-        if (prescanSurfaceBanner && prescanSurfaceBanner.bestScore > bannerScore) {
-          bannerScore = prescanSurfaceBanner.bestScore;
-          bannerTitle = prescanSurfaceBanner.bestTitle;
-          console.debug("[Caliber][SurfaceBanner] non-regression: keeping sidecard best " +
-            bannerScore.toFixed(1) + " over cache-computed " + pageMaxScore.toFixed(1));
-        }
         if (bannerTitle) {
           showSurfaceQualityBanner(strongCount, bannerTitle, bannerScore);
           prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bannerTitle, bestScore: bannerScore };
@@ -1841,6 +1848,9 @@
     // Reset surface diagnostic log on surface change
     surfaceDiagEntries = [];
     surfaceDiagSurface = "";
+    // Reset surface-quality banner state
+    prescanSurfaceBanner = null;
+    hideSurfaceQualityBanner();
     badgeInjecting = true;
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
     for (var i = 0; i < badges.length; i++) badges[i].remove();
@@ -1982,6 +1992,15 @@
     prescanStoredTitle = null;
     prescanSurfaceBanner = null;
     initialSurfaceResolved = false;
+
+    // Clear badge cache so the surface starts with zero cached scores.
+    // This prevents stale scores from a previous run of the same query
+    // from appearing in the banner before new results are scored.
+    badgeScoredIds.clear();
+    badgeScoreCache = {};
+    badgeCacheSurface = surfaceKey;
+    badgeBatchQueue = [];
+    badgeBatchGeneration++;
 
     // Hide any previous prescan banner
     if (shadow) {
@@ -3153,7 +3172,8 @@
         }
         // Same surface but URL changed (e.g. opened a job, returned to list)
         // — restore any cached badges and re-attach observer
-        if (isSearchResultsPage()) {
+        // Only runs when surface key is unchanged (else block handles fresh surfaces)
+        else if (isSearchResultsPage()) {
           setTimeout(function () {
             restoreBadgesFromCache();
             scanAndBadgeVisibleCards();
