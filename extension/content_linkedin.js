@@ -1125,6 +1125,7 @@
       if (active && badgeBatchQueue.length > 0) {
         setTimeout(processBadgeQueue, 200);
       } else if (badgeBatchQueue.length === 0) {
+        hideScanningIndicator();
         console.debug("[Caliber][diag][schedule] all queued cards scored. Cache: " + Object.keys(badgeScoreCache).length +
           ", scoredIds: " + badgeScoredIds.size);
       }
@@ -1231,6 +1232,7 @@
 
     // Add to queue and kick off processing
     badgeBatchQueue = badgeBatchQueue.concat(toQueue);
+    showScanningIndicator();
     processBadgeQueue();
   }
 
@@ -2022,7 +2024,8 @@
       if (reason) {
         var matchLabel = strongCount + " strong match" + (strongCount > 1 ? "es" : "");
         var scoreHtml = bestScore ? ' <span class="cb-sq-score">' + bestScore.toFixed(1) + '</span>' : "";
-        reason.innerHTML = matchLabel + ' \u00B7 <span class="cb-sq-best-link" id="cb-sq-best-link">Best so far:</span>' + scoreHtml +
+        var scanningHtml = ' <span class="cb-sq-scanning" id="cb-sq-scanning" style="display:none">&middot; scanning\u2026</span>';
+        reason.innerHTML = matchLabel + ' \u00B7 <span class="cb-sq-best-link" id="cb-sq-best-link">Best so far:</span>' + scoreHtml + scanningHtml +
           '<div class="cb-sq-dropdown" id="cb-sq-dropdown">' +
           '<div class="cb-sq-dropdown-title">Why \u201Cbest so far\u201D?</div>' +
           '<div class="cb-sq-dropdown-body">' +
@@ -2058,6 +2061,20 @@
       var label = shadow.getElementById("cb-recovery-label");
       if (label) label.style.display = "";
     }
+  }
+
+  /** Show the "scanning…" indicator on the surface-quality banner. */
+  function showScanningIndicator() {
+    if (!shadow) return;
+    var el = shadow.getElementById("cb-sq-scanning");
+    if (el) el.style.display = "";
+  }
+
+  /** Hide the "scanning…" indicator on the surface-quality banner. */
+  function hideScanningIndicator() {
+    if (!shadow) return;
+    var el = shadow.getElementById("cb-sq-scanning");
+    if (el) el.style.display = "none";
   }
 
   function resetPrescanState() {
@@ -3304,6 +3321,8 @@
     ".cb-sq-dropdown-open { display: block; }",
     ".cb-sq-dropdown-title { font-size: 11px; font-weight: 700; color: #93C5FD; margin-bottom: 6px; }",
     ".cb-sq-dropdown-body { font-size: 10px; color: #A0AEC0; line-height: 1.5; }",
+    // Scanning indicator
+    ".cb-sq-scanning { font-size: 10px; color: #6B7280; font-weight: 400; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
     "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
