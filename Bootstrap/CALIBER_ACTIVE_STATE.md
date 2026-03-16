@@ -63,6 +63,7 @@ All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regressi
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download, tightened spacing.
 - Pipeline board enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus.
 - Extension ZIP v0.8.9 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, BST surface-classification trigger, score color band lock, and fetch stability fixes.
+- Extension v0.9.14 shipped with: (1) guardrail removed from prescan badge scoring — raw scores flow into badge cache for BST/SMC evaluation; guardrail retained on sidecard path only. (2) `scoreSource` tagging on all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (3) `restored_cache` entries excluded from `strongCount`. (4) `lastScoredScore` reset on surface change to prevent stale sidecard score leak. (5) `[Caliber][SCORE_CAPPED]` diagnostic logging on guardrail function. (6) Per-entry surface-truth diagnostic logging with source breakdown.
 - Extension sidecard is compact, decision-first layout with:
   - Two-column header: company + job title (left), fit score + decision badge (right)
   - Hiring Reality Check (collapsible, with band badge)
@@ -70,6 +71,7 @@ All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regressi
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
 - Extension v0.8.9 built, zipped, and deployed.
+- Extension v0.9.14 built, zipped, and deployed (latest).
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
 - Strong-match contextual card (7.0+) renders above sidecard — triggers “Tailor resume for this job” workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
@@ -172,6 +174,7 @@ Do not re-sequence without new blocking evidence.
 4. **Calibration page** — stable launchpad, no further expansion planned
 
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
+- #76 Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (v0.9.14, 2026-03-16)
 - #48 Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
 - #44 Better Search Title trigger — **UPDATED** (surface-classification trigger v0.8.9, supersedes zero-strong-match window)
 - #60 Badge placement normalization — **SHIPPED** (27932b1)
@@ -223,4 +226,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-15 (BST surface-classification trigger + score color bands locked, extension v0.8.9)_
+_Last updated: 2026-03-16 (v0.9.14 — guardrail removed from prescan, scoreSource tracking, surface-truth diagnostics)_

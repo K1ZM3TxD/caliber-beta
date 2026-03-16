@@ -3,6 +3,14 @@
 
 ## Current Open Issues
 
+76. Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (2026-03-16)
+  - **Symptom:** On a real LinkedIn search surface, 21 out of 25 jobs scored exactly 5.0 during prescan. Only 1 scored above 6.0 (7.7). "Best so far" started at 7.1 and only updated to 7.7 at position 23.
+  - **Root cause:** `applyDomainMismatchGuardrail()` ran per-card during the badge prescan path. The 3-tier cap (HRC=Unlikely, role-family mismatch, cluster-vs-unclustered) flattened scores to 5.0 before BST/SMC could evaluate the full surface. BST saw a monotone 5.0 wall and could not distinguish genuinely weak jobs from guardrail-flattened ones. Surface quality metrics were destroyed before they could be used.
+  - **Fix (v0.9.14):** Removed `applyDomainMismatchGuardrail()` call from badge prescan scoring path entirely. Raw alignment scores now flow into `badgeScoreCache` for BST/SMC evaluation. Guardrail retained on sidecard `showResults()` path only — user sees the capped score when clicking a specific job, but surface-level intelligence uses uncapped scores. Added `[Caliber][SCORE_CAPPED]` diagnostic logging to guardrail function (rawScore, reason, jobTitle, calibrationTitle, clusters, keywordOverlap).
+  - **Additional v0.9.14 fixes in same commit:** (1) `scoreSource` field added to all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (2) `restored_cache` entries excluded from `strongCount` in `evaluateBSTFromBadgeCache`. (3) `lastScoredScore` reset on surface change to prevent stale sidecard score leak. (4) Per-entry surface-truth diagnostic logging with source breakdown.
+  - **Status:** Fix shipped (v0.9.14). Validated by user — scores now spread naturally across range instead of collapsing to 5.0.
+  - **Files:** `extension/content_linkedin.js`.
+
 75. Manual "Add to pipeline" creates no real entry — **FIX SHIPPED** (2026-03-16)
   - **Symptom:** Clicking manual "Add to pipeline" on 7.0–8.4 jobs appeared to succeed in the TRP UI but no entry was visible in /pipeline.
   - **Root cause:** `lastJobMeta.company` was empty string when LinkedIn DOM extraction failed at scoring time. The `CALIBER_PIPELINE_SAVE` handler in `background.js` sent `company: ""` to `POST /api/pipeline`, which returned 400 (`!company` is falsy). `background.js` forwarded `ok: false` but did NOT include `data.error` or HTTP status, so the content script logged `resp.error: undefined` — effectively a silent failure.
