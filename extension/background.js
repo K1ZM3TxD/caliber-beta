@@ -6,7 +6,7 @@ importScripts("env.js");
 const API_BASE = CALIBER_ENV.API_BASE;
 let resolvedBase = API_BASE;
 
-// Derive the Caliber origin from the API_BASE URL (e.g. "http://localhost:3000")
+// Derive the Caliber origin from the API_BASE URL (e.g. "https://www.caliber-app.com")
 const CALIBER_ORIGIN = new URL(API_BASE).origin;
 
 // ─── Proactive Session Handoff on Install/Startup ───────────

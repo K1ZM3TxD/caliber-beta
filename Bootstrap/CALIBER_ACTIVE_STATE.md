@@ -13,6 +13,8 @@ Beta remains defined by five core functional gates: (1) BST working, (2) sidecar
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
+**Extension Build Host Rule (2026-03-16):** Production extension source (`extension/`) is locked to `https://www.caliber-app.com`. No localhost references in env.js, manifest.json, or runtime code. Localhost is only allowed for explicitly declared dev builds. Violation = regression. See `CALIBER_EXECUTION_CONTRACT.md`.
+
 ## Active Systems Under Validation
 - **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing. Signal normalization layer converts raw tokens to professional labels. When user selects Yes, detected signals are mapped to scoring-vocabulary keywords via SIGNAL_SCORING_KEYWORDS dict; these become anchor boosts applied directly to the anchor weight map in generateTitleRecommendation (bypassing the normal weight-5 cap), plus a signal-affinity bonus adjusts title scores for signature-term overlap. Included signals are displayed on the calibration result page. **Scoring-vector influence verified** (Jen: 8.4→9.0 with YES).
 - **Surface Quality Banner** — BST slot shows "{count} strong matches · Best: {title} ({score})" using true page max score (not filtered max). Fixed in v0.9.7 (issue #73).

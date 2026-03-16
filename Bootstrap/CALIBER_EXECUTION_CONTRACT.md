@@ -14,7 +14,7 @@ Every coder task MUST declare exactly one build target:
 
 - **Coder may NOT touch files outside the declared target.** If an edit is needed outside scope, stop and escalate to PM.
 - **WEB_APP tasks:** `extension/` packaging, build, and manifest files are out of scope unless the task explicitly names them.
-- **EXTENSION tasks:** Testing and building must use the **current `extension/` folder** build only. Do not reference, build, or test against stale root-level zip artifacts or any artifact outside `extension/`. The canonical production host is `https://www.caliber-app.com`; dev host is `http://localhost:3000`. See `ENVIRONMENT_SPLIT.md`.
+- **EXTENSION tasks:** Testing and building must use the **current `extension/` folder** build only. Do not reference, build, or test against stale root-level zip artifacts or any artifact outside `extension/`. The canonical production host is `https://www.caliber-app.com`; dev host is `http://localhost:3000`. See `ENVIRONMENT_SPLIT.md` and the **Extension Build Host Rule** below. Production builds must NEVER contain localhost references in `env.js`, `manifest.json`, or any runtime code.
 - **DOCS_ONLY tasks:** No runtime code changes permitted.
 
 If a task omits the target declaration, PM must add it before handoff. Coder must reject any task that lacks a declared target.
@@ -105,7 +105,7 @@ Production stability comes first. Feature expansion is blocked until stable beta
 - Do not merge experimental scoring or extension changes into main without PM approval.
 - Production web app (`https://www.caliber-app.com`) must remain the stable beta build.
 
-## Environment Separation Rule (2026-03-08)
+## Environment Separation Rule (2026-03-08, hardened 2026-03-16)
 
 Production and development environments are hard-separated. No fallback between hosts.
 
@@ -114,6 +114,23 @@ Production and development environments are hard-separated. No fallback between 
 - No multi-host fallback arrays or endpoint discovery logic in extension code.
 - If any code change reintroduces cross-environment host permissions or fallback behavior, treat as a regression.
 - See `ENVIRONMENT_SPLIT.md` for operator instructions and build details.
+
+### Extension Build Host Rule (2026-03-16)
+
+> **Production extension builds must point to `https://www.caliber-app.com`.**
+> **Localhost endpoints are only allowed for explicitly declared development builds.**
+
+This applies to ALL extension artifacts shipped to users:
+- `extension/env.js` → `API_BASE` must be `https://www.caliber-app.com`
+- `extension/manifest.json` → `host_permissions` and `content_scripts[].matches` must reference `https://www.caliber-app.com/*`, not `http://localhost:*`
+- `extension/manifest.json` → `name` must not contain `[DEV]`
+
+**Enforcement:** Before any extension zip is built for distribution:
+1. Verify `extension/env.js` contains `API_BASE: "https://www.caliber-app.com"`
+2. Verify `extension/manifest.json` contains no `localhost` references
+3. If either check fails, fix before building the zip
+
+**Violation = regression.** Any production extension build containing localhost endpoints is a shipping defect.
 
 ## PM/Coder Sequencing Guardrail (2026-03-08)
 

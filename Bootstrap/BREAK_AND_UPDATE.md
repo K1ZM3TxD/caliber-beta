@@ -185,6 +185,39 @@ When the change lands, report:
 
 ---
 
+### 2026-03-16 — Extension Build Host Rule Hardened
+
+**What changed:**
+- Production extension (`extension/env.js`, `extension/manifest.json`) was shipping with `localhost:3000` as API host and content script target. This caused silent scoring failures when no local dev server was running — a false regression during live product validation.
+- `env.js` locked to `API_BASE: "https://www.caliber-app.com"`, `MODE: "production"`.
+- `manifest.json` updated: `host_permissions` and `content_scripts[].matches` reference `https://www.caliber-app.com/*`. Name changed from `[DEV]` to production.
+- `background.js` comment updated to reference production host.
+- Extension Build Host Rule added to `CALIBER_EXECUTION_CONTRACT.md` as an enforceable invariant with pre-build checklist.
+
+**Why it changed:**
+- Repeated developer workflow failure: extension built from source defaulted to localhost. Every reload cycle silently broke scoring. This was not a code bug — it was a build rule violation that wasn't enforced.
+
+**What is now expected:**
+- Production extension always calls `https://www.caliber-app.com`.
+- All files in `extension/` are production-ready as committed. No manual env switching required for distribution builds.
+- Any production extension build containing localhost endpoints is treated as a shipping defect (regression).
+
+**What is no longer expected:**
+- Extension source files in `extension/` defaulting to localhost for the committed/production build.
+- Needing to manually switch env.js before building the production zip.
+
+**Risk / fallout:**
+- Local development with `npm run dev` + extension requires reverting `env.js` to localhost. This is intentional — dev builds must be explicitly declared.
+
+**Proof:**
+- `extension/env.js` contains `API_BASE: "https://www.caliber-app.com"`.
+- `extension/manifest.json` contains zero localhost references.
+- `grep -r localhost extension/` returns zero runtime matches.
+
+**Files touched:** `extension/env.js`, `extension/manifest.json`, `extension/background.js`, `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`, `Bootstrap/CALIBER_ACTIVE_STATE.md`, `Bootstrap/BREAK_AND_UPDATE.md`.
+
+---
+
 ### 2026-03-15 — Desktop Stabilization & Beta Readiness Phase (Documentation Pass)
 
 **What changed:**
