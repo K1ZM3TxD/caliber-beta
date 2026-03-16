@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.11";
+  const PANEL_VERSION = "0.9.12";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -2805,7 +2805,14 @@
     if (stretchSection) stretchSection.style.display = "";
 
     // Bottom line (collapsible)
-    shadow.getElementById("cb-bottomline").textContent = data.bottom_line_2s || "";
+    var blEl = shadow.getElementById("cb-bottomline");
+    blEl.textContent = data.bottom_line_2s || "";
+    if (score < 8.5 && stretchItems.length === 0 && blEl.textContent) {
+      var limiterLine = document.createElement("span");
+      limiterLine.style.cssText = "display:block;margin-top:3px;color:#999;font-style:italic;";
+      limiterLine.textContent = "Score capped slightly by scope alignment.";
+      blEl.appendChild(limiterLine);
+    }
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = "";
 
