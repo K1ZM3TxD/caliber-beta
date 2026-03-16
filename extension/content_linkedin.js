@@ -2476,13 +2476,26 @@
   // BST recovery when the user's search yields clearly wrong-domain results.
   function applyDomainMismatchGuardrail(score, hrcBand, jobTitle, calibrationTitle) {
     var ceiling = SCORE_CEILING_OUT_OF_SCOPE;
+    var jobCluster = jobTitle ? getClusterForTitle(jobTitle) : null;
+    var calCluster = calibrationTitle ? getClusterForTitle(calibrationTitle) : null;
+
     if (hrcBand === "Unlikely" && score > ceiling) {
-      console.debug("[Caliber][diag][ceiling] HRC=Unlikely cap: " + score + " → " + ceiling);
+      console.warn("[Caliber][SCORE_CAPPED] rawScore=" + score + " → " + ceiling +
+        ", reason=HRC_UNLIKELY" +
+        ", jobTitle=\"" + (jobTitle || "") + "\"" +
+        ", calibrationTitle=\"" + (calibrationTitle || "") + "\"" +
+        ", jobCluster=" + (jobCluster || "none") +
+        ", calCluster=" + (calCluster || "none") +
+        ", hrcBand=" + hrcBand);
       return ceiling;
     }
     if (isRoleFamilyMismatch(jobTitle, calibrationTitle) && score > ceiling) {
-      console.debug("[Caliber][diag][ceiling] role-family mismatch cap: " + score + " → " + ceiling +
-        " (job: \"" + (jobTitle || "") + "\", cal: \"" + (calibrationTitle || "") + "\")");
+      console.warn("[Caliber][SCORE_CAPPED] rawScore=" + score + " → " + ceiling +
+        ", reason=ROLE_FAMILY_MISMATCH" +
+        ", jobTitle=\"" + (jobTitle || "") + "\"" +
+        ", calibrationTitle=\"" + (calibrationTitle || "") + "\"" +
+        ", jobCluster=" + (jobCluster || "none") +
+        ", calCluster=" + (calCluster || "none"));
       return ceiling;
     }
     // Tier 3: job title is in a known cluster but calibration title is NOT in
@@ -2490,8 +2503,6 @@
     // job="Bartender" (hospitality) + calTitle="Business Operations Designer"
     // (no cluster match). Without this, the guardrail silently passes 6-7 scores.
     if (calibrationTitle && jobTitle && score > ceiling) {
-      var jobCluster = getClusterForTitle(jobTitle);
-      var calCluster = getClusterForTitle(calibrationTitle);
       if (jobCluster && !calCluster) {
         var jWords = jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
         var cWords = calibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
@@ -2502,18 +2513,24 @@
           }
         }
         if (overlapCount === 0) {
-          console.debug("[Caliber][diag][ceiling] cluster-vs-unrecognised cap: " + score + " → " + ceiling +
-            " (job: \"" + jobTitle + "\" [" + jobCluster + "], cal: \"" + calibrationTitle + "\" [no cluster], 0 overlap)");
+          console.warn("[Caliber][SCORE_CAPPED] rawScore=" + score + " → " + ceiling +
+            ", reason=CLUSTER_VS_UNRECOGNISED" +
+            ", jobTitle=\"" + jobTitle + "\"" +
+            ", calibrationTitle=\"" + calibrationTitle + "\"" +
+            ", jobCluster=" + jobCluster +
+            ", calCluster=none" +
+            ", keywordOverlap=0" +
+            ", jobWords=[" + jWords.join(",") + "]" +
+            ", calWords=[" + cWords.join(",") + "]");
           return ceiling;
         }
       }
     }
     // Diagnostic: surface when guardrail can't evaluate due to missing context
     if (!calibrationTitle && score > ceiling) {
-      var diagJobCluster = jobTitle ? getClusterForTitle(jobTitle) : null;
-      if (diagJobCluster) {
+      if (jobCluster) {
         console.warn("[Caliber][diag][ceiling] GUARDRAIL GAP: job \"" + (jobTitle || "") +
-          "\" (cluster: " + diagJobCluster + ") scored " + score + " but no calibrationTitle available to compare — " +
+          "\" (cluster: " + jobCluster + ") scored " + score + " but no calibrationTitle available to compare — " +
           "score passes uncapped. lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\"");
       }
     }
