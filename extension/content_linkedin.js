@@ -2626,6 +2626,19 @@
       }
     });
 
+    // Direct surface-quality banner update: when the sidecard discovers a score
+    // higher than the current banner's best, update the banner immediately.
+    // This is defense-in-depth — the backfill also updates via evaluateBSTFromBadgeCache,
+    // but the direct path guarantees the banner reflects the true page max.
+    if (isSearchResultsPage() && prescanSurfaceBanner && score > prescanSurfaceBanner.bestScore) {
+      var sidecardDisplayTitle = sanitizeJobTitle(lastJobMeta.title || "");
+      var prevBest = prescanSurfaceBanner.bestScore;
+      showSurfaceQualityBanner(prescanSurfaceBanner.strongCount, sidecardDisplayTitle, score);
+      prescanSurfaceBanner = { strongCount: prescanSurfaceBanner.strongCount, bestTitle: sidecardDisplayTitle, bestScore: score };
+      console.debug("[Caliber][SurfaceBanner] DIRECT UPDATE from sidecard — new best: \"" +
+        sidecardDisplayTitle + "\" (" + score.toFixed(1) + "), prev best was " + prevBest.toFixed(1));
+    }
+
     // Backfill inline badge from sidecard score.
     // When a user clicks a job and the sidecard scores it, update the badge
     // cache and inject/update the badge on the corresponding list card.
@@ -2639,7 +2652,9 @@
         return;
       }
       console.debug("[Caliber][diag][backfill] sidecard scored " + sidecardJobId +
-        " (score=" + score + "), attempting badge backfill");
+        " (score=" + score + "), attempting badge backfill" +
+        ", cacheHadEntry=" + (!!badgeScoreCache[sidecardJobId]) +
+        (badgeScoreCache[sidecardJobId] ? " (was " + badgeScoreCache[sidecardJobId].score + ")" : ""));
       // Update badge cache
       badgeScoreCache[sidecardJobId] = {
         score: score,
