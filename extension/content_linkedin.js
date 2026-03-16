@@ -710,7 +710,7 @@
   var JOB_ID_ATTR = "data-caliber-job-id";
   var BADGE_STYLE_ID = "caliber-badge-css";
   var badgeScoredIds = new Set();        // job IDs already scored or in-flight
-  var badgeScoreCache = {};              // jobId → { score, calibrationTitle, nearbyRoles }
+  var badgeScoreCache = {};              // jobId → { score, calibrationTitle, nearbyRoles, scoreSource }
   var badgeCacheSurface = "";            // surface key the cache belongs to
   var badgeScrollAttached = false;
   var badgeScrollTimer = null;
@@ -1151,6 +1151,7 @@
                 title: sanitizeJobTitle(entry.title),
                 calibrationTitle: effectiveCalibTitle,
                 nearbyRoles: result.nearbyRoles || [],
+                scoreSource: "card_text_prescan",
               };
             }
           }
@@ -1409,7 +1410,12 @@
         pageMaxScore = entry.score;
         pageBestTitle = entry.title || "";
       }
-      if (entry.score >= BST_STRONG_MATCH_THRESHOLD) {
+      // GUARD: restored_cache entries (preserved sidecard scores from a prior
+      // prescan cycle) must NOT count toward strongCount. They are holdovers
+      // from before the current surface was freshly scored and would cause
+      // the banner to bootstrap with a stale "Best so far" score.
+      var isFreshEvidence = entry.scoreSource !== "restored_cache";
+      if (entry.score >= BST_STRONG_MATCH_THRESHOLD && isFreshEvidence) {
         strongCount++;
         if (entry.score > bestJobScore) {
           bestJobScore = entry.score;
@@ -1429,7 +1435,9 @@
     // Defense-in-depth: if the sidecard scored the selected job higher than
     // any badge-cached entry, use it as the true page max. Handles edge cases
     // where the sidecard entry was pruned (card scrolled off) or timing gaps.
-    if (lastScoredScore > pageMaxScore) {
+    // GUARD: only elevate if the sidecard score is from the CURRENT surface
+    // (lastScoredScore is reset to 0 on surface change, so >0 implies current).
+    if (lastScoredScore > 0 && lastScoredScore > pageMaxScore) {
       pageMaxScore = lastScoredScore;
       pageBestTitle = sanitizeJobTitle(lastJobMeta.title || "");
       if (lastScoredScore >= BST_STRONG_MATCH_THRESHOLD) {
@@ -1563,6 +1571,20 @@
     console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
     console.debug("[Caliber][BST]   badgesVisible: " + BADGES_VISIBLE);
     // ── Surface-truth diagnostic (issue #73) ──
+    // Log score source for every current-surface cache entry
+    var sourceBreakdown = { sidecard_full: 0, card_text_prescan: 0, restored_cache: 0, unknown: 0 };
+    for (var stIdx = 0; stIdx < urls.length; stIdx++) {
+      var stEntry = badgeScoreCache[urls[stIdx]];
+      var src = stEntry.scoreSource || "unknown";
+      if (sourceBreakdown.hasOwnProperty(src)) sourceBreakdown[src]++;
+      else sourceBreakdown.unknown++;
+      console.debug("[Caliber][BST][surface-truth][entry] id=" + urls[stIdx] +
+        ", score=" + stEntry.score.toFixed(1) +
+        ", scoreSource=" + src +
+        ", sidecard=" + (!!stEntry.sidecard) +
+        ", title=\"" + (stEntry.title || "") + "\"");
+    }
+    console.debug("[Caliber][BST][surface-truth] sourceBreakdown: " + JSON.stringify(sourceBreakdown));
     console.debug("[Caliber][BST][surface-truth] strongCount=" + strongCount +
       ", pageMaxScore=" + pageMaxScore.toFixed(1) +
       ", pageBestTitle=\"" + pageBestTitle + "\"" +
@@ -1859,6 +1881,8 @@
     badgeScoredIds.clear();
     badgeScoreCache = {};
     badgeCacheSurface = "";
+    // Reset sidecard score so stale values don't leak across surfaces
+    lastScoredScore = 0;
     badgeBatchQueue = [];
     badgeBatchRunning = false;
     badgeBatchStartTime = 0;
@@ -2018,13 +2042,20 @@
     // full job description and are higher fidelity than card-text badges.
     // Race fix: sidecard can finish before runSearchPrescan fires (t+2s),
     // so a full wipe would lose the high-fidelity score (e.g. 8.8 → 7.1).
+    // Mark preserved entries with restored_cache source so BST evaluation
+    // knows they are holdovers, not fresh-surface evidence.
     var preservedSidecard = {};
     for (var scKey in badgeScoreCache) {
-      if (badgeScoreCache[scKey].sidecard) preservedSidecard[scKey] = badgeScoreCache[scKey];
+      if (badgeScoreCache[scKey].sidecard) {
+        preservedSidecard[scKey] = Object.assign({}, badgeScoreCache[scKey], { scoreSource: "restored_cache" });
+      }
     }
     badgeScoredIds.clear();
     badgeScoreCache = preservedSidecard;
     for (var psKey in preservedSidecard) badgeScoredIds.add(psKey);
+    // Reset lastScoredScore so a stale sidecard score from a previous
+    // job/surface cannot leak into BST evaluation on the new surface.
+    lastScoredScore = 0;
     badgeCacheSurface = surfaceKey;
     badgeBatchQueue = [];
     badgeBatchGeneration++;
@@ -2940,10 +2971,31 @@
         console.debug("[Caliber][diag][backfill] no job ID in URL, skipping backfill");
         return;
       }
+      var priorEntry = badgeScoreCache[sidecardJobId];
       console.debug("[Caliber][diag][backfill] sidecard scored " + sidecardJobId +
         " (score=" + score + "), attempting badge backfill" +
-        ", cacheHadEntry=" + (!!badgeScoreCache[sidecardJobId]) +
-        (badgeScoreCache[sidecardJobId] ? " (was " + badgeScoreCache[sidecardJobId].score + ")" : ""));
+        ", cacheHadEntry=" + (!!priorEntry) +
+        (priorEntry ? " (was " + priorEntry.score + ", source=" + (priorEntry.scoreSource || "unknown") + ")" : ""));
+      // Surface-truth comparison: log when sidecard full-description score
+      // diverges from the card-text prescan score for the same listing.
+      if (priorEntry && priorEntry.scoreSource === "card_text_prescan") {
+        var delta = score - priorEntry.score;
+        console.debug("[Caliber][surface-truth][compare] " + sidecardJobId +
+          " — sidecard_full=" + score.toFixed(1) +
+          ", card_text_prescan=" + priorEntry.score.toFixed(1) +
+          ", delta=" + (delta >= 0 ? "+" : "") + delta.toFixed(1) +
+          ", title=\"" + (priorEntry.title || "") + "\"");
+        if (Math.abs(delta) >= 1.0) {
+          console.warn("[Caliber][surface-truth][DIVERGENCE] " + sidecardJobId +
+            " — significant score difference (|" + Math.abs(delta).toFixed(1) + "|≥1.0)" +
+            " between sidecard_full (" + score.toFixed(1) + ")" +
+            " and card_text_prescan (" + priorEntry.score.toFixed(1) + ")");
+        }
+      } else if (priorEntry && priorEntry.scoreSource === "restored_cache") {
+        console.debug("[Caliber][surface-truth][compare] " + sidecardJobId +
+          " — sidecard_full=" + score.toFixed(1) +
+          " replacing restored_cache=" + priorEntry.score.toFixed(1));
+      }
       // Update badge cache — mark as sidecard-authoritative so badge scoring
       // callbacks (which may arrive late) can never overwrite with a stale card-text score.
       badgeScoreCache[sidecardJobId] = {
@@ -2952,6 +3004,7 @@
         calibrationTitle: data.calibration_title || "",
         nearbyRoles: data.nearby_roles || [],
         sidecard: true,
+        scoreSource: "sidecard_full",
       };
       // Find the card in the list — first try data-attribute lookup (O(1))
       var cardEl = findCardById(sidecardJobId);
