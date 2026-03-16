@@ -41,6 +41,7 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [ ] Score band labels render correctly across all score ranges
 
 IMPLEMENTATION LOG:
+- 2026-03-16: BREAK+UPDATE — SMC stale boot state + manual Add-to-pipeline write fix. (1) prescanSurfaceBanner no longer rehydrated from durable state on init — SMC renders only from fresh scoring. (2) Manual & auto-add pipeline paths re-extract DOM meta at action time with sentinel fallbacks, preventing API 400 on empty company. (3) background.js forwards error/httpStatus in CALIBER_PIPELINE_SAVE response. (4) chrome.runtime.lastError checked in both save handlers. DONE: SMC stale-state fix shipped (v0.9.10). Pipeline write fix ready. BLOCKED: validation pending with Jen profile. NEXT: validate manual add creates entry in /pipeline; validate fresh surface shows no stale SMC score. Files: `extension/content_linkedin.js`, `extension/background.js`.
 - 2026-03-15: SGD anchor-boost injection — two-layer approach: anchorBoosts map (bypass weight cap) + signal-affinity bonus (+0.25/req, +0.15/opt, cap 1.2). Jen: score 8.4→9.0, candidates shifted. Result page shows included signals. Yes/No buttons centered. Files: `lib/calibration_machine.ts`, `lib/title_scoring.ts`, `app/calibration/page.tsx`.
 
 ---

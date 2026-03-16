@@ -3,6 +3,21 @@
 
 ## Current Open Issues
 
+75. Manual "Add to pipeline" creates no real entry — **FIX SHIPPED** (2026-03-16)
+  - **Symptom:** Clicking manual "Add to pipeline" on 7.0–8.4 jobs appeared to succeed in the TRP UI but no entry was visible in /pipeline.
+  - **Root cause:** `lastJobMeta.company` was empty string when LinkedIn DOM extraction failed at scoring time. The `CALIBER_PIPELINE_SAVE` handler in `background.js` sent `company: ""` to `POST /api/pipeline`, which returned 400 (`!company` is falsy). `background.js` forwarded `ok: false` but did NOT include `data.error` or HTTP status, so the content script logged `resp.error: undefined` — effectively a silent failure.
+  - **Fix:** (1) Both manual and auto-add paths now re-extract job metadata from DOM at action time via `extractJobMeta()` and fall back to sentinel values ("Untitled Position", "Unknown Company"). (2) `background.js` now forwards `error` and `httpStatus` in the `CALIBER_PIPELINE_SAVE` response. (3) Both handlers check `chrome.runtime.lastError` for messaging failures. (4) Pre-send diagnostic logging added: title, company, URL, score.
+  - **Status:** Fix shipped. Validation pending with Jen regression profile.
+  - **Files:** `extension/content_linkedin.js`, `extension/background.js`.
+
+74. SMC stale boot state on fresh search surfaces — **FIX SHIPPED** (2026-03-16)
+  - **Symptom:** Surface Quality Banner (SMC) initialized with stale best score (7.1) on fresh search surfaces even after v0.9.9 cache-reset fixes.
+  - **Root cause:** Durable prescan state restore (`CALIBER_PRESCAN_STATE_GET`) was rehydrating `prescanSurfaceBanner` from storage on script init. When the surface key matched, the old `bestScore` was restored before fresh scoring could override it.
+  - **Fix (v0.9.10):** Removed `prescanSurfaceBanner = resp.state.surfaceBanner || null` from the durable restore path. SMC now renders only from fresh current-surface scoring. BST restore fields (`prescanBSTActive`, `prescanStoredTitle`) are unaffected.
+  - **Prior related fixes:** v0.9.9 addressed cache-reset gaps (clearAllBadges, DOM-presence pruning, prescan cache clear, race condition). This fix addresses the remaining durable-state restore vector.
+  - **Status:** Fix shipped (v0.9.10). Validation pending.
+  - **Files:** `extension/content_linkedin.js`.
+
 73. BST surface-truth and self-suggestion bugs — **SHIPPED** (2026-03-16)
   - **Symptom (3 defects from Jen validation):**
     1. Surface Quality Banner/SM reported "best result 7.1" when true page max was 8.8 — `bestJobScore`/`bestJobTitle` only tracked highest among strong matches (≥7.0), not true page max.

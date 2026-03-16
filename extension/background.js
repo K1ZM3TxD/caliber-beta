@@ -203,7 +203,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           signal: AbortSignal.timeout(5000),
         });
         const data = await resp.json();
-        sendResponse({ ok: !!data.ok, entry: data.entry || null, alreadyExists: !!data.entry && !!data.entry.createdAt });
+        console.debug("[Caliber][bg][pipeline] save response — http=" + resp.status + ", ok=" + !!data.ok +
+          (data.error ? ", error=" + data.error : "") +
+          ", jobTitle=\"" + String(msg.jobTitle || "").slice(0, 40) + "\"");
+        sendResponse({ ok: !!data.ok, entry: data.entry || null, alreadyExists: !!data.entry && !!data.entry.createdAt, error: data.error || null, httpStatus: resp.status });
       } catch (err) {
         sendResponse({ ok: false, error: err.message });
       }

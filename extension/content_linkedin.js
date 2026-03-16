@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.10";
+  const PANEL_VERSION = "0.9.11";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -2283,27 +2283,42 @@
     shadow.getElementById("cb-pipeline-add-btn").addEventListener("click", function () {
       var addBtn = shadow.getElementById("cb-pipeline-add-btn");
       if (addBtn) { addBtn.textContent = "Adding\u2026"; addBtn.disabled = true; }
+      // Re-extract meta in case DOM was not ready at score time
+      var freshMeta = extractJobMeta();
+      var saveTitle = lastJobMeta.title || freshMeta.title || "Untitled Position";
+      var saveCompany = lastJobMeta.company || freshMeta.company || "Unknown Company";
+      var saveUrl = location.href;
+      var saveScore = lastScoredScore || 0;
+      console.debug("[Caliber][TRP] manual pipeline save started — title=\"" + saveTitle +
+        "\", company=\"" + saveCompany + "\", url=" + saveUrl + ", score=" + saveScore);
       chrome.runtime.sendMessage({
         type: "CALIBER_PIPELINE_SAVE",
-        jobTitle: lastJobMeta.title || "",
-        company: lastJobMeta.company || "",
-        jobUrl: location.href,
-        score: lastScoredScore || 0,
+        jobTitle: saveTitle,
+        company: saveCompany,
+        jobUrl: saveUrl,
+        score: saveScore,
       }, function (resp) {
+        if (chrome.runtime.lastError) {
+          if (addBtn) { addBtn.textContent = "Add to pipeline"; addBtn.disabled = false; }
+          console.warn("[Caliber][TRP] manual pipeline save — messaging error:", chrome.runtime.lastError.message);
+          return;
+        }
         if (resp && resp.ok) {
           updateTRPPipelineState("in-pipeline");
-          console.debug("[Caliber][TRP] manual add to pipeline succeeded");
+          console.debug("[Caliber][TRP] manual pipeline save succeeded — id=" + (resp.entry && resp.entry.id));
           emitTelemetry("pipeline_save", {
             surfaceKey: getSearchSurfaceKey(),
-            jobTitle: lastJobMeta.title || null,
-            company: lastJobMeta.company || null,
-            jobUrl: location.href,
-            score: lastScoredScore || 0,
+            jobTitle: saveTitle || null,
+            company: saveCompany || null,
+            jobUrl: saveUrl,
+            score: saveScore,
             trigger: "manual_trp",
           });
         } else {
           if (addBtn) { addBtn.textContent = "Add to pipeline"; addBtn.disabled = false; }
-          console.warn("[Caliber][TRP] manual add to pipeline failed:", resp && resp.error);
+          console.warn("[Caliber][TRP] manual pipeline save failed — error=" +
+            (resp && resp.error || "unknown") + ", http=" + (resp && resp.httpStatus || "?") +
+            ", title=\"" + saveTitle + "\", company=\"" + saveCompany + "\"");
         }
       });
     });
@@ -2968,28 +2983,38 @@
     // Auto-save strong-match jobs to pipeline silently
     // Uses PIPELINE_AUTO_SAVE_THRESHOLD (8.5), distinct from BST threshold (8.0)
     if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
+      var autoTitle = lastJobMeta.title || extractJobMeta().title || "Untitled Position";
+      var autoCompany = lastJobMeta.company || extractJobMeta().company || "Unknown Company";
+      console.debug("[Caliber][TRP] auto-save pipeline started — title=\"" + autoTitle +
+        "\", company=\"" + autoCompany + "\", score=" + score);
       chrome.runtime.sendMessage(
         {
           type: "CALIBER_PIPELINE_SAVE",
-          jobTitle: lastJobMeta.title || "",
-          company: lastJobMeta.company || "",
+          jobTitle: autoTitle,
+          company: autoCompany,
           jobUrl: location.href,
           score: score,
         },
         function (resp) {
+          if (chrome.runtime.lastError) {
+            console.warn("[Caliber][TRP] auto-save pipeline — messaging error:", chrome.runtime.lastError.message);
+            updateTRPPipelineState("add");
+            return;
+          }
           if (resp && resp.ok) {
-            console.debug("[Caliber] auto-saved strong match to pipeline (score=" + score + ")");
+            console.debug("[Caliber][TRP] auto-save pipeline succeeded — id=" + (resp.entry && resp.entry.id) + ", score=" + score);
             updateTRPPipelineState("auto-added");
             // Telemetry: pipeline_save from auto-save
             emitTelemetry("pipeline_save", {
               surfaceKey: getSearchSurfaceKey(),
-              jobTitle: lastJobMeta.title || null,
-              company: lastJobMeta.company || null,
+              jobTitle: autoTitle || null,
+              company: autoCompany || null,
               jobUrl: location.href,
               score: score,
             });
           } else {
-            console.debug("[Caliber] auto-save skipped or failed:", resp && resp.error);
+            console.warn("[Caliber][TRP] auto-save pipeline failed — error=" +
+              (resp && resp.error || "unknown") + ", http=" + (resp && resp.httpStatus || "?"));
             // Fall back to manual add button if auto-save fails
             updateTRPPipelineState("add");
           }

@@ -79,6 +79,52 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-16 — SMC Stale Boot State + Manual Add-to-Pipeline Write Fix
+
+**What changed:**
+1. **SMC stale boot state eliminated.** `prescanSurfaceBanner` is no longer rehydrated from durable prescan state on script init. The `CALIBER_PRESCAN_STATE_GET` restore path now skips the `surfaceBanner` field entirely. SMC renders only from fresh current-surface scoring.
+2. **Manual "Add to pipeline" now creates real entries.** Both manual and auto-add pipeline paths re-extract job metadata from the DOM at action time and fall back to sentinel values ("Untitled Position", "Unknown Company") when LinkedIn DOM selectors fail. This prevents the API's `!company` / `!jobTitle` 400 rejection that was silently swallowing saves.
+3. **Background relay now forwards error details.** `CALIBER_PIPELINE_SAVE` response in `background.js` now includes `error` and `httpStatus` fields so content script can log actionable failure diagnostics.
+4. **`chrome.runtime.lastError` checked.** Both manual and auto-add handlers now check for messaging failures before inspecting the response.
+
+**Why it changed:**
+- Live Jen regression testing showed two distinct regressions during Desktop Stabilization:
+  - SMC repeatedly initialized with stale 7.1 best score on fresh search surfaces despite v0.9.9 cache-reset fixes — root cause was durable prescan state rehydrating `prescanSurfaceBanner` on init.
+  - Manual "Add to pipeline" click produced no entry in /pipeline — root cause was empty `company` field from failed DOM extraction, causing the API to return 400, which `background.js` forwarded as `ok: false` without the error message.
+
+**What is now expected:**
+- Fresh search surfaces start with no SMC banner. "Best so far" appears only after fresh current-surface scores exist.
+- Manual "Add to pipeline" (7.0–8.4) creates a real pipeline entry visible in /pipeline.
+- Auto-add (≥8.5) continues creating real pipeline entries.
+- TRP switches to saved state only after confirmed write success.
+- Pipeline dedupe remains intact.
+- BST restore (`prescanBSTActive`, `prescanStoredTitle`) is unaffected.
+
+**What is no longer expected:**
+- SMC showing a carried-over numeric best score on fresh search surfaces.
+- Manual pipeline add silently failing with no console diagnostics.
+- Pipeline save attempts sending empty company/title strings.
+
+**Risk / fallout:**
+- Low. SMC change is a single line removal in the restore path. Pipeline fix adds DOM re-extraction + sentinel fallbacks — no API or store changes.
+- Sentinel values ("Untitled Position", "Unknown Company") will appear in /pipeline if DOM extraction truly fails, but this is preferable to silent write failure.
+
+**Proof:**
+- Reload/re-run same search: no stale numeric default shown.
+- Manual add creates real entry in /pipeline.
+- Auto-add at ≥8.5 still creates entry.
+- Console logs show `[Caliber][TRP] manual pipeline save started` / `succeeded` with entry ID.
+
+**Files touched:**
+- `extension/content_linkedin.js`
+- `extension/background.js`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+- `Bootstrap/milestones.md`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+
+---
+
 ### 2026-03-15 — BST Initial Surface Gating (Premature Banner Fix)
 
 **What changed:**
