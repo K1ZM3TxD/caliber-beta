@@ -1067,14 +1067,24 @@
             console.debug("[Caliber][session][diag] scoring result missing calibrationTitle — " +
               "using cached fallback: \"" + lastKnownCalibrationTitle + "\"");
           }
-          // Cache the score by job ID
+          // Cache the score by job ID.
+          // Guard: never overwrite a sidecard-scored entry — the sidecard uses
+          // the full job description and is always the authoritative score.
+          // Late-arriving badge responses must not downgrade a sidecard score.
           if (entry.id) {
-            badgeScoreCache[entry.id] = {
-              score: badgeScore,
-              title: sanitizeJobTitle(entry.title),
-              calibrationTitle: effectiveCalibTitle,
-              nearbyRoles: result.nearbyRoles || [],
-            };
+            var existingEntry = badgeScoreCache[entry.id];
+            if (existingEntry && existingEntry.sidecard) {
+              console.debug("[Caliber][diag][score] skipping cache write for " + entry.id +
+                " — sidecard-authoritative entry exists (sidecard=" + existingEntry.score +
+                ", badge=" + badgeScore + ")");
+            } else {
+              badgeScoreCache[entry.id] = {
+                score: badgeScore,
+                title: sanitizeJobTitle(entry.title),
+                calibrationTitle: effectiveCalibTitle,
+                nearbyRoles: result.nearbyRoles || [],
+              };
+            }
           }
           // Re-find the card by job ID (O(1) via data attribute, survives DOM mutation)
           var cardEl = entry.id ? findCardById(entry.id) : null;
@@ -2655,12 +2665,14 @@
         " (score=" + score + "), attempting badge backfill" +
         ", cacheHadEntry=" + (!!badgeScoreCache[sidecardJobId]) +
         (badgeScoreCache[sidecardJobId] ? " (was " + badgeScoreCache[sidecardJobId].score + ")" : ""));
-      // Update badge cache
+      // Update badge cache — mark as sidecard-authoritative so badge scoring
+      // callbacks (which may arrive late) can never overwrite with a stale card-text score.
       badgeScoreCache[sidecardJobId] = {
         score: score,
         title: sanitizeJobTitle(lastJobMeta.title),
         calibrationTitle: data.calibration_title || "",
         nearbyRoles: data.nearby_roles || [],
+        sidecard: true,
       };
       // Find the card in the list — first try data-attribute lookup (O(1))
       var cardEl = findCardById(sidecardJobId);
