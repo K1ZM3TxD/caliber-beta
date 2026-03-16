@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.7";
+  const PANEL_VERSION = "0.9.8";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -726,6 +726,50 @@
   var bstSuggestedTitles = {};           // session memory: titles already suggested (normalized→true)
   var bstSearchedQueries = {};           // session memory: queries the user has searched (normalized→true)
   var initialSurfaceResolved = false;    // true once initial visible-card scoring pass completes
+
+  // ─── Surface Diagnostic Log (validation only) ─────────────
+  // Captures identity of scored jobs per search surface for diagnostic validation.
+  // Capped at SURFACE_DIAG_MAX entries per surface. Written to console.debug only.
+  var SURFACE_DIAG_MAX = 15;
+  var surfaceDiagEntries = [];           // { query, jobId, jobTitle, company, score, positionIndex, timestamp }
+  var surfaceDiagSurface = "";           // surface key the log belongs to
+
+  /**
+   * Record a scored job identity to the surface diagnostic log.
+   * Logs to console.debug only — no UI impact.
+   * @param {string} trigger - "initial" or "scroll" indicating capture context
+   */
+  function logSurfaceDiagEntry(jobId, jobTitle, company, score, positionIndex, trigger) {
+    var currentSurface = getSearchSurfaceKey();
+    // Reset log on surface change
+    if (surfaceDiagSurface !== currentSurface) {
+      surfaceDiagEntries = [];
+      surfaceDiagSurface = currentSurface;
+    }
+    if (surfaceDiagEntries.length >= SURFACE_DIAG_MAX) return;
+    var entry = {
+      query: getSearchKeywords(),
+      jobId: jobId || "",
+      jobTitle: jobTitle || "",
+      company: company || "",
+      score: score,
+      positionIndex: positionIndex,
+      timestamp: new Date().toISOString(),
+    };
+    surfaceDiagEntries.push(entry);
+    console.debug("[Caliber][surface-diag][" + trigger + "] captured #" + surfaceDiagEntries.length +
+      "/" + SURFACE_DIAG_MAX + ": " + JSON.stringify(entry));
+  }
+
+  /** Flush the full surface diagnostic snapshot to console. */
+  function flushSurfaceDiagLog(trigger) {
+    if (surfaceDiagEntries.length === 0) return;
+    console.debug("[Caliber][surface-diag][" + trigger + "] ── snapshot (" +
+      surfaceDiagEntries.length + " jobs) ──");
+    console.debug("[Caliber][surface-diag][" + trigger + "] " +
+      JSON.stringify(surfaceDiagEntries));
+  }
+
   var BADGE_CHUNK_SIZE = 5;             // score N cards per API batch
   var BADGE_BATCH_TIMEOUT_MS = 15000;   // max time to wait for a batch response
 
@@ -744,6 +788,28 @@
     "[class*='entity-lockup__content']",
     "[class*='job-card'] [class*='company']",
   ];
+
+  // Card-level company name selectors (search result cards, not detail top-card)
+  var CARD_COMPANY_SELECTORS = [
+    ".job-card-container__primary-description",
+    ".artdeco-entity-lockup__subtitle span",
+    ".artdeco-entity-lockup__subtitle",
+    "[class*='job-card'] [class*='primary-description']",
+    "[class*='job-card'] [class*='company-name']",
+    "[class*='entity-lockup__subtitle']",
+  ];
+
+  /** Extract company name from a search-result card element. */
+  function extractCardCompany(cardEl) {
+    for (var i = 0; i < CARD_COMPANY_SELECTORS.length; i++) {
+      var el = cardEl.querySelector(CARD_COMPANY_SELECTORS[i]);
+      if (el) {
+        var t = (el.textContent || "").trim();
+        if (t.length > 1 && t.length < 150) return t;
+      }
+    }
+    return "";
+  }
 
   /** Inject badge CSS into the LinkedIn page (outside shadow DOM). */
   function ensureBadgeStyles() {
@@ -1094,6 +1160,15 @@
           console.debug("[Caliber][diag][score] completed: " + entry.title + " → " + badgeScore +
             (rawBadgeScore !== badgeScore ? " (raw: " + rawBadgeScore + ", capped)" : "") +
             (entry.id ? " (" + entry.id + ")" : ""));
+          // Surface diagnostic: capture scored job identity
+          logSurfaceDiagEntry(
+            entry.id,
+            sanitizeJobTitle(entry.title),
+            entry.company || "",
+            badgeScore,
+            typeof entry.positionIndex === "number" ? entry.positionIndex : -1,
+            initialSurfaceResolved ? "scroll" : "initial"
+          );
           // Telemetry: badge score rendered on card
           emitTelemetry("job_score_rendered", {
             surfaceKey: getSearchSurfaceKey(),
@@ -1206,10 +1281,15 @@
       // Inject loading placeholder immediately
       setBadgeOnCard(card, "loading", 0);
 
+      // Extract company for diagnostic logging
+      var companyText = extractCardCompany(card);
+
       toQueue.push({
         id: id,
         jobText: cardText,
         title: titleText,
+        company: companyText,
+        positionIndex: allCards.indexOf(card),
       });
     }
 
@@ -1277,6 +1357,8 @@
       // Queue is drained — initial pass complete, resolve the surface
       initialSurfaceResolved = true;
       console.debug("[Caliber][BST] initial surface resolved (" + urls.length + " scores) — proceeding with first evaluation");
+      // Flush diagnostic snapshot of the initial surface
+      flushSurfaceDiagLog("initial-resolve");
     }
 
     var surfaceKey = getSearchSurfaceKey();
@@ -1756,6 +1838,9 @@
     badgeBatchRunning = false;
     badgeBatchStartTime = 0;
     badgeBatchGeneration++;  // invalidate any in-flight batch responses
+    // Reset surface diagnostic log on surface change
+    surfaceDiagEntries = [];
+    surfaceDiagSurface = "";
     badgeInjecting = true;
     var badges = document.querySelectorAll("[" + BADGE_ATTR + "]");
     for (var i = 0; i < badges.length; i++) badges[i].remove();
@@ -2167,10 +2252,39 @@
       });
     });
 
-    // Wire pipeline link in tailor banner
-    shadow.getElementById("cb-tailor-pipeline").addEventListener("click", function (e) {
+    // Wire "View pipeline" link in TRP secondary row
+    shadow.getElementById("cb-pipeline-view").addEventListener("click", function (e) {
       e.preventDefault();
       chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+    });
+
+    // Wire "Add to pipeline" button in TRP secondary row
+    shadow.getElementById("cb-pipeline-add-btn").addEventListener("click", function () {
+      var addBtn = shadow.getElementById("cb-pipeline-add-btn");
+      if (addBtn) { addBtn.textContent = "Adding\u2026"; addBtn.disabled = true; }
+      chrome.runtime.sendMessage({
+        type: "CALIBER_PIPELINE_SAVE",
+        jobTitle: lastJobMeta.title || "",
+        company: lastJobMeta.company || "",
+        jobUrl: location.href,
+        score: lastScoredScore || 0,
+      }, function (resp) {
+        if (resp && resp.ok) {
+          updateTRPPipelineState("in-pipeline");
+          console.debug("[Caliber][TRP] manual add to pipeline succeeded");
+          emitTelemetry("pipeline_save", {
+            surfaceKey: getSearchSurfaceKey(),
+            jobTitle: lastJobMeta.title || null,
+            company: lastJobMeta.company || null,
+            jobUrl: location.href,
+            score: lastScoredScore || 0,
+            trigger: "manual_trp",
+          });
+        } else {
+          if (addBtn) { addBtn.textContent = "Add to pipeline"; addBtn.disabled = false; }
+          console.warn("[Caliber][TRP] manual add to pipeline failed:", resp && resp.error);
+        }
+      });
     });
 
     // Wire tailor banner button
@@ -2187,8 +2301,6 @@
       }, function (resp) {
         if (resp && resp.ok) {
           if (btn) btn.textContent = "Opened \u2713";
-          var pipeLink = shadow.getElementById("cb-tailor-pipeline");
-          if (pipeLink) pipeLink.style.display = "";
         } else {
           if (btn) { btn.textContent = "Tailor resume for this job \u2192"; btn.disabled = false; }
           console.warn("[Caliber] Tailor prepare failed:", resp && resp.error);
@@ -2214,6 +2326,43 @@
     if (panelHost && panelHost.parentNode) panelHost.parentNode.removeChild(panelHost);
     panelHost = null;
     shadow = null;
+  }
+
+  /**
+   * Swap the TRP secondary action state.
+   * @param {"hidden"|"add"|"in-pipeline"|"auto-added"} state
+   *   hidden     — no secondary action shown
+   *   add        — "Add to pipeline" button (score 7.0–8.4, not yet added)
+   *   in-pipeline — "✓ In pipeline" + "View pipeline →" (manual add or returning)
+   *   auto-added — "✓ Added to pipeline" + "View pipeline →" (score >= 8.5)
+   */
+  function updateTRPPipelineState(state) {
+    if (!shadow) return;
+    var addBtn = shadow.getElementById("cb-pipeline-add-btn");
+    var statusEl = shadow.getElementById("cb-pipeline-status");
+    var viewLink = shadow.getElementById("cb-pipeline-view");
+    if (!addBtn || !statusEl || !viewLink) return;
+
+    // Reset all to hidden
+    addBtn.style.display = "none";
+    addBtn.disabled = false;
+    addBtn.textContent = "Add to pipeline";
+    statusEl.style.display = "none";
+    statusEl.textContent = "";
+    viewLink.style.display = "none";
+
+    if (state === "add") {
+      addBtn.style.display = "";
+    } else if (state === "in-pipeline") {
+      statusEl.textContent = "\u2713 In pipeline";
+      statusEl.style.display = "";
+      viewLink.style.display = "";
+    } else if (state === "auto-added") {
+      statusEl.textContent = "\u2713 Added to pipeline";
+      statusEl.style.display = "";
+      viewLink.style.display = "";
+    }
+    // "hidden" — everything stays hidden (default reset)
   }
 
   // ─── Decision Label ───────────────────────────────────────
@@ -2650,25 +2799,29 @@
       }
     }
 
-    // Tailor Resume banner (above sidecard, 7.0+ only, suppressed if already in pipeline)
+    // Tailor Resume Pipeline card (above sidecard, 7.0+ only)
     var tailorBanner = shadow.getElementById("cb-tailor-banner");
     if (tailorBanner) {
       if (score >= 7.0) {
         // Reset banner to default state for the new job
         var tailorBtn = shadow.getElementById("cb-tailor-btn");
-        var pipelineLink = shadow.getElementById("cb-tailor-pipeline");
         if (tailorBtn) { tailorBtn.textContent = "Tailor resume for this job \u2192"; tailorBtn.disabled = false; }
-        if (pipelineLink) pipelineLink.style.display = "none";
-        // Check pipeline membership before showing CTA
-        tailorBanner.style.display = "none";
+        // Reset secondary action to blank before pipeline check resolves
+        updateTRPPipelineState("hidden");
+        tailorBanner.style.display = "";
+        // Check pipeline membership to set secondary action state
         chrome.runtime.sendMessage(
           { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
           function (resp) {
             if (resp && resp.exists) {
-              console.debug("[Caliber] job already in pipeline, suppressing tailor CTA");
-              tailorBanner.style.display = "none";
+              console.debug("[Caliber][TRP] job already in pipeline");
+              updateTRPPipelineState("in-pipeline");
+            } else if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
+              // Auto-add will handle this — state set in auto-save callback
+              console.debug("[Caliber][TRP] score >= " + PIPELINE_AUTO_SAVE_THRESHOLD + ", auto-add pending");
             } else {
-              tailorBanner.style.display = "";
+              // 7.0 – 8.4: show manual add button
+              updateTRPPipelineState("add");
             }
           }
         );
@@ -2805,6 +2958,7 @@
         function (resp) {
           if (resp && resp.ok) {
             console.debug("[Caliber] auto-saved strong match to pipeline (score=" + score + ")");
+            updateTRPPipelineState("auto-added");
             // Telemetry: pipeline_save from auto-save
             emitTelemetry("pipeline_save", {
               surfaceKey: getSearchSurfaceKey(),
@@ -2815,6 +2969,8 @@
             });
           } else {
             console.debug("[Caliber] auto-save skipped or failed:", resp && resp.error);
+            // Fall back to manual add button if auto-save fails
+            updateTRPPipelineState("add");
           }
         }
       );
@@ -3144,7 +3300,11 @@
     '    <div class="cb-tailor-label">Strong match</div>',
     '    <div class="cb-tailor-actions">',
     '      <button id="cb-tailor-btn" class="cb-tailor-link">Tailor resume for this job \u2192</button>',
-    '      <a id="cb-tailor-pipeline" class="cb-tailor-pipeline-link" style="display:none">View in Pipeline</a>',
+    '    </div>',
+    '    <div id="cb-tailor-secondary" class="cb-tailor-secondary">',
+    '      <button id="cb-pipeline-add-btn" class="cb-pipeline-add-btn" style="display:none">Add to pipeline</button>',
+    '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
+    '      <a id="cb-pipeline-view" class="cb-pipeline-view-link" style="display:none">View pipeline \u2192</a>',
     '    </div>',
     '  </div>',
     '</div>',
@@ -3507,14 +3667,29 @@
     "}",
     ".cb-tailor-link:hover { color: #BBF7D0; border-color: #BBF7D0; }",
     ".cb-tailor-link:disabled { opacity: 0.6; cursor: default; }",
-    ".cb-tailor-pipeline-link {",
+    ".cb-tailor-secondary {",
+    "  display: flex; align-items: center; gap: 8px;",
+    "  margin-top: 3px; min-height: 16px;",
+    "}",
+    ".cb-pipeline-add-btn {",
+    "  font-size: 10px; font-weight: 600; color: #888;",
+    "  background: none; border: none; padding: 0; cursor: pointer;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.1);",
+    "  transition: color 0.15s, border-color 0.15s;",
+    "}",
+    ".cb-pipeline-add-btn:hover { color: #BBF7D0; border-color: rgba(74,222,128,0.3); }",
+    ".cb-pipeline-add-btn:disabled { opacity: 0.6; cursor: default; }",
+    ".cb-pipeline-status {",
+    "  font-size: 10px; font-weight: 600; color: #4ADE80;",
+    "}",
+    ".cb-pipeline-view-link {",
     "  font-size: 10px; font-weight: 600; color: #555;",
     "  text-decoration: none; cursor: pointer;",
     "  white-space: nowrap; flex-shrink: 0;",
     "  border-bottom: 1px solid transparent;",
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
-    ".cb-tailor-pipeline-link:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
+    ".cb-pipeline-view-link:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
