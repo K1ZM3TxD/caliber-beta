@@ -1485,6 +1485,11 @@
                   rePageBestTitle = badgeScoreCache[reUrls[rpm]].title || "";
                 }
               }
+              // Non-regression: preserve sidecard-authoritative best if higher
+              if (prescanSurfaceBanner && prescanSurfaceBanner.bestScore > rePageMax) {
+                rePageMax = prescanSurfaceBanner.bestScore;
+                rePageBestTitle = prescanSurfaceBanner.bestTitle;
+              }
               showSurfaceQualityBanner(reStrongCount, rePageBestTitle, rePageMax);
               prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: rePageBestTitle, bestScore: rePageMax };
               console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong, pageMax=" + rePageMax.toFixed(1));
@@ -1562,16 +1567,27 @@
       }
 
       // Surface-quality banner: show when strong matches exist on the loaded surface
-      // Use true pageMaxScore/pageBestTitle (not just best strong-match) for surface truth
-      if (strongCount > 0 && pageBestTitle) {
-        showSurfaceQualityBanner(strongCount, pageBestTitle, pageMaxScore);
-        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: pageBestTitle, bestScore: pageMaxScore };
-        console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, pageMax: \"" + pageBestTitle + "\" (" + pageMaxScore.toFixed(1) + ")");
-      } else if (strongCount > 0) {
-        // Strong matches exist but no title available — still show count-only banner
-        showSurfaceQualityBanner(strongCount, "", pageMaxScore);
-        prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: pageMaxScore };
-        console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong, pageMax=" + pageMaxScore.toFixed(1));
+      // Use true pageMaxScore/pageBestTitle (not just best strong-match) for surface truth.
+      // Non-regression: if prescanSurfaceBanner already has a higher score (from sidecard),
+      // preserve it. Badge-cache recomputation must never regress the banner.
+      if (strongCount > 0) {
+        var bannerScore = pageMaxScore;
+        var bannerTitle = pageBestTitle;
+        if (prescanSurfaceBanner && prescanSurfaceBanner.bestScore > bannerScore) {
+          bannerScore = prescanSurfaceBanner.bestScore;
+          bannerTitle = prescanSurfaceBanner.bestTitle;
+          console.debug("[Caliber][SurfaceBanner] non-regression: keeping sidecard best " +
+            bannerScore.toFixed(1) + " over cache-computed " + pageMaxScore.toFixed(1));
+        }
+        if (bannerTitle) {
+          showSurfaceQualityBanner(strongCount, bannerTitle, bannerScore);
+          prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bannerTitle, bestScore: bannerScore };
+          console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, best: \"" + bannerTitle + "\" (" + bannerScore.toFixed(1) + ")");
+        } else {
+          showSurfaceQualityBanner(strongCount, "", bannerScore);
+          prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: bannerScore };
+          console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong, best=" + bannerScore.toFixed(1));
+        }
       } else if (prescanSurfaceBanner) {
         // No strong matches anymore — hide surface-quality banner
         hideSurfaceQualityBanner();
