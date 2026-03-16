@@ -1125,12 +1125,14 @@
           // (stale session or serverless cold-start without full context)
           var effectiveCalibTitle = result.calibrationTitle || lastKnownCalibrationTitle || "";
           var rawBadgeScore = result.score;
-          var badgeScore = applyDomainMismatchGuardrail(
-            rawBadgeScore,
-            result.hrcBand || null,
-            entry.title || "",
-            effectiveCalibTitle
-          );
+          // Prescan scores are NOT guardrail-capped. Raw scores flow into the
+          // badge cache so BST can evaluate the true surface quality. Capping
+          // individual card-text scores to 5.0 before the full surface is scored
+          // destroys signal — BST sees a wall of identical 5.0s and can't
+          // distinguish "genuinely weak" from "guardrail-flattened".
+          // The guardrail only runs on the sidecard path (showResults) where
+          // the user is viewing a specific full-description job.
+          var badgeScore = rawBadgeScore;
           if (!result.calibrationTitle && lastKnownCalibrationTitle) {
             console.debug("[Caliber][session][diag] scoring result missing calibrationTitle — " +
               "using cached fallback: \"" + lastKnownCalibrationTitle + "\"");
