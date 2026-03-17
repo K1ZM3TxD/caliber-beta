@@ -2800,7 +2800,13 @@
     var rawScore = Number(data.score_0_to_10) || 0;
     var hrc = data.hiring_reality_check;
     var hrcBand = (hrc && hrc.band) ? hrc.band : null;
-    var score = applyDomainMismatchGuardrail(rawScore, hrcBand, lastJobMeta.title || "", data.calibration_title || "");
+    // Guardrail removed from sidecard path — same reasoning as prescan:
+    // premature capping destroys surface signal and prevents accurate BST/banner.
+    // The raw alignment score passes through uncapped.
+    var score = rawScore;
+    console.warn("[Caliber][sidecard][NOCAP] raw " + rawScore.toFixed(1) +
+      " passed uncapped for \"" + (lastJobMeta.title || "?") + "\"" +
+      " | hrcBand=" + (hrcBand || "none"));
     lastScoredScore = score;
 
     // If client-side role-family mismatch capped the score, override HRC to
