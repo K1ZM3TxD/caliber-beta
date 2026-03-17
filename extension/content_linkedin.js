@@ -3303,16 +3303,26 @@
     try {
       // Immediately show skeleton with whatever metadata we can extract now
       lastJobMeta = extractJobMeta();
-      showSkeleton(lastJobMeta);
 
-      // Start 2.5s timeout — if scoring hasn't resolved, update indicator
-      skeletonTimer = setTimeout(function () {
-        if (!shadow) return;
-        var decEl = shadow.getElementById("cb-decision");
-        if (decEl && decEl.classList.contains("cb-decision-skeleton")) {
-          decEl.textContent = "Still analyzing this role\u2026";
-        }
-      }, 2500);
+      // During rescore (results already visible), overlay instead of collapsing
+      var resultsEl = shadow && shadow.getElementById("cb-results");
+      var isRescore = resultsEl && resultsEl.style.display !== "none";
+      if (isRescore) {
+        showLoading("Rescoring\u2026");
+      } else {
+        showSkeleton(lastJobMeta);
+      }
+
+      // Start 2.5s timeout — if scoring hasn't resolved, update indicator (skeleton only)
+      if (!isRescore) {
+        skeletonTimer = setTimeout(function () {
+          if (!shadow) return;
+          var decEl = shadow.getElementById("cb-decision");
+          if (decEl && decEl.classList.contains("cb-decision-skeleton")) {
+            decEl.textContent = "Still analyzing this role\u2026";
+          }
+        }, 2500);
+      }
 
       // Discover/verify session before attempting to score
       const sessionInfo = await new Promise((resolve, reject) => {
@@ -3802,6 +3812,7 @@
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
     ".cb-body { padding: 8px 10px; position: relative; min-height: 80px; }",
+    "#cb-results.cb-body { min-height: 200px; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
