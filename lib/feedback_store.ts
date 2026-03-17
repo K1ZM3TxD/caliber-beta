@@ -1,8 +1,6 @@
-// lib/feedback_store.ts — Append-only structured feedback event log (beta)
-// Writes JSONL to data/feedback_events.jsonl for aggregation/analysis.
+// lib/feedback_store.ts — Durable feedback event persistence (Prisma/Postgres)
 
-import fs from "fs";
-import path from "path";
+import { prisma } from "@/lib/prisma";
 
 export interface FeedbackEvent {
   timestamp: string;
@@ -29,19 +27,29 @@ export interface FeedbackEvent {
   };
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LOG_PATH = path.join(DATA_DIR, "feedback_events.jsonl");
-
-export function appendFeedbackEvent(event: FeedbackEvent): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  const line = JSON.stringify(event) + "\n";
-  fs.appendFileSync(LOG_PATH, line, "utf-8");
-}
-
-export function readFeedbackEvents(): FeedbackEvent[] {
-  if (!fs.existsSync(LOG_PATH)) return [];
-  const lines = fs.readFileSync(LOG_PATH, "utf-8").split("\n").filter(Boolean);
-  return lines.map((l) => JSON.parse(l));
+export async function appendFeedbackEvent(event: FeedbackEvent): Promise<void> {
+  await prisma.feedbackEvent.create({
+    data: {
+      timestamp: new Date(event.timestamp),
+      surface: event.surface,
+      site: event.site,
+      companyName: event.company_name,
+      jobTitle: event.job_title,
+      searchTitle: event.search_title,
+      calibrationTitleDirection: event.calibration_title_direction,
+      fitScore: event.fit_score,
+      decisionLabel: event.decision_label,
+      hiringRealityBand: event.hiring_reality_band,
+      betterSearchTitleSuggestion: event.better_search_title_suggestion,
+      feedbackType: event.feedback_type,
+      feedbackReason: event.feedback_reason,
+      bugCategory: event.bug_category,
+      optionalComment: event.optional_comment,
+      jobsViewedInSession: event.behavioral_signals.jobs_viewed_in_session,
+      scoresBelowSixCount: event.behavioral_signals.scores_below_6_count,
+      highestScoreSeen: event.behavioral_signals.highest_score_seen,
+      betterTitleSuggestionShown: event.behavioral_signals.better_title_suggestion_shown,
+      betterTitleSuggestionClicked: event.behavioral_signals.better_title_suggestion_clicked,
+    },
+  });
 }

@@ -98,3 +98,34 @@ model TelemetryEvent {
   @@index([event])
   @@index([sessionId, event])
 }
+
+// ─── Feedback events (durable) ────────────────────────────────
+
+model FeedbackEvent {
+  id                          String   @id @default(cuid())
+  timestamp                   DateTime @default(now())
+  surface                     String   // extension | calibration_results | title_suggestion
+  site                        String?
+  companyName                 String?
+  jobTitle                    String?
+  searchTitle                 String?
+  calibrationTitleDirection   String?
+  fitScore                    Float?
+  decisionLabel               String?
+  hiringRealityBand           String?
+  betterSearchTitleSuggestion String?
+  feedbackType                String   // thumbs_up | thumbs_down | bug_report
+  feedbackReason              String?
+  bugCategory                 String?
+  optionalComment             String?
+  // Behavioral signals (flattened)
+  jobsViewedInSession              Int?
+  scoresBelowSixCount              Int?
+  highestScoreSeen                 Float?
+  betterTitleSuggestionShown       Boolean @default(false)
+  betterTitleSuggestionClicked     Boolean @default(false)
+
+  @@index([surface])
+  @@index([feedbackType])
+  @@index([timestamp])
+}

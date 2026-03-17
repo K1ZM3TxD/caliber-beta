@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    appendFeedbackEvent(event);
+    await appendFeedbackEvent(event);
 
     return withCors(req, NextResponse.json({ ok: true }));
   } catch {
