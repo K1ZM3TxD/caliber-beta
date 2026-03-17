@@ -41,6 +41,7 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [ ] Score band labels render correctly across all score ranges
 
 IMPLEMENTATION LOG:
+- 2026-03-17: BREAK+UPDATE — Durable telemetry storage + experiment tagging. File-backed JSONL/SQLite telemetry replaced by Postgres (Neon) via Prisma. Both `/api/events` and `/api/feedback` write to `TelemetryEvent`/`FeedbackEvent` tables. Experiment condition queryable via sessionId/signalPreference/meta. Extension dev/prod host split restored. DONE: durable storage adopted, feedback pipeline migrated, experiment tagging added. BLOCKED: production `DATABASE_URL` must be set in Vercel. NEXT: deploy, rerun 50/50. Files: `lib/telemetry_store.ts`, `lib/feedback_store.ts`, `app/api/events/route.ts`, `app/api/feedback/route.ts`, `prisma/schema.prisma`, `extension/env.js`, `extension/manifest.json`.
 - 2026-03-16: BREAK+UPDATE — SMC stale boot state + manual Add-to-pipeline write fix. (1) prescanSurfaceBanner no longer rehydrated from durable state on init — SMC renders only from fresh scoring. (2) Manual & auto-add pipeline paths re-extract DOM meta at action time with sentinel fallbacks, preventing API 400 on empty company. (3) background.js forwards error/httpStatus in CALIBER_PIPELINE_SAVE response. (4) chrome.runtime.lastError checked in both save handlers. DONE: SMC stale-state fix shipped (v0.9.10). Pipeline write fix ready. BLOCKED: validation pending with Jen profile. NEXT: validate manual add creates entry in /pipeline; validate fresh surface shows no stale SMC score. Files: `extension/content_linkedin.js`, `extension/background.js`.
 - 2026-03-16: BREAK+UPDATE — Guardrail over-capping prescan scores (v0.9.14). User testing revealed 21/25 jobs scoring exactly 5.0 — `applyDomainMismatchGuardrail()` was flattening scores during prescan before BST/SMC could evaluate surface quality. (1) Removed guardrail from prescan badge scoring path entirely — raw alignment scores now flow into badge cache. (2) Guardrail retained on sidecard `showResults()` path only. (3) Added `scoreSource` field to all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (4) `restored_cache` entries excluded from `strongCount`. (5) `lastScoredScore` reset on surface change. (6) `[Caliber][SCORE_CAPPED]` diagnostic logging added. (7) Per-entry surface-truth logging with source breakdown. DONE: Fix shipped (v0.9.14), validated by user — natural score spread restored. Files: `extension/content_linkedin.js`.
 - 2026-03-15: SGD anchor-boost injection — two-layer approach: anchorBoosts map (bypass weight cap) + signal-affinity bonus (+0.25/req, +0.15/opt, cap 1.2). Jen: score 8.4→9.0, candidates shifted. Result page shows included signals. Yes/No buttons centered. Files: `lib/calibration_machine.ts`, `lib/title_scoring.ts`, `app/calibration/page.tsx`.
@@ -98,15 +99,40 @@ POST-BETA METRICS DASHBOARD:
 - Implementation approach: instrumentation layer added to existing API endpoints and extension events. No separate analytics service until volume justifies it.
 - Dashboard is a web app page (likely /metrics or /admin/metrics), not a third-party tool.
 
-TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14):
+TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14, UPGRADED 2026-03-17):
 - PM decision: telemetry event capture implemented before beta release so outside-user testing starts with usable product data.
-- Lightweight append-only JSONL event log at `data/telemetry_events.jsonl`.
+- **2026-03-17: File-backed JSONL persistence replaced by durable Postgres (Neon) via Prisma.** Prior JSONL and SQLite paths did not survive Vercel serverless deploys. Both `/api/events` and `/api/feedback` now write to `TelemetryEvent` and `FeedbackEvent` tables in the shared Neon database.
 - POST /api/events endpoint accepts events from both extension and web app.
+- POST /api/feedback endpoint accepts structured feedback from extension and web app.
 - Initial event set: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
-- Each event includes: timestamp, sessionId, surfaceKey, job identity fields, score, source (extension/web).
+- Each event includes: timestamp, sessionId, surfaceKey, job identity fields, score, source (extension/web), scoreSource, signalPreference, meta (JSON).
+- Experiment tagging: PM can tag signal-injection ON/OFF conditions via sessionId suffix or meta.experiment field. Both are queryable from the database.
 - Telemetry is non-blocking: failures never break user-facing flows.
+- Production requires `DATABASE_URL` set in Vercel environment variables (same Neon connection string).
 - This event layer is the prerequisite for all future metrics/dashboard work.
 - Dashboard and cohort analysis remain future work — not included in this implementation.
+
+---
+
+BREAK + UPDATE — 2026-03-17 (Durable Telemetry Storage + Experiment Tagging)
+---
+DONE:
+- File-backed JSONL telemetry replaced by durable Postgres (Neon) via Prisma `TelemetryEvent` model
+- Feedback pipeline (`/api/feedback`) migrated to same durable store via `FeedbackEvent` model
+- Experiment/session tagging available: `sessionId`, `signalPreference`, `meta` fields are queryable for PM ON/OFF signal validation
+- Extension source `env.js` restored to dev defaults (localhost:3000); `manifest.json` host_permissions aligned
+- Build script confirmed producing correct host-separated artifacts (prod → caliber-app.com, dev → localhost:3000)
+- Local validation passed: both `/api/events` and `/api/feedback` write durably to Neon from localhost:3000
+- CORS allows both `caliber-app.com` and `localhost:3000` origins plus chrome-extension origins
+
+BLOCKED:
+- Production readiness depends on `DATABASE_URL` being set in Vercel environment variables (operator step, not code)
+
+NEXT:
+- Confirm `DATABASE_URL` is set in Vercel dashboard for production environment
+- Deploy current main to production (or merge to stable and push)
+- Rerun 50/50 signal-injection test with durable telemetry active
+- Analyze score deltas + LinkedIn drift using durable TelemetryEvent records
 
 ---
 

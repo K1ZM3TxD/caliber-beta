@@ -65,6 +65,14 @@ Narrative synthesis and dialogue mode will be enabled after score+summary.
 - Initial event set: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
 - New events may be added; existing events must not be removed without PM approval.
 
+## Durable Telemetry Invariant (2026-03-17)
+
+- Production telemetry and feedback MUST use durable hosted storage (Postgres via Prisma/Neon). File-backed (JSONL) and local SQLite persistence are not acceptable for production.
+- Both `/api/events` and `/api/feedback` must write to durable storage that survives serverless deploys, function cold starts, and instance recycling.
+- Beta testing without durable observability is not permitted — PM experiments depend on data that persists across deploys.
+- Experiment-condition tagging (sessionId, signalPreference, meta) is required for controlled PM telemetry validations when comparing product modes (e.g., signal injection ON/OFF).
+- Production `DATABASE_URL` must be set as a Vercel environment variable. Missing `DATABASE_URL` in production is an operator configuration failure, not a code deficiency.
+
 ## Signal & Surface Intelligence (SSI) Classification
 
 SSI is the system family that reduces user cognitive load by summarizing professional signals and job-surface quality.

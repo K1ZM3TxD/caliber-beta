@@ -143,13 +143,16 @@
   - Previous inconsistency: score 5.0 rendered yellow/orange in some locations, gray in others.
   - Decision labels locked: Strong Fit >= 8.0, Stretch >= 6.0, Skip < 6.0.
 
-59. Product telemetry event instrumentation — **SHIPPED** (2026-03-14)
+59. Product telemetry event instrumentation — **SHIPPED** (2026-03-14), **UPGRADED TO DURABLE STORAGE** (2026-03-17)
   - Lightweight event capture implemented before beta release so outside-user testing generates usable product data from day one.
-  - POST /api/events endpoint accepts events from extension and web app. Storage: append-only JSONL at `data/telemetry_events.jsonl`.
+  - POST /api/events endpoint accepts events from extension and web app.
+  - **2026-03-17:** File-backed JSONL storage (`data/telemetry_events.jsonl`) superseded by durable Postgres (Neon) via Prisma. `TelemetryEvent` model persists all events to shared Neon database. Prior JSONL and SQLite paths did not survive Vercel serverless deploys — production telemetry was being lost between deploys.
+  - **Feedback pipeline also migrated:** `/api/feedback` writes to `FeedbackEvent` table via same durable Prisma path.
   - Six events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used.
   - Non-blocking: all telemetry is fire-and-forget with swallowed errors. No user-facing flow depends on telemetry.
+  - **Experiment tagging available (2026-03-17):** `sessionId`, `signalPreference`, and `meta` (JSON) fields are queryable for PM signal-injection ON/OFF validation. PM can tag conditions via sessionId suffix or `meta.experiment`.
   - Primary metric supported: Time-to-Strong-Match (TTSM).
-  - Dashboard / analysis layer remains future work. This issue covers event capture only.
+  - Dashboard / analysis layer remains future work. This issue covers event capture + durable persistence.
 
 58. Product metrics / analytics dashboard not yet implemented — **PLANNED / POST-BETA** (2026-03-14)
   - Telemetry event capture layer is now shipped (#59). No dashboard or analysis UI exists yet.

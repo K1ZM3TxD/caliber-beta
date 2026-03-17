@@ -79,6 +79,58 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-17 — Durable Telemetry Storage + Experiment Tagging
+
+**What changed:**
+1. **File-backed telemetry replaced by durable hosted storage.** `/api/events` and `/api/feedback` now persist to Postgres (Neon) via Prisma instead of append-only JSONL files or local SQLite. Both `TelemetryEvent` and `FeedbackEvent` models exist in the Prisma schema and are written through `lib/telemetry_store.ts` and `lib/feedback_store.ts`.
+2. **Feedback pipeline migrated to same durable store.** `/api/feedback` uses the same Prisma/Neon write path as `/api/events` — no separate persistence mechanism.
+3. **Experiment/session tagging available.** `TelemetryEvent` includes `sessionId`, `signalPreference`, and `meta` (JSON) fields. PM can tag signal-injection ON/OFF conditions via `sessionId` suffix or `meta.experiment` and query them directly from the database. `FeedbackEvent` surfaces carry the same timestamp + session-correlated fields.
+4. **Extension dev/prod host split restored.** `extension/env.js` source defaults to `http://localhost:3000` (development). `extension/manifest.json` source uses `localhost:3000` host_permissions. Build script produces `dist/extension-prod/` (caliber-app.com) and `dist/extension-dev/` (localhost:3000) with no cross-host contamination.
+
+**Why it changed:**
+- Production telemetry was backed by filesystem JSONL (`data/telemetry_events.jsonl`), which does not survive Vercel serverless deploys or function restarts. PM experimentation runs (signal injection ON/OFF 50+50) were not reproducible because telemetry data disappeared between deploys.
+- A follow-up SQLite path also failed the same durability requirement on serverless.
+- The extension source `env.js` had drifted to production values, preventing local dev telemetry validation.
+
+**What is now expected:**
+- `/api/events` and `/api/feedback` writes persist durably in both local dev and production via Postgres (Neon).
+- Telemetry survives production deploys, function cold starts, and serverless instance recycling.
+- PM can run controlled ON/OFF signal experiments and query results by `sessionId` or `meta` from the database.
+- Extension source directory (`extension/`) works as a dev extension pointing to localhost:3000.
+- Build artifacts maintain strict host separation (prod → caliber-app.com, dev → localhost:3000).
+
+**What is no longer expected:**
+- File-backed (`data/telemetry_events.jsonl`) or SQLite-backed production telemetry. These are superseded.
+- Production telemetry disappearing between deploys.
+- Extension source directory pointing to production host for local dev workflows.
+
+**Risk / fallout:**
+- Low for code — the Prisma write paths are the same `create()` calls used by the pipeline store. Both routes already had CORS, validation, and error handling.
+- Production requires `DATABASE_URL` set in Vercel environment variables. If missing, `/api/events` and `/api/feedback` will return 500. This is an operator configuration step, not a code change.
+- No user-facing flow depends on telemetry success — writes remain non-blocking.
+
+**Proof:**
+- Local: `curl POST http://localhost:3000/api/events` → HTTP 200 → row confirmed in `TelemetryEvent` table via Prisma query.
+- Local: `curl POST http://localhost:3000/api/feedback` → HTTP 200 → row confirmed in `FeedbackEvent` table via Prisma query.
+- Dev build `dist/extension-dev/env.js` → `API_BASE: "http://localhost:3000"`.
+- Prod build `dist/extension-prod/env.js` → `API_BASE: "https://www.caliber-app.com"`.
+
+**Files touched:**
+- `lib/telemetry_store.ts`
+- `lib/feedback_store.ts`
+- `app/api/events/route.ts`
+- `app/api/feedback/route.ts`
+- `prisma/schema.prisma`
+- `extension/env.js`
+- `extension/manifest.json`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+- `Bootstrap/milestones.md`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+- `Bootstrap/kernel.md`
+
+---
+
 ### 2026-03-16 — SMC Stale Boot State + Manual Add-to-Pipeline Write Fix
 
 **What changed:**
