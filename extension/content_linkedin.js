@@ -1187,6 +1187,7 @@
             jobId: entry.id || null,
             jobTitle: entry.title || null,
             score: badgeScore,
+            scoreSource: "card_text_prescan",
             rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
           });
         } else {
@@ -3086,6 +3087,7 @@
         company: lastJobMeta.company || null,
         jobUrl: location.href,
         score: score,
+        scoreSource: "sidecard_full",
       });
     }
 

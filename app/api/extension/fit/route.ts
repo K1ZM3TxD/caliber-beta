@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       sourceUrl: body.sourceUrl ?? null,
       nearby_roles: nearbyRoles,
       calibration_title: primaryTitle,
-      signal_preference: null,
+      signal_preference: session.includeDetectedSignals === true ? "yes" : session.includeDetectedSignals === false ? "no" : null,
       debug_signals: alignment.signals ? {
         personVector: alignment.signals.personVector,
         roleVector: alignment.signals.roleVector,

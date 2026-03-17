@@ -137,16 +137,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === "CALIBER_TELEMETRY") {
-    // Fire-and-forget: never block caller, swallow all errors
-    fetch(API_BASE + "/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg.payload),
-      signal: AbortSignal.timeout(5000),
-    }).catch(() => {});
-    // Respond immediately — don't wait for network
+    // Enrich payload with sessionId and signalPreference from storage
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get(["caliberSessionId", "caliberSignalPreference"]);
+        if (store.caliberSessionId) msg.payload.sessionId = store.caliberSessionId;
+        if (store.caliberSignalPreference) msg.payload.signalPreference = store.caliberSignalPreference;
+      } catch { /* swallow */ }
+      fetch(API_BASE + "/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg.payload),
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
+    })();
     sendResponse({ ok: true });
-    return false;
+    return true;
   }
   if (msg.type === "CALIBER_SESSION_DISCOVER") {
     (async () => {
@@ -735,6 +741,9 @@ async function callFitAPI(jobText, sessionId, options) {
   console.debug("[Caliber][bg][fetch][" + label + "] success (score=" + (data.score_0_to_10 || "?") + ")");
   if (data.calibrationId) {
     await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
+  }
+  if (data.signal_preference) {
+    await chrome.storage.local.set({ caliberSignalPreference: data.signal_preference });
   }
   return data;
 }
