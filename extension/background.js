@@ -137,11 +137,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === "CALIBER_TELEMETRY") {
-    // Enrich payload with sessionId and signalPreference from storage
+    // Enrich payload with sessionId (tagged with signal condition) and signalPreference from storage
     (async () => {
       try {
         const store = await chrome.storage.local.get(["caliberSessionId", "caliberSignalPreference"]);
-        if (store.caliberSessionId) msg.payload.sessionId = store.caliberSessionId;
+        if (store.caliberSessionId) {
+          const condition = store.caliberSignalPreference === "yes" ? "signal_on" : "signal_off";
+          msg.payload.sessionId = store.caliberSessionId + "::" + condition;
+        }
         if (store.caliberSignalPreference) msg.payload.signalPreference = store.caliberSignalPreference;
       } catch { /* swallow */ }
       fetch(API_BASE + "/api/events", {
