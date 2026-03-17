@@ -356,7 +356,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
   if (msg.type === "CALIBER_OPEN_PIPELINE") {
-    chrome.tabs.create({ url: API_BASE + "/pipeline" });
+    var url = API_BASE + "/pipeline";
+    if (msg.highlightId) url += "?highlight=" + encodeURIComponent(msg.highlightId);
+    chrome.tabs.create({ url: url });
     sendResponse({ ok: true });
     return false;
   }

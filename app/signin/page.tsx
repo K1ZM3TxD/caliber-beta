@@ -180,7 +180,7 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <div className="w-full pb-16">
+    <div className="min-h-screen w-full flex items-center justify-center pb-16">
       {/* Ambient glow — matches current shell baseline */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
@@ -193,7 +193,7 @@ export default function SignInPage() {
       <div className="relative z-10 w-full max-w-[600px] mx-auto px-4">
         <CaliberHeader />
 
-        <div className="mt-6 sm:mt-10 text-center">
+        <div className="mt-6 text-center">
           <h1 className="text-neutral-200 text-xl font-semibold tracking-tight">
             Sign in to Caliber
           </h1>

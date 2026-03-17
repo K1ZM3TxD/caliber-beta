@@ -323,6 +323,7 @@
   let lastScoredText = "";
   let lastScoredScore = 0;
   let lastJobMeta = { title: "", company: "", logoUrl: "" };
+  let skeletonTimer = null;   // timeout for "Still analyzing…" fallback
   let watchInterval = null;
   let lastWatchedUrl = location.href;
   let detailObserver = null;
@@ -346,6 +347,7 @@
   // Feedback session guard (one prompt per eval)
   let feedbackGiven = false;
   let lastFeedbackData = null;  // snapshot of last scored result for feedback context
+  let lastSavedPipelineId = null; // most recent pipeline entry ID (for View pipeline handoff)
 
   function resetSessionSignals() {
     sessionSignals = { jobs_viewed: 0, scores_below_6: 0, highest_score: 0, suggest_shown: false, suggest_clicked: false };
@@ -710,6 +712,7 @@
   var JOB_ID_ATTR = "data-caliber-job-id";
   var BADGE_STYLE_ID = "caliber-badge-css";
   var badgeScoredIds = new Set();        // job IDs already scored or in-flight
+  var telemetryEmittedIds = new Set();   // job IDs with job_score_rendered already emitted (dedupe)
   var badgeScoreCache = {};              // jobId → { score, calibrationTitle, nearbyRoles, scoreSource }
   var badgeCacheSurface = "";            // surface key the cache belongs to
   var badgeScrollAttached = false;
@@ -1181,15 +1184,20 @@
             typeof entry.positionIndex === "number" ? entry.positionIndex : -1,
             initialSurfaceResolved ? "scroll" : "initial"
           );
-          // Telemetry: badge score rendered on card
-          emitTelemetry("job_score_rendered", {
-            surfaceKey: getSearchSurfaceKey(),
-            jobId: entry.id || null,
-            jobTitle: entry.title || null,
-            score: badgeScore,
-            scoreSource: "card_text_prescan",
-            rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
-          });
+          // Telemetry: badge score rendered on card (dedupe — one per job per surface)
+          if (entry.id && telemetryEmittedIds.has(entry.id)) {
+            console.debug("[Caliber][telemetry][dedupe] skipped duplicate job_score_rendered for " + entry.id);
+          } else {
+            if (entry.id) telemetryEmittedIds.add(entry.id);
+            emitTelemetry("job_score_rendered", {
+              surfaceKey: getSearchSurfaceKey(),
+              jobId: entry.id || null,
+              jobTitle: entry.title || null,
+              score: badgeScore,
+              scoreSource: "card_text_prescan",
+              rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
+            });
+          }
         } else {
           // Release from scoredIds for retry but keep loading badge visible
           if (entry.id) badgeScoredIds.delete(entry.id);
@@ -1889,6 +1897,7 @@
   /** Clear all badges, cache, and identity stamps (used on surface change). */
   function clearAllBadges() {
     badgeScoredIds.clear();
+    telemetryEmittedIds.clear();
     badgeScoreCache = {};
     badgeCacheSurface = "";
     // Reset sidecard score so stale values don't leak across surfaces
@@ -2061,6 +2070,7 @@
       }
     }
     badgeScoredIds.clear();
+    telemetryEmittedIds.clear();
     badgeScoreCache = preservedSidecard;
     for (var psKey in preservedSidecard) badgeScoredIds.add(psKey);
     // Reset lastScoredScore so a stale sidecard score from a previous
@@ -2175,9 +2185,19 @@
   /**
    * Show surface-quality banner in the BST slot when the loaded surface has strong matches.
    * Content: "{strongCount} strong matches · Best: {bestTitle} ({bestScore})"
+   *
+   * DISABLED (presentation only): The popup banner is removed from the sidecard-adjacent
+   * experience per product decision. The underlying surface intelligence state
+   * (prescanSurfaceBanner, pageMaxScore, pageBestTitle, strongCount) is still
+   * tracked at every call site and remains available for future overlay/surface-summary UI.
    */
   function showSurfaceQualityBanner(strongCount, bestTitle, bestScore) {
-    bestTitle = sanitizeJobTitle(bestTitle);
+    // Presentation disabled — surface state is updated by callers after invocation.
+    // Preserve args in debug log for development visibility.
+    console.debug("[Caliber][SurfaceBanner] presentation suppressed — strongCount=" +
+      strongCount + ", bestTitle=\"" + sanitizeJobTitle(bestTitle) + "\", bestScore=" +
+      (bestScore ? bestScore.toFixed(1) : "0"));
+    return;
     getOrCreatePanel();
     // Hide BST if active
     prescanBSTActive = false;
@@ -2342,20 +2362,20 @@
     // Wire "View pipeline" link in TRP secondary row
     shadow.getElementById("cb-pipeline-view").addEventListener("click", function (e) {
       e.preventDefault();
-      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
+      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE", highlightId: lastSavedPipelineId || null });
     });
 
     // Wire "Add to pipeline" button in TRP secondary row
     shadow.getElementById("cb-pipeline-add-btn").addEventListener("click", function () {
       var addBtn = shadow.getElementById("cb-pipeline-add-btn");
-      if (addBtn) { addBtn.textContent = "Adding\u2026"; addBtn.disabled = true; }
+      if (addBtn) { addBtn.textContent = "Saving\u2026"; addBtn.disabled = true; addBtn.classList.remove("cb-pipeline-add-error"); }
       // Re-extract meta in case DOM was not ready at score time
       var freshMeta = extractJobMeta();
       var saveTitle = lastJobMeta.title || freshMeta.title || "Untitled Position";
       var saveCompany = lastJobMeta.company || freshMeta.company || "Unknown Company";
       var saveUrl = location.href;
       var saveScore = lastScoredScore || 0;
-      console.debug("[Caliber][TRP] manual pipeline save started — title=\"" + saveTitle +
+      console.debug("[Caliber][TRP] manual pipeline save started \u2014 title=\"" + saveTitle +
         "\", company=\"" + saveCompany + "\", url=" + saveUrl + ", score=" + saveScore);
       chrome.runtime.sendMessage({
         type: "CALIBER_PIPELINE_SAVE",
@@ -2365,13 +2385,24 @@
         score: saveScore,
       }, function (resp) {
         if (chrome.runtime.lastError) {
-          if (addBtn) { addBtn.textContent = "Add to pipeline"; addBtn.disabled = false; }
-          console.warn("[Caliber][TRP] manual pipeline save — messaging error:", chrome.runtime.lastError.message);
+          if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
+          console.warn("[Caliber][TRP] manual pipeline save \u2014 messaging error:", chrome.runtime.lastError.message);
           return;
         }
         if (resp && resp.ok) {
-          updateTRPPipelineState("in-pipeline");
-          console.debug("[Caliber][TRP] manual pipeline save succeeded — id=" + (resp.entry && resp.entry.id));
+          // Immediate "Saved \u2713" confirmation with green flash, then transition
+          if (addBtn) {
+            addBtn.textContent = "Saved \u2713";
+            addBtn.disabled = true;
+            addBtn.classList.remove("cb-pipeline-add-error");
+            addBtn.classList.add("cb-pipeline-add-saved");
+          }
+          if (resp.entry && resp.entry.id) lastSavedPipelineId = resp.entry.id;
+          setTimeout(function () {
+            if (addBtn) addBtn.classList.remove("cb-pipeline-add-saved");
+            updateTRPPipelineState("in-pipeline");
+          }, 900);
+          console.debug("[Caliber][TRP] manual pipeline save succeeded \u2014 id=" + (resp.entry && resp.entry.id));
           emitTelemetry("pipeline_save", {
             surfaceKey: getSearchSurfaceKey(),
             jobTitle: saveTitle || null,
@@ -2381,8 +2412,8 @@
             trigger: "manual_trp",
           });
         } else {
-          if (addBtn) { addBtn.textContent = "Add to pipeline"; addBtn.disabled = false; }
-          console.warn("[Caliber][TRP] manual pipeline save failed — error=" +
+          if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
+          console.warn("[Caliber][TRP] manual pipeline save failed \u2014 error=" +
             (resp && resp.error || "unknown") + ", http=" + (resp && resp.httpStatus || "?") +
             ", title=\"" + saveTitle + "\", company=\"" + saveCompany + "\"");
         }
@@ -2591,8 +2622,51 @@
   function showError(msg) {
     getOrCreatePanel();
     hideOverlay();
+    clearSkeletonTimer();
     shadow.getElementById("cb-error-msg").textContent = msg;
     setPanelState("cb-error");
+  }
+
+  /** Show the results panel immediately in skeleton state: job title + placeholder score + analyzing indicator. */
+  function showSkeleton(meta) {
+    getOrCreatePanel();
+    hideOverlay();
+    setPanelState("cb-results");
+
+    // Score placeholder
+    var scoreEl = shadow.getElementById("cb-score");
+    scoreEl.textContent = "\u2014";
+    scoreEl.style.color = "#555";
+    scoreEl.classList.add("cb-score-pulse");
+
+    // Decision label → analyzing indicator
+    var decEl = shadow.getElementById("cb-decision");
+    decEl.textContent = "Analyzing fit\u2026";
+    decEl.className = "cb-decision cb-decision-skeleton";
+
+    // Job identity
+    var titleEl = shadow.getElementById("cb-jobtitle");
+    var companyEl = shadow.getElementById("cb-company");
+    titleEl.textContent = meta.title || "";
+    companyEl.textContent = meta.company || "";
+
+    // Hide detail sections until results arrive
+    var hrcSection = shadow.getElementById("cb-hrc-section");
+    if (hrcSection) hrcSection.style.display = "none";
+    var supSection = shadow.getElementById("cb-supports-section");
+    if (supSection) supSection.style.display = "none";
+    var strSection = shadow.getElementById("cb-stretch-section");
+    if (strSection) strSection.style.display = "none";
+    var blSection = shadow.getElementById("cb-bottomline-section");
+    if (blSection) blSection.style.display = "none";
+    var fbRow = shadow.getElementById("cb-fb-row");
+    if (fbRow) fbRow.style.display = "none";
+    var tailorBanner = shadow.getElementById("cb-tailor-banner");
+    if (tailorBanner) tailorBanner.style.display = "none";
+  }
+
+  function clearSkeletonTimer() {
+    if (skeletonTimer) { clearTimeout(skeletonTimer); skeletonTimer = null; }
   }
 
   // ─── Feedback Handlers ─────────────────────────────────
@@ -2795,6 +2869,7 @@
   function showResults(data) {
     getOrCreatePanel();
     hideOverlay();
+    clearSkeletonTimer();
 
     console.log("[caliber] showResults v" + PANEL_VERSION, JSON.stringify(data).substring(0, 500));
 
@@ -2834,8 +2909,13 @@
 
     // Score + decision (left side of header row)
     var scoreEl = shadow.getElementById("cb-score");
+    scoreEl.classList.remove("cb-score-pulse");
     scoreEl.textContent = displayScore.toFixed(1);
     scoreEl.style.color = displayScore >= 7 ? "#4ADE80" : displayScore >= 6 ? "#FBBF24" : "#EF4444";
+    // Animate score entrance
+    scoreEl.classList.remove("cb-score-reveal");
+    void scoreEl.offsetWidth; // force reflow to restart animation
+    scoreEl.classList.add("cb-score-reveal");
 
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
@@ -2846,6 +2926,25 @@
     var companyEl = shadow.getElementById("cb-company");
     titleEl.textContent = lastJobMeta.title || "";
     companyEl.textContent = lastJobMeta.company || "";
+
+    // High-confidence match label + panel glow for 8.5+
+    var highConfEl = shadow.getElementById("cb-high-conf");
+    var panelEl = shadow.querySelector(".cb-panel");
+    if (displayScore >= 8.5) {
+      if (highConfEl) highConfEl.style.display = "";
+      if (panelEl) panelEl.classList.add("cb-panel-glow");
+    } else {
+      if (highConfEl) highConfEl.style.display = "none";
+      if (panelEl) panelEl.classList.remove("cb-panel-glow");
+    }
+
+    // Restore detail sections hidden during skeleton
+    var supSection = shadow.getElementById("cb-supports-section");
+    if (supSection) supSection.style.display = "";
+    var strSection = shadow.getElementById("cb-stretch-section");
+    if (strSection) strSection.style.display = "";
+    var fbRow = shadow.getElementById("cb-fb-row");
+    if (fbRow) fbRow.style.display = "";
 
     // Hiring Reality Check (collapsible row)
     var hrcSection = shadow.getElementById("cb-hrc-section");
@@ -3122,6 +3221,7 @@
           }
           if (resp && resp.ok) {
             console.debug("[Caliber][TRP] auto-save pipeline succeeded — id=" + (resp.entry && resp.entry.id) + ", score=" + score);
+            if (resp.entry && resp.entry.id) lastSavedPipelineId = resp.entry.id;
             updateTRPPipelineState("auto-added");
             // Telemetry: pipeline_save from auto-save
             emitTelemetry("pipeline_save", {
@@ -3199,8 +3299,20 @@
   async function scoreCurrentJob(force) {
     if (scoring) return;
     scoring = true;
+    clearSkeletonTimer();
     try {
-      showLoading("Checking calibration session\u2026");
+      // Immediately show skeleton with whatever metadata we can extract now
+      lastJobMeta = extractJobMeta();
+      showSkeleton(lastJobMeta);
+
+      // Start 2.5s timeout — if scoring hasn't resolved, update indicator
+      skeletonTimer = setTimeout(function () {
+        if (!shadow) return;
+        var decEl = shadow.getElementById("cb-decision");
+        if (decEl && decEl.classList.contains("cb-decision-skeleton")) {
+          decEl.textContent = "Still analyzing this role\u2026";
+        }
+      }, 2500);
 
       // Discover/verify session before attempting to score
       const sessionInfo = await new Promise((resolve, reject) => {
@@ -3223,10 +3335,15 @@
         return;
       }
 
-      showLoading("Extracting job description\u2026");
-
-      // Capture job metadata from the page for the card header
+      // Re-capture job metadata in case DOM has settled further since skeleton
       lastJobMeta = extractJobMeta();
+      // Update skeleton title/company if they improved
+      if (shadow) {
+        var skTitleEl = shadow.getElementById("cb-jobtitle");
+        var skCompEl = shadow.getElementById("cb-company");
+        if (skTitleEl && lastJobMeta.title) skTitleEl.textContent = lastJobMeta.title;
+        if (skCompEl && lastJobMeta.company) skCompEl.textContent = lastJobMeta.company;
+      }
       // Telemetry: job opened for scoring
       emitTelemetry("job_opened", {
         surfaceKey: getSearchSurfaceKey(),
@@ -3248,10 +3365,10 @@
       }
       console.log("[caliber] scoring with " + text.length + " chars");
 
-      if (!force && text === lastScoredText) { hideOverlay(); return; }
+      if (!force && text === lastScoredText) { clearSkeletonTimer(); hideOverlay(); return; }
       lastScoredText = text;
 
-      showLoading("Computing fit score\u2026");
+      // Score request in flight — skeleton already visible
 
       const data = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
@@ -3516,8 +3633,9 @@
     '      </div>',
     '      <div id="cb-jobtitle" class="cb-job-title"></div>',
     '      <div id="cb-company" class="cb-company-name"></div>',
+    '      <div id="cb-high-conf" class="cb-high-conf" style="display:none">High-confidence match</div>',
     '    </div>',
-    '    <div id="cb-hrc-section" class="cb-collapsible">',
+    '    <div id="cb-hrc-section" class="cb-collapsible">',    
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>Hiring Reality</span>',
@@ -3845,6 +3963,9 @@
     "}",
     ".cb-pipeline-add-btn:hover { color: #BBF7D0; border-color: rgba(74,222,128,0.3); }",
     ".cb-pipeline-add-btn:disabled { opacity: 0.6; cursor: default; }",
+    "@keyframes cb-saved-flash { 0% { color: #4ADE80; } 100% { color: #4ADE80; } }",
+    ".cb-pipeline-add-saved { color: #4ADE80 !important; border-color: rgba(74,222,128,0.4) !important; opacity: 1 !important; }",
+    ".cb-pipeline-add-error { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; opacity: 1 !important; cursor: pointer !important; }",
     ".cb-pipeline-status {",
     "  font-size: 10px; font-weight: 600; color: #4ADE80;",
     "}",
@@ -3930,6 +4051,45 @@
     "  padding: 6px 0 2px; margin-top: 4px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "  text-align: center;",
+    "}",
+    // Skeleton & score animation
+    ".cb-decision-skeleton {",
+    "  background: rgba(255,255,255,0.06); color: #888;",
+    "  font-style: italic; font-weight: 500;",
+    "}",
+    "@keyframes cb-pulse {",
+    "  0%, 100% { opacity: 0.3; }",
+    "  50% { opacity: 0.7; }",
+    "}",
+    ".cb-score-pulse {",
+    "  animation: cb-pulse 1.4s ease-in-out infinite;",
+    "}",
+    "@keyframes cb-score-pop {",
+    "  0% { opacity: 0; transform: scale(0.7); }",
+    "  60% { opacity: 1; transform: scale(1.05); }",
+    "  100% { opacity: 1; transform: scale(1); }",
+    "}",
+    ".cb-score-reveal {",
+    "  animation: cb-score-pop 0.35s ease-out both;",
+    "}",
+    // High-confidence match label
+    ".cb-high-conf {",
+    "  font-size: 9px; font-weight: 700; color: #4ADE80;",
+    "  margin-top: 4px; letter-spacing: 0.03em;",
+    "  padding: 2px 7px; border-radius: 4px;",
+    "  background: rgba(74,222,128,0.10);",
+    "  display: inline-block;",
+    "  animation: cb-conf-in 0.4s ease-out both;",
+    "}",
+    "@keyframes cb-conf-in {",
+    "  0% { opacity: 0; transform: translateY(4px); }",
+    "  100% { opacity: 1; transform: translateY(0); }",
+    "}",
+    // Panel glow for high-confidence scores
+    ".cb-panel-glow {",
+    "  border-color: rgba(74,222,128,0.35);",
+    "  box-shadow: 0 0 12px rgba(74,222,128,0.08), 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
+    "  transition: border-color 0.4s ease, box-shadow 0.4s ease;",
     "}"
   ].join("\n");
 })();

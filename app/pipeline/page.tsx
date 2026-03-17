@@ -82,6 +82,8 @@ function TailorPanel({
   const [tailoredText, setTailoredText] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [genStep, setGenStep] = useState(0);
+  const genTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setStatus("loading");
@@ -109,6 +111,29 @@ function TailorPanel({
         setError("Failed to load tailor status");
       });
   }, [entry.id]);
+
+  // Progressive step messaging while generating
+  const genSteps = [
+    "Analyzing job requirements…",
+    "Aligning your experience…",
+    "Generating tailored output…",
+  ];
+  useEffect(() => {
+    if (status !== "generating") {
+      if (genTimerRef.current) clearInterval(genTimerRef.current);
+      genTimerRef.current = null;
+      return;
+    }
+    setGenStep(0);
+    genTimerRef.current = setInterval(() => {
+      setGenStep((prev) =>
+        prev < genSteps.length - 1 ? prev + 1 : prev
+      );
+    }, 4000);
+    return () => {
+      if (genTimerRef.current) clearInterval(genTimerRef.current);
+    };
+  }, [status, genSteps.length]);
 
   const generate = useCallback(async () => {
     setStatus("generating");
@@ -244,14 +269,44 @@ function TailorPanel({
 
           {/* Generating */}
           {status === "generating" && (
-            <div className="text-center py-8 space-y-3">
-              <div className="cb-spinner mx-auto" />
-              <p className="text-zinc-400 text-sm">
-                Tailoring your resume for{" "}
-                <span className="text-white">{entry.jobTitle}</span> at{" "}
-                <span className="text-white">{entry.company}</span>…
-              </p>
-              <p className="text-zinc-600 text-xs">
+            <div className="space-y-5">
+              {/* Step indicator */}
+              <div className="space-y-2">
+                {genSteps.map((label, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2.5 text-sm transition-opacity duration-300"
+                    style={{ opacity: i <= genStep ? 1 : 0.25 }}
+                  >
+                    {i < genStep ? (
+                      <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : i === genStep ? (
+                      <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400" style={{ animation: "cb-gen-pulse 1.2s ease-in-out infinite" }} />
+                      </div>
+                    ) : (
+                      <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+                      </div>
+                    )}
+                    <span className={i <= genStep ? "text-zinc-300" : "text-zinc-600"}>
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Skeleton preview */}
+              <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/40 p-4 space-y-3">
+                <div className="h-3 w-3/4 rounded bg-zinc-800" style={{ animation: "cb-gen-pulse 1.4s ease-in-out infinite" }} />
+                <div className="h-3 w-full rounded bg-zinc-800" style={{ animation: "cb-gen-pulse 1.4s ease-in-out 0.2s infinite" }} />
+                <div className="h-3 w-5/6 rounded bg-zinc-800" style={{ animation: "cb-gen-pulse 1.4s ease-in-out 0.4s infinite" }} />
+                <div className="h-3 w-2/3 rounded bg-zinc-800" style={{ animation: "cb-gen-pulse 1.4s ease-in-out 0.6s infinite" }} />
+              </div>
+
+              <p className="text-zinc-600 text-xs text-center">
                 This usually takes 10–20 seconds
               </p>
             </div>
@@ -388,6 +443,18 @@ export default function PipelinePage() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
   const [tailorEntryId, setTailorEntryId] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Read highlight param from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("highlight");
+    if (id) {
+      setHighlightId(id);
+      // Clean URL without reload
+      window.history.replaceState(null, "", "/pipeline");
+    }
+  }, []);
 
   const load = useCallback(() => {
     if (authStatus === "loading") return;
@@ -424,6 +491,21 @@ export default function PipelinePage() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [load]);
+
+  // Scroll to highlighted entry after entries load
+  useEffect(() => {
+    if (!highlightId || loading || entries.length === 0) return;
+    // Small delay so DOM has rendered the cards
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-entry-id="${CSS.escape(highlightId)}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      // Clear highlight after animation completes
+      setTimeout(() => setHighlightId(null), 2500);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [highlightId, loading, entries]);
 
   const moveToStage = useCallback(
     async (id: string, nextStage: string) => {
@@ -603,13 +685,15 @@ export default function PipelinePage() {
               >
                 {col.entries.map((entry) => {
                   const isResumePrepCol = col.key === "resume_prep";
+                  const isHighlighted = entry.id === highlightId;
                   return (
                     <div
                       key={entry.id}
+                      data-entry-id={entry.id}
                       draggable
                       onDragStart={(e) => onDragStart(e, entry.id)}
                       onDragEnd={onDragEnd}
-                      className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing group"
+                      className={`border rounded-lg p-4 bg-zinc-900/50 hover:border-zinc-700 transition-colors cursor-grab active:cursor-grabbing group ${isHighlighted ? "cb-highlight-card" : "border-zinc-800"}`}
                     >
                       {/* Top row: title + score + archive */}
                       <div className="flex items-start justify-between gap-2">
@@ -767,6 +851,27 @@ export default function PipelinePage() {
           to {
             transform: translateX(0);
           }
+        }
+        @keyframes cb-highlight-glow {
+          0% {
+            border-color: rgba(74, 222, 128, 0.5);
+            box-shadow: 0 0 12px rgba(74, 222, 128, 0.15);
+          }
+          70% {
+            border-color: rgba(74, 222, 128, 0.5);
+            box-shadow: 0 0 12px rgba(74, 222, 128, 0.15);
+          }
+          100% {
+            border-color: rgba(63, 63, 70, 1);
+            box-shadow: none;
+          }
+        }
+        .cb-highlight-card {
+          animation: cb-highlight-glow 2.5s ease-out both;
+        }
+        @keyframes cb-gen-pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
         }
       `}</style>
     </div>

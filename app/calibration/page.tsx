@@ -503,7 +503,7 @@ export default function CalibrationPage() {
   const deferredStepRef = useRef<UiStep | null>(null);
   const staged = useStagedProgress(step === "PROCESSING", backendDone);
   // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
-  const tagline = "Career Decision Engine";
+  const tagline = "See which jobs actually fit you";
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
@@ -723,6 +723,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+          @keyframes cb-preview-in { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
           .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
@@ -755,7 +756,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div className="w-full flex flex-col items-center" style={{ minHeight: "280px" }}>
+              <div className="w-full flex flex-col items-center" style={{ minHeight: step === "LANDING" ? "420px" : "280px" }}>
 
             {/* LANDING */}
             {step === "LANDING" ? (
@@ -763,6 +764,45 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
                   <p style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
+
+                {/* Product preview — scored roles example */}
+                {taglineDone && (
+                  <div className="mt-8 w-full flex flex-col items-center">
+                    <div
+                      className="rounded-lg w-full"
+                      style={{
+                        maxWidth: 360,
+                        backgroundColor: "rgba(255,255,255,0.025)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        padding: "14px 18px",
+                        animation: "cb-preview-in 0.5s ease-out both",
+                      }}
+                    >
+                      {[
+                        { title: "Senior Product Manager", score: 8.7, color: "#4ADE80" },
+                        { title: "Account Executive", score: 7.2, color: "#4ADE80" },
+                        { title: "Marketing Manager", score: 4.1, color: "#737373" },
+                      ].map((row, i) => (
+                        <div
+                          key={row.title}
+                          className="flex items-center justify-between"
+                          style={{
+                            padding: "7px 0",
+                            borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                            animation: `cb-preview-in 0.4s ease-out ${0.15 + i * 0.12}s both`,
+                          }}
+                        >
+                          <span className="text-[13px] sm:text-sm" style={{ color: "#a3a3a3" }}>{row.title}</span>
+                          <span className="text-[13px] sm:text-sm font-mono font-semibold" style={{ color: row.color }}>{row.score}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[12px] sm:text-[13px]" style={{ color: "#737373", letterSpacing: "0.02em", animation: "cb-preview-in 0.4s ease-out 0.6s both" }}>
+                      Scores every listing you open on LinkedIn
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-8">
                   <button
                     type="button"
@@ -783,6 +823,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {busy ? "Processing…" : "Begin Calibration"}
                     {busy ? <Spinner /> : null}
                   </button>
+                  <p className="mt-3 text-[12px] sm:text-[13px]" style={{ color: "#525252" }}>
+                    Start with your resume — takes 2 minutes
+                  </p>
                 </div>
               </div>
             ) : null}
