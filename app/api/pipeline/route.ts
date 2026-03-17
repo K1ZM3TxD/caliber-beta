@@ -21,6 +21,8 @@ import {
   pipelineFindByJobSession,
   pipelineCreateForSession,
   migrateSessionEntriesToUser,
+  linkCaliberSession,
+  getLinkedCaliberSession,
 } from "@/lib/pipeline_store_db";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
@@ -93,11 +95,20 @@ export async function GET(req: NextRequest) {
 
   if (session?.user?.id) {
     const userId = session.user.id;
+    // Resolve caliberSessionId: prefer query param, fall back to stored linkage
+    let resolvedSessionId = sessionId;
+    if (resolvedSessionId) {
+      // Save linkage for future recovery (e.g. cookie expires after restart)
+      await linkCaliberSession(userId, resolvedSessionId);
+    } else {
+      // Cookie missing — try to recover from stored linkage
+      resolvedSessionId = (await getLinkedCaliberSession(userId)) ?? undefined;
+    }
 
     // Migrate any file-based or session-based entries for this user
-    if (sessionId) {
-      await migrateFileEntriesToUser(sessionId, userId);
-      await migrateSessionEntriesToUser(sessionId, userId);
+    if (resolvedSessionId) {
+      await migrateFileEntriesToUser(resolvedSessionId, userId);
+      await migrateSessionEntriesToUser(resolvedSessionId, userId);
     }
 
     if (jobUrl) {
@@ -109,7 +120,10 @@ export async function GET(req: NextRequest) {
     }
 
     const entries = await dbPipelineList(userId);
-    return NextResponse.json({ ok: true, entries }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, entries, caliberSessionId: resolvedSessionId ?? null },
+      { status: 200 }
+    );
   }
 
   // Not authenticated but has sessionId — show session-based entries

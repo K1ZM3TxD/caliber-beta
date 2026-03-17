@@ -1,12 +1,13 @@
 // lib/auth.ts — NextAuth v5 configuration
-// Providers: Google OAuth + Email magic-link (passwordless)
+// Providers: Google OAuth + Email magic-link (passwordless) + Credentials (beta)
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
-const providers = [];
+const providers: any[] = [];
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   providers.push(
@@ -26,20 +27,52 @@ if (process.env.EMAIL_SERVER) {
   );
 }
 
+// Beta credentials provider — email-only, no password.
+// Always available so beta users can sign in without external OAuth/SMTP setup.
+providers.push(
+  Credentials({
+    id: "beta-email",
+    name: "Email",
+    credentials: {
+      email: { label: "Email", type: "email" },
+    },
+    async authorize(credentials) {
+      const email = (credentials?.email as string | undefined)?.trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+      // Find or create user by email
+      let user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        user = await prisma.user.create({ data: { email } });
+      }
+      return { id: user.id, email: user.email, name: user.name };
+    },
+  })
+);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
+  trustHost: true,
   pages: {
     signIn: "/signin",
     verifyRequest: "/signin?verify=1",
   },
   session: {
-    strategy: "database",
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    jwt({ token, user }) {
+      // On sign-in, persist user id into the JWT
+      if (user) {
+        token.sub = user.id;
+        token.email = user.email;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
       }
       return session;
     },

@@ -18,6 +18,7 @@ model User {
   email           String?         @unique
   emailVerified   DateTime?
   image           String?
+  caliberSessionId String?        // Links to calibration session for durable persistence
   accounts        Account[]
   sessions        Session[]
   pipelineEntries PipelineEntry[]

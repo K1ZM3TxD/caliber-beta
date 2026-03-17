@@ -405,6 +405,11 @@ export default function PipelinePage() {
             (e) => e.stage !== "archived"
           );
           setEntries(filtered);
+          // If server resolved a caliberSessionId we didn't have, restore the cookie
+          // so the extension and future loads can use it
+          if (data.caliberSessionId && !calSessionId) {
+            document.cookie = `caliber_sessionId=${encodeURIComponent(data.caliberSessionId)};path=/;max-age=${7 * 86400};SameSite=Lax`;
+          }
         }
       })
       .catch(() => {})
@@ -612,14 +617,17 @@ export default function PipelinePage() {
                           {entry.jobTitle}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {entry.score > 0 && (
-                            <span
-                              className="text-sm font-bold tabular-nums"
-                              style={{ color: scoreColor(entry.score) }}
-                            >
-                              {entry.score.toFixed(1)}
-                            </span>
-                          )}
+                          <span
+                            className="text-xs font-bold tabular-nums px-1.5 py-0.5 rounded"
+                            style={{
+                              color: entry.score > 0 ? scoreColor(entry.score) : "#71717A",
+                              backgroundColor: entry.score > 0
+                                ? scoreColor(entry.score) + "18"
+                                : "rgba(113,113,122,0.12)",
+                            }}
+                          >
+                            {entry.score > 0 ? entry.score.toFixed(1) : "—"}
+                          </span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

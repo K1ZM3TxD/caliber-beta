@@ -7,6 +7,36 @@ import {
   normalizeJobUrl as fileNormalizeJobUrl,
 } from "@/lib/pipeline_store";
 
+// ── Auth ↔ Calibration session linkage ────────────────────────
+
+/**
+ * Save the caliber_sessionId to the authenticated user's record.
+ * Called when `GET /api/pipeline` sees both userId and sessionId.
+ */
+export async function linkCaliberSession(
+  userId: string,
+  caliberSessionId: string
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { caliberSessionId },
+  });
+}
+
+/**
+ * Retrieve the stored caliber_sessionId for an authenticated user.
+ * Returns null if not yet linked.
+ */
+export async function getLinkedCaliberSession(
+  userId: string
+): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { caliberSessionId: true },
+  });
+  return user?.caliberSessionId ?? null;
+}
+
 export type PipelineStage =
   | "strong_match"
   | "tailored"
