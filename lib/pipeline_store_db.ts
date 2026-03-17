@@ -100,8 +100,10 @@ export async function pipelineCreate(
 ): Promise<PipelineEntry> {
   // Prevent duplicates for same job URL per user
   const normalized = normalizeJobUrl(entry.jobUrl);
-  const existing = await pipelineFindByJob(entry.userId, normalized);
-  if (existing) return existing;
+  if (entry.userId) {
+    const existing = await pipelineFindByJob(entry.userId, normalized);
+    if (existing) return existing;
+  }
 
   const row = await prisma.pipelineEntry.create({
     data: {
