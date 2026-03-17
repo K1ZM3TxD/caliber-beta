@@ -746,7 +746,11 @@ async function callFitAPI(jobText, sessionId, options) {
     await chrome.storage.local.set({ caliberSessionId: data.calibrationId });
   }
   if (data.signal_preference) {
-    await chrome.storage.local.set({ caliberSignalPreference: data.signal_preference });
+    // Don't overwrite manual override from popup toggle
+    const store = await chrome.storage.local.get(["caliberSignalOverride"]);
+    if (!store.caliberSignalOverride) {
+      await chrome.storage.local.set({ caliberSignalPreference: data.signal_preference });
+    }
   }
   return data;
 }

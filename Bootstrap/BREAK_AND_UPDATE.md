@@ -670,7 +670,7 @@ When the change lands, report:
 **What changed:**
 - PM established telemetry instrumentation as a prerequisite for beta launch (new enforcement invariant added to kernel.md).
 - Beta readiness definition formalized with four concrete threshold questions that must all be answered YES before declaring beta.
-- Telemetry event capture implemented: 6 events across extension and web app, append-only JSONL storage, non-blocking.
+- Telemetry event capture implemented: 6 events across extension and web app, persisted to Neon (Postgres) via Prisma, non-blocking.
 
 **Why it changed:**
 - Outside-user beta testing without product data is anecdotal-only feedback. Telemetry ensures TTSM and conversion metrics are capturable from day one.
@@ -679,7 +679,7 @@ When the change lands, report:
 **What is now expected:**
 - Telemetry is active and capturing events before any outside user receives beta access.
 - PM answers all four beta readiness questions affirmatively before declaring beta.
-- Event data accumulates at `data/telemetry_events.jsonl` for future dashboard/analysis work.
+- Event data accumulates in the Neon `TelemetryEvent` table for future dashboard/analysis work.
 
 **What is explicitly no longer expected:**
 - Launching beta without telemetry instrumentation active.

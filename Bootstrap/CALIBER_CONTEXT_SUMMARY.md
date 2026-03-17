@@ -21,7 +21,7 @@
 - Beta readiness definition updated (2026-03-14) — five-gate model. See `Bootstrap/milestones.md` for gates and readiness questions.
 - Overlay scoring is post-gate parallel work. Shipped and stable but not required for beta declaration.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0.
-- **Telemetry instrumentation is shipped (2026-03-14).** Lightweight event capture via `POST /api/events` and `data/telemetry_events.jsonl`. Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Non-blocking, fire-and-forget. This is the prerequisite layer for TTSM and all future product metrics.
+- **Telemetry instrumentation is shipped (2026-03-14).** Event capture via `POST /api/events`, persisted to Neon (Postgres) via Prisma `TelemetryEvent` model. Events: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used. Non-blocking, fire-and-forget. This is the prerequisite layer for TTSM and all future product metrics.
 - Two-branch release model implemented (2026-03-14): `main` = development iteration, `stable` = production deploy. Vercel production deploys from `stable` → caliber-app.com. Preview deploys from `main`. Promotion: validate on main → fast-forward merge to stable → push.
 - Dashboard and cohort analysis remain future work.
 

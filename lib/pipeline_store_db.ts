@@ -21,7 +21,8 @@ export type PipelineStage =
 
 export interface PipelineEntry {
   id: string;
-  userId: string;
+  userId?: string;
+  sessionId?: string;
   jobTitle: string;
   company: string;
   jobUrl: string;
@@ -35,7 +36,8 @@ export interface PipelineEntry {
 function toApi(e: PrismaEntry): PipelineEntry {
   return {
     id: e.id,
-    userId: e.userId,
+    userId: e.userId ?? undefined,
+    sessionId: e.sessionId ?? undefined,
     jobTitle: e.jobTitle,
     company: e.company,
     jobUrl: e.jobUrl,
@@ -166,6 +168,92 @@ export async function migrateFileEntriesToUser(
         stage: fe.stage,
         tailorId: fe.tailorId ?? null,
       },
+    });
+    existingUrls.add(normalized);
+    migrated++;
+  }
+  return migrated;
+}
+
+// ── Session-based operations (extension, no auth required) ────
+
+export async function pipelineListBySession(
+  sessionId: string
+): Promise<PipelineEntry[]> {
+  const rows = await prisma.pipelineEntry.findMany({
+    where: { sessionId },
+    orderBy: { updatedAt: "desc" },
+  });
+  return rows.map(toApi);
+}
+
+export async function pipelineFindByJobSession(
+  sessionId: string,
+  jobUrl: string
+): Promise<PipelineEntry | null> {
+  const normalized = normalizeJobUrl(jobUrl);
+  const rows = await prisma.pipelineEntry.findMany({ where: { sessionId } });
+  const match = rows.find((e) => normalizeJobUrl(e.jobUrl) === normalized);
+  return match ? toApi(match) : null;
+}
+
+export async function pipelineCreateForSession(
+  entry: {
+    sessionId: string;
+    jobTitle: string;
+    company: string;
+    jobUrl: string;
+    score: number;
+    stage: string;
+    tailorId?: string;
+  }
+): Promise<PipelineEntry> {
+  const existing = await pipelineFindByJobSession(entry.sessionId, entry.jobUrl);
+  if (existing) return existing;
+
+  const row = await prisma.pipelineEntry.create({
+    data: {
+      id: "pl_" + crypto.randomBytes(8).toString("hex"),
+      sessionId: entry.sessionId,
+      jobTitle: entry.jobTitle,
+      company: entry.company,
+      jobUrl: entry.jobUrl,
+      score: entry.score,
+      stage: entry.stage,
+      tailorId: entry.tailorId ?? null,
+    },
+  });
+  return toApi(row);
+}
+
+/**
+ * Migrate session-based DB entries to a signed-in user.
+ * Called when authenticated user loads /pipeline with a sessionId cookie.
+ */
+export async function migrateSessionEntriesToUser(
+  sessionId: string,
+  userId: string
+): Promise<number> {
+  // Get session entries not yet assigned to a user
+  const sessionRows = await prisma.pipelineEntry.findMany({
+    where: { sessionId, userId: null },
+  });
+  if (sessionRows.length === 0) return 0;
+
+  const existing = await prisma.pipelineEntry.findMany({ where: { userId } });
+  const existingUrls = new Set(existing.map((e) => normalizeJobUrl(e.jobUrl)));
+
+  let migrated = 0;
+  for (const row of sessionRows) {
+    const normalized = normalizeJobUrl(row.jobUrl);
+    if (existingUrls.has(normalized)) {
+      // Duplicate — delete the session-only entry
+      await prisma.pipelineEntry.delete({ where: { id: row.id } });
+      continue;
+    }
+    await prisma.pipelineEntry.update({
+      where: { id: row.id },
+      data: { userId },
     });
     existingUrls.add(normalized);
     migrated++;

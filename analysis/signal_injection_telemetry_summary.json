@@ -1,0 +1,289 @@
+{
+  "generated": "2026-03-17T03:29:09.282Z",
+  "dataSource": "TelemetryEvent (Neon/Postgres via Prisma)",
+  "totalEvents": 534,
+  "conditions": {
+    "signal_on": {
+      "events": 315,
+      "scoredJobs": 54,
+      "strongMatches": 54
+    },
+    "signal_off": {
+      "events": 181,
+      "scoredJobs": 30,
+      "strongMatches": 30
+    },
+    "untagged": {
+      "events": 38
+    }
+  },
+  "matching": {
+    "matchedPairs": 28,
+    "jobKeyMethod": "LinkedIn job ID from URL (preferred) or normalized title|company composite",
+    "duplicateRule": "Latest job_score_rendered per job; fallback to strong_match_viewed then job_opened"
+  },
+  "deltas": {
+    "mean": 0.02,
+    "median": 0,
+    "min": 0,
+    "max": 0.6,
+    "improved": 1,
+    "unchanged": 27,
+    "worsened": 0
+  },
+  "strongMatchThreshold": 7,
+  "thresholdCrossings": {
+    "gainedBySignalOn": 0,
+    "lostBySignalOn": 0
+  },
+  "top10PositiveDeltas": [
+    {
+      "jobTitle": "Business Development Manager",
+      "company": "Bay Logistics, Inc.",
+      "signal_on": 7.7,
+      "signal_off": 7.1,
+      "delta": 0.6
+    }
+  ],
+  "top10NegativeDeltas": [],
+  "ttsm": {
+    "signal_on": {
+      "surfaces": 1,
+      "avgSeconds": 2.8,
+      "values": [
+        2.8
+      ]
+    },
+    "signal_off": {
+      "surfaces": 0,
+      "avgSeconds": null,
+      "values": []
+    }
+  },
+  "allPairs": [
+    {
+      "key": "li:4380061152",
+      "jobTitle": "Business Development Manager",
+      "company": "Mitchell Silberberg & Knupp LLP",
+      "signal_on": 8.3,
+      "signal_off": 8.3,
+      "delta": 0
+    },
+    {
+      "key": "li:4369236696",
+      "jobTitle": "Business Development Manager",
+      "company": "MARKHAM",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4386375830",
+      "jobTitle": "Business Development Manager",
+      "company": "LETL",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4377281277",
+      "jobTitle": "Business Development/Sales Manager",
+      "company": "Precision Contractors",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4374383935",
+      "jobTitle": "Business Development Manager",
+      "company": "Innodisk Corporation",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4369989025",
+      "jobTitle": "CLTC Business Development Manager",
+      "company": "Certitrek Group",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4376773750",
+      "jobTitle": "Business Development Manager",
+      "company": "Buyerlink",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4374064165",
+      "jobTitle": "Business Development Manager",
+      "company": "Bay Logistics, Inc.",
+      "signal_on": 7.7,
+      "signal_off": 7.1,
+      "delta": 0.6
+    },
+    {
+      "key": "li:4379450551",
+      "jobTitle": "Fuel Card Business Development Manager",
+      "company": "AZFS LLC",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4375009296",
+      "jobTitle": "Regional Manager, Business Development - Eastern US",
+      "company": "DALS Lighting / Éclairage Dals, Inc.",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4384268555",
+      "jobTitle": "Laundry Sales Manager / Business Development Manager",
+      "company": "Star Fades International - SFI",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4383365331",
+      "jobTitle": "Senior Partnership Success Manager (Westcoast)",
+      "company": "Fox Fold",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4384896739",
+      "jobTitle": "Partnerships & Community Growth Manager",
+      "company": "Motion Recruitment",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4384876204",
+      "jobTitle": "Partnership Manager",
+      "company": "Archer Education",
+      "signal_on": 8.8,
+      "signal_off": 8.8,
+      "delta": 0
+    },
+    {
+      "key": "li:4369707171",
+      "jobTitle": "Commercial Manager",
+      "company": "Alchemy CO₂",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4382807423",
+      "jobTitle": "Alliance Manager",
+      "company": "Cork",
+      "signal_on": 8.3,
+      "signal_off": 8.3,
+      "delta": 0
+    },
+    {
+      "key": "li:4381494290",
+      "jobTitle": "Business Development Manager-Utility",
+      "company": "Vertical Supply Group",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4381108762",
+      "jobTitle": "Partnerships Manager",
+      "company": "Alleaz",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4375758820",
+      "jobTitle": "Sales Business Development Manager",
+      "company": "Alpha Integration",
+      "signal_on": 7.1,
+      "signal_off": 7.1,
+      "delta": 0
+    },
+    {
+      "key": "li:4370814301",
+      "jobTitle": "Creator Partnerships Manager",
+      "company": "Fahlo",
+      "signal_on": 8.3,
+      "signal_off": 8.3,
+      "delta": 0
+    },
+    {
+      "key": "li:4385643030",
+      "jobTitle": "Business Development Manager",
+      "company": "Voro",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4385361674",
+      "jobTitle": "Partnerships Manager",
+      "company": "UIDP",
+      "signal_on": 8.8,
+      "signal_off": 8.8,
+      "delta": 0
+    },
+    {
+      "key": "li:4369848710",
+      "jobTitle": "Strategic Commercial Manager, Global Markets",
+      "company": "Seaman Corporation",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4382837136",
+      "jobTitle": "Partnership Development Manager (Remote)",
+      "company": "Dryad",
+      "signal_on": 8.3,
+      "signal_off": 8.3,
+      "delta": 0
+    },
+    {
+      "key": "li:4386550548",
+      "jobTitle": "Senior Business Development Manager",
+      "company": "Mobius Talent Global",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    },
+    {
+      "key": "li:4329340281",
+      "jobTitle": "Business Development Manager",
+      "company": "DryRite Restoration LLC",
+      "signal_on": 7.2,
+      "signal_off": 7.2,
+      "delta": 0
+    },
+    {
+      "key": "li:4382062619",
+      "jobTitle": "Business Development Manager",
+      "company": "Reliance Worldwide Corporation",
+      "signal_on": 8.3,
+      "signal_off": 8.3,
+      "delta": 0
+    },
+    {
+      "key": "li:4379958230",
+      "jobTitle": "Business Development Manager — Medical Aesthetics Sales (New York City)",
+      "company": "Rion Aesthetics",
+      "signal_on": 7.7,
+      "signal_off": 7.7,
+      "delta": 0
+    }
+  ]
+}

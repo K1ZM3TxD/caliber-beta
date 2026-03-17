@@ -67,3 +67,46 @@ body {
   text-decoration: none;
   display: block;
 }
+
+/* Signal toggle */
+.divider {
+  border: none;
+  border-top: 1px solid #2A2A2A;
+  margin: 12px 0 10px;
+}
+.signal-section { margin-top: 4px; }
+.signal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.signal-label {
+  font-size: 11px;
+  color: #AFAFAF;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.signal-toggle {
+  padding: 4px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #333;
+  transition: background 0.15s, color 0.15s;
+}
+.signal-toggle.is-on {
+  background: rgba(74,222,128,0.15);
+  color: #4ADE80;
+  border-color: rgba(74,222,128,0.4);
+}
+.signal-toggle.is-off {
+  background: rgba(239,68,68,0.12);
+  color: #EF4444;
+  border-color: rgba(239,68,68,0.35);
+}
+.signal-status-text {
+  font-size: 10px;
+  color: #777;
+  margin-top: 4px;
+}

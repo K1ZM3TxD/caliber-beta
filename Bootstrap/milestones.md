@@ -41,6 +41,7 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [ ] Score band labels render correctly across all score ranges
 
 IMPLEMENTATION LOG:
+- 2026-03-17: SGD Signal Injection Impact Test — PASS. Telemetry analysis compared identical job listings under signal_off vs signal_on calibration modes using Neon event data. 28 matched jobs were analyzed. Mean score delta was +0.02 with 27/28 jobs scoring identically and one job shifting +0.6. No jobs crossed the strong-match threshold (>=7.0). Conclusion: signal injection has negligible scoring impact and does not destabilize surface intelligence behavior. Resume anchors remain the dominant scoring factor. Validation complete.
 - 2026-03-17: BREAK+UPDATE — Durable telemetry storage + experiment tagging. File-backed JSONL/SQLite telemetry replaced by Postgres (Neon) via Prisma. Both `/api/events` and `/api/feedback` write to `TelemetryEvent`/`FeedbackEvent` tables. Experiment condition queryable via sessionId/signalPreference/meta. Extension dev/prod host split restored. DONE: durable storage adopted, feedback pipeline migrated, experiment tagging added. BLOCKED: production `DATABASE_URL` must be set in Vercel. NEXT: deploy, rerun 50/50. Files: `lib/telemetry_store.ts`, `lib/feedback_store.ts`, `app/api/events/route.ts`, `app/api/feedback/route.ts`, `prisma/schema.prisma`, `extension/env.js`, `extension/manifest.json`.
 - 2026-03-16: BREAK+UPDATE — SMC stale boot state + manual Add-to-pipeline write fix. (1) prescanSurfaceBanner no longer rehydrated from durable state on init — SMC renders only from fresh scoring. (2) Manual & auto-add pipeline paths re-extract DOM meta at action time with sentinel fallbacks, preventing API 400 on empty company. (3) background.js forwards error/httpStatus in CALIBER_PIPELINE_SAVE response. (4) chrome.runtime.lastError checked in both save handlers. DONE: SMC stale-state fix shipped (v0.9.10). Pipeline write fix ready. BLOCKED: validation pending with Jen profile. NEXT: validate manual add creates entry in /pipeline; validate fresh surface shows no stale SMC score. Files: `extension/content_linkedin.js`, `extension/background.js`.
 - 2026-03-16: BREAK+UPDATE — Guardrail over-capping prescan scores (v0.9.14). User testing revealed 21/25 jobs scoring exactly 5.0 — `applyDomainMismatchGuardrail()` was flattening scores during prescan before BST/SMC could evaluate surface quality. (1) Removed guardrail from prescan badge scoring path entirely — raw alignment scores now flow into badge cache. (2) Guardrail retained on sidecard `showResults()` path only. (3) Added `scoreSource` field to all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (4) `restored_cache` entries excluded from `strongCount`. (5) `lastScoredScore` reset on surface change. (6) `[Caliber][SCORE_CAPPED]` diagnostic logging added. (7) Per-entry surface-truth logging with source breakdown. DONE: Fix shipped (v0.9.14), validated by user — natural score spread restored. Files: `extension/content_linkedin.js`.
@@ -297,7 +298,7 @@ BREAK + UPDATE — 2026-03-14 (Beta Readiness + Telemetry Instrumentation)
 DONE:
 - Beta readiness definition formalized: four threshold questions PM must answer YES to before declaring beta (see milestone block above)
 - PM decision: telemetry event capture is a prerequisite for beta launch — outside-user testing must start with usable product data
-- Telemetry instrumentation implemented (commit e835fcb): POST /api/events endpoint, lib/telemetry_store.ts, append-only JSONL at data/telemetry_events.jsonl
+- Telemetry instrumentation implemented (commit e835fcb): POST /api/events endpoint, lib/telemetry_store.ts. Storage: Neon (Postgres) via Prisma `TelemetryEvent` model
 - Six events wired: search_surface_opened, job_score_rendered, job_opened, strong_match_viewed, pipeline_save, tailor_used
 - Extension emits 5 events (content_linkedin.js → background.js relay); web app emits tailor_used (app/tailor/page.tsx)
 - All telemetry is non-blocking / fire-and-forget — failures never break user-facing flows
@@ -307,7 +308,7 @@ BLOCKED:
 
 NEXT:
 - Begin beta stability testing with telemetry instrumentation active
-- Monitor telemetry_events.jsonl for event flow validation during real usage
+- Monitor telemetry events in Neon for event flow validation during real usage
 - Resume action-layer pipeline: auto-save strong matches → post-save confirmation → account prompt
 
 ---

@@ -1,26 +1,26 @@
-// GET:   list pipeline entries (auth'd → DB, extension → file store)
+// GET:   list pipeline entries (auth'd → DB by userId, extension/unauthenticated → DB by sessionId)
 // POST:  create a new pipeline entry
 // PATCH: update an existing entry's stage
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-// File-based store (legacy / extension compat)
+// File-based store (legacy migration only)
 import {
-  pipelineList as filePipelineList,
-  pipelineFindByJob as filePipelineFindByJob,
-  pipelineCreate as filePipelineCreate,
-  pipelineUpdateStage as filePipelineUpdateStage,
   type PipelineStage,
 } from "@/lib/pipeline_store";
 
-// DB-backed store (user-bound persistence)
+// DB-backed store (all persistence)
 import {
   pipelineList as dbPipelineList,
   pipelineFindByJob as dbPipelineFindByJob,
   pipelineCreate as dbPipelineCreate,
   pipelineUpdateStage as dbPipelineUpdateStage,
   migrateFileEntriesToUser,
+  pipelineListBySession,
+  pipelineFindByJobSession,
+  pipelineCreateForSession,
+  migrateSessionEntriesToUser,
 } from "@/lib/pipeline_store_db";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
@@ -66,10 +66,15 @@ export async function GET(req: NextRequest) {
   const sessionId = searchParams.get("sessionId") ?? undefined;
   const jobUrl = searchParams.get("jobUrl") ?? undefined;
 
-  // Extension requests: use file-based store (backward compat)
+  // Extension requests: DB by sessionId
   if (isExtensionRequest(req)) {
-    if (jobUrl && sessionId) {
-      const entry = filePipelineFindByJob(sessionId, jobUrl);
+    if (!sessionId) {
+      const res = NextResponse.json({ ok: false, error: "Missing sessionId" }, { status: 400 });
+      for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
+      return res;
+    }
+    if (jobUrl) {
+      const entry = await pipelineFindByJobSession(sessionId, jobUrl);
       const res = NextResponse.json(
         { ok: true, exists: !!entry, entry: entry ?? undefined },
         { status: 200 }
@@ -77,38 +82,53 @@ export async function GET(req: NextRequest) {
       for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
       return res;
     }
-    const entries = filePipelineList(sessionId);
+    const entries = await pipelineListBySession(sessionId);
     const res = NextResponse.json({ ok: true, entries }, { status: 200 });
     for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
     return res;
   }
 
-  // Web app requests: require auth, use DB
+  // Web app requests: prefer auth, fall back to sessionId
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json(
-      { ok: false, error: "Authentication required" },
-      { status: 401 }
-    );
+
+  if (session?.user?.id) {
+    const userId = session.user.id;
+
+    // Migrate any file-based or session-based entries for this user
+    if (sessionId) {
+      await migrateFileEntriesToUser(sessionId, userId);
+      await migrateSessionEntriesToUser(sessionId, userId);
+    }
+
+    if (jobUrl) {
+      const entry = await dbPipelineFindByJob(userId, jobUrl);
+      return NextResponse.json(
+        { ok: true, exists: !!entry, entry: entry ?? undefined },
+        { status: 200 }
+      );
+    }
+
+    const entries = await dbPipelineList(userId);
+    return NextResponse.json({ ok: true, entries }, { status: 200 });
   }
 
-  const userId = session.user.id;
-
-  // Migrate any file-based entries for this user's calibration session
+  // Not authenticated but has sessionId — show session-based entries
   if (sessionId) {
-    await migrateFileEntriesToUser(sessionId, userId);
+    if (jobUrl) {
+      const entry = await pipelineFindByJobSession(sessionId, jobUrl);
+      return NextResponse.json(
+        { ok: true, exists: !!entry, entry: entry ?? undefined },
+        { status: 200 }
+      );
+    }
+    const entries = await pipelineListBySession(sessionId);
+    return NextResponse.json({ ok: true, entries }, { status: 200 });
   }
 
-  if (jobUrl) {
-    const entry = await dbPipelineFindByJob(userId, jobUrl);
-    return NextResponse.json(
-      { ok: true, exists: !!entry, entry: entry ?? undefined },
-      { status: 200 }
-    );
-  }
-
-  const entries = await dbPipelineList(userId);
-  return NextResponse.json({ ok: true, entries }, { status: 200 });
+  return NextResponse.json(
+    { ok: false, error: "Authentication or sessionId required" },
+    { status: 401 }
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -125,7 +145,7 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    // Extension requests: file-based store
+    // Extension requests: DB by sessionId
     if (isExtensionRequest(req)) {
       if (!sessionId) {
         const res = NextResponse.json(
@@ -135,7 +155,7 @@ export async function POST(req: NextRequest) {
         for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
         return res;
       }
-      const entry = filePipelineCreate({
+      const entry = await pipelineCreateForSession({
         sessionId: String(sessionId),
         jobTitle: String(jobTitle).slice(0, 200),
         company: String(company).slice(0, 200),
@@ -212,8 +232,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, entry: updated }, { status: 200 });
     }
 
-    // Fallback to file store for extension/unauthenticated
-    const updated = filePipelineUpdateStage(
+    // Unauthenticated / extension: still use DB (session-based entries have no userId)
+    const updated = await dbPipelineUpdateStage(
       String(id),
       stage as PipelineStage,
       tailorId ? { tailorId: String(tailorId) } : undefined

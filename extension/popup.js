@@ -55,6 +55,7 @@
       // Session valid — offer sidecard
       setStatus("LinkedIn job page detected.");
       toggleBtn.style.display = "";
+      initSignalToggle();
       toggleBtn.textContent = "Open Sidecard";
 
       toggleBtn.addEventListener("click", function () {
@@ -77,4 +78,37 @@
       });
     });
   });
+
+  // ── Signal toggle for A/B experiment ──
+  function initSignalToggle() {
+    var section = document.getElementById("signal-toggle-section");
+    var btn = document.getElementById("signal-toggle-btn");
+    var statusText = document.getElementById("signal-status");
+    section.style.display = "";
+
+    function render(pref) {
+      var isOn = pref === "yes";
+      btn.textContent = isOn ? "ON" : "OFF";
+      btn.className = "signal-toggle " + (isOn ? "is-on" : "is-off");
+      statusText.textContent = isOn ? "Scores include detected signals" : "Scores use resume only";
+    }
+
+    // Read current value
+    chrome.storage.local.get(["caliberSignalPreference"], function (store) {
+      var current = store.caliberSignalPreference || "yes";
+      render(current);
+    });
+
+    btn.addEventListener("click", function () {
+      chrome.storage.local.get(["caliberSignalPreference"], function (store) {
+        var next = store.caliberSignalPreference === "yes" ? "no" : "yes";
+        chrome.storage.local.set({
+          caliberSignalPreference: next,
+          caliberSignalOverride: true
+        }, function () {
+          render(next);
+        });
+      });
+    });
+  }
 })();
