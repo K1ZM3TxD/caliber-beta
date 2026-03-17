@@ -5,7 +5,7 @@
   "scripts": {
     "prompt:guard": "tsx scripts/prompt_drift_guard.ts",
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "tsx scripts/prompt_drift_guard.ts",
