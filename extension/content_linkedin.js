@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.15";
+  const PANEL_VERSION = "0.9.16";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1137,7 +1137,7 @@
           // the user is viewing a specific full-description job.
           var badgeScore = rawBadgeScore;
           var dbg = result.debugSignals;
-          console.warn("[Caliber][prescan][NOCAP] v0.9.15 — raw " + rawBadgeScore.toFixed(1) +
+          console.warn("[Caliber][prescan][NOCAP] v0.9.16 — raw " + rawBadgeScore.toFixed(1) +
             " for \"" + (result.title || "?") + "\"" +
             (dbg ? " | P=" + JSON.stringify(dbg.personVector) +
               " R=" + JSON.stringify(dbg.roleVector) +
