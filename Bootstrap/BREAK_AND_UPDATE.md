@@ -79,6 +79,88 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-17 — Surface/UI Clarification + Beta Media Scope + Signal Validation + UX Polish (v0.9.15)
+
+**What changed:**
+
+1. **Signal injection telemetry validation completed — PASS for beta.** Neon event data comparison of signal_off vs signal_on on 28 matched jobs showed: mean delta +0.02, 27/28 identical scores, one +0.6 shift, zero threshold crossings. Resume/calibration anchors remain the dominant scoring factor. Signal injection does not destabilize scoring or surface intelligence.
+
+2. **Telemetry documentation truth finalized.** Neon (Postgres via Prisma) is the canonical telemetry backend. File-backed JSONL descriptions are superseded in all documentation. `/api/events` remains the ingestion path. Telemetry remains non-blocking.
+
+3. **Calibration result/title page refinement accepted as landed.** The title-reveal page redesign (two-sentence context → hero title → "How we score this") was positively validated by PM: "excellent layout." This is no longer speculative — it is an accepted UX improvement.
+
+4. **Landing-page hero media scope constrained for beta.** Full animated "Career → Decision → Engine" system is explicitly deferred to post-beta. Pre-beta landing page uses a lightweight hero with tagline ("See which jobs actually fit you"), product-preview card (3 scored roles with stagger animation), LinkedIn context line, and CTA support copy. Simple and sufficient for beta — the full animation concept is post-beta.
+
+5. **Surface/job-layer separation doctrine clarified.** Sidecard and surface-level intelligence are distinct UI surfaces. Combining page-level comparison signals with current-job decision UI creates confusion. Doctrine now explicit:
+   - Sidecard = current-job decision surface (score, decision label, pipeline action, explanation)
+   - Surface layer = page/search intelligence (strong match count, best job, BST recovery)
+   - These must not be mixed in the same UI moment.
+
+6. **"Best so far" popup/banner removed from sidecard-adjacent flow.** The surface-quality banner (`showSurfaceQualityBanner`) presentation is disabled — function returns early before rendering any DOM. All underlying surface intelligence state is preserved:
+   - `prescanSurfaceBanner` state still tracked at all call sites
+   - `pageMaxScore` / `pageBestTitle` computation untouched
+   - `strongCount` evaluation untouched
+   - CSS (`cb-sq-*`) retained for future overlay reuse
+   - BST logic completely untouched
+   - Concept remains available for future overlay/surface-summary UI
+
+7. **UX polish batch shipped (v0.9.15).** Landing hero strengthened, sidecard skeleton immediate render with score pop animation, telemetry dedupe guard (`telemetryEmittedIds`), pipeline add visual feedback (Saving→Saved✓→In pipeline), pipeline highlight on navigate from extension, tailor panel progressive 3-step generating UI with skeleton preview, high-confidence match label + panel glow for scores ≥8.5, sign-in page min-h-screen flex centering.
+
+**Why it changed:**
+- Signal injection test directly answered whether the SGD feature was destabilizing scoring; it is not. Keeping it marked as open risk would be inaccurate.
+- Repo/documentation drift around telemetry backend created confusion — docs referenced deprecated JSONL storage.
+- Result/title page is a critical trust moment and its improved version was positively validated.
+- Full landing animation is not the highest-leverage pre-beta use of time; simple proof-of-product hero is sufficient for beta.
+- Sidecard had become noisy by mixing two distinct information surfaces — page/search intelligence and current-job decision UI. "Best so far" popup is valuable as a concept but creates confusion when presented adjacent to the job-decision moment.
+- Extension sidecard UX needed polish for perceived responsiveness, feedback loops, and high-score differentiation.
+
+**What is now expected:**
+- Signal injection is treated as beta-passed / validated. Not an open risk.
+- Docs describe Neon as telemetry backend. JSONL is not referenced as active.
+- Sign-in / durable memory and tailor resume validation remain the key beta items still open.
+- Beta landing page uses a simple hero with product preview rather than a full animation system.
+- Surface intelligence is kept separate from sidecard UI. "Best so far" logic/state remains in the system, but popup presentation in sidecard flow is removed.
+- Sidecard shows immediate skeleton on job load, progressive feedback during API wait, score entrance animation, and high-confidence label for ≥8.5.
+- Pipeline add gives visual confirmation. Navigate-to-pipeline highlights the saved card.
+- Tailor panel shows 3-step progressive generating UI with skeleton preview.
+
+**What is no longer expected:**
+- JSONL described as the active telemetry backend.
+- Re-opening signal injection as an unresolved beta risk.
+- Treating the landing animation system as required pre-beta scope.
+- Presenting surface-level "Best so far" popup/banner in the sidecard-adjacent experience.
+- Static spinner-only wait states in sidecard or tailor panel.
+
+**Risk / fallout:**
+- Removing the surface-quality banner popup reduces visible guidance in the moment, but preserves a cleaner sidecard focus. Mitigation: underlying surface intelligence remains available for SMC/overlay/future placement.
+- Lightweight hero video may undersell the fuller future concept, but is the correct leverage decision for beta.
+- High-confidence label (≥8.5) adds a new visual element — but it's non-intrusive (small badge + subtle panel glow, no modal).
+
+**Proof:**
+- Signal test result: 28 matched jobs, mean delta +0.02, 27/28 identical, 0 threshold crossings.
+- PM confirmation: title-result page "landed" / "excellent layout."
+- Explicit beta scope decision: lightweight hero demo, full animation post-beta.
+- Explicit doctrine: "surface intelligence and job-decision UI are distinct surfaces; combining them is confusion."
+- `showSurfaceQualityBanner` returns early with debug log; `prescanSurfaceBanner` state still assigned at all call sites.
+- Build verified clean. Extension syntax verified clean. v0.9.15 zipped and deployed.
+
+**Files touched:**
+- `app/calibration/page.tsx`
+- `app/pipeline/page.tsx`
+- `app/signin/page.tsx`
+- `extension/content_linkedin.js`
+- `extension/background.js`
+- `extension/manifest.json`
+- `lib/extension_config.ts`
+- `public/caliber-extension-beta-v0.9.15.zip`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+- `Bootstrap/milestones.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/kernel.md`
+
+---
+
 ### 2026-03-17 — Durable Telemetry Storage + Experiment Tagging
 
 **What changed:**

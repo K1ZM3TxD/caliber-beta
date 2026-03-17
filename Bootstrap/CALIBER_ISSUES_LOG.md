@@ -3,6 +3,36 @@
 
 ## Current Open Issues
 
+80. Landing-page hero communication scope — **DECIDED** (2026-03-17)
+  - **Decision:** Pre-beta landing page uses lightweight hero: tagline ("See which jobs actually fit you"), product-preview card (3 scored roles with stagger animation), LinkedIn context line, CTA support copy.
+  - **Deferred:** Full animated "Career → Decision → Engine" narrative system deferred to post-beta.
+  - **Rationale:** The full animation concept is not the highest-leverage pre-beta use of time. Simple proof-of-product is sufficient for beta launch.
+  - **Status:** Decision made. Lightweight hero implemented (v0.9.15). Full animation concept deferred.
+
+79. Surface/job signal mixing via "Best so far" popup — **RESOLVED** (2026-03-17)
+  - **Symptom:** Surface-quality banner ("Best so far" popup) attached to sidecard experience mixes page-level comparison signals with current-job decision UI, creating user confusion.
+  - **Root cause:** The surface-quality banner renders in the BST slot adjacent to the sidecard. While technically separate from the sidecard template, it occupies the same visual/interaction moment. PM clarified that surface intelligence and job-decision UI are distinct surfaces that should not be mixed.
+  - **Fix (v0.9.15):** `showSurfaceQualityBanner` returns early before rendering any DOM. All underlying state preserved: `prescanSurfaceBanner` tracked at all call sites, `pageMaxScore`/`pageBestTitle` computation untouched, `strongCount` evaluation untouched, CSS retained.
+  - **Resolution path:** Popup presentation removed. Surface intelligence logic preserved for future overlay/surface-summary features.
+  - **Status:** Fix shipped (v0.9.15). Underlying concept available for future reuse.
+  - **Files:** `extension/content_linkedin.js`.
+
+78. Signal injection scoring impact uncertainty — **RESOLVED** (2026-03-17)
+  - **Symptom:** Uncertainty about whether SGD signal injection (anchor boosts + signal-affinity bonus) could destabilize scoring or surface intelligence behavior at scale.
+  - **Validation:** Neon telemetry comparison of signal_off vs signal_on on 28 matched jobs. Mean delta +0.02, 27/28 identical scores, one +0.6 shift, zero threshold crossings (no job crossed >=7.0 boundary).
+  - **Conclusion:** Signal injection has negligible scoring impact. Resume/calibration anchors remain the dominant factor. Signal injection PASS for beta.
+  - **Status:** Resolved. No longer an active beta risk.
+
+77. Sign-in / durable memory — **OPEN / ACTIVE** (beta gate 4)
+  - **Symptom:** User sessions do not persist across browser restarts. Pipeline and calibration data are not durable without sign-in.
+  - **Impact:** Beta gate 4 cannot be met without this. Users lose pipeline entries and calibration state when they close and reopen the browser.
+  - **Status:** Open. This is the top remaining beta blocker.
+
+77b. Tailor resume end-to-end validation — **OPEN** (beta gate 5)
+  - **Symptom:** Tailor resume feature is functional (copy/download, retry-on-error, progressive step UI) but has not been validated end-to-end in a real user flow.
+  - **Impact:** Beta gate 5 cannot be met without explicit validation.
+  - **Status:** Open. Needs explicit end-to-end validation after sign-in is working.
+
 76. Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (2026-03-16)
   - **Symptom:** On a real LinkedIn search surface, 21 out of 25 jobs scored exactly 5.0 during prescan. Only 1 scored above 6.0 (7.7). "Best so far" started at 7.1 and only updated to 7.7 at position 23.
   - **Root cause:** `applyDomainMismatchGuardrail()` ran per-card during the badge prescan path. The 3-tier cap (HRC=Unlikely, role-family mismatch, cluster-vs-unclustered) flattened scores to 5.0 before BST/SMC could evaluate the full surface. BST saw a monotone 5.0 wall and could not distinguish genuinely weak jobs from guardrail-flattened ones. Surface quality metrics were destroyed before they could be used.

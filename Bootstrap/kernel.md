@@ -84,6 +84,31 @@ Subsystems:
 
 Purpose: Reduce user cognitive load by summarizing professional signals and job-surface quality. SSI subsystems are validated together during the Desktop Stabilization phase before beta launch.
 
+## Surface/Job UI Separation Invariant (2026-03-17)
+
+Surface intelligence and job-decision UI are distinct presentation surfaces. Mixing them creates user confusion.
+
+- **Sidecard** is the current-job decision surface. It displays: this job's score, this job's decision label, hiring reality, supports/stretch, bottom line, pipeline action. It MUST NOT display page-level comparison signals (e.g., "Best so far", strong match count, search surface quality).
+- **Surface layer** is the page/search intelligence surface. It displays: strong match count, best job on surface, BST recovery suggestions. These are aggregate signals about the search surface.
+- **"Best so far"** is a surface-layer construct. It may be reused by banners, overlay, or future surface-summary UI, but MUST NOT appear in sidecard-adjacent decision UI.
+- Underlying surface intelligence state (`prescanSurfaceBanner`, `pageMaxScore`, `pageBestTitle`, `strongCount`) MUST be preserved even when its presentation is disabled — future overlay features depend on it.
+- Combining surface-level signals with job-level decision UI is a UX regression.
+
+## Telemetry Documentation Truth Invariant (2026-03-17)
+
+Telemetry storage documentation must match actual operator reality.
+
+- Documentation MUST NOT describe deprecated storage backends (e.g., `data/telemetry_events.jsonl`, local SQLite) as active or canonical.
+- The canonical telemetry backend is Neon (Postgres via Prisma). This is the only production-supported path.
+- If the storage backend changes in the future, all documentation must be updated in the same BREAK+UPDATE.
+
+## Beta-Scope Marketing Invariant (2026-03-17)
+
+Pre-beta hero media may use a lightweight proof-of-product video or static preview. Full narrative animation concepts (e.g., "Career → Decision → Engine" animated system) are post-beta scope unless explicitly promoted into pre-beta scope by PM.
+
+- This prevents unbounded marketing scope work from blocking beta launch.
+- The pre-beta landing page should communicate what the product does, not tell a brand story.
+
 ## Scoring Context Invariant
 
 Caliber uses two scoring contexts:
