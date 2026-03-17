@@ -79,6 +79,19 @@ model PipelineEntry {
   @@index([userId, jobUrl])
 }
 
+// ─── Calibration sessions (durable) ───────────────────────────
+
+model CalibrationSessionRecord {
+  sessionId String   @id
+  data      String   // Full session JSON blob
+  locked    Boolean  @default(false) // personVector.locked — quick filter
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([locked])
+  @@index([updatedAt])
+}
+
 // ─── Telemetry events (durable) ───────────────────────────────
 
 model TelemetryEvent {

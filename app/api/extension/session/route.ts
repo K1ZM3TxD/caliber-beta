@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storeGet, storeLatest, storeImport } from "@/lib/calibration_store";
+import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } from "@/lib/calibration_store";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
@@ -25,11 +25,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const requestedId = searchParams.get("sessionId");
 
-  let session;
-  if (requestedId) {
-    session = storeGet(requestedId);
-  } else {
-    session = storeLatest();
+  // Try sync (memory + disk) first, fall back to DB on cold Lambda
+  let session = requestedId ? storeGet(requestedId) : storeLatest();
+  if (!session) {
+    session = requestedId ? await storeGetAsync(requestedId) : await storeLatestAsync();
   }
 
   const headers = corsHeaders(req);
@@ -87,6 +86,11 @@ export async function POST(req: NextRequest) {
   if (!session && body.sessionBackup && typeof body.sessionBackup === "object") {
     storeImport(body.sessionBackup);
     session = requestedId ? storeGet(requestedId) : storeLatest();
+  }
+
+  // Fall back to DB on cold Lambda
+  if (!session) {
+    session = requestedId ? await storeGetAsync(requestedId) : await storeLatestAsync();
   }
 
   if (!session) {

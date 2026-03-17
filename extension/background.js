@@ -468,40 +468,48 @@ async function trySessionEndpoint(storedId, sessionBackup) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: storedId, sessionBackup }),
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(5000),
       });
+      console.debug("[Caliber][bg][session] stage1 POST: http=" + resp.status);
       if (resp.ok) {
         const data = await resp.json();
         if (data.ok && data.sessionId) {
           return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
         }
+        console.debug("[Caliber][bg][session] stage1 POST: data.ok=" + data.ok + ", data.sessionId=" + !!data.sessionId);
       }
-    } catch { /* endpoint unreachable or timeout */ }
+    } catch (e1) { console.warn("[Caliber][bg][session] stage1 POST failed: " + e1.message); }
   }
 
   // Stage 2: GET with stored sessionId
   if (storedId) {
     try {
-      const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(3000) });
+      const resp = await fetch(API_BASE + "/api/extension/session?sessionId=" + encodeURIComponent(storedId), { signal: AbortSignal.timeout(5000) });
+      console.debug("[Caliber][bg][session] stage2 GET(id): http=" + resp.status);
       if (resp.ok) {
         const data = await resp.json();
         if (data.ok && data.profileComplete) {
           return { ok: true, sessionId: data.sessionId, profileComplete: true, state: data.state };
         }
+        console.debug("[Caliber][bg][session] stage2 GET(id): data.ok=" + data.ok + ", profileComplete=" + data.profileComplete);
       }
-    } catch { /* endpoint unreachable or timeout */ }
+    } catch (e2) { console.warn("[Caliber][bg][session] stage2 GET(id) failed: " + e2.message); }
   }
 
-  // Stage 3: GET latest session
+  // Stage 3: GET latest session — critical fallback, use generous timeout
   try {
-    const resp = await fetch(API_BASE + "/api/extension/session", { signal: AbortSignal.timeout(3000) });
+    console.debug("[Caliber][bg][session] stage3 GET(latest) → " + API_BASE + "/api/extension/session");
+    const resp = await fetch(API_BASE + "/api/extension/session", { signal: AbortSignal.timeout(8000) });
+    console.debug("[Caliber][bg][session] stage3 GET(latest): http=" + resp.status);
     if (resp.ok) {
       const data = await resp.json();
       if (data.ok && data.sessionId) {
+        console.debug("[Caliber][bg][session] stage3 resolved: " + data.sessionId + " (profileComplete=" + data.profileComplete + ")");
         return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
       }
+      console.warn("[Caliber][bg][session] stage3 GET(latest): server responded but no session — data.ok=" + data.ok);
     }
-  } catch { /* endpoint unreachable */ }
+  } catch (e3) { console.warn("[Caliber][bg][session] stage3 GET(latest) failed: " + e3.message); }
 
   return { ok: false };
 }
@@ -535,7 +543,7 @@ async function discoverSession() {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ session: probed.sessionBackup }),
-            signal: AbortSignal.timeout(3000),
+            signal: AbortSignal.timeout(5000),
           });
         } catch { /* best-effort restore */ }
       }
@@ -549,8 +557,10 @@ async function discoverSession() {
     if (result.sessionId) {
       await chrome.storage.local.set({ caliberSessionId: result.sessionId });
     }
+    console.debug("[Caliber][bg][session] discoverSession resolved via trySessionEndpoint: " + result.sessionId);
     return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
   }
+  console.warn("[Caliber][bg][session] trySessionEndpoint returned ok=false (storedId=" + (storedId || "none") + ")");
 
   // Server doesn't have the session — try restoring from local backup
   if (storedId) {
@@ -561,7 +571,7 @@ async function discoverSession() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session: backup }),
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(5000),
         });
         if (restoreResp.ok) {
           // Retry session endpoint now that we've restored
@@ -591,7 +601,7 @@ async function discoverSession() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session: lateProbe.sessionBackup }),
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(5000),
         });
       } catch { /* best-effort */ }
     }
@@ -607,7 +617,7 @@ async function discoverSession() {
     // Best-effort: try to fetch the full session from the server to cache as backup
     try {
       const fetchResp = await fetch(API_BASE + "/api/calibration?sessionId=" + encodeURIComponent(cookieId), {
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(5000),
       });
       if (fetchResp.ok) {
         const fetchData = await fetchResp.json();
@@ -621,7 +631,7 @@ async function discoverSession() {
     return { sessionId: cookieId, profileComplete: true, state: "UNKNOWN" };
   }
 
-  throw new Error("No active Caliber session. Complete your profile on Caliber first.");
+  throw new Error("No active Caliber session. Complete your profile on Caliber first. (API_BASE=" + API_BASE + ")");
 }
 
 /**

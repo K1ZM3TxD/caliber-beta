@@ -1,7 +1,7 @@
 // app/api/calibration/route.ts
 
 import { dispatchCalibrationEvent } from "@/lib/calibration_machine"
-import { storeGet, storeImport } from "@/lib/calibration_store"
+import { storeGet, storeImport, storeGetAsync } from "@/lib/calibration_store"
 import type { CalibrationEvent } from "@/lib/calibration_types"
 
 function apiBad(code: string, message: string) {
@@ -15,7 +15,10 @@ export async function GET(req: Request) {
   if (!sessionId) {
     return Response.json(apiBad("MISSING_ID", "Missing sessionId"), { status: 400 })
   }
-  const session = storeGet(sessionId)
+  let session = storeGet(sessionId)
+  if (!session) {
+    session = await storeGetAsync(sessionId)
+  }
   if (!session) {
     return Response.json(apiBad("NOT_FOUND", "Session not found"), { status: 404 })
   }

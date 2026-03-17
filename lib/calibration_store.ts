@@ -1,4 +1,8 @@
 // lib/calibration_store.ts
+//
+// Three-tier session storage: in-memory Map → filesystem → Postgres (durable).
+// Reads check memory first, then disk, then DB.  Writes go to all three.
+// DB writes are fire-and-forget so they never block the hot path.
 
 import type { CalibrationSession } from "@/lib/calibration_types"
 import * as fs from "fs"
@@ -6,13 +10,14 @@ import * as path from "path"
 
 type Store = Map<string, CalibrationSession>
 
-// Use /tmp/ on serverless (Vercel) where cwd is read-only; fall back to cwd for local dev
+// ── Filesystem tier (fast, ephemeral on Vercel) ────────────────
+
 const PERSIST_DIR = (() => {
   const cwdDir = path.join(process.cwd(), ".caliber-sessions")
   try { fs.mkdirSync(cwdDir, { recursive: true }); return cwdDir } catch { /* cwd not writable */ }
   const tmpDir = path.join("/tmp", ".caliber-sessions")
   try { fs.mkdirSync(tmpDir, { recursive: true }); return tmpDir } catch { /* neither writable */ }
-  return cwdDir // fallback; writeToDisk will silently fail
+  return cwdDir
 })()
 
 function ensurePersistDir(): void {
@@ -20,7 +25,6 @@ function ensurePersistDir(): void {
 }
 
 function sessionFilePath(sessionId: string): string {
-  // Sanitize sessionId to prevent path traversal
   const safe = sessionId.replace(/[^a-zA-Z0-9_-]/g, "_")
   return path.join(PERSIST_DIR, `${safe}.json`)
 }
@@ -29,7 +33,7 @@ function writeToDisk(session: CalibrationSession): void {
   try {
     ensurePersistDir()
     fs.writeFileSync(sessionFilePath(session.sessionId), JSON.stringify(session), "utf-8")
-  } catch { /* best-effort persistence */ }
+  } catch { /* best-effort */ }
 }
 
 function readFromDisk(sessionId: string): CalibrationSession | null {
@@ -48,17 +52,64 @@ function readAllFromDisk(): CalibrationSession[] {
       try {
         const data = fs.readFileSync(path.join(PERSIST_DIR, f), "utf-8")
         sessions.push(JSON.parse(data) as CalibrationSession)
-      } catch { /* skip corrupt files */ }
+      } catch { /* skip corrupt */ }
     }
     return sessions
   } catch { return [] }
 }
 
+// ── Database tier (durable, survives Lambda recycles) ──────────
+
+function getPrisma() {
+  try {
+    // Dynamic import avoids hard dep when DATABASE_URL is absent (e.g. local dev without DB)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { prisma } = require("@/lib/prisma")
+    return prisma
+  } catch { return null }
+}
+
+/** Fire-and-forget DB write. Never throws, never blocks. */
+function writeToDb(session: CalibrationSession): void {
+  const db = getPrisma()
+  if (!db) return
+  const locked = Boolean(session.personVector?.values && session.personVector.locked)
+  db.calibrationSessionRecord.upsert({
+    where: { sessionId: session.sessionId },
+    update: { data: JSON.stringify(session), locked, updatedAt: new Date() },
+    create: { sessionId: session.sessionId, data: JSON.stringify(session), locked },
+  }).catch(() => { /* best-effort — DB may be unreachable locally */ })
+}
+
+async function readFromDb(sessionId: string): Promise<CalibrationSession | null> {
+  const db = getPrisma()
+  if (!db) return null
+  try {
+    const row = await db.calibrationSessionRecord.findUnique({ where: { sessionId } })
+    if (!row) return null
+    return JSON.parse(row.data) as CalibrationSession
+  } catch { return null }
+}
+
+async function readLatestFromDb(): Promise<CalibrationSession | null> {
+  const db = getPrisma()
+  if (!db) return null
+  try {
+    const row = await db.calibrationSessionRecord.findFirst({
+      where: { locked: true },
+      orderBy: { updatedAt: "desc" },
+    })
+    if (!row) return null
+    return JSON.parse(row.data) as CalibrationSession
+  } catch { return null }
+}
+
+// ── In-memory tier ─────────────────────────────────────────────
+
 function getStore(): Store {
   const g: any = globalThis as any
   if (!g.__CALIBER_CALIBRATION_STORE__) {
     g.__CALIBER_CALIBRATION_STORE__ = new Map<string, CalibrationSession>()
-    // Rehydrate from disk on first access
     for (const s of readAllFromDisk()) {
       g.__CALIBER_CALIBRATION_STORE__.set(s.sessionId, s)
     }
@@ -66,51 +117,71 @@ function getStore(): Store {
   return g.__CALIBER_CALIBRATION_STORE__ as Store
 }
 
+// ── Public API ─────────────────────────────────────────────────
+
 export function storeGet(sessionId: string): CalibrationSession | null {
   const mem = getStore().get(sessionId)
   if (mem) return mem
-  // Fallback: try disk (may have been written by another worker)
   const disk = readFromDisk(sessionId)
-  if (disk) { getStore().set(sessionId, disk) }
-  return disk
+  if (disk) { getStore().set(sessionId, disk); return disk }
+  return null
+}
+
+/** Async variant that also checks the database when memory + disk miss. */
+export async function storeGetAsync(sessionId: string): Promise<CalibrationSession | null> {
+  const sync = storeGet(sessionId)
+  if (sync) return sync
+  const dbSession = await readFromDb(sessionId)
+  if (dbSession) {
+    getStore().set(dbSession.sessionId, dbSession)
+    writeToDisk(dbSession) // warm the local cache for subsequent sync reads
+  }
+  return dbSession
 }
 
 export function storeSet(session: CalibrationSession): void {
   getStore().set(session.sessionId, session)
   writeToDisk(session)
+  writeToDb(session)
 }
 
-/**
- * Import a full session blob (e.g. restored from client-side localStorage).
- * Validates minimal shape before storing. Returns true if accepted.
- */
 export function storeImport(blob: unknown): boolean {
   if (!blob || typeof blob !== "object") return false
   const s = blob as any
   if (typeof s.sessionId !== "string" || !s.sessionId.startsWith("sess_")) return false
   if (typeof s.state !== "string") return false
   if (!s.personVector || typeof s.personVector !== "object") return false
-  // Accept it — store like any other session
   const session = s as CalibrationSession
   getStore().set(session.sessionId, session)
   writeToDisk(session)
+  writeToDb(session)
   return true
 }
 
-/** Return the most recently created session (by sessionId timestamp hex suffix). */
+/** Return the most recently created session (sync: memory + disk only). */
 export function storeLatest(): CalibrationSession | null {
   const store = getStore()
-  // Also check disk for sessions that may not be in memory
   for (const s of readAllFromDisk()) {
     if (!store.has(s.sessionId)) store.set(s.sessionId, s)
   }
   let best: CalibrationSession | null = null
   let bestTs = 0
   for (const s of store.values()) {
-    // sessionId format: sess_<hex>_<hex-timestamp>
     const parts = s.sessionId.split("_")
     const ts = parseInt(parts[parts.length - 1] ?? "0", 16) || 0
     if (ts > bestTs) { bestTs = ts; best = s }
   }
   return best
+}
+
+/** Async variant: checks DB when memory + disk are empty (cold Lambda). */
+export async function storeLatestAsync(): Promise<CalibrationSession | null> {
+  const sync = storeLatest()
+  if (sync) return sync
+  const dbSession = await readLatestFromDb()
+  if (dbSession) {
+    getStore().set(dbSession.sessionId, dbSession)
+    writeToDisk(dbSession)
+  }
+  return dbSession
 }

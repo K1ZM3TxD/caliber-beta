@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storeGet, storeLatest, storeImport } from "@/lib/calibration_store";
+import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } from "@/lib/calibration_store";
 import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 
@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
     // Resolve session: explicit sessionId or fall back to most recent
     let sessionId: string | null = typeof body.sessionId === "string" ? body.sessionId : null;
     if (!sessionId) {
-      const latest = storeLatest();
+      let latest = storeLatest();
+      if (!latest) latest = await storeLatestAsync();
       if (!latest) {
         return jsonResponse(req, { error: "No active Caliber session. Complete your profile on Caliber first." }, 401);
       }
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest) {
     if (!session && body.sessionBackup && typeof body.sessionBackup === "object") {
       storeImport(body.sessionBackup);
       session = storeGet(sessionId);
+    }
+
+    // Fall back to DB on cold Lambda
+    if (!session) {
+      session = await storeGetAsync(sessionId);
     }
 
     if (!session) {
