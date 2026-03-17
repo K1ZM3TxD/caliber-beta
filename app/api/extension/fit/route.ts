@@ -107,6 +107,13 @@ export async function POST(req: NextRequest) {
       nearby_roles: nearbyRoles,
       calibration_title: primaryTitle,
       signal_preference: null,
+      debug_signals: alignment.signals ? {
+        personVector: alignment.signals.personVector,
+        roleVector: alignment.signals.roleVector,
+        S: alignment.signals.severeContradictions,
+        M: alignment.signals.mildTensions,
+        W: alignment.signals.penaltyWeight,
+      } : null,
     }, 200);
   } catch (e: any) {
     return jsonResponse(req, { error: e?.message ?? "Internal error" }, 500);

@@ -237,6 +237,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               calibrationTitle: data.calibration_title || "",
               nearbyRoles: data.nearby_roles || [],
               hrcBand: (data.hiring_reality_check && data.hiring_reality_check.band) || null,
+              debugSignals: data.debug_signals || null,
               ok: true,
             });
             console.debug("[Caliber][bg][prescan] scored: " + (job.title || "?") + " → " + (data.score_0_to_10 || 0));

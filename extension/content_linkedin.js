@@ -1133,8 +1133,13 @@
           // The guardrail only runs on the sidecard path (showResults) where
           // the user is viewing a specific full-description job.
           var badgeScore = rawBadgeScore;
+          var dbg = result.debugSignals;
           console.warn("[Caliber][prescan][NOCAP] v0.9.14 — raw " + rawBadgeScore.toFixed(1) +
-            " passed uncapped for \"" + (result.title || "?") + "\"");
+            " for \"" + (result.title || "?") + "\"" +
+            (dbg ? " | P=" + JSON.stringify(dbg.personVector) +
+              " R=" + JSON.stringify(dbg.roleVector) +
+              " S=" + dbg.S + " M=" + dbg.M +
+              " W=" + (typeof dbg.W === "number" ? dbg.W.toFixed(2) : "?") : " | no debug"));
           if (!result.calibrationTitle && lastKnownCalibrationTitle) {
             console.debug("[Caliber][session][diag] scoring result missing calibrationTitle — " +
               "using cached fallback: \"" + lastKnownCalibrationTitle + "\"");
