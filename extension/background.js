@@ -231,6 +231,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         for (const job of jobs) {
           try {
             const data = await callFitAPI(job.jobText, info.sessionId, { prescan: true });
+            // Forensic: dump first result's full API response keys
+            if (results.length === 0) {
+              console.warn("[Caliber][bg][prescan][FORENSIC] first API response keys: " +
+                Object.keys(data).join(", ") + " | score_0_to_10=" + data.score_0_to_10 +
+                " | hrc=" + (data.hiring_reality_check ? data.hiring_reality_check.band : "none") +
+                " | debug_signals=" + JSON.stringify(data.debug_signals || null));
+            }
             results.push({
               title: job.title || "",
               score: data.score_0_to_10 || 0,
