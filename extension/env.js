@@ -7,11 +7,11 @@
 
 const CALIBER_ENV = Object.freeze({
   // "production" or "development"
-  MODE: "development",
+  MODE: "production",
 
   // Locked API base — no fallback, no ambiguity
-  API_BASE: "http://localhost:3000",
+  API_BASE: "https://www.caliber-app.com",
 
   // Human-readable label for UI/logging
-  LABEL: "Caliber DEV",
+  LABEL: "Caliber",
 });
