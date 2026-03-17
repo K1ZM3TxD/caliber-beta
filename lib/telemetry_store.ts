@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { prisma } from "@/lib/prisma";
 
 export interface TelemetryEvent {
   event: string;
@@ -12,6 +11,8 @@ export interface TelemetryEvent {
   jobUrl: string | null;
   score: number | null;
   source: "extension" | "web" | null;
+  scoreSource: string | null;
+  signalPreference: string | null;
   meta: Record<string, unknown> | null;
 }
 
@@ -24,17 +25,26 @@ const VALID_EVENTS = new Set([
   "tailor_used",
 ]);
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LOG_PATH = path.join(DATA_DIR, "telemetry_events.jsonl");
-
 export function isValidEventName(name: unknown): name is string {
   return typeof name === "string" && VALID_EVENTS.has(name);
 }
 
-export function appendTelemetryEvent(event: TelemetryEvent): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  const line = JSON.stringify(event) + "\n";
-  fs.appendFileSync(LOG_PATH, line, "utf-8");
+export async function appendTelemetryEvent(event: TelemetryEvent): Promise<void> {
+  await prisma.telemetryEvent.create({
+    data: {
+      event: event.event,
+      timestamp: new Date(event.timestamp),
+      sessionId: event.sessionId,
+      surfaceKey: event.surfaceKey,
+      jobId: event.jobId,
+      jobTitle: event.jobTitle,
+      company: event.company,
+      jobUrl: event.jobUrl,
+      score: event.score,
+      source: event.source,
+      scoreSource: event.scoreSource,
+      signalPreference: event.signalPreference,
+      meta: event.meta ? JSON.stringify(event.meta) : null,
+    },
+  });
 }

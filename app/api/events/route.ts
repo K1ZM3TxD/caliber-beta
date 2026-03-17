@@ -60,13 +60,15 @@ export async function POST(req: NextRequest) {
           ? Math.round(body.score * 10) / 10
           : null,
       source: VALID_SOURCES.has(body.source) ? body.source : null,
+      scoreSource: sanitize(body.scoreSource, 100),
+      signalPreference: sanitize(body.signalPreference, 100),
       meta:
         body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)
           ? body.meta
           : null,
     };
 
-    appendTelemetryEvent(event);
+    await appendTelemetryEvent(event);
     return withCors(req, NextResponse.json({ ok: true }));
   } catch {
     return withCors(

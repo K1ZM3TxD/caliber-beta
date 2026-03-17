@@ -75,3 +75,26 @@ model PipelineEntry {
   @@index([userId])
   @@index([userId, jobUrl])
 }
+
+// ─── Telemetry events (durable) ───────────────────────────────
+
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  event     String
+  timestamp DateTime @default(now())
+  sessionId String?
+  surfaceKey String?
+  jobId     String?
+  jobTitle  String?
+  company   String?
+  jobUrl    String?
+  score     Float?
+  source    String?
+  scoreSource      String?
+  signalPreference String?
+  meta      String?  // JSON-encoded
+
+  @@index([sessionId])
+  @@index([event])
+  @@index([sessionId, event])
+}
