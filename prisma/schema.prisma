@@ -1,4 +1,4 @@
-// Caliber — Prisma schema (SQLite for v1)
+// Caliber — Prisma schema (PostgreSQL via Neon / Vercel Postgres)
 // Covers NextAuth models + pipeline persistence
 
 generator client {
@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
