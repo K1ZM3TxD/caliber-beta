@@ -734,14 +734,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
             <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step === "TITLES" ? (
-                <div className="flex items-center gap-2 mb-1">
-                  <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
-                  <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
-                </div>
-              ) : (
+              {step !== "TITLES" ? (
                 <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
-              )}
+              ) : null}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
                 {error ? (
@@ -1153,6 +1148,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               <div className="w-full max-w-3xl pb-8">
                 {/* Conclusive framing */}
                 <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
+                    <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
+                  </div>
                   <p className="text-sm sm:text-base leading-relaxed" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>Based on your experience, you align most strongly with:</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
