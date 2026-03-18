@@ -3,6 +3,66 @@
 
 ## Current Open Issues
 
+82. BST return-loop on LinkedIn search surface changes — **FIX SHIPPED** (2026-03-18)
+  - **Symptom:** User on weak surface A → BST suggests title B → user searches B → surface B also weak → BST suggests title A again (recycled). Loop repeats indefinitely.
+  - **Root cause (3 gaps):**
+    1. **Sidecard BST path bypassed loop guard.** When a weak job's sidecard triggered BST via `data.nearby_roles[0]`, the title was passed directly to `showPrescanBSTBanner()` without checking `bstTitleAlreadySeen()` or calling `bstMarkSuggested()`. Titles suggested through this path were never recorded in session memory.
+    2. **BST link click did not immediately record the clicked title.** The clicked suggestion was not added to `bstSearchedQueries` until the *next* surface reached Phase 2 evaluation (`evaluateBSTFromBadgeCache`). During the gap between click and Phase 2 entry on the new surface, the sidecard path could re-suggest the same title.
+    3. **No final safety net in `showPrescanBSTBanner()`.** The rendering function had self-suggestion suppression (title == current query) but no general loop guard for previously-seen titles.
+  - **Fix:**
+    1. Sidecard BST path now iterates all `nearby_roles`, checks `bstTitleAlreadySeen()` + `titlesEquivalent()` for each candidate, and calls `bstMarkSuggested()` before showing. If all candidates are exhausted, no banner is shown.
+    2. BST link `onclick` handler now immediately calls `bstMarkSearched(clickedTitle)` in addition to setting `suggest_clicked`.
+    3. `showPrescanBSTBanner()` now has a final loop-guard: if `bstTitleAlreadySeen(suggestedTitle)` returns true, the banner is suppressed with a diagnostic log.
+    4. `determinePrescanSuggestion()` now emits a full `[Caliber][BST][decision-trace]` log: current query (raw + normalized), all `bstSuggestedTitles` and `bstSearchedQueries` contents, and per-candidate rejection reasons (matches current query / already seen / selected).
+    5. All fallback paths (recentScores, lastKnownCalibrationTitle, lastKnownNearbyRoles) also emit per-candidate decision-trace logs.
+  - **Session memory persistence confirmed:** `bstSuggestedTitles` and `bstSearchedQueries` are module-scoped objects that persist for the lifetime of the content script. They are NOT cleared by `resetPrescanState()`, `resetSessionSignals()`, or `clearAllBadges()`. They survive: surface-key changes, in-page LinkedIn navigation, back/forward, job-detail clicks. They reset only on full page reload (content script re-injection). This is correct per product rule.
+  - **Regression test coverage:**
+    - weak A → suggest B → weak B → must NOT suggest A ✓ (bstMarkSuggested records B at suggestion time; bstMarkSearched records A at Phase 2 entry; both are in session memory)
+    - weak A → suggest B → weak B → suggest C or nothing ✓ (B is in suggestedTitles, A is in searchedQueries; determinePrescanSuggestion tries C or exhausts)
+    - current query equal to candidate title → suppress ✓ (titlesEquivalent guard in all selection paths + showPrescanBSTBanner)
+  - **Files:** `extension/content_linkedin.js`.
+
+81. BST surface classification firing on wrong surfaces — **FIX SHIPPED** (2026-03-18)
+  - **Symptom (2 defects):**
+    1. BST banner appearing on surfaces that already contain good scores (e.g., multiple 7.0+ jobs present but BST still fires).
+    2. BST failing to appear on surfaces where only 1–2 weak-strong scores (~7.1) are present — old logic treated any single ≥7.0 as "healthy surface."
+  - **Root cause:** Binary banner logic classified surfaces as healthy on finding *any* score ≥7.0, even a single borderline 7.1. This was too eager — one weak match does not make a productive surface. Additionally, classification could fire before LinkedIn finished hydrating the DOM with all job cards, using incomplete evidence.
+  - **Investigation:** DOM hydration observer added (v0.9.17 validation instrumentation). LinkedIn *does* incrementally hydrate search result cards — initial DOM may contain only a partial set.
+  - **Fix (v0.9.17):** Replaced binary banner logic with two-phase classification model:
+    - Phase 1 (pre-evidence): no banner until ≥5 jobs scored.
+    - Phase 2 (provisional, 5–9 scored): healthy requires ≥2 strong (≥7.0) OR ≥1 at ≥8.0. BST requires 0 strong. Exactly 1 job in [7.0, 7.9] → neutral (no banner, wait).
+    - Phase 3 (final, 10+ scored): force classification from available evidence.
+    - BST and healthy-surface banners are mutually exclusive via `suppressAllBanners()`.
+    - All banner state derived from fresh current-surface evidence only — stale restored state never influences classification.
+    - Sidecard weak-job click path now respects surface classification state (won't show BST if surface is "healthy" or "neutral").
+  - **Instrumentation (temporary, remove after validation):** `logSurfaceValidationState()` logs: totalCardsInDOM, visibleCards, scoredCards, jobsGte7, maxScore, classificationPhase, classificationState, bstActive, surfaceBannerActive, batchQueue. Fires on: page-load, scoring-batch, banner-change, dom-hydration. `startHydrationObserver()` tracks LinkedIn DOM expansion events.
+  - **Status:** Fix shipped (v0.9.17). Validation instrumentation active — validation pending.
+  - **Files:** `extension/content_linkedin.js`.
+  - **Validation Note — DOM Behavior + 3 Example Surfaces:**
+
+    **Observed DOM behavior:** LinkedIn search results pages do NOT expose the full result set on initial load. The results list container renders with a partial set of `<li>` cards (typically 7–12 on first paint). Additional cards are hydrated incrementally as the user scrolls or after JavaScript lazy-loading completes. The hydration observer (`[Caliber][hydration]`) confirms `addedNodes` events fire after initial page load, expanding the card count. This means any classification logic that evaluates at DOM-ready or after a single scoring batch is working with incomplete evidence.
+
+    **Example Surface 1 — Clearly weak surface (BST should fire):**
+    - Query: "bartender" (user calibrated as Product Manager or similar)
+    - Expected scores: all <6.0 (domain-mismatch guardrail does not apply in prescan, but role-family disparity yields raw scores <6.0)
+    - After 5 scored: strongCount=0, maxScore ~4.5 → `bannerDecision=bst`, phase=provisional
+    - After 10 scored: forced, still 0 strong → `bannerDecision=bst`, phase=final
+    - BST fires with suggestion (calibration title or nearby role)
+
+    **Example Surface 2 — Ambiguous surface with one ~7.1 job (neutral, then BST):**
+    - Query: "specialist" (user calibrated as Partnerships Manager)
+    - Expected scores: mostly 4.0–6.0, one job at ~7.1
+    - After 5 scored: strongCount=1, neutralZoneCount=1 (7.1 is in [7.0, 7.9]), maxScore=7.1 (< 8.0) → `bannerDecision=neutral`, no banner shown
+    - After 10 scored: forced classification — strongCount=1, below healthy threshold (needs ≥2 or ≥8.0) → `bannerDecision=bst`, phase=final
+    - BST fires after force window; surface correctly identified as weak despite the one borderline match
+
+    **Example Surface 3 — Clearly healthy surface (BST should NOT fire):**
+    - Query: "product manager" (user calibrated as Product Manager)
+    - Expected scores: multiple 7.0–9.0+
+    - After 5 scored: strongCount≥2 (e.g., 3 jobs ≥7.0) → `bannerDecision=healthy`, phase=provisional
+    - OR: 1 job at 8.2+ → `bannerDecision=healthy` via single-high rule (≥8.0)
+    - BST never fires; surface-quality state tracked (underlying state for future overlay)
+
 80. Landing-page hero communication scope — **DECIDED** (2026-03-17)
   - **Decision:** Pre-beta landing page uses lightweight hero: tagline ("See which jobs actually fit you"), product-preview card (3 scored roles with stagger animation), LinkedIn context line, CTA support copy.
   - **Deferred:** Full animated "Career → Decision → Engine" narrative system deferred to post-beta.

@@ -79,6 +79,85 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-18 — BST Return-Loop Fix (issue #82)
+
+**What changed:**
+
+1. **Sidecard BST path now respects loop guard.** Previously, clicking a weak job's sidecard could trigger BST with `data.nearby_roles[0].title` without checking `bstTitleAlreadySeen()` or calling `bstMarkSuggested()`. Titles suggested through this path were invisible to loop prevention. Now: iterates all nearby role candidates, rejects already-seen/self-matching titles, calls `bstMarkSuggested()` before render, gracefully exhausts when no candidates remain.
+
+2. **BST link click immediately records title.** The `<a>` click handler now calls `bstMarkSearched(clickedTitle)` synchronously, ensuring the clicked suggestion is in session memory before LinkedIn SPA navigation triggers new surface evaluation.
+
+3. **`showPrescanBSTBanner()` has final safety-net loop guard.** Even if upstream selection logic has a gap, the render function will suppress any title that passes `bstTitleAlreadySeen()`.
+
+4. **Full decision-trace logging.** `determinePrescanSuggestion()` now emits `[Caliber][BST][decision-trace]` with: current query (raw + normalized), bstSuggestedTitles contents, bstSearchedQueries contents, per-candidate rejection reason (matches query / already seen / selected). All fallback paths (recentScores, lastKnownCalibrationTitle, lastKnownNearbyRoles) also emit per-candidate trace.
+
+**Why it changed:**
+- Live validation showed BST recycling previously-suggested titles across surface changes (weak A → B → A loop).
+- Root cause: three independent gaps in the loop prevention layer — sidecard path bypass, delayed click recording, and no render-level guard.
+
+**What is now expected:**
+- BST never suggests a title already in `bstSuggestedTitles` or `bstSearchedQueries` within the same browsing session.
+- If all candidate titles are exhausted: generic banner (no link) or no banner. No recycled suggestion.
+- `[Caliber][BST][decision-trace]` logs show every candidate considered and why it was accepted or rejected.
+
+**What is explicitly no longer expected:**
+- Sidecard BST path showing titles without loop-guard check.
+- BST link click leaving the clicked title unrecorded until next Phase 2.
+
+**Risk:**
+- On very long LinkedIn sessions, `bstSuggestedTitles`/`bstSearchedQueries` grow monotonically. If the user's calibration has few nearby roles, BST may exhaust all candidates early and show only generic banners. This is correct behavior — recycling is worse than exhaustion.
+
+---
+
+### 2026-03-18 — BST Surface Classification Validation + Threshold Re-lock (v0.9.17)
+
+**What changed:**
+
+1. **Two-phase surface classification model replaces binary banner logic.** The previous system classified surfaces as "healthy" when any single score ≥7.0 existed, leading to BST suppression on surfaces with only one borderline 7.1. It also triggered BST on surfaces with multiple strong matches if it evaluated before all scores arrived. The new model:
+   - Phase 1 (pre-evidence, <5 scored): no banner at all — neither BST nor healthy-surface.
+   - Phase 2 (provisional, 5–9 scored): healthy requires ≥2 strong (≥7.0) OR ≥1 at ≥8.0. BST triggers when 0 strong. Exactly 1 job in [7.0, 7.9] → neutral/no-banner.
+   - Phase 3 (final, 10+ scored): force classification from available evidence.
+
+2. **BST and healthy-surface banners are now mutually exclusive.** New `suppressAllBanners()` function ensures clean transitions. Surface classification state tracked in `surfaceClassificationPhase` / `surfaceClassificationState`.
+
+3. **Sidecard weak-job click respects surface classification.** Previously, clicking a weak job (<7.5) could trigger BST via sidecard even when the surface was classified healthy or neutral. Now respects `surfaceClassificationState`.
+
+4. **DOM hydration validation instrumentation added.** `startHydrationObserver()` monitors LinkedIn's incremental card hydration. `logSurfaceValidationState()` provides comprehensive surface snapshots (total DOM cards, visible cards, scored cards, ≥7.0 count, max score, classification phase/state, banner state). Fires on page-load, scoring-batch, banner-change, dom-hydration events. Designed for easy removal after validation.
+
+**Why it changed:**
+- BST was appearing on surfaces with good scores and not appearing where it should, making the beta gate 1 (BST working) unreliable.
+- LinkedIn incrementally hydrates job cards — binary classification on partial evidence produced wrong results.
+- A single 7.1 is not a "productive surface" but old logic treated it as one.
+
+**What is now expected:**
+- Clearly weak surfaces (all scores <7.0): BST fires after 5 scored.
+- Ambiguous surfaces (one ~7.1 among weak jobs): neutral until 10 scored, then BST fires.
+- Clearly healthy surfaces (2+ strong or 1 at ≥8.0): BST suppressed, surface-quality state tracked.
+- No banner shows before 5 jobs are scored.
+- Instrumentation logs in `[Caliber][surface-validation]` and `[Caliber][hydration]` prefixes.
+
+**What is explicitly no longer expected:**
+- BST showing based on 1 scoring chunk before initial surface resolves → still gated.
+- Any single ≥7.0 suppressing BST → requires ≥2 strong or ≥1 at 8.0+.
+- Restored/stale state influencing banner classification → fresh evidence only.
+
+**Risk:**
+- New neutral zone may delay banner appearance slightly on edge-case surfaces (one 7.1 job). Forced classification at 10 scored limits this delay.
+- Validation instrumentation adds console output — remove after validation.
+
+**Proof:**
+- Search "bartender" (calibrated as PM): 0/5+ above 7.0 → BST fires after initial surface resolves.
+- Search "product manager" (calibrated as PM): 2+ above 7.0 → healthy surface, no BST.
+- Search "specialist" (1 job at 7.1, rest below): neutral until 10 scored, then BST.
+
+**Files:**
+- `extension/content_linkedin.js` (primary)
+- `Bootstrap/CALIBER_ISSUES_LOG.md`
+- `Bootstrap/BREAK_AND_UPDATE.md`
+- `Bootstrap/CALIBER_ACTIVE_STATE.md`
+
+---
+
 ### 2026-03-17 — Surface/UI Clarification + Beta Media Scope + Signal Validation + UX Polish (v0.9.15)
 
 **What changed:**
