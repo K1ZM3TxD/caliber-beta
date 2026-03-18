@@ -5,7 +5,7 @@
   "description": "Score how well LinkedIn jobs match your career pattern. Requires a Caliber calibration at caliber-app.com.",
   "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
-    "https://www.caliber-app.com/*",
+    "http://localhost:3000/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],
@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.caliber-app.com/*"
+        "http://localhost:3000/*"
       ],
       "js": ["env.js", "content_caliber.js"],
       "run_at": "document_idle"
@@ -47,6 +47,6 @@
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
-    "128": "icons/icon48.png"
+    "128": "icons/icon128.png"
   }
 }
