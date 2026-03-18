@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.20";
+  const PANEL_VERSION = "0.9.21";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -2454,6 +2454,7 @@
     if (!shadow) return;
     var addBtn = shadow.getElementById("cb-pipeline-add-btn");
     var statusEl = shadow.getElementById("cb-pipeline-status");
+    var sepEl = shadow.getElementById("cb-pipeline-sep");
     var viewLink = shadow.getElementById("cb-pipeline-view");
     if (!addBtn || !statusEl || !viewLink) return;
 
@@ -2463,6 +2464,7 @@
     addBtn.textContent = "Add to pipeline";
     statusEl.style.display = "none";
     statusEl.textContent = "";
+    if (sepEl) sepEl.style.display = "none";
     viewLink.style.display = "none";
 
     if (state === "add") {
@@ -2470,10 +2472,12 @@
     } else if (state === "in-pipeline") {
       statusEl.textContent = "\u2713 In pipeline";
       statusEl.style.display = "";
+      if (sepEl) sepEl.style.display = "";
       viewLink.style.display = "";
     } else if (state === "auto-added") {
       statusEl.textContent = "\u2713 Added to pipeline";
       statusEl.style.display = "";
+      if (sepEl) sepEl.style.display = "";
       viewLink.style.display = "";
     }
     // "hidden" — everything stays hidden (default reset)
@@ -3582,6 +3586,7 @@
     '    <div id="cb-tailor-secondary" class="cb-tailor-secondary">',
     '      <button id="cb-pipeline-add-btn" class="cb-pipeline-add-btn" style="display:none">Add to pipeline</button>',
     '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
+    '      <span id="cb-pipeline-sep" class="cb-pipeline-sep" style="display:none">\u00b7</span>',
     '      <a id="cb-pipeline-view" class="cb-pipeline-view-link" style="display:none">View pipeline \u2192</a>',
     '    </div>',
     '  </div>',
@@ -3764,7 +3769,7 @@
     ".cb-sq-scanning { font-size: 10px; color: #6B7280; font-weight: 400; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
-    "  height: 420px; min-height: 420px; max-height: 420px;",
+    "  min-height: 260px; max-height: 80vh;",
     "  overflow-y: auto; overflow-x: hidden;",
     "  background: #111114; color: #F2F2F2; border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
@@ -3938,27 +3943,27 @@
     "  min-height: 16px;",
     "}",
     ".cb-pipeline-add-btn {",
-    "  font-size: 11px; font-weight: 600; color: #86EFAC;",
-    "  background: none; border: none; padding: 0; cursor: pointer;",
-    "  border-bottom: 1px solid rgba(74,222,128,0.3);",
+    "  font-size: 11px; font-weight: 700; color: #86EFAC;",
+    "  background: none; border: none; padding: 2px 0; cursor: pointer;",
+    "  border-bottom: 1px solid rgba(74,222,128,0.4);",
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
-    ".cb-pipeline-add-btn:hover { color: #BBF7D0; border-color: rgba(74,222,128,0.3); }",
+    ".cb-pipeline-add-btn:hover { color: #BBF7D0; border-color: #BBF7D0; }",
     ".cb-pipeline-add-btn:disabled { opacity: 0.6; cursor: default; }",
-    "@keyframes cb-saved-flash { 0% { color: #4ADE80; } 100% { color: #4ADE80; } }",
     ".cb-pipeline-add-saved { color: #4ADE80 !important; border-color: rgba(74,222,128,0.4) !important; opacity: 1 !important; }",
     ".cb-pipeline-add-error { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; opacity: 1 !important; cursor: pointer !important; }",
     ".cb-pipeline-status {",
-    "  font-size: 10px; font-weight: 600; color: #4ADE80;",
+    "  font-size: 11px; font-weight: 700; color: #4ADE80;",
     "}",
     ".cb-pipeline-view-link {",
-    "  font-size: 10px; font-weight: 600; color: #555;",
+    "  font-size: 11px; font-weight: 600; color: #86EFAC;",
     "  text-decoration: none; cursor: pointer;",
     "  white-space: nowrap; flex-shrink: 0;",
-    "  border-bottom: 1px solid transparent;",
+    "  border-bottom: 1px solid rgba(74,222,128,0.3);",
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
-    ".cb-pipeline-view-link:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
+    ".cb-pipeline-view-link:hover { color: #BBF7D0; border-color: #BBF7D0; }",
+    ".cb-pipeline-sep { font-size: 10px; color: #555; }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
