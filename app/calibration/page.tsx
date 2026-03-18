@@ -503,7 +503,7 @@ export default function CalibrationPage() {
   const deferredStepRef = useRef<UiStep | null>(null);
   const staged = useStagedProgress(step === "PROCESSING", backendDone);
   // Typewriter hooks — CALIBER at half speed, tagline chains after CALIBER finishes
-  const tagline = "See which jobs actually fit you";
+  const tagline = "Career Decision Engine";
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
@@ -723,7 +723,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          @keyframes cb-preview-in { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
           .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
@@ -756,7 +755,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div className="w-full flex flex-col items-center" style={{ minHeight: step === "LANDING" ? "420px" : "280px" }}>
+              <div className="w-full flex flex-col items-center" style={{ minHeight: "280px" }}>
 
             {/* LANDING */}
             {step === "LANDING" ? (
@@ -764,45 +763,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
                   <p style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
-
-                {/* Product preview — scored roles example */}
-                {taglineDone && (
-                  <div className="mt-8 w-full flex flex-col items-center">
-                    <div
-                      className="rounded-lg w-full"
-                      style={{
-                        maxWidth: 360,
-                        backgroundColor: "rgba(255,255,255,0.025)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        padding: "14px 18px",
-                        animation: "cb-preview-in 0.5s ease-out both",
-                      }}
-                    >
-                      {[
-                        { title: "Senior Product Manager", score: 8.7, color: "#4ADE80" },
-                        { title: "Account Executive", score: 7.2, color: "#4ADE80" },
-                        { title: "Marketing Manager", score: 4.1, color: "#737373" },
-                      ].map((row, i) => (
-                        <div
-                          key={row.title}
-                          className="flex items-center justify-between"
-                          style={{
-                            padding: "7px 0",
-                            borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                            animation: `cb-preview-in 0.4s ease-out ${0.15 + i * 0.12}s both`,
-                          }}
-                        >
-                          <span className="text-[13px] sm:text-sm" style={{ color: "#a3a3a3" }}>{row.title}</span>
-                          <span className="text-[13px] sm:text-sm font-mono font-semibold" style={{ color: row.color }}>{row.score}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-[12px] sm:text-[13px]" style={{ color: "#737373", letterSpacing: "0.02em", animation: "cb-preview-in 0.4s ease-out 0.6s both" }}>
-                      Scores every listing you open on LinkedIn
-                    </p>
-                  </div>
-                )}
-
                 <div className="mt-8">
                   <button
                     type="button"
@@ -823,9 +783,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     {busy ? "Processing…" : "Begin Calibration"}
                     {busy ? <Spinner /> : null}
                   </button>
-                  <p className="mt-3 text-[12px] sm:text-[13px]" style={{ color: "#525252" }}>
-                    Start with your resume — takes 2 minutes
-                  </p>
                 </div>
               </div>
             ) : null}
@@ -1157,6 +1114,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
+              // Scoring explanation framing — replaces old pattern summary context
+              const framingLines = [
+                "Caliber scores pattern fit, not keyword overlap.",
+                "We look at the shape of your experience \u2014 how your skills, context, and trajectory align with what a role actually demands.",
+                "Your experience maps most closely to this market label:",
+              ];
+
               // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
               if (enrichedTitles.length === 0 && rec?.primary_title) {
@@ -1172,31 +1136,29 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               const fallbackCandidates: Array<{ title: string; score: number }> =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
 
-              // All titles sorted by score for hero + adjacent extraction
-              const allTitlesSorted = (enrichedTitles.length > 0
+              let titlesToRender = enrichedTitles.length > 0
                 ? enrichedTitles
                 : recTitles.length > 0
                   ? recTitles
-                  : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }))
-              ).sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0));
+                  : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
 
-              const heroTitle = allTitlesSorted[0] ?? null;
-              const adjacentTitles = allTitlesSorted.slice(1, 3).filter(t => t.title);
+              // Sort by score descending and take top 1
+              titlesToRender = [...titlesToRender]
+                .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
+                .slice(0, 1);
+
+              const heroTitle = titlesToRender[0] ?? null;
               const heroBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3.filter((b: string) => b && b.trim()) : [];
               const heroSummary: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
               const heroHasWhyContent = heroBullets.length > 0 || heroSummary.length > 0;
-              // Visible justification: use bullets if available, otherwise split summary into lines
-              const visibleReasons: string[] = heroBullets.length > 0
-                ? heroBullets.slice(0, 3)
-                : heroSummary
-                  ? heroSummary.split(/\.\s+/).filter(s => s.trim()).slice(0, 2).map(s => s.replace(/\.$/, '').trim())
-                  : [];
 
               return (
               <div className="w-full max-w-3xl pb-8">
-                {/* Conclusive framing */}
+                {/* Scoring explanation framing */}
                 <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
-                  <p className="text-sm sm:text-base leading-relaxed" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>Based on your experience, you align most strongly with:</p>
+                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(225,225,225,0.92)", fontWeight: 500 }}>{framingLines[0]}</p>
+                  <p className="text-sm sm:text-base leading-relaxed mt-3" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>{framingLines[1]}</p>
+                  <p className="text-base sm:text-lg leading-relaxed mt-4" style={{ color: "rgba(225,225,225,0.88)", fontWeight: 500 }}>{framingLines[2]}</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -1209,74 +1171,48 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Hero title card — the payoff moment */}
+                {/* Hero title card — centered action stack */}
                 {heroTitle ? (
                   <div
                     className="cb-title-card rounded-2xl"
                     style={{
-                      marginTop: 32,
+                      marginTop: 48,
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: "rgba(255,255,255,0.015)",
                       border: "1px solid rgba(74,222,128,0.18)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
-                      {/* Title — primary payoff */}
-                      <div className="text-[1.5rem] sm:text-[2rem] font-semibold" style={{ color: "#F2F2F2", lineHeight: 1.1, letterSpacing: "-0.01em" }}>{heroTitle.title}</div>
+                      {/* Title */}
+                      <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
 
-                      {/* Adjacent roles — subtle secondary context */}
-                      {adjacentTitles.length > 0 ? (
-                        <p className="mt-3 text-[13px]" style={{ color: "#666" }}>
-                          Also nearby: {adjacentTitles.map(t => t.title).join(", ")}
-                        </p>
-                      ) : null}
-
-                      {/* Visible justification — why this fits, surfaced above the fold */}
-                      {visibleReasons.length > 0 ? (
-                        <div className="mt-6 w-full" style={{ maxWidth: 440 }}>
-                          <ul className="space-y-2 text-left">
-                            {visibleReasons.map((reason, i) => (
-                              <li key={i} className="flex items-start gap-2.5 text-[13px] leading-relaxed" style={{ color: "#a3a3a3" }}>
-                                <span className="mt-[6px] shrink-0 h-[5px] w-[5px] rounded-full" style={{ background: "rgba(74,222,128,0.5)" }} />
-                                <span>{reason}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {/* Bridge to next step */}
-                      <p className="mt-6 text-sm" style={{ color: "#888" }}>We&rsquo;ll use this to score real jobs as you browse LinkedIn.</p>
+                      {/* Subtitle */}
+                      <p className="mt-5 text-sm" style={{ color: "#999" }}>Analyze real jobs as you browse</p>
 
                       {/* Primary CTA — Extension download */}
                       <div className="mt-5 w-full">
                         <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
-                      {/* Supporting CTA copy */}
-                      <p className="mt-2 text-[12px] leading-relaxed" style={{ color: "#666", maxWidth: 360 }}>See which jobs actually match this profile — Caliber scores every listing you open.</p>
-
                       {/* Secondary CTA — LinkedIn search */}
-                      <div className="mt-5">
-                        <a
-                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
-                          style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
-                        >Search on LinkedIn</a>
-                      </div>
+                      <a
+                        href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
+                        style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
+                      >Search on LinkedIn</a>
                     </div>
                   </div>
                 ) : null}
 
-                {/* Expanded detail — de-emphasized, secondary */}
+                {/* Why this fits — centered dropdown, green family */}
                 {heroTitle && heroHasWhyContent ? (
                   <div
                     className="mt-6 w-full max-w-[480px] mx-auto rounded-lg transition-all duration-200"
                     style={{
-                      backgroundColor: whyFitsOpen ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
-                      border: whyFitsOpen ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(255,255,255,0.05)",
+                      backgroundColor: whyFitsOpen ? "rgba(74,222,128,0.04)" : "rgba(74,222,128,0.02)",
+                      border: whyFitsOpen ? "1px solid rgba(74,222,128,0.18)" : "1px solid rgba(74,222,128,0.08)",
                     }}
                   >
                     <button
@@ -1285,15 +1221,12 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       className="w-full flex items-center justify-center gap-2 px-5 py-3 cursor-pointer select-none"
                       style={{ background: "none", border: "none" }}
                     >
-                      <span className="text-[13px] font-medium" style={{ color: "#666" }}>How we scored this</span>
-                      <span className="text-[11px]" style={{ color: "#555" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
+                      <span className="text-[13px] font-medium" style={{ color: "rgba(74,222,128,0.7)" }}>Why this fits</span>
+                      <span className="text-[11px]" style={{ color: "rgba(74,222,128,0.45)" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
                     </button>
                     {whyFitsOpen ? (
                       <div className="px-5 pb-4">
-                        <div className="border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                          <p className="text-[13px] leading-relaxed mb-3" style={{ color: "#737373", textAlign: "left" }}>
-                            Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.
-                          </p>
+                        <div className="border-t pt-3" style={{ borderColor: "rgba(74,222,128,0.10)" }}>
                           {heroBullets.length > 0 ? (
                             <ul className="text-[13px] leading-relaxed pl-4 space-y-1.5" style={{ color: "#a3a3a3", listStyleType: "none", textAlign: "left" }}>
                               {heroBullets.map((b: string, i: number) => (
