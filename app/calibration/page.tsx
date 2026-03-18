@@ -785,8 +785,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]">
-                <div style={{ minHeight: "1.5em", lineHeight: 1.4 }}>
-                  <div className="text-base sm:text-lg leading-relaxed tracking-wide" style={{ color: 'rgba(207,207,207,0.72)', fontWeight: 300, letterSpacing: '0.02em' }}>{resumeSubtext}</div>
+                <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
+                  <div style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(207,207,207,0.72)' }}>{resumeSubtext}</div>
                 </div>
                 <div className="mt-6 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
