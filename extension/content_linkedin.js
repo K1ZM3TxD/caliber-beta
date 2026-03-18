@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.19";
+  const PANEL_VERSION = "0.9.20";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -294,10 +294,7 @@
       var el = document.querySelector(JOB_TITLE_SELECTORS[i]);
       if (el) {
         var t = (el.textContent || "").trim();
-        if (t.length > 2 && t.length < 200) {
-          meta.title = canonicalizeCardTitle(t, "extractJobMeta");
-          break;
-        }
+        if (t.length > 2 && t.length < 200) { meta.title = t; break; }
       }
     }
     for (var j = 0; j < COMPANY_NAME_SELECTORS.length; j++) {
@@ -322,7 +319,6 @@
   let panelHost = null;
   let shadow = null;
   let active = false;
-  let panelMinimized = false;
   let scoring = false;
   let lastScoredText = "";
   let lastScoredScore = 0;
@@ -351,6 +347,7 @@
   // Feedback session guard (one prompt per eval)
   let feedbackGiven = false;
   let lastFeedbackData = null;  // snapshot of last scored result for feedback context
+  let lastSavedPipelineId = null; // most recent pipeline entry ID (for View pipeline handoff)
 
   function resetSessionSignals() {
     sessionSignals = { jobs_viewed: 0, scores_below_6: 0, highest_score: 0, suggest_shown: false, suggest_clicked: false };
@@ -533,15 +530,14 @@
         if (jobUrl) seen.add(jobUrl);
 
         // Extract job title
-        var rawTitleText = "";
+        var titleText = "";
         for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
           var titleEl = el.querySelector(JOB_CARD_TITLE_SELECTORS[t]);
           if (titleEl) {
-            rawTitleText = (titleEl.textContent || "").trim();
-            if (rawTitleText.length > 2) break;
+            titleText = (titleEl.textContent || "").trim();
+            if (titleText.length > 2) break;
           }
         }
-        var titleText = canonicalizeCardTitle(rawTitleText, "getVisibleJobCards");
 
         cards.push({
           element: el,
@@ -577,20 +573,6 @@
   var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this
   var PIPELINE_AUTO_SAVE_THRESHOLD = 8.5; // action: auto-save to pipeline (distinct from BST)
   var SCORE_CEILING_OUT_OF_SCOPE = 5.0;   // hard cap for clearly out-of-scope job families
-
-  // ─── Two-Phase Classification Thresholds (v0.9.17) ──────
-  // Phase 1: before BST_MIN_WINDOW_SIZE scored → no banner at all
-  // Phase 2: classify using scored evidence only
-  var BST_HEALTHY_MIN_STRONG = 2;         // healthy surface: at least 2 jobs >= 7.0
-  var BST_HEALTHY_SINGLE_HIGH = 8.0;      // OR at least 1 job >= 8.0
-  var BST_NEUTRAL_ZONE_LOW = 7.0;         // neutral zone: exactly 1 job in [7.0, 7.9]
-  var BST_NEUTRAL_ZONE_HIGH = 7.9;        // upper bound of neutral zone
-  var BST_FORCE_CLASSIFY_WINDOW = 10;     // force classification after this many scored jobs
-
-  // Banner classification phase tracking
-  // "none" = pre-evidence, "provisional" = 5-9 scored, "final" = 10+ scored
-  var surfaceClassificationPhase = "none";
-  var surfaceClassificationState = "none"; // "none" | "bst" | "healthy" | "neutral"
 
   // ─── Role-Family Clusters ─────────────────────────────────
   // Lightweight client-side heuristic for detecting obviously different job
@@ -749,122 +731,6 @@
   var bstSuggestedTitles = {};           // session memory: titles already suggested (normalized→true)
   var bstSearchedQueries = {};           // session memory: queries the user has searched (normalized→true)
   var initialSurfaceResolved = false;    // true once initial visible-card scoring pass completes
-
-  // ─── Surface Classification Validation Instrumentation (v0.9.17) ────
-  // Temporary debug system for validating BST / surface classification.
-  // Logs surface state at: page load, scoring batch, banner change, DOM hydration.
-  // Remove after validation is complete.
-  var surfaceValidationLogCount = 0;
-  var SURFACE_VALIDATION_LOG_MAX = 50;  // cap to avoid console flood
-
-  /**
-   * Log a comprehensive surface-classification snapshot.
-   * @param {string} trigger - what caused this log (e.g. "page-load", "scoring-batch", "banner-change", "dom-hydration")
-   */
-  function logSurfaceValidationState(trigger) {
-    if (surfaceValidationLogCount >= SURFACE_VALIDATION_LOG_MAX) return;
-    surfaceValidationLogCount++;
-
-    // Count total result cards in DOM
-    var allCardEls = [];
-    var seenEls = new Set();
-    for (var s = 0; s < JOB_CARD_SELECTORS.length; s++) {
-      var els = document.querySelectorAll(JOB_CARD_SELECTORS[s]);
-      for (var i = 0; i < els.length; i++) {
-        if (!seenEls.has(els[i])) { seenEls.add(els[i]); allCardEls.push(els[i]); }
-      }
-    }
-    var totalCards = allCardEls.length;
-
-    // Count visible cards (in viewport or near it)
-    var visibleCards = 0;
-    for (var v = 0; v < allCardEls.length; v++) {
-      var rect = allCardEls[v].getBoundingClientRect();
-      if (rect.top < window.innerHeight + 200 && rect.bottom > -200) visibleCards++;
-    }
-
-    // Count scored cards from cache
-    var cacheUrls = Object.keys(badgeScoreCache);
-    var scoredCount = cacheUrls.length;
-    var countGte7 = 0;
-    var maxScoreOnSurface = 0;
-    for (var c = 0; c < cacheUrls.length; c++) {
-      var entry = badgeScoreCache[cacheUrls[c]];
-      if (entry.score >= BST_STRONG_MATCH_THRESHOLD) countGte7++;
-      if (entry.score > maxScoreOnSurface) maxScoreOnSurface = entry.score;
-    }
-
-    var snapshot = {
-      trigger: trigger,
-      timestamp: new Date().toISOString(),
-      surfaceKey: getSearchSurfaceKey(),
-      query: getSearchKeywords(),
-      totalCardsInDOM: totalCards,
-      visibleCards: visibleCards,
-      scoredCards: scoredCount,
-      jobsGte7: countGte7,
-      maxScore: maxScoreOnSurface,
-      classificationPhase: surfaceClassificationPhase,
-      classificationState: surfaceClassificationState,
-      bstActive: prescanBSTActive,
-      surfaceBannerActive: !!prescanSurfaceBanner,
-      batchQueueLength: badgeBatchQueue.length,
-      batchRunning: badgeBatchRunning,
-      initialSurfaceResolved: initialSurfaceResolved,
-    };
-
-    console.debug("[Caliber][surface-validation][" + trigger + "] " + JSON.stringify(snapshot));
-  }
-
-  // ─── DOM Hydration Observer (v0.9.17 validation) ──────────
-  // LinkedIn may incrementally hydrate job cards after initial load.
-  // This observer detects new card nodes being added to the results list
-  // and logs the hydration event for validation analysis.
-  var hydrationObserver = null;
-  var hydrationCardCountAtLoad = 0;
-  var hydrationEvents = 0;
-
-  function startHydrationObserver() {
-    if (hydrationObserver) return;
-    var listEl =
-      document.querySelector(".jobs-search-results-list") ||
-      document.querySelector(".scaffold-layout__list-container") ||
-      document.querySelector("[class*='jobs-search-results']") ||
-      document.querySelector("[class*='scaffold-layout__list']");
-    if (!listEl) {
-      console.debug("[Caliber][hydration] no results list container found for hydration observer");
-      return;
-    }
-    // Snapshot card count at observer attach time
-    hydrationCardCountAtLoad = listEl.querySelectorAll("li").length;
-    console.debug("[Caliber][hydration] observer attached — initial card count: " + hydrationCardCountAtLoad);
-
-    hydrationObserver = new MutationObserver(function (mutations) {
-      var addedNodes = 0;
-      for (var m = 0; m < mutations.length; m++) {
-        addedNodes += mutations[m].addedNodes.length;
-      }
-      if (addedNodes > 0) {
-        hydrationEvents++;
-        var currentCount = listEl.querySelectorAll("li").length;
-        console.debug("[Caliber][hydration] DOM expansion event #" + hydrationEvents +
-          " — addedNodes=" + addedNodes +
-          ", cardCount: " + hydrationCardCountAtLoad + " → " + currentCount);
-        logSurfaceValidationState("dom-hydration");
-        hydrationCardCountAtLoad = currentCount;
-      }
-    });
-    hydrationObserver.observe(listEl, { childList: true, subtree: false });
-  }
-
-  function stopHydrationObserver() {
-    if (hydrationObserver) {
-      hydrationObserver.disconnect();
-      hydrationObserver = null;
-    }
-    hydrationEvents = 0;
-    hydrationCardCountAtLoad = 0;
-  }
 
   // ─── Surface Diagnostic Log (validation only) ─────────────
   // Captures identity of scored jobs per search surface for diagnostic validation.
@@ -1271,7 +1137,7 @@
           // the user is viewing a specific full-description job.
           var badgeScore = rawBadgeScore;
           var dbg = result.debugSignals;
-          console.warn("[Caliber][prescan][NOCAP] v0.9.16 — raw " + rawBadgeScore.toFixed(1) +
+          console.warn("[Caliber][prescan][NOCAP] v0.9.15 — raw " + rawBadgeScore.toFixed(1) +
             " for \"" + (result.title || "?") + "\"" +
             (dbg ? " | P=" + JSON.stringify(dbg.personVector) +
               " R=" + JSON.stringify(dbg.roleVector) +
@@ -1308,8 +1174,7 @@
           }
           console.debug("[Caliber][diag][score] completed: " + entry.title + " → " + badgeScore +
             (rawBadgeScore !== badgeScore ? " (raw: " + rawBadgeScore + ", capped)" : "") +
-            (entry.id ? " (" + entry.id + ")" : "") +
-            " [canonical]");
+            (entry.id ? " (" + entry.id + ")" : ""));
           // Surface diagnostic: capture scored job identity
           logSurfaceDiagEntry(
             entry.id,
@@ -1346,9 +1211,6 @@
         sessionReady = true;
         console.debug("[Caliber][session][diag] sessionReady confirmed via successful batch scoring");
       }
-
-      // Instrumentation: log state after each scoring batch
-      logSurfaceValidationState("scoring-batch");
 
       // After each chunk, check if BST should fire (from accumulated badge scores)
       console.debug("[Caliber][BST][diag] invoking evaluateBSTFromBadgeCache after chunk — cache size: " +
@@ -1423,15 +1285,14 @@
       badgeScoredIds.add(id);
 
       var cardText = (card.innerText || "").trim().replace(/\s+/g, " ");
-      var rawTitleText = "";
+      var titleText = "";
       for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
         var titleEl = card.querySelector(JOB_CARD_TITLE_SELECTORS[t]);
         if (titleEl) {
-          rawTitleText = (titleEl.textContent || "").trim();
-          if (rawTitleText.length > 2) break;
+          titleText = (titleEl.textContent || "").trim();
+          if (titleText.length > 2) break;
         }
       }
-      var titleText = canonicalizeCardTitle(rawTitleText, "scanAndBadge");
 
       if (cardText.length < 80) {
         console.debug("[Caliber][badges] card too short (" + cardText.length + " chars), skipping: " + titleText);
@@ -1479,27 +1340,20 @@
   /**
    * Evaluate BST trigger from the silent pre-read scored window.
    *
-   * Architecture (v0.9.17 — two-phase classification):
+   * Architecture (v0.9.1 — score-evidence-primary):
+   *   Primary signal: the pre-read scored window in badgeScoreCache.
+   *   - If the window contains at least one genuine aligned strong match
+   *     (score >= 7.0, already domain-guardrailed), BST is SUPPRESSED.
+   *   - If the window contains zero strong matches, BST can TRIGGER.
    *
-   * Phase 1 (pre-evidence): scoredCount < BST_MIN_WINDOW_SIZE
-   *   → No banner at all. Neither BST nor healthy-surface.
+   *   Secondary context: query classification (aligned / out-of-scope / ambiguous).
+   *   - out-of-scope + weak window → trigger confidently
+   *   - aligned + weak first batch → still depends on scored evidence
+   *   - ambiguous → resolved through scored evidence
    *
-   * Phase 2 (evidence-based): scoredCount >= BST_MIN_WINDOW_SIZE
-   *   Classification is PROVISIONAL until BST_FORCE_CLASSIFY_WINDOW (10) scored.
-   *
-   *   Healthy surface (suppress BST, show surface-quality):
-   *     - strongCount >= BST_HEALTHY_MIN_STRONG (2), OR
-   *     - at least 1 job >= BST_HEALTHY_SINGLE_HIGH (8.0)
-   *
-   *   BST trigger (show BST, suppress surface-quality):
-   *     - strongCount === 0 (zero jobs >= 7.0)
-   *
-   *   Neutral (no banner):
-   *     - Exactly 1 job in [7.0, 7.9] → wait for more evidence
-   *     - Once scoredCount >= BST_FORCE_CLASSIFY_WINDOW, force from evidence
-   *
-   *   BST and healthy-surface banners are MUTUALLY EXCLUSIVE.
-   *   Banner state derived ONLY from fresh current-surface evidence.
+   *   The domain-mismatch guardrail (applyDomainMismatchGuardrail) already
+   *   caps out-of-scope job scores to 5.0, so any score >= 7.0 in the cache
+   *   is inherently a genuine aligned strong match. No additional filtering.
    *
    * Re-evaluated after each scoring chunk so BST can appear/hide dynamically.
    */
@@ -1525,13 +1379,8 @@
       console.debug("[Caliber][BST][diag] pruned " + prunedCount + " orphaned cache entries (cards no longer in DOM)");
     }
 
-    // ── Phase 1: pre-evidence — not enough scored jobs ──
     if (urls.length < BST_MIN_WINDOW_SIZE) {
-      surfaceClassificationPhase = "none";
-      surfaceClassificationState = "none";
-      console.debug("[Caliber][BST] phase-1 skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache (no banner)");
-      // Ensure no stale banner is showing
-      suppressAllBanners("phase-1 pre-evidence");
+      console.debug("[Caliber][BST] skip — only " + urls.length + "/" + BST_MIN_WINDOW_SIZE + " scores in cache");
       return;
     }
 
@@ -1548,15 +1397,12 @@
       console.debug("[Caliber][BST] initial surface resolved (" + urls.length + " scores) — proceeding with first evaluation");
       // Flush diagnostic snapshot of the initial surface
       flushSurfaceDiagLog("initial-resolve");
-      logSurfaceValidationState("initial-resolve");
     }
 
-    // ── Phase 2: evidence-based classification ──
     var surfaceKey = getSearchSurfaceKey();
     var currentQuery = getSearchKeywords();
     bstMarkSearched(currentQuery);  // record this query to prevent BST from suggesting it later
     var strongCount = 0;        // scores >= 7.0 (genuine aligned — guardrail ensures this)
-    var neutralZoneCount = 0;   // scores in [7.0, 7.9] for neutral-zone detection
     var mismatchCount = 0;      // jobs with isRoleFamilyMismatch = true
     var alignedCount = 0;       // jobs NOT mismatched (aligned or unknown)
     var sameClusterCount = 0;   // jobs whose title shares cluster with calibration title
@@ -1593,10 +1439,6 @@
           bestJobScore = entry.score;
           bestJobTitle = entry.title || "";
         }
-        // Also check neutral-zone bracket
-        if (entry.score <= BST_NEUTRAL_ZONE_HIGH) {
-          neutralZoneCount++;
-        }
       }
       if (entry.calibrationTitle) bestCalibrationTitle = entry.calibrationTitle;
       if (entry.nearbyRoles && entry.nearbyRoles.length > 0) bestNearbyRoles = entry.nearbyRoles;
@@ -1620,10 +1462,7 @@
         // Check if already counted via cache entry
         var scUrlMatch = location.href.match(/\/jobs\/view\/(\d+)/);
         var scInCache = scUrlMatch && badgeScoreCache["job-" + scUrlMatch[1]];
-        if (!scInCache) {
-          strongCount++;
-          if (lastScoredScore <= BST_NEUTRAL_ZONE_HIGH) neutralZoneCount++;
-        }
+        if (!scInCache) strongCount++;
       }
       console.debug("[Caliber][BST][diag] sidecard score (" + lastScoredScore.toFixed(1) +
         ") exceeds badge cache max — elevated pageMaxScore");
@@ -1671,55 +1510,54 @@
     var surfaceClass = classification.surfaceClass;
     var classificationReason = classification.reason;
 
-    // ── Determine classification phase ──
-    var isForced = scoredCount >= BST_FORCE_CLASSIFY_WINDOW;
-    surfaceClassificationPhase = isForced ? "final" : "provisional";
-
-    // ── Two-phase classification decision ──
-    // Possible outcomes: "healthy", "bst", "neutral"
-    var bannerDecision;  // "healthy" | "bst" | "neutral"
+    // ── Primary decision: driven by scored window evidence ──
+    var shouldTrigger;
     var triggerReason;
 
-    // Check healthy-surface criteria: >=2 strong OR >=1 at 8.0+
-    var hasHighScore = pageMaxScore >= BST_HEALTHY_SINGLE_HIGH;
-    var meetsHealthyThreshold = strongCount >= BST_HEALTHY_MIN_STRONG || hasHighScore;
-
-    if (meetsHealthyThreshold) {
-      bannerDecision = "healthy";
-      triggerReason = "healthy surface — " + strongCount + " strong (≥" + BST_STRONG_MATCH_THRESHOLD +
-        "), maxScore=" + pageMaxScore.toFixed(1) +
-        (hasHighScore ? " (≥" + BST_HEALTHY_SINGLE_HIGH + " single-high rule)" : "") +
-        " — surface is productive";
-    } else if (strongCount === 0) {
-      // Zero strong matches → BST trigger
-      // Use secondary context for diagnostic reason
-      if (surfaceClass === "out-of-scope") {
-        triggerReason = "no strong matches + out-of-scope query (" + classificationReason + ") — recovery needed";
-      } else if (surfaceClass === "aligned") {
-        triggerReason = "no strong matches on aligned surface (max " + maxScore.toFixed(1) +
-          ", avg " + avgScore.toFixed(1) + ") — recovery still needed";
-      } else {
-        // Ambiguous — use cluster/overlap heuristics to strengthen BST confidence
-        var noClusterOverlap = calClusterForEvidence && sameClusterCount === 0 && scoredCount >= BST_MIN_WINDOW_SIZE;
-        var bothUnclusteredNoOverlap = false;
-        if (!calClusterForEvidence && bestCalibrationTitle && currentQuery) {
-          var aqWords = currentQuery.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
-          var acWords = bestCalibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
-          var ambOverlap = 0;
-          for (var aw = 0; aw < aqWords.length; aw++) {
-            for (var ac = 0; ac < acWords.length; ac++) {
-              if (aqWords[aw] === acWords[ac]) { ambOverlap++; break; }
-            }
+    if (strongCount > 0) {
+      // PRIMARY: at least one genuine strong match on the visible surface.
+      // Domain-mismatch guardrail already caps out-of-scope jobs to 5.0,
+      // so any score >= 7.0 in the cache is a genuine aligned strong match.
+      // Show surface-quality banner instead of BST.
+      shouldTrigger = false;
+      triggerReason = "pre-read window has " + strongCount + " genuine strong match" + (strongCount > 1 ? "es" : "") +
+        " (≥" + BST_STRONG_MATCH_THRESHOLD + ") — surface is productive, showing surface-quality banner";
+    } else if (surfaceClass === "out-of-scope") {
+      // SECONDARY BOOST: no strong matches + query is clearly out-of-scope.
+      // Trigger confidently — the user is in the wrong job family.
+      shouldTrigger = true;
+      triggerReason = "no strong matches + out-of-scope query (" + classificationReason + ") — recovery needed";
+    } else if (surfaceClass === "aligned") {
+      // No strong matches but query looks aligned. This is a weak aligned
+      // surface — BST should fire to suggest better search terms.
+      shouldTrigger = true;
+      triggerReason = "no strong matches on aligned surface (max " + maxScore.toFixed(1) +
+        ", avg " + avgScore.toFixed(1) + ") — recovery still needed";
+    } else {
+      // Ambiguous query — resolve through scored + cluster evidence.
+      // Primary: low average confirms poor surface.
+      // Secondary: if calibration title has a known cluster but ZERO scored
+      // job titles share it, the surface is effectively foreign.
+      // Tertiary: if NEITHER side has a known cluster (both unrecognised)
+      // AND query has zero keyword overlap with calibration title, the
+      // user is almost certainly on a foreign surface (e.g., "specialist"
+      // when calibrated as "Business Operations Designer").
+      var noClusterOverlap = calClusterForEvidence && sameClusterCount === 0 && scoredCount >= BST_MIN_WINDOW_SIZE;
+      var bothUnclusteredNoOverlap = false;
+      if (!calClusterForEvidence && bestCalibrationTitle && currentQuery) {
+        var aqWords = currentQuery.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var acWords = bestCalibrationTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(function (w) { return w.length > 2; });
+        var ambOverlap = 0;
+        for (var aw = 0; aw < aqWords.length; aw++) {
+          for (var ac = 0; ac < acWords.length; ac++) {
+            if (aqWords[aw] === acWords[ac]) { ambOverlap++; break; }
           }
-          bothUnclusteredNoOverlap = aqWords.length > 0 && ambOverlap === 0;
         }
-        var ambiguousTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING || noClusterOverlap || bothUnclusteredNoOverlap;
-        if (!ambiguousTrigger) {
-          // Ambiguous but avg is acceptable — still trigger BST since strongCount is 0
-          // but note the uncertainty
-          triggerReason = "no strong matches + ambiguous query, avg=" + avgScore.toFixed(1) +
-            " (acceptable but zero genuine matches) — recovery advised";
-        } else if (noClusterOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING) {
+        bothUnclusteredNoOverlap = aqWords.length > 0 && ambOverlap === 0;
+      }
+      shouldTrigger = avgScore < BST_AMBIGUOUS_AVG_CEILING || noClusterOverlap || bothUnclusteredNoOverlap;
+      if (shouldTrigger) {
+        if (noClusterOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING) {
           triggerReason = "no strong matches + ambiguous query + zero job titles in calibration cluster (" + calClusterForEvidence +
             ") despite avg " + avgScore.toFixed(1) + " — surface is foreign";
         } else if (bothUnclusteredNoOverlap && avgScore >= BST_AMBIGUOUS_AVG_CEILING) {
@@ -1728,61 +1566,27 @@
         } else {
           triggerReason = "no strong matches + ambiguous query + weak scores (avg " + avgScore.toFixed(1) + " < " + BST_AMBIGUOUS_AVG_CEILING + ")";
         }
-      }
-      bannerDecision = "bst";
-    } else {
-      // Exactly 1 strong match in neutral zone [7.0, 7.9] — ambiguous evidence
-      // strongCount is 1, and that one match is in [7.0, 7.9]
-      if (strongCount === 1 && neutralZoneCount === 1 && !hasHighScore) {
-        if (isForced) {
-          // Forced classification at 10+ scored jobs — decide from available evidence
-          // With only 1 weak-strong match, lean BST
-          bannerDecision = "bst";
-          triggerReason = "forced classification at " + scoredCount + " scored — only 1 job at " +
-            bestJobScore.toFixed(1) + " (neutral zone) — insufficient for healthy, triggering BST";
-        } else {
-          // Provisional: not enough evidence, remain neutral
-          bannerDecision = "neutral";
-          triggerReason = "neutral zone — exactly 1 job at " + bestJobScore.toFixed(1) +
-            " (7.0–7.9) after " + scoredCount + " scored — waiting for more evidence (force at " +
-            BST_FORCE_CLASSIFY_WINDOW + ")";
-        }
       } else {
-        // strongCount >= 1 but doesn't meet healthy threshold (< 2 strong, no 8.0+)
-        // and not purely in neutral zone — shouldn't happen often, but handle gracefully
-        if (isForced) {
-          bannerDecision = "bst";
-          triggerReason = "forced classification at " + scoredCount + " scored — " + strongCount +
-            " strong but below healthy threshold — triggering BST";
-        } else {
-          bannerDecision = "neutral";
-          triggerReason = "provisional — " + strongCount + " strong but below healthy threshold, waiting for evidence";
-        }
+        triggerReason = "no strong matches + ambiguous query but acceptable avg (" + avgScore.toFixed(1) +
+          " ≥ " + BST_AMBIGUOUS_AVG_CEILING + ") + " + sameClusterCount + " jobs share calibration cluster — holding";
       }
     }
 
-    // Track classification state
-    var previousState = surfaceClassificationState;
-    surfaceClassificationState = bannerDecision;
-
     // ── Diagnostic logging ──
-    console.debug("[Caliber][BST] ── evaluation (v0.9.17 two-phase) ──");
+    console.debug("[Caliber][BST] ── evaluation ──");
     console.debug("[Caliber][BST]   scoreWindowSize: " + scoredCount);
-    console.debug("[Caliber][BST]   classificationPhase: " + surfaceClassificationPhase + (isForced ? " (FORCED)" : ""));
     console.debug("[Caliber][BST]   query: \"" + currentQuery + "\"");
     console.debug("[Caliber][BST]   calibrationTitle: \"" + bestCalibrationTitle + "\" (lastKnown: \"" + lastKnownCalibrationTitle + "\")");
     console.debug("[Caliber][BST]   nearbyRoles: " + (bestNearbyRoles.length > 0
       ? bestNearbyRoles.map(function(r) { return r.title; }).join(", ") : "(none)"));
     console.debug("[Caliber][BST]   pre-read window: [" + scores.map(function(s) { return s.toFixed(1); }).join(", ") + "]");
     console.debug("[Caliber][BST]   genuineStrongCount: " + strongCount + " (≥" + BST_STRONG_MATCH_THRESHOLD + ")");
-    console.debug("[Caliber][BST]   neutralZoneCount: " + neutralZoneCount + " (7.0–7.9)");
     console.debug("[Caliber][BST]   alignedJobs: " + alignedCount + ", mismatchedJobs: " + mismatchCount +
       ", sameClusterJobs: " + sameClusterCount + " (calCluster: " + (calClusterForEvidence || "unknown") + ")");
-    console.debug("[Caliber][BST]   maxScore: " + maxScore.toFixed(1) + ", avgScore: " + avgScore.toFixed(1) +
-      ", pageMaxScore: " + pageMaxScore.toFixed(1));
+    console.debug("[Caliber][BST]   maxScore: " + maxScore.toFixed(1) + ", avgScore: " + avgScore.toFixed(1));
     console.debug("[Caliber][BST]   queryClassification: " + surfaceClass + " (" + classificationReason + ")");
-    console.debug("[Caliber][BST]   bannerDecision: " + bannerDecision + " (prev: " + previousState + ")");
     console.debug("[Caliber][BST]   triggerReason: " + triggerReason);
+    console.debug("[Caliber][BST]   decision: " + (shouldTrigger ? "TRIGGER" : "SUPPRESS"));
     console.debug("[Caliber][BST]   badgesVisible: " + BADGES_VISIBLE);
     // ── Surface-truth diagnostic (issue #73) ──
     // Log score source for every current-surface cache entry
@@ -1800,30 +1604,15 @@
     }
     console.debug("[Caliber][BST][surface-truth] sourceBreakdown: " + JSON.stringify(sourceBreakdown));
     console.debug("[Caliber][BST][surface-truth] strongCount=" + strongCount +
-      ", neutralZoneCount=" + neutralZoneCount +
       ", pageMaxScore=" + pageMaxScore.toFixed(1) +
       ", pageBestTitle=\"" + pageBestTitle + "\"" +
       ", currentSelectedScore=" + (lastScoredScore || 0) +
       ", currentQuery=\"" + currentQuery + "\"" +
       ", bstSuggestedTitle=\"" + (prescanStoredTitle || "") + "\"" +
-      ", bannerDecision=" + bannerDecision +
-      ", phase=" + surfaceClassificationPhase);
+      ", suppression=" + (shouldTrigger ? "none" : triggerReason));
 
-    // Instrumentation: log banner state change
-    if (previousState !== bannerDecision) {
-      logSurfaceValidationState("banner-change");
-    }
-
-    // ── Apply banner decision (mutually exclusive) ──
-
-    if (bannerDecision === "bst") {
-      // BST TRIGGER — ensure healthy-surface banner is hidden first (mutual exclusivity)
-      if (prescanSurfaceBanner) {
-        hideSurfaceQualityBanner();
-        prescanSurfaceBanner = null;
-      }
-
-      // Debounce the show to prevent flicker
+    if (shouldTrigger) {
+      // BST TRIGGER — debounce the show to prevent flicker.
       if (!prescanBSTActive && !bstShowDebounce) {
         var deferredCalibTitle = bestCalibrationTitle;
         var deferredNearby = bestNearbyRoles;
@@ -1834,45 +1623,33 @@
           // Re-check: has scored evidence changed during debounce?
           var reUrls = Object.keys(badgeScoreCache);
           var reStrongCount = 0;
-          var reNeutralCount = 0;
-          var reMaxScore = 0;
           var reCalibTitle = deferredCalibTitle;
           for (var ri = 0; ri < reUrls.length; ri++) {
-            var reEntry = badgeScoreCache[reUrls[ri]];
-            if (reEntry.score >= BST_STRONG_MATCH_THRESHOLD) {
-              reStrongCount++;
-              if (reEntry.score <= BST_NEUTRAL_ZONE_HIGH) reNeutralCount++;
-            }
-            if (reEntry.score > reMaxScore) reMaxScore = reEntry.score;
-            if (!reCalibTitle && reEntry.calibrationTitle) {
-              reCalibTitle = reEntry.calibrationTitle;
+            if (badgeScoreCache[reUrls[ri]].score >= BST_STRONG_MATCH_THRESHOLD) reStrongCount++;
+            if (!reCalibTitle && badgeScoreCache[reUrls[ri]].calibrationTitle) {
+              reCalibTitle = badgeScoreCache[reUrls[ri]].calibrationTitle;
             }
           }
-          // Re-evaluate with two-phase rules: healthy if >=2 strong or >=1 at 8.0+
-          var reHealthy = reStrongCount >= BST_HEALTHY_MIN_STRONG || reMaxScore >= BST_HEALTHY_SINGLE_HIGH;
-          // Check neutral zone: exactly 1 strong in [7.0, 7.9] and < force window
-          var reNeutral = reStrongCount === 1 && reNeutralCount === 1 &&
-            reMaxScore < BST_HEALTHY_SINGLE_HIGH && reUrls.length < BST_FORCE_CLASSIFY_WINDOW;
-
-          if (reHealthy || reNeutral || prescanBSTActive) {
+          // Primary check: if a strong match appeared during debounce, cancel BST and show surface-quality banner
+          if (reStrongCount > 0 || prescanBSTActive) {
             console.debug("[Caliber][BST] deferred show cancelled — " +
-              (reHealthy ? "healthy threshold met during debounce (" + reStrongCount + " strong, max=" + reMaxScore.toFixed(1) + ")" :
-               reNeutral ? "entered neutral zone during debounce (1 strong at " + reMaxScore.toFixed(1) + ")" :
-               "banner already active"));
-            if (reHealthy && !prescanBSTActive) {
-              // Upgrade to surface-quality banner
+              (reStrongCount > 0 ? "strong match appeared during debounce (" + reStrongCount + ")" : "banner already active"));
+            if (reStrongCount > 0 && !prescanBSTActive) {
+              // Show surface-quality banner with true page max from the fresh re-check
+              var rePageMax = 0;
               var rePageBestTitle = "";
               for (var rpm = 0; rpm < reUrls.length; rpm++) {
-                if (badgeScoreCache[reUrls[rpm]].score === reMaxScore) {
+                if (badgeScoreCache[reUrls[rpm]].score > rePageMax) {
+                  rePageMax = badgeScoreCache[reUrls[rpm]].score;
                   rePageBestTitle = badgeScoreCache[reUrls[rpm]].title || "";
-                  break;
                 }
               }
-              showSurfaceQualityBanner(reStrongCount, rePageBestTitle, reMaxScore);
-              prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: rePageBestTitle, bestScore: reMaxScore };
-              surfaceClassificationState = "healthy";
-              console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong, pageMax=" + reMaxScore.toFixed(1));
-              logSurfaceValidationState("banner-change");
+              // Non-regression: preserve sidecard-authoritative best if higher
+              // Only valid when prescanSurfaceBanner is from the current scoring pass
+              // (pruned cache ensures it reflects live DOM state)
+              showSurfaceQualityBanner(reStrongCount, rePageBestTitle, rePageMax);
+              prescanSurfaceBanner = { strongCount: reStrongCount, bestTitle: rePageBestTitle, bestScore: rePageMax };
+              console.debug("[Caliber][SurfaceBanner] SHOW (debounce upgrade) — " + reStrongCount + " strong, pageMax=" + rePageMax.toFixed(1));
             }
             return;
           }
@@ -1884,42 +1661,21 @@
             titleSource = (reCalibTitle && !titlesEquivalent(reCalibTitle, deferredQuery)) ? "calibration primary" : "adjacent role";
           } else {
             title = getCalibrationTitleFallback(deferredQuery);
-            if (title) {
-              titleSource = "recentScores fallback";
-            } else {
-              console.debug("[Caliber][BST][decision-trace] recentScores fallback: no viable entry");
-            }
+            if (title) titleSource = "recentScores fallback";
           }
           // Final fallback: use lastKnownCalibrationTitle (from session backup or prior scoring)
-          if (!title && lastKnownCalibrationTitle) {
-            if (titlesEquivalent(lastKnownCalibrationTitle, deferredQuery)) {
-              console.debug("[Caliber][BST][decision-trace] lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\" REJECTED (matches current query)");
-            } else if (bstTitleAlreadySeen(lastKnownCalibrationTitle)) {
-              console.debug("[Caliber][BST][decision-trace] lastKnownCalibrationTitle=\"" + lastKnownCalibrationTitle + "\" REJECTED (already seen)");
-            } else {
-              title = lastKnownCalibrationTitle;
-              titleSource = "lastKnownCalibrationTitle";
-            }
+          if (!title && lastKnownCalibrationTitle && !titlesEquivalent(lastKnownCalibrationTitle, deferredQuery) && !bstTitleAlreadySeen(lastKnownCalibrationTitle)) {
+            title = lastKnownCalibrationTitle;
+            titleSource = "lastKnownCalibrationTitle";
           }
           // Final fallback: use lastKnownNearbyRoles
           if (!title && lastKnownNearbyRoles.length > 0) {
-            var lnrExhausted = true;
             for (var nr = 0; nr < lastKnownNearbyRoles.length; nr++) {
-              var lnrTitle = lastKnownNearbyRoles[nr].title;
-              if (!lnrTitle) continue;
-              if (titlesEquivalent(lnrTitle, deferredQuery)) {
-                console.debug("[Caliber][BST][decision-trace] lastKnownNearbyRoles[" + nr + "]=\"" + lnrTitle + "\" REJECTED (matches current query)");
-              } else if (bstTitleAlreadySeen(lnrTitle)) {
-                console.debug("[Caliber][BST][decision-trace] lastKnownNearbyRoles[" + nr + "]=\"" + lnrTitle + "\" REJECTED (already seen)");
-              } else {
-                title = lnrTitle;
+              if (lastKnownNearbyRoles[nr].title && !titlesEquivalent(lastKnownNearbyRoles[nr].title, deferredQuery) && !bstTitleAlreadySeen(lastKnownNearbyRoles[nr].title)) {
+                title = lastKnownNearbyRoles[nr].title;
                 titleSource = "lastKnownNearbyRoles";
-                lnrExhausted = false;
                 break;
               }
-            }
-            if (lnrExhausted) {
-              console.debug("[Caliber][BST][decision-trace] lastKnownNearbyRoles: all " + lastKnownNearbyRoles.length + " candidates exhausted");
             }
           }
 
@@ -1934,10 +1690,8 @@
             showPrescanBSTBanner(title);
             prescanStoredTitle = title;
           } else {
-            console.debug("[Caliber][BST] all suggestion candidates exhausted — class: " + deferredSurfaceClass +
-              ", suggestedSoFar: " + JSON.stringify(Object.keys(bstSuggestedTitles)) +
-              ", searchedSoFar: " + JSON.stringify(Object.keys(bstSearchedQueries)));
-            // Do NOT render banner — no valid title to suggest
+            console.debug("[Caliber][BST] SHOW (generic) — no suggestion title, class: " + deferredSurfaceClass);
+            showPrescanBSTBanner(null);
             prescanStoredTitle = null;
           }
           chrome.runtime.sendMessage({
@@ -1952,33 +1706,42 @@
           });
         }, 800);
       }
-    } else if (bannerDecision === "healthy") {
-      // HEALTHY SURFACE — ensure BST is hidden first (mutual exclusivity)
+    } else {
+      // BST SUPPRESS — cancel pending show and hide existing BST banner
       if (bstShowDebounce) {
         clearTimeout(bstShowDebounce);
         bstShowDebounce = null;
-        console.debug("[Caliber][BST] cancelled pending BST show — healthy surface classified");
+        console.debug("[Caliber][BST] cancelled pending show — " + triggerReason);
       }
       if (prescanBSTActive) {
-        console.debug("[Caliber][BST] SUPPRESS — hiding BST banner — healthy surface");
+        console.debug("[Caliber][BST] SUPPRESS — hiding BST banner — " + triggerReason);
         prescanBSTActive = false;
         prescanStoredTitle = null;
         if (shadow) {
-          var bstBanner = shadow.getElementById("cb-recovery-banner");
-          if (bstBanner) bstBanner.style.display = "none";
+          var banner = shadow.getElementById("cb-recovery-banner");
+          if (banner) banner.style.display = "none";
         }
       }
 
-      // Show surface-quality banner with fresh evidence
-      var bannerScore = pageMaxScore;
-      var bannerTitle = pageBestTitle;
-      showSurfaceQualityBanner(strongCount, bannerTitle || "", bannerScore);
-      prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bannerTitle || "", bestScore: bannerScore };
-      console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, best: \"" +
-        (bannerTitle || "") + "\" (" + bannerScore.toFixed(1) + ")");
-    } else {
-      // NEUTRAL — suppress all banners, wait for more evidence
-      suppressAllBanners("neutral classification (" + triggerReason + ")");
+      // Surface-quality banner: show when strong matches exist on the loaded surface
+      // Use true pageMaxScore/pageBestTitle computed fresh from the (pruned) badge cache.
+      if (strongCount > 0) {
+        var bannerScore = pageMaxScore;
+        var bannerTitle = pageBestTitle;
+        if (bannerTitle) {
+          showSurfaceQualityBanner(strongCount, bannerTitle, bannerScore);
+          prescanSurfaceBanner = { strongCount: strongCount, bestTitle: bannerTitle, bestScore: bannerScore };
+          console.debug("[Caliber][SurfaceBanner] SHOW — " + strongCount + " strong, best: \"" + bannerTitle + "\" (" + bannerScore.toFixed(1) + ")");
+        } else {
+          showSurfaceQualityBanner(strongCount, "", bannerScore);
+          prescanSurfaceBanner = { strongCount: strongCount, bestTitle: "", bestScore: bannerScore };
+          console.debug("[Caliber][SurfaceBanner] SHOW (no title) — " + strongCount + " strong, best=" + bannerScore.toFixed(1));
+        }
+      } else if (prescanSurfaceBanner) {
+        // No strong matches anymore — hide surface-quality banner
+        hideSurfaceQualityBanner();
+        prescanSurfaceBanner = null;
+      }
     }
 
     // Mark prescan done for persistence (but re-evaluation still runs on each chunk)
@@ -1997,31 +1760,6 @@
       suggestionShown: prescanBSTActive,
       surfaceBanner: prescanSurfaceBanner,
     });
-  }
-
-  /**
-   * Suppress all banners (BST + surface-quality). Used for phase-1 pre-evidence
-   * and neutral classification states. Ensures mutual exclusivity is maintained.
-   */
-  function suppressAllBanners(reason) {
-    if (bstShowDebounce) {
-      clearTimeout(bstShowDebounce);
-      bstShowDebounce = null;
-    }
-    if (prescanBSTActive) {
-      console.debug("[Caliber][BST] SUPPRESS (all) — hiding BST banner — " + reason);
-      prescanBSTActive = false;
-      prescanStoredTitle = null;
-      if (shadow) {
-        var banner = shadow.getElementById("cb-recovery-banner");
-        if (banner) banner.style.display = "none";
-      }
-    }
-    if (prescanSurfaceBanner) {
-      hideSurfaceQualityBanner();
-      prescanSurfaceBanner = null;
-      console.debug("[Caliber][SurfaceBanner] SUPPRESS (all) — " + reason);
-    }
   }
 
   /** Find LinkedIn's inner scrollable container (results list scrolls inside this). */
@@ -2189,10 +1927,6 @@
       badgeListObserver = null;
     }
     console.debug("[Caliber][badges] cleared all badges, identity stamps, cache, scroll listener, and observer");
-    // Reset classification state on surface clear
-    surfaceClassificationPhase = "none";
-    surfaceClassificationState = "none";
-    stopHydrationObserver();
   }
 
   // ─── Pre-scan Trigger Logic ───────────────────────────────
@@ -2319,15 +2053,6 @@
     prescanStoredTitle = null;
     prescanSurfaceBanner = null;
     initialSurfaceResolved = false;
-    surfaceClassificationPhase = "none";
-    surfaceClassificationState = "none";
-    surfaceValidationLogCount = 0;  // reset per-surface log cap
-
-    // Instrumentation: log initial surface state
-    logSurfaceValidationState("page-load");
-    // Start DOM hydration observer for validation
-    stopHydrationObserver();
-    setTimeout(startHydrationObserver, 500);
 
     // Clear badge cache so the surface starts with zero cached scores.
     // This prevents stale scores from a previous run of the same query
@@ -2382,16 +2107,7 @@
   function getCalibrationTitleFallback(currentQuery) {
     for (var i = recentScores.length - 1; i >= 0; i--) {
       var ct = recentScores[i].calibrationTitle;
-      if (!ct) continue;
-      if (titlesEquivalent(ct, currentQuery)) {
-        console.debug("[Caliber][BST][decision-trace] recentScores[" + i + "]=\"" + ct + "\" REJECTED (matches current query)");
-        continue;
-      }
-      if (bstTitleAlreadySeen(ct)) {
-        console.debug("[Caliber][BST][decision-trace] recentScores[" + i + "]=\"" + ct + "\" REJECTED (already seen)");
-        continue;
-      }
-      return ct;
+      if (ct && !titlesEquivalent(ct, currentQuery) && !bstTitleAlreadySeen(ct)) return ct;
     }
     return null;
   }
@@ -2401,46 +2117,18 @@
    * Hierarchy: calibration primary title > adjacent/nearby roles > null
    */
   function determinePrescanSuggestion(calibrationTitle, nearbyRoles, currentQuery) {
-    var traceLog = [];
-    var normQuery = currentQuery ? currentQuery.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() : "";
-    traceLog.push("currentQuery=\"" + (currentQuery || "") + "\" (norm=\"" + normQuery + "\")");
-    traceLog.push("suggestedSoFar=" + JSON.stringify(Object.keys(bstSuggestedTitles)));
-    traceLog.push("searchedSoFar=" + JSON.stringify(Object.keys(bstSearchedQueries)));
-
     // Primary: calibration primary title (skip if equivalent to query OR already seen)
-    if (calibrationTitle) {
-      if (titlesEquivalent(calibrationTitle, currentQuery)) {
-        traceLog.push("calibrationTitle=\"" + calibrationTitle + "\" REJECTED (matches current query)");
-      } else if (bstTitleAlreadySeen(calibrationTitle)) {
-        traceLog.push("calibrationTitle=\"" + calibrationTitle + "\" REJECTED (already seen)");
-      } else {
-        traceLog.push("calibrationTitle=\"" + calibrationTitle + "\" SELECTED");
-        console.debug("[Caliber][BST][decision-trace] " + traceLog.join(" | "));
-        return calibrationTitle;
-      }
-    } else {
-      traceLog.push("calibrationTitle=(none)");
+    if (calibrationTitle && !titlesEquivalent(calibrationTitle, currentQuery) && !bstTitleAlreadySeen(calibrationTitle)) {
+      return calibrationTitle;
     }
-
     // Secondary: adjacent/nearby roles from calibration (skip seen titles)
     if (nearbyRoles && nearbyRoles.length > 0) {
       for (var i = 0; i < nearbyRoles.length; i++) {
-        var nrTitle = nearbyRoles[i].title;
-        if (!nrTitle) continue;
-        if (titlesEquivalent(nrTitle, currentQuery)) {
-          traceLog.push("nearby[" + i + "]=\"" + nrTitle + "\" REJECTED (matches current query)");
-        } else if (bstTitleAlreadySeen(nrTitle)) {
-          traceLog.push("nearby[" + i + "]=\"" + nrTitle + "\" REJECTED (already seen)");
-        } else {
-          traceLog.push("nearby[" + i + "]=\"" + nrTitle + "\" SELECTED");
-          console.debug("[Caliber][BST][decision-trace] " + traceLog.join(" | "));
-          return nrTitle;
+        if (nearbyRoles[i].title && !titlesEquivalent(nearbyRoles[i].title, currentQuery) && !bstTitleAlreadySeen(nearbyRoles[i].title)) {
+          return nearbyRoles[i].title;
         }
       }
     }
-
-    traceLog.push("RESULT=exhausted (no viable candidate)");
-    console.debug("[Caliber][BST][decision-trace] " + traceLog.join(" | "));
     return null;
   }
 
@@ -2450,17 +2138,6 @@
    */
   function showPrescanBSTBanner(suggestedTitle) {
     suggestedTitle = sanitizeJobTitle(suggestedTitle);
-    // Hard guard: never render suggestion banner without a real non-empty title
-    if (!suggestedTitle || suggestedTitle.trim().length === 0) {
-      console.debug("[Caliber][BST] render suppressed — no valid suggestion title (raw was " +
-        (suggestedTitle === "" ? "empty string" : typeof suggestedTitle) + ")");
-      return;
-    }
-    var normalizedCandidate = suggestedTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    if (normalizedCandidate.length === 0) {
-      console.debug("[Caliber][BST] render suppressed — normalized candidate is empty (raw=\"" + suggestedTitle + "\")");
-      return;
-    }
     // Self-suggestion suppression: if suggested title matches current query, do not render
     var currentQueryForBST = getSearchKeywords();
     if (suggestedTitle && currentQueryForBST && titlesEquivalent(suggestedTitle, currentQueryForBST)) {
@@ -2470,15 +2147,6 @@
         "\", query=\"" + currentQueryForBST + "\")");
       return;
     }
-    // Loop guard: final safety net — reject any title already suggested or searched
-    if (suggestedTitle && bstTitleAlreadySeen(suggestedTitle)) {
-      console.debug("[Caliber][BST] loop-guard suppressed — \"" + suggestedTitle +
-        "\" already in session memory (suggestedTitles=" + JSON.stringify(Object.keys(bstSuggestedTitles)) +
-        ", searchedQueries=" + JSON.stringify(Object.keys(bstSearchedQueries)) + ")");
-      return;
-    }
-    console.debug("[Caliber][BST] rendering banner — candidate=\"" + suggestedTitle +
-      "\", normalized=\"" + normalizedCandidate + "\"");
     getOrCreatePanel();
     prescanBSTActive = true;
     prescanSurfaceBanner = null; // BST overrides surface-quality banner
@@ -2494,22 +2162,23 @@
       if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>';
       if (label) label.style.display = "";
       if (reason) {
-        reason.textContent = "None of the scored jobs on this page are strong matches for your calibration.";
+        reason.textContent = suggestedTitle
+          ? "None of the scored jobs on this page are strong matches for your calibration."
+          : "None of the scored jobs on this page are strong matches. Try a different search.";
       }
       if (link) {
-        link.textContent = suggestedTitle;
-        link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
-        link.style.display = "";
-        var clickedTitle = suggestedTitle; // capture for closure
-        link.onclick = function () {
-          sessionSignals.suggest_clicked = true;
-          // Immediately record so next surface cannot re-suggest this title
-          bstMarkSearched(clickedTitle);
-          console.debug("[Caliber][BST-LOOP] user clicked BST link, recorded: \"" + clickedTitle + "\"");
-        };
+        if (suggestedTitle) {
+          link.textContent = suggestedTitle;
+          link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+          link.style.display = "";
+          link.onclick = function () { sessionSignals.suggest_clicked = true; };
+        } else {
+          // Generic recovery: no specific title to suggest
+          link.style.display = "none";
+        }
       }
       sessionSignals.suggest_shown = true;
-      console.debug("[Caliber][BST] banner shown, suggested: \"" + suggestedTitle + "\"");
+      console.debug("[Caliber][BST] banner shown" + (suggestedTitle ? ", suggested: \"" + suggestedTitle + "\"" : " (generic, no suggestion)"));
     }
   }
 
@@ -2608,10 +2277,6 @@
     prescanStoredTitle = null;
     prescanSurfaceBanner = null;
     initialSurfaceResolved = false;
-    surfaceClassificationPhase = "none";
-    surfaceClassificationState = "none";
-    surfaceValidationLogCount = 0;
-    stopHydrationObserver();
     if (bstShowDebounce) {
       clearTimeout(bstShowDebounce);
       bstShowDebounce = null;
@@ -2662,7 +2327,6 @@
     }
 
     shadow.getElementById("cb-close").addEventListener("click", deactivatePanel);
-    shadow.getElementById("cb-minimize").addEventListener("click", toggleMinimize);
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
 
@@ -2695,16 +2359,23 @@
       });
     });
 
-    // Wire pipeline add button
-    shadow.getElementById("cb-pipeline-add").addEventListener("click", function () {
-      var addBtn = shadow.getElementById("cb-pipeline-add");
+    // Wire "View pipeline" link in TRP secondary row
+    shadow.getElementById("cb-pipeline-view").addEventListener("click", function (e) {
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE", highlightId: lastSavedPipelineId || null });
+    });
+
+    // Wire "Add to pipeline" button in TRP secondary row
+    shadow.getElementById("cb-pipeline-add-btn").addEventListener("click", function () {
+      var addBtn = shadow.getElementById("cb-pipeline-add-btn");
       if (addBtn) { addBtn.textContent = "Saving\u2026"; addBtn.disabled = true; addBtn.classList.remove("cb-pipeline-add-error"); }
+      // Re-extract meta in case DOM was not ready at score time
       var freshMeta = extractJobMeta();
       var saveTitle = lastJobMeta.title || freshMeta.title || "Untitled Position";
       var saveCompany = lastJobMeta.company || freshMeta.company || "Unknown Company";
       var saveUrl = location.href;
       var saveScore = lastScoredScore || 0;
-      console.debug("[Caliber][pipeline] manual save started \u2014 title=\"" + saveTitle +
+      console.debug("[Caliber][TRP] manual pipeline save started \u2014 title=\"" + saveTitle +
         "\", company=\"" + saveCompany + "\", url=" + saveUrl + ", score=" + saveScore);
       chrome.runtime.sendMessage({
         type: "CALIBER_PIPELINE_SAVE",
@@ -2715,43 +2386,41 @@
       }, function (resp) {
         if (chrome.runtime.lastError) {
           if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
-          console.warn("[Caliber][pipeline] manual save \u2014 messaging error:", chrome.runtime.lastError.message);
+          console.warn("[Caliber][TRP] manual pipeline save \u2014 messaging error:", chrome.runtime.lastError.message);
           return;
         }
         if (resp && resp.ok) {
+          // Immediate "Saved \u2713" confirmation with green flash, then transition
           if (addBtn) {
             addBtn.textContent = "Saved \u2713";
             addBtn.disabled = true;
             addBtn.classList.remove("cb-pipeline-add-error");
             addBtn.classList.add("cb-pipeline-add-saved");
           }
+          if (resp.entry && resp.entry.id) lastSavedPipelineId = resp.entry.id;
           setTimeout(function () {
             if (addBtn) addBtn.classList.remove("cb-pipeline-add-saved");
-            updatePipelineRow("in-pipeline");
+            updateTRPPipelineState("in-pipeline");
           }, 900);
-          console.debug("[Caliber][pipeline] manual save succeeded \u2014 id=" + (resp.entry && resp.entry.id));
+          console.debug("[Caliber][TRP] manual pipeline save succeeded \u2014 id=" + (resp.entry && resp.entry.id));
           emitTelemetry("pipeline_save", {
             surfaceKey: getSearchSurfaceKey(),
             jobTitle: saveTitle || null,
             company: saveCompany || null,
             jobUrl: saveUrl,
             score: saveScore,
-            trigger: "manual_sidecard",
+            trigger: "manual_trp",
           });
         } else {
           if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
-          console.warn("[Caliber][pipeline] manual save failed \u2014 error=" +
+          console.warn("[Caliber][TRP] manual pipeline save failed \u2014 error=" +
             (resp && resp.error || "unknown") + ", http=" + (resp && resp.httpStatus || "?") +
             ", title=\"" + saveTitle + "\", company=\"" + saveCompany + "\"");
         }
       });
     });
 
-    // Wire pipeline view link
-    shadow.getElementById("cb-pipeline-view").addEventListener("click", function (e) {
-      e.preventDefault();
-      chrome.runtime.sendMessage({ type: "CALIBER_OPEN_PIPELINE" });
-    });
+    // (Tailor resume button removed — Tailor lives in Pipeline only)
 
     // Dismiss "Best so far" dropdown on any click outside it
     shadow.addEventListener("click", function (e) {
@@ -2767,64 +2436,47 @@
     return shadow;
   }
 
-  function toggleMinimize() {
-    if (!shadow) return;
-    var container = shadow.querySelector(".cb-container");
-    if (!container) return;
-    panelMinimized = !panelMinimized;
-    container.classList.toggle("cb-minimized", panelMinimized);
-    var btn = shadow.getElementById("cb-minimize");
-    if (btn) {
-      btn.textContent = panelMinimized ? "+" : "\u2212";
-      btn.title = panelMinimized ? "Expand" : "Minimize";
-      btn.setAttribute("aria-label", panelMinimized ? "Expand" : "Minimize");
-    }
-  }
-
   function removePanel() {
     if (panelHost && panelHost.parentNode) panelHost.parentNode.removeChild(panelHost);
     panelHost = null;
     shadow = null;
-    panelMinimized = false;
   }
 
   /**
-   * Update the pipeline action row in the sidecard.
+   * Swap the TRP secondary action state.
    * @param {"hidden"|"add"|"in-pipeline"|"auto-added"} state
+   *   hidden     — no secondary action shown
+   *   add        — "Add to pipeline" button (score 7.0–8.4, not yet added)
+   *   in-pipeline — "✓ In pipeline" + "View pipeline →" (manual add or returning)
+   *   auto-added — "✓ Added to pipeline" + "View pipeline →" (score >= 8.5)
    */
-  function updatePipelineRow(state) {
+  function updateTRPPipelineState(state) {
     if (!shadow) return;
-    var row = shadow.getElementById("cb-pipeline-row");
-    var addBtn = shadow.getElementById("cb-pipeline-add");
+    var addBtn = shadow.getElementById("cb-pipeline-add-btn");
     var statusEl = shadow.getElementById("cb-pipeline-status");
     var viewLink = shadow.getElementById("cb-pipeline-view");
-    if (!row || !addBtn || !statusEl || !viewLink) return;
+    if (!addBtn || !statusEl || !viewLink) return;
 
-    // Reset
+    // Reset all to hidden
     addBtn.style.display = "none";
     addBtn.disabled = false;
     addBtn.textContent = "Add to pipeline";
-    addBtn.classList.remove("cb-pipeline-add-error", "cb-pipeline-add-saved");
     statusEl.style.display = "none";
     statusEl.textContent = "";
     viewLink.style.display = "none";
 
-    if (state === "hidden") {
-      row.style.display = "none";
-    } else if (state === "add") {
-      row.style.display = "";
+    if (state === "add") {
       addBtn.style.display = "";
     } else if (state === "in-pipeline") {
-      row.style.display = "";
       statusEl.textContent = "\u2713 In pipeline";
       statusEl.style.display = "";
       viewLink.style.display = "";
     } else if (state === "auto-added") {
-      row.style.display = "";
       statusEl.textContent = "\u2713 Added to pipeline";
       statusEl.style.display = "";
       viewLink.style.display = "";
     }
+    // "hidden" — everything stays hidden (default reset)
   }
 
   // ─── Decision Label ───────────────────────────────────────
@@ -2979,18 +2631,29 @@
     titleEl.textContent = meta.title || "";
     companyEl.textContent = meta.company || "";
 
-    // Hide detail sections until results arrive
+    // Reset detail sections to fallback state (never hide — stable height)
     var hrcSection = shadow.getElementById("cb-hrc-section");
-    if (hrcSection) hrcSection.style.display = "none";
     var supSection = shadow.getElementById("cb-supports-section");
-    if (supSection) supSection.style.display = "none";
     var strSection = shadow.getElementById("cb-stretch-section");
-    if (strSection) strSection.style.display = "none";
     var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = "none";
     var fbRow = shadow.getElementById("cb-fb-row");
-    if (fbRow) fbRow.style.display = "none";
-    updatePipelineRow("hidden");
+    // Sections stay visible with placeholder content for stable layout
+    var hrcBandSkel = hrcSection && hrcSection.querySelector(".cb-hrc-badge");
+    if (hrcBandSkel) { hrcBandSkel.textContent = "\u2014"; hrcBandSkel.className = "cb-hrc-badge"; hrcBandSkel.style.color = "#555"; }
+    var hrcReasonSkel = shadow.getElementById("cb-hrc-reason");
+    if (hrcReasonSkel) hrcReasonSkel.textContent = "";
+    var supList = shadow.getElementById("cb-supports");
+    if (supList) supList.innerHTML = "<li style='color:#555'>\u2014</li>";
+    var supCountSkel = shadow.getElementById("cb-supports-count");
+    if (supCountSkel) supCountSkel.innerHTML = "";
+    var strList = shadow.getElementById("cb-stretch");
+    if (strList) strList.innerHTML = "<li style='color:#555'>\u2014</li>";
+    var strCountSkel = shadow.getElementById("cb-stretch-count");
+    if (strCountSkel) strCountSkel.innerHTML = "";
+    var blText = shadow.getElementById("cb-bottomline");
+    if (blText) blText.textContent = "\u2014";
+    var tailorBanner = shadow.getElementById("cb-tailor-banner");
+    if (tailorBanner) tailorBanner.style.display = "none";
   }
 
   function clearSkeletonTimer() {
@@ -3142,20 +2805,21 @@
   function sanitizeJobTitle(raw) {
     if (!raw) return "";
     var t = raw.trim();
-    // Collapse internal whitespace to single spaces
-    t = t.replace(/\s+/g, " ");
-    // Strip ALL "with verification" occurrences (LinkedIn badge metadata)
-    t = t.replace(/\s+with\s+verification/gi, "").trim();
-    // Strip ALL badge metadata patterns: "· 2nd", "· Promoted", etc.
-    t = t.replace(/\s*·\s*(1st|2nd|3rd\+?|Promoted|Reposted|Actively\s+recruiting|Easy\s+Apply)/gi, "").trim();
-    // Detect and remove repeated title patterns
+    // Strip "with verification" suffix (LinkedIn badge metadata)
+    t = t.replace(/\s+with\s+verification\s*$/i, "").trim();
+    // Strip trailing badge text like "· 2nd", "· 3rd+", "· Promoted", "· Reposted", "· Actively recruiting"
+    t = t.replace(/\s*·\s*(1st|2nd|3rd\+?|Promoted|Reposted|Actively\s+recruiting|Easy\s+Apply)\s*$/i, "").trim();
+    // Detect and remove exact-duplicate halves: "Title Title" → "Title"
+    // Only if the title is long enough to plausibly contain a duplicate
     if (t.length >= 6) {
-      // Regex-based: catches "TitleTitle", "Title Title", and near-join duplicates
-      var repeatMatch = t.match(/^(.{3,})\s*\1$/);
-      if (repeatMatch) {
-        t = repeatMatch[1].trim();
+      var half = Math.floor(t.length / 2);
+      // Try matching the first half repeated, allowing whitespace in between
+      var firstHalf = t.substring(0, half).trim();
+      var secondHalf = t.substring(half).trim();
+      if (firstHalf.length > 2 && firstHalf === secondHalf) {
+        t = firstHalf;
       } else {
-        // Word-based halves fallback: "Product Manager Product Manager"
+        // Also try splitting on double-space or common separator
         var words = t.split(/\s+/);
         if (words.length >= 4 && words.length % 2 === 0) {
           var mid = words.length / 2;
@@ -3166,22 +2830,6 @@
       }
     }
     return t;
-  }
-
-  /**
-   * Canonicalize a card title: sanitize + log deduplication diagnostics.
-   * @param {string} rawTitle - Raw extracted title text from DOM
-   * @param {string} source - Extraction context for logging (e.g. "getVisibleJobCards", "scanAndBadge", "extractJobMeta")
-   * @returns {string} Canonical clean title
-   */
-  function canonicalizeCardTitle(rawTitle, source) {
-    if (!rawTitle) return "";
-    var canonical = sanitizeJobTitle(rawTitle);
-    if (canonical !== rawTitle.trim().replace(/\s+/g, " ")) {
-      console.debug("[Caliber][title-norm][" + source + "] dedup applied — raw=\"" +
-        rawTitle.trim().replace(/\s+/g, " ") + "\" → canonical=\"" + canonical + "\"");
-    }
-    return canonical;
   }
 
   /** Check if a candidate BST title was already suggested or already searched this session. */
@@ -3323,13 +2971,23 @@
 
     // Supports (collapsible — dot indicators in toggle)
     var supportItems = data.supports_fit || [];
-    renderList(shadow.getElementById("cb-supports"), supportItems);
+    var supUl = shadow.getElementById("cb-supports");
+    if (supportItems.length > 0) {
+      renderList(supUl, supportItems);
+    } else {
+      supUl.innerHTML = "<li style='color:#555'>\u2014</li>";
+    }
     var supCount = shadow.getElementById("cb-supports-count");
     if (supCount) supCount.innerHTML = renderBarIndicator(supportItems.length, "green");
 
     // Stretch factors (collapsible — dot indicators in toggle)
     var stretchItems = data.stretch_factors || [];
-    renderList(shadow.getElementById("cb-stretch"), stretchItems);
+    var strUl = shadow.getElementById("cb-stretch");
+    if (stretchItems.length > 0) {
+      renderList(strUl, stretchItems);
+    } else {
+      strUl.innerHTML = "<li style='color:#555'>\u2014</li>";
+    }
     var strCount = shadow.getElementById("cb-stretch-count");
     if (strCount) strCount.innerHTML = renderBarIndicator(stretchItems.length, "yellow");
     var stretchSection = shadow.getElementById("cb-stretch-section");
@@ -3337,7 +2995,7 @@
 
     // Bottom line (collapsible)
     var blEl = shadow.getElementById("cb-bottomline");
-    blEl.textContent = data.bottom_line_2s || "";
+    blEl.textContent = data.bottom_line_2s || "\u2014";
     if (score < 8.5 && stretchItems.length === 0 && blEl.textContent) {
       var limiterLine = document.createElement("span");
       limiterLine.style.cssText = "display:block;margin-top:3px;color:#999;font-style:italic;";
@@ -3346,34 +3004,6 @@
     }
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = "";
-
-    // Pipeline action row: show for scores >= 7.0, check membership
-    if (score >= 7.0) {
-      updatePipelineRow("hidden"); // reset before async check
-      chrome.runtime.sendMessage(
-        { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
-        function (resp) {
-          if (chrome.runtime.lastError) {
-            console.warn("[Caliber][pipeline] check error:", chrome.runtime.lastError.message);
-            updatePipelineRow("add");
-            return;
-          }
-          if (resp && resp.exists) {
-            console.debug("[Caliber][pipeline] job already in pipeline");
-            updatePipelineRow("in-pipeline");
-          } else if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
-            // Auto-save will handle — state updated in auto-save callback
-            console.debug("[Caliber][pipeline] score >= " + PIPELINE_AUTO_SAVE_THRESHOLD + ", auto-add pending");
-            updatePipelineRow("hidden"); // will be shown after auto-save completes
-          } else {
-            // 7.0–8.4: show manual add
-            updatePipelineRow("add");
-          }
-        }
-      );
-    } else {
-      updatePipelineRow("hidden");
-    }
 
     // Nearby roles: show as recovery banner above sidecard (not inside sidecard)
     // GUARD: only show if the page-level cache has NO strong matches.
@@ -3393,34 +3023,39 @@
         console.debug("[Caliber][BST][surface-truth] suppression=page-level-strong-match-present" +
           ", currentSelectedScore=" + score +
           ", currentQuery=\"" + getSearchKeywords() + "\"");
-      } else if (surfaceClassificationState === "healthy" || surfaceClassificationState === "neutral") {
-        // Two-phase guard: do not show BST from sidecard when surface is healthy or neutral
-        console.debug("[Caliber][BST] sidecard weak-job BST suppressed — surface classification is " +
-          surfaceClassificationState + " (phase=" + surfaceClassificationPhase + ")");
       } else {
-        // Find the best nearby role that hasn't been suggested or searched before
-        var sidecardBSTTitle = null;
-        for (var nri = 0; nri < data.nearby_roles.length; nri++) {
-          var candidateTitle = data.nearby_roles[nri].title;
-          if (!candidateTitle) continue;
-          if (bstTitleAlreadySeen(candidateTitle)) {
-            console.debug("[Caliber][BST][sidecard] candidate \"" + candidateTitle + "\" rejected — already seen");
-            continue;
-          }
-          var currentQ = getSearchKeywords();
-          if (currentQ && titlesEquivalent(candidateTitle, currentQ)) {
-            console.debug("[Caliber][BST][sidecard] candidate \"" + candidateTitle + "\" rejected — matches current query");
-            continue;
-          }
-          sidecardBSTTitle = candidateTitle;
-          break;
+        var bestNearby = data.nearby_roles[0];
+        if (bestNearby && bestNearby.title) {
+          showPrescanBSTBanner(bestNearby.title);
         }
-        if (sidecardBSTTitle) {
-          bstMarkSuggested(sidecardBSTTitle);
-          showPrescanBSTBanner(sidecardBSTTitle);
-        } else {
-          console.debug("[Caliber][BST][sidecard] all " + data.nearby_roles.length + " nearby candidates exhausted or already seen");
-        }
+      }
+    }
+
+    // Pipeline action card (above sidecard, 7.0+ only)
+    var tailorBanner = shadow.getElementById("cb-tailor-banner");
+    if (tailorBanner) {
+      if (score >= 7.0) {
+        // Reset secondary action to blank before pipeline check resolves
+        updateTRPPipelineState("hidden");
+        tailorBanner.style.display = "";
+        // Check pipeline membership to set action state
+        chrome.runtime.sendMessage(
+          { type: "CALIBER_PIPELINE_CHECK", jobUrl: location.href },
+          function (resp) {
+            if (resp && resp.exists) {
+              console.debug("[Caliber][TRP] job already in pipeline");
+              updateTRPPipelineState("in-pipeline");
+            } else if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
+              // Auto-add will handle this — state set in auto-save callback
+              console.debug("[Caliber][TRP] score >= " + PIPELINE_AUTO_SAVE_THRESHOLD + ", auto-add pending");
+            } else {
+              // 7.0 – 8.4: show manual add button
+              updateTRPPipelineState("add");
+            }
+          }
+        );
+      } else {
+        tailorBanner.style.display = "none";
       }
     }
 
@@ -3579,11 +3214,13 @@
         function (resp) {
           if (chrome.runtime.lastError) {
             console.warn("[Caliber][TRP] auto-save pipeline — messaging error:", chrome.runtime.lastError.message);
+            updateTRPPipelineState("add");
             return;
           }
           if (resp && resp.ok) {
             console.debug("[Caliber][TRP] auto-save pipeline succeeded — id=" + (resp.entry && resp.entry.id) + ", score=" + score);
-            updatePipelineRow("auto-added");
+            if (resp.entry && resp.entry.id) lastSavedPipelineId = resp.entry.id;
+            updateTRPPipelineState("auto-added");
             // Telemetry: pipeline_save from auto-save
             emitTelemetry("pipeline_save", {
               surfaceKey: getSearchSurfaceKey(),
@@ -3595,8 +3232,8 @@
           } else {
             console.warn("[Caliber][TRP] auto-save pipeline failed — error=" +
               (resp && resp.error || "unknown") + ", http=" + (resp && resp.httpStatus || "?"));
-            // Auto-save failed — show manual add fallback
-            updatePipelineRow("add");
+            // Fall back to manual add button if auto-save fails
+            updateTRPPipelineState("add");
           }
         }
       );
@@ -3664,26 +3301,16 @@
     try {
       // Immediately show skeleton with whatever metadata we can extract now
       lastJobMeta = extractJobMeta();
+      showSkeleton(lastJobMeta);
 
-      // During rescore (results already visible), overlay instead of collapsing
-      var resultsEl = shadow && shadow.getElementById("cb-results");
-      var isRescore = resultsEl && resultsEl.style.display !== "none";
-      if (isRescore) {
-        showLoading("Rescoring\u2026");
-      } else {
-        showSkeleton(lastJobMeta);
-      }
-
-      // Start 2.5s timeout — if scoring hasn't resolved, update indicator (skeleton only)
-      if (!isRescore) {
-        skeletonTimer = setTimeout(function () {
-          if (!shadow) return;
-          var decEl = shadow.getElementById("cb-decision");
-          if (decEl && decEl.classList.contains("cb-decision-skeleton")) {
-            decEl.textContent = "Still analyzing this role\u2026";
-          }
-        }, 2500);
-      }
+      // Start 2.5s timeout — if scoring hasn't resolved, update indicator
+      skeletonTimer = setTimeout(function () {
+        if (!shadow) return;
+        var decEl = shadow.getElementById("cb-decision");
+        if (decEl && decEl.classList.contains("cb-decision-skeleton")) {
+          decEl.textContent = "Still analyzing this role\u2026";
+        }
+      }, 2500);
 
       // Discover/verify session before attempting to score
       const sessionInfo = await new Promise((resolve, reject) => {
@@ -3948,6 +3575,17 @@
 
   var PANEL_HTML = [
     '<div class="cb-container">',
+    '<div id="cb-tailor-banner" class="cb-tailor-banner" style="display:none">',
+    '  <span class="cb-tailor-icon">\u25C6</span>',
+    '  <div class="cb-tailor-body">',
+    '    <div class="cb-tailor-label">Strong match</div>',
+    '    <div id="cb-tailor-secondary" class="cb-tailor-secondary">',
+    '      <button id="cb-pipeline-add-btn" class="cb-pipeline-add-btn" style="display:none">Add to pipeline</button>',
+    '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
+    '      <a id="cb-pipeline-view" class="cb-pipeline-view-link" style="display:none">View pipeline \u2192</a>',
+    '    </div>',
+    '  </div>',
+    '</div>',
     '<div id="cb-recovery-banner" class="cb-recovery-banner" style="display:none">',
     '  <span class="cb-recovery-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></span>',
     '  <div class="cb-recovery-body">',
@@ -3961,7 +3599,6 @@
     '    <span class="cb-logo">Caliber</span><span class="cb-version">v' + PANEL_VERSION + '</span>',
     '    <div class="cb-header-controls">',
     '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
-    '      <button id="cb-minimize" class="cb-minimize-btn" aria-label="Minimize" title="Minimize">\u2212</button>',
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '    </div>',
     '  </div>',
@@ -4033,12 +3670,7 @@
     '      </div>',
     '    </div>',
 
-    '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="display:none">',
-    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Add to pipeline</button>',
-    '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
-    '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View pipeline \u2192</a>',
-    '    </div>',
-
+    // Tailor CTA moved to above-sidecard banner (cb-tailor-banner)
     '    <div id="cb-fb-row" class="cb-fb-row">',
     '      <span class="cb-fb-prompt">Helpful?</span>',
     '      <button id="cb-fb-up" class="cb-fb-btn" aria-label="Thumbs up" title="Yes">\u25B2</button>',
@@ -4088,13 +3720,6 @@
     ".cb-container {",
     "  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;",
     "}",
-    // Minimized state: hide body + recovery banner, collapse to compact pill
-    ".cb-minimized .cb-body { display: none !important; }",
-    ".cb-minimized .cb-recovery-banner { display: none !important; }",
-    ".cb-minimized .cb-panel { width: auto; min-width: auto; max-width: none; min-height: auto; border-radius: 18px; }",
-    ".cb-minimized .cb-header { border-bottom: none; padding: 4px 10px; }",
-    ".cb-minimized .cb-version { display: none; }",
-    ".cb-minimized .cb-refresh-btn { display: none; }",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
     "  width: 320px; background: #161B2E;",
@@ -4139,15 +3764,14 @@
     ".cb-sq-scanning { font-size: 10px; color: #6B7280; font-weight: 400; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
-    "  min-height: 240px;",
-    "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
+    "  height: 420px; min-height: 420px; max-height: 420px;",
+    "  overflow-y: auto; overflow-x: hidden;",
     "  background: #111114; color: #F2F2F2; border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
     "  font-size: 12px; line-height: 1.4;",
     "  border: 1px solid rgba(255,255,255,0.12);",
     "  contain: layout style;",
-    "  display: flex; flex-direction: column;",
     "}",
     "@keyframes cb-enter {",
     "  from { opacity: 0; transform: translateY(8px); }",
@@ -4159,7 +3783,6 @@
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
     "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.08);",
-    "  flex-shrink: 0;",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-version { font-size: 8px; color: #444; margin-left: 4px; font-weight: 400; }",
@@ -4169,18 +3792,12 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-refresh-btn:hover { color: #AFAFAF; }",
-    ".cb-minimize-btn {",
-    "  background: none; border: none; color: #555; font-size: 15px;",
-    "  cursor: pointer; padding: 0 4px; line-height: 1; font-weight: 700;",
-    "}",
-    ".cb-minimize-btn:hover { color: #AFAFAF; }",
     ".cb-close-btn {",
     "  background: none; border: none; color: #555; font-size: 15px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 8px 10px; position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; }",
-    "#cb-results.cb-body { justify-content: flex-start; }",
+    ".cb-body { padding: 8px 10px; position: relative; min-height: 80px; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
@@ -4301,33 +3918,47 @@
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
 
-    // Pipeline action row
-    ".cb-pipeline-row {",
+    // Pipeline action card above sidecard (strong match)
+    ".cb-tailor-banner {",
+    "  width: 320px; background: #0F2318;",
+    "  border: 1px solid rgba(74,222,128,0.25); border-radius: 10px;",
+    "  box-shadow: 0 2px 8px rgba(0,0,0,0.4);",
+    "  padding: 6px 10px; display: flex; align-items: center; gap: 6px;",
+    "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;",
+    "  animation: cb-enter 0.2s ease-out; margin-bottom: 6px;",
+    "}",
+    ".cb-tailor-icon { font-size: 11px; flex-shrink: 0; line-height: 1; color: #4ADE80; }",
+    ".cb-tailor-body { flex: 1; min-width: 0; }",
+    ".cb-tailor-label {",
+    "  font-size: 9px; font-weight: 600; color: #4ADE80;",
+    "  letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 2px;",
+    "}",
+    ".cb-tailor-secondary {",
     "  display: flex; align-items: center; gap: 8px;",
-    "  padding: 5px 0 3px; margin-top: 2px;",
-    "  border-top: 1px solid rgba(255,255,255,0.04);",
+    "  min-height: 16px;",
     "}",
-    ".cb-pipeline-add {",
-    "  font-size: 10px; font-weight: 600; color: #86EFAC;",
-    "  background: none; border: 1px solid rgba(74,222,128,0.25); border-radius: 5px;",
-    "  padding: 3px 8px; cursor: pointer;",
-    "  transition: color 0.15s, border-color 0.15s, opacity 0.15s;",
+    ".cb-pipeline-add-btn {",
+    "  font-size: 11px; font-weight: 600; color: #86EFAC;",
+    "  background: none; border: none; padding: 0; cursor: pointer;",
+    "  border-bottom: 1px solid rgba(74,222,128,0.3);",
+    "  transition: color 0.15s, border-color 0.15s;",
     "}",
-    ".cb-pipeline-add:hover { color: #BBF7D0; border-color: rgba(74,222,128,0.5); }",
-    ".cb-pipeline-add:disabled { opacity: 0.6; cursor: default; }",
-    ".cb-pipeline-add-saved { color: #4ADE80 !important; border-color: rgba(74,222,128,0.4) !important; }",
-    ".cb-pipeline-add-error { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; cursor: pointer !important; }",
+    ".cb-pipeline-add-btn:hover { color: #BBF7D0; border-color: rgba(74,222,128,0.3); }",
+    ".cb-pipeline-add-btn:disabled { opacity: 0.6; cursor: default; }",
+    "@keyframes cb-saved-flash { 0% { color: #4ADE80; } 100% { color: #4ADE80; } }",
+    ".cb-pipeline-add-saved { color: #4ADE80 !important; border-color: rgba(74,222,128,0.4) !important; opacity: 1 !important; }",
+    ".cb-pipeline-add-error { color: #EF4444 !important; border-color: rgba(239,68,68,0.3) !important; opacity: 1 !important; cursor: pointer !important; }",
     ".cb-pipeline-status {",
     "  font-size: 10px; font-weight: 600; color: #4ADE80;",
     "}",
-    ".cb-pipeline-view {",
+    ".cb-pipeline-view-link {",
     "  font-size: 10px; font-weight: 600; color: #555;",
     "  text-decoration: none; cursor: pointer;",
+    "  white-space: nowrap; flex-shrink: 0;",
     "  border-bottom: 1px solid transparent;",
     "  transition: color 0.15s, border-color 0.15s;",
     "}",
-    ".cb-pipeline-view:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
-
+    ".cb-pipeline-view-link:hover { color: #86EFAC; border-color: rgba(74,222,128,0.3); }",
     // Retry button (error state)
     ".cb-btn {",
     "  padding: 4px 10px; border: none; border-radius: 5px;",
