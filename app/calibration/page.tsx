@@ -1114,13 +1114,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 Array.isArray(rec?.titles) ? rec.titles : [];
               const archetypeLabel: string = rec?.archetype_label ?? "";
 
-              // Scoring explanation framing — replaces old pattern summary context
-              const framingLines = [
-                "Caliber scores pattern fit, not keyword overlap.",
-                "We look at the shape of your experience \u2014 how your skills, context, and trajectory align with what a role actually demands.",
-                "Your experience maps most closely to this market label:",
-              ];
-
               // Fallback 1: build from titleRecommendation.primary_title + adjacent_titles
               let recTitles: Array<{ title: string; fit_0_to_10: number }> = [];
               if (enrichedTitles.length === 0 && rec?.primary_title) {
@@ -1136,29 +1129,31 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               const fallbackCandidates: Array<{ title: string; score: number }> =
                 Array.isArray(session?.synthesis?.titleCandidates) ? session.synthesis.titleCandidates : [];
 
-              let titlesToRender = enrichedTitles.length > 0
+              // All titles sorted by score for hero + adjacent extraction
+              const allTitlesSorted = (enrichedTitles.length > 0
                 ? enrichedTitles
                 : recTitles.length > 0
                   ? recTitles
-                  : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }));
+                  : fallbackCandidates.map(c => ({ title: c.title, fit_0_to_10: c.score }))
+              ).sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0));
 
-              // Sort by score descending and take top 1
-              titlesToRender = [...titlesToRender]
-                .sort((a, b) => (b.fit_0_to_10 ?? 0) - (a.fit_0_to_10 ?? 0))
-                .slice(0, 1);
-
-              const heroTitle = titlesToRender[0] ?? null;
+              const heroTitle = allTitlesSorted[0] ?? null;
+              const adjacentTitles = allTitlesSorted.slice(1, 3).filter(t => t.title);
               const heroBullets: string[] = heroTitle && Array.isArray((heroTitle as any).bullets_3) ? (heroTitle as any).bullets_3.filter((b: string) => b && b.trim()) : [];
               const heroSummary: string = heroTitle && typeof (heroTitle as any).summary_2s === "string" ? (heroTitle as any).summary_2s.trim() : "";
               const heroHasWhyContent = heroBullets.length > 0 || heroSummary.length > 0;
+              // Visible justification: use bullets if available, otherwise split summary into lines
+              const visibleReasons: string[] = heroBullets.length > 0
+                ? heroBullets.slice(0, 3)
+                : heroSummary
+                  ? heroSummary.split(/\.\s+/).filter(s => s.trim()).slice(0, 2).map(s => s.replace(/\.$/, '').trim())
+                  : [];
 
               return (
               <div className="w-full max-w-3xl pb-8">
-                {/* Scoring explanation framing */}
+                {/* Conclusive framing */}
                 <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
-                  <p className="text-base sm:text-lg leading-relaxed" style={{ color: "rgba(225,225,225,0.92)", fontWeight: 500 }}>{framingLines[0]}</p>
-                  <p className="text-sm sm:text-base leading-relaxed mt-3" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>{framingLines[1]}</p>
-                  <p className="text-base sm:text-lg leading-relaxed mt-4" style={{ color: "rgba(225,225,225,0.88)", fontWeight: 500 }}>{framingLines[2]}</p>
+                  <p className="text-sm sm:text-base leading-relaxed" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>Based on your experience, you align most strongly with:</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}
@@ -1171,48 +1166,74 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   </div>
                 ) : null}
 
-                {/* Hero title card — centered action stack */}
+                {/* Hero title card — the payoff moment */}
                 {heroTitle ? (
                   <div
                     className="cb-title-card rounded-2xl"
                     style={{
-                      marginTop: 48,
+                      marginTop: 32,
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
                       backgroundColor: "rgba(255,255,255,0.015)",
                       border: "1px solid rgba(74,222,128,0.18)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
-                      {/* Title */}
-                      <div className="text-[1.3rem] sm:text-[1.7rem] font-medium" style={{ color: "#F2F2F2", lineHeight: 1.15, letterSpacing: "0.01em" }}>{heroTitle.title}</div>
+                      {/* Title — primary payoff */}
+                      <div className="text-[1.5rem] sm:text-[2rem] font-semibold" style={{ color: "#F2F2F2", lineHeight: 1.1, letterSpacing: "-0.01em" }}>{heroTitle.title}</div>
 
-                      {/* Subtitle */}
-                      <p className="mt-5 text-sm" style={{ color: "#999" }}>Analyze real jobs as you browse</p>
+                      {/* Adjacent roles — subtle secondary context */}
+                      {adjacentTitles.length > 0 ? (
+                        <p className="mt-3 text-[13px]" style={{ color: "#666" }}>
+                          Also nearby: {adjacentTitles.map(t => t.title).join(", ")}
+                        </p>
+                      ) : null}
+
+                      {/* Visible justification — why this fits, surfaced above the fold */}
+                      {visibleReasons.length > 0 ? (
+                        <div className="mt-6 w-full" style={{ maxWidth: 440 }}>
+                          <ul className="space-y-2 text-left">
+                            {visibleReasons.map((reason, i) => (
+                              <li key={i} className="flex items-start gap-2.5 text-[13px] leading-relaxed" style={{ color: "#a3a3a3" }}>
+                                <span className="mt-[6px] shrink-0 h-[5px] w-[5px] rounded-full" style={{ background: "rgba(74,222,128,0.5)" }} />
+                                <span>{reason}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {/* Bridge to next step */}
+                      <p className="mt-6 text-sm" style={{ color: "#888" }}>We&rsquo;ll use this to score real jobs as you browse LinkedIn.</p>
 
                       {/* Primary CTA — Extension download */}
                       <div className="mt-5 w-full">
                         <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
+                      {/* Supporting CTA copy */}
+                      <p className="mt-2 text-[12px] leading-relaxed" style={{ color: "#666", maxWidth: 360 }}>See which jobs actually match this profile — Caliber scores every listing you open.</p>
+
                       {/* Secondary CTA — LinkedIn search */}
-                      <a
-                        href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
-                        style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
-                      >Search on LinkedIn</a>
+                      <div className="mt-5">
+                        <a
+                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
+                          style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
+                        >Search on LinkedIn</a>
+                      </div>
                     </div>
                   </div>
                 ) : null}
 
-                {/* Why this fits — centered dropdown, green family */}
+                {/* Expanded detail — de-emphasized, secondary */}
                 {heroTitle && heroHasWhyContent ? (
                   <div
                     className="mt-6 w-full max-w-[480px] mx-auto rounded-lg transition-all duration-200"
                     style={{
-                      backgroundColor: whyFitsOpen ? "rgba(74,222,128,0.04)" : "rgba(74,222,128,0.02)",
-                      border: whyFitsOpen ? "1px solid rgba(74,222,128,0.18)" : "1px solid rgba(74,222,128,0.08)",
+                      backgroundColor: whyFitsOpen ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+                      border: whyFitsOpen ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(255,255,255,0.05)",
                     }}
                   >
                     <button
@@ -1221,12 +1242,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       className="w-full flex items-center justify-center gap-2 px-5 py-3 cursor-pointer select-none"
                       style={{ background: "none", border: "none" }}
                     >
-                      <span className="text-[13px] font-medium" style={{ color: "rgba(74,222,128,0.7)" }}>Why this fits</span>
-                      <span className="text-[11px]" style={{ color: "rgba(74,222,128,0.45)" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
+                      <span className="text-[13px] font-medium" style={{ color: "#666" }}>How we scored this</span>
+                      <span className="text-[11px]" style={{ color: "#555" }}>{whyFitsOpen ? "\u25B4" : "\u25BE"}</span>
                     </button>
                     {whyFitsOpen ? (
                       <div className="px-5 pb-4">
-                        <div className="border-t pt-3" style={{ borderColor: "rgba(74,222,128,0.10)" }}>
+                        <div className="border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                          <p className="text-[13px] leading-relaxed mb-3" style={{ color: "#737373", textAlign: "left" }}>
+                            Caliber scores pattern fit, not keyword overlap. We look at the shape of your experience — how your skills, context, and trajectory align with what a role actually demands.
+                          </p>
                           {heroBullets.length > 0 ? (
                             <ul className="text-[13px] leading-relaxed pl-4 space-y-1.5" style={{ color: "#a3a3a3", listStyleType: "none", textAlign: "left" }}>
                               {heroBullets.map((b: string, i: number) => (
