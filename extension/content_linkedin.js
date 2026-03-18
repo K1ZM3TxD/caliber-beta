@@ -1936,7 +1936,7 @@
             console.debug("[Caliber][BST] all suggestion candidates exhausted — class: " + deferredSurfaceClass +
               ", suggestedSoFar: " + JSON.stringify(Object.keys(bstSuggestedTitles)) +
               ", searchedSoFar: " + JSON.stringify(Object.keys(bstSearchedQueries)));
-            showPrescanBSTBanner(null);
+            // Do NOT render banner — no valid title to suggest
             prescanStoredTitle = null;
           }
           chrome.runtime.sendMessage({
@@ -2449,6 +2449,17 @@
    */
   function showPrescanBSTBanner(suggestedTitle) {
     suggestedTitle = sanitizeJobTitle(suggestedTitle);
+    // Hard guard: never render suggestion banner without a real non-empty title
+    if (!suggestedTitle || suggestedTitle.trim().length === 0) {
+      console.debug("[Caliber][BST] render suppressed — no valid suggestion title (raw was " +
+        (suggestedTitle === "" ? "empty string" : typeof suggestedTitle) + ")");
+      return;
+    }
+    var normalizedCandidate = suggestedTitle.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (normalizedCandidate.length === 0) {
+      console.debug("[Caliber][BST] render suppressed — normalized candidate is empty (raw=\"" + suggestedTitle + "\")");
+      return;
+    }
     // Self-suggestion suppression: if suggested title matches current query, do not render
     var currentQueryForBST = getSearchKeywords();
     if (suggestedTitle && currentQueryForBST && titlesEquivalent(suggestedTitle, currentQueryForBST)) {
@@ -2465,6 +2476,8 @@
         ", searchedQueries=" + JSON.stringify(Object.keys(bstSearchedQueries)) + ")");
       return;
     }
+    console.debug("[Caliber][BST] rendering banner — candidate=\"" + suggestedTitle +
+      "\", normalized=\"" + normalizedCandidate + "\"");
     getOrCreatePanel();
     prescanBSTActive = true;
     prescanSurfaceBanner = null; // BST overrides surface-quality banner
@@ -2480,29 +2493,22 @@
       if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>';
       if (label) label.style.display = "";
       if (reason) {
-        reason.textContent = suggestedTitle
-          ? "None of the scored jobs on this page are strong matches for your calibration."
-          : "None of the scored jobs on this page are strong matches. Try a different search.";
+        reason.textContent = "None of the scored jobs on this page are strong matches for your calibration.";
       }
       if (link) {
-        if (suggestedTitle) {
-          link.textContent = suggestedTitle;
-          link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
-          link.style.display = "";
-          var clickedTitle = suggestedTitle; // capture for closure
-          link.onclick = function () {
-            sessionSignals.suggest_clicked = true;
-            // Immediately record so next surface cannot re-suggest this title
-            bstMarkSearched(clickedTitle);
-            console.debug("[Caliber][BST-LOOP] user clicked BST link, recorded: \"" + clickedTitle + "\"");
-          };
-        } else {
-          // Generic recovery: no specific title to suggest
-          link.style.display = "none";
-        }
+        link.textContent = suggestedTitle;
+        link.href = "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(suggestedTitle);
+        link.style.display = "";
+        var clickedTitle = suggestedTitle; // capture for closure
+        link.onclick = function () {
+          sessionSignals.suggest_clicked = true;
+          // Immediately record so next surface cannot re-suggest this title
+          bstMarkSearched(clickedTitle);
+          console.debug("[Caliber][BST-LOOP] user clicked BST link, recorded: \"" + clickedTitle + "\"");
+        };
       }
       sessionSignals.suggest_shown = true;
-      console.debug("[Caliber][BST] banner shown" + (suggestedTitle ? ", suggested: \"" + suggestedTitle + "\"" : " (generic, no suggestion)"));
+      console.debug("[Caliber][BST] banner shown, suggested: \"" + suggestedTitle + "\"");
     }
   }
 

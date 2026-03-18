@@ -3,6 +3,18 @@
 
 ## Current Open Issues
 
+83. BST empty suggestion banner rendering — **FIX SHIPPED** (2026-03-18)
+  - **Symptom:** BST banner renders "TRY THIS TITLE INSTEAD" label with no actual title link underneath, creating a broken empty UI shell.
+  - **Root cause:** When all BST suggestion candidates were exhausted, `showPrescanBSTBanner(null)` was called. Inside the function, a null title still rendered the banner DOM — the recovery label ("Try this title instead") was visible, but the link was hidden (`link.style.display = "none"`), producing an empty banner.
+  - **Fix:**
+    1. Hard guard at top of `showPrescanBSTBanner()` rejects null, empty, or whitespace-only titles immediately (returns before any DOM manipulation).
+    2. Exhausted-candidate caller (~line 1939) no longer calls `showPrescanBSTBanner(null)` — just logs and sets `prescanStoredTitle = null`.
+    3. Normalized candidate validation ensures whitespace-only titles are caught.
+    4. Removed the generic recovery branch (banner shell without link) since null titles are rejected at entry.
+    5. Pre-render debug log added: `[Caliber][BST] showPrescanBSTBanner rendering — candidate: "<title>", normalized: "<normalized>"`.
+  - **Status:** Shipped. Syntax validated.
+  - **Files:** `extension/content_linkedin.js`
+
 82. BST return-loop on LinkedIn search surface changes — **FIX SHIPPED** (2026-03-18)
   - **Symptom:** User on weak surface A → BST suggests title B → user searches B → surface B also weak → BST suggests title A again (recycled). Loop repeats indefinitely.
   - **Root cause (3 gaps):**
