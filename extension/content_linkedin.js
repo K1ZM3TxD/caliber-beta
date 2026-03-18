@@ -322,6 +322,7 @@
   let panelHost = null;
   let shadow = null;
   let active = false;
+  let panelMinimized = false;
   let scoring = false;
   let lastScoredText = "";
   let lastScoredScore = 0;
@@ -2636,7 +2637,7 @@
     panelHost = document.createElement("div");
     panelHost.id = PANEL_HOST_ID;
     panelHost.style.cssText =
-      "position:fixed!important;bottom:20px!important;left:20px!important;" +
+      "position:fixed!important;bottom:20px!important;right:20px!important;" +
       "z-index:2147483647!important;"
 
     shadow = panelHost.attachShadow({ mode: "closed" });
@@ -2661,6 +2662,7 @@
     }
 
     shadow.getElementById("cb-close").addEventListener("click", deactivatePanel);
+    shadow.getElementById("cb-minimize").addEventListener("click", toggleMinimize);
     shadow.getElementById("cb-recalc").addEventListener("click", () => scoreCurrentJob(true));
     shadow.getElementById("cb-retry").addEventListener("click", () => scoreCurrentJob(true));
 
@@ -2765,10 +2767,25 @@
     return shadow;
   }
 
+  function toggleMinimize() {
+    if (!shadow) return;
+    var container = shadow.querySelector(".cb-container");
+    if (!container) return;
+    panelMinimized = !panelMinimized;
+    container.classList.toggle("cb-minimized", panelMinimized);
+    var btn = shadow.getElementById("cb-minimize");
+    if (btn) {
+      btn.textContent = panelMinimized ? "+" : "\u2212";
+      btn.title = panelMinimized ? "Expand" : "Minimize";
+      btn.setAttribute("aria-label", panelMinimized ? "Expand" : "Minimize");
+    }
+  }
+
   function removePanel() {
     if (panelHost && panelHost.parentNode) panelHost.parentNode.removeChild(panelHost);
     panelHost = null;
     shadow = null;
+    panelMinimized = false;
   }
 
   /**
@@ -3944,6 +3961,7 @@
     '    <span class="cb-logo">Caliber</span><span class="cb-version">v' + PANEL_VERSION + '</span>',
     '    <div class="cb-header-controls">',
     '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
+    '      <button id="cb-minimize" class="cb-minimize-btn" aria-label="Minimize" title="Minimize">\u2212</button>',
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
     '    </div>',
     '  </div>',
@@ -4068,8 +4086,15 @@
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     // Container: stacks recovery banner above sidecard
     ".cb-container {",
-    "  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;",
+    "  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;",
     "}",
+    // Minimized state: hide body + recovery banner, collapse to compact pill
+    ".cb-minimized .cb-body { display: none !important; }",
+    ".cb-minimized .cb-recovery-banner { display: none !important; }",
+    ".cb-minimized .cb-panel { width: auto; min-width: auto; max-width: none; min-height: auto; border-radius: 18px; }",
+    ".cb-minimized .cb-header { border-bottom: none; padding: 4px 10px; }",
+    ".cb-minimized .cb-version { display: none; }",
+    ".cb-minimized .cb-refresh-btn { display: none; }",
     // Recovery banner (above sidecard)
     ".cb-recovery-banner {",
     "  width: 320px; background: #161B2E;",
@@ -4114,6 +4139,7 @@
     ".cb-sq-scanning { font-size: 10px; color: #6B7280; font-weight: 400; }",
     ".cb-panel {",
     "  width: 320px; min-width: 320px; max-width: 320px;",
+    "  min-height: 240px;",
     "  max-height: 90vh; overflow-y: auto; overflow-x: hidden;",
     "  background: #111114; color: #F2F2F2; border-radius: 10px;",
     "  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5);",
@@ -4121,6 +4147,7 @@
     "  font-size: 12px; line-height: 1.4;",
     "  border: 1px solid rgba(255,255,255,0.12);",
     "  contain: layout style;",
+    "  display: flex; flex-direction: column;",
     "}",
     "@keyframes cb-enter {",
     "  from { opacity: 0; transform: translateY(8px); }",
@@ -4132,6 +4159,7 @@
     ".cb-header {",
     "  display: flex; align-items: center; justify-content: space-between;",
     "  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.08);",
+    "  flex-shrink: 0;",
     "}",
     ".cb-logo { font-size: 10px; font-weight: 700; letter-spacing: -0.02em; color: #555; }",
     ".cb-version { font-size: 8px; color: #444; margin-left: 4px; font-weight: 400; }",
@@ -4141,13 +4169,18 @@
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-refresh-btn:hover { color: #AFAFAF; }",
+    ".cb-minimize-btn {",
+    "  background: none; border: none; color: #555; font-size: 15px;",
+    "  cursor: pointer; padding: 0 4px; line-height: 1; font-weight: 700;",
+    "}",
+    ".cb-minimize-btn:hover { color: #AFAFAF; }",
     ".cb-close-btn {",
     "  background: none; border: none; color: #555; font-size: 15px;",
     "  cursor: pointer; padding: 0 4px; line-height: 1;",
     "}",
     ".cb-close-btn:hover { color: #F2F2F2; }",
-    ".cb-body { padding: 8px 10px; position: relative; min-height: 80px; }",
-    "#cb-results.cb-body { min-height: 200px; }",
+    ".cb-body { padding: 8px 10px; position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; }",
+    "#cb-results.cb-body { justify-content: flex-start; }",
     ".cb-spinner {",
     "  width: 20px; height: 20px;",
     "  border: 2px solid rgba(242,242,242,0.12);",
