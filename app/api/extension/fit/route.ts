@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } from "@/lib/calibration_store";
 import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
+import { evaluateWorkMode } from "@/lib/work_mode";
 
 // Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
 export const maxDuration = 30;
@@ -89,6 +90,20 @@ export async function POST(req: NextRequest) {
     const resumeText = session.resume?.rawText ?? "";
     const hiringCheck = computeHiringRealityCheck(jobText, resumeText);
 
+    // ── Dominant Work Mode classification + score ceiling ─────
+    const promptAnswers: Record<number, string> = {};
+    if (session.prompts) {
+      for (const key of [1, 2, 3, 4, 5]) {
+        const slot = (session.prompts as any)[key];
+        if (slot && typeof slot.answer === "string") {
+          promptAnswers[key] = slot.answer;
+        }
+      }
+    }
+    const rawScore = alignment.score ?? 0;
+    const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText);
+    const finalScore = workMode.postScore;
+
     // Extract calibration titles for search suggestions
     const titleRec = session.synthesis?.titleRecommendation;
     const primaryTitle = titleRec?.primary_title?.title ?? "";
@@ -100,7 +115,7 @@ export async function POST(req: NextRequest) {
     const nearbyRoles = titlePool.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
 
     return jsonResponse(req, {
-      score_0_to_10: alignment.score ?? 0,
+      score_0_to_10: finalScore,
       supports_fit: alignment.supports_fit ?? [],
       stretch_factors: alignment.stretch_factors ?? [],
       bottom_line_2s: alignment.bottom_line_2s ?? "",
@@ -120,6 +135,21 @@ export async function POST(req: NextRequest) {
         M: alignment.signals.mildTensions,
         W: alignment.signals.penaltyWeight,
       } : null,
+      debug_work_mode: {
+        userMode: workMode.userMode.mode,
+        userModeConfidence: workMode.userMode.confidence,
+        userModeScores: workMode.userMode.scores,
+        userModeMatches: workMode.userMode.topMatches,
+        jobMode: workMode.jobMode.mode,
+        jobModeConfidence: workMode.jobMode.confidence,
+        jobModeScores: workMode.jobMode.scores,
+        jobModeMatches: workMode.jobMode.topMatches,
+        compatibility: workMode.compatibility,
+        preScore: workMode.preScore,
+        postScore: workMode.postScore,
+        ceilingApplied: workMode.ceilingApplied,
+        ceilingReason: workMode.ceilingReason,
+      },
     }, 200);
   } catch (e: any) {
     return jsonResponse(req, { error: e?.message ?? "Internal error" }, 500);

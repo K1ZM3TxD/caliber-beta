@@ -3,77 +3,79 @@
 
 ## Current Open Issues
 
-83. BST empty suggestion banner rendering — **FIX SHIPPED** (2026-03-18)
-  - **Symptom:** BST banner renders "TRY THIS TITLE INSTEAD" label with no actual title link underneath, creating a broken empty UI shell.
-  - **Root cause:** When all BST suggestion candidates were exhausted, `showPrescanBSTBanner(null)` was called. Inside the function, a null title still rendered the banner DOM — the recovery label ("Try this title instead") was visible, but the link was hidden (`link.style.display = "none"`), producing an empty banner.
-  - **Fix:**
-    1. Hard guard at top of `showPrescanBSTBanner()` rejects null, empty, or whitespace-only titles immediately (returns before any DOM manipulation).
-    2. Exhausted-candidate caller (~line 1939) no longer calls `showPrescanBSTBanner(null)` — just logs and sets `prescanStoredTitle = null`.
-    3. Normalized candidate validation ensures whitespace-only titles are caught.
-    4. Removed the generic recovery branch (banner shell without link) since null titles are rejected at entry.
-    5. Pre-render debug log added: `[Caliber][BST] showPrescanBSTBanner rendering — candidate: "<title>", normalized: "<normalized>"`.
-  - **Status:** Shipped. Syntax validated.
-  - **Files:** `extension/content_linkedin.js`
+88. LinkedIn card title extraction duplication — **SHIPPED** (2026-03-19) → see #83c
+  - Duplicate title text in card DOM (e.g. "Sales SpecialistSales Specialist") polluting scoring, BST, and clustering.
+  - Fixed by `cleanCardText()` + `canonicalizeCardTitle()`. Applied in both `getVisibleJobCards()` and `scanAndBadge()`.
 
-82. BST return-loop on LinkedIn search surface changes — **FIX SHIPPED** (2026-03-18)
-  - **Symptom:** User on weak surface A → BST suggests title B → user searches B → surface B also weak → BST suggests title A again (recycled). Loop repeats indefinitely.
-  - **Root cause (3 gaps):**
-    1. **Sidecard BST path bypassed loop guard.** When a weak job's sidecard triggered BST via `data.nearby_roles[0]`, the title was passed directly to `showPrescanBSTBanner()` without checking `bstTitleAlreadySeen()` or calling `bstMarkSuggested()`. Titles suggested through this path were never recorded in session memory.
-    2. **BST link click did not immediately record the clicked title.** The clicked suggestion was not added to `bstSearchedQueries` until the *next* surface reached Phase 2 evaluation (`evaluateBSTFromBadgeCache`). During the gap between click and Phase 2 entry on the new surface, the sidecard path could re-suggest the same title.
-    3. **No final safety net in `showPrescanBSTBanner()`.** The rendering function had self-suggestion suppression (title == current query) but no general loop guard for previously-seen titles.
-  - **Fix:**
-    1. Sidecard BST path now iterates all `nearby_roles`, checks `bstTitleAlreadySeen()` + `titlesEquivalent()` for each candidate, and calls `bstMarkSuggested()` before showing. If all candidates are exhausted, no banner is shown.
-    2. BST link `onclick` handler now immediately calls `bstMarkSearched(clickedTitle)` in addition to setting `suggest_clicked`.
-    3. `showPrescanBSTBanner()` now has a final loop-guard: if `bstTitleAlreadySeen(suggestedTitle)` returns true, the banner is suppressed with a diagnostic log.
-    4. `determinePrescanSuggestion()` now emits a full `[Caliber][BST][decision-trace]` log: current query (raw + normalized), all `bstSuggestedTitles` and `bstSearchedQueries` contents, and per-candidate rejection reasons (matches current query / already seen / selected).
-    5. All fallback paths (recentScores, lastKnownCalibrationTitle, lastKnownNearbyRoles) also emit per-candidate decision-trace logs.
-  - **Session memory persistence confirmed:** `bstSuggestedTitles` and `bstSearchedQueries` are module-scoped objects that persist for the lifetime of the content script. They are NOT cleared by `resetPrescanState()`, `resetSessionSignals()`, or `clearAllBadges()`. They survive: surface-key changes, in-page LinkedIn navigation, back/forward, job-detail clicks. They reset only on full page reload (content script re-injection). This is correct per product rule.
-  - **Regression test coverage:**
-    - weak A → suggest B → weak B → must NOT suggest A ✓ (bstMarkSuggested records B at suggestion time; bstMarkSearched records A at Phase 2 entry; both are in session memory)
-    - weak A → suggest B → weak B → suggest C or nothing ✓ (B is in suggestedTitles, A is in searchedQueries; determinePrescanSuggestion tries C or exhausts)
-    - current query equal to candidate title → suppress ✓ (titlesEquivalent guard in all selection paths + showPrescanBSTBanner)
+87. Pipeline save regression (post-sidecard changes) — **FIX SHIPPED** (2026-03-19) → see #83b
+  - Pipeline saves failing intermittently after sidecard refactor. Stale async callbacks from previous job executing against wrong sidecard state.
+  - Fixed with `sidecardGeneration` guards on pipeline check + auto-save callbacks. Full diagnostic logging added.
+
+86. Sidecard score instability (multi-pass overwrite) — **FIX SHIPPED** (2026-03-19) → see #81
+  - Score visibly changes shortly after render (e.g. 7.7 → 6.6). LinkedIn DOM hydration stages cause partial→full rescore.
+  - Fixed with text stability wait, request versioning (4 stale checkpoints), and provisional labeling.
+
+85. BST recovery model mismatch (popup vs persistent recovery) — **SHIPPED** (2026-03-19) → see #82
+  - BST popup was interruptive, brittle under DOM hydration, and caused loop/empty states.
+  - Replaced by persistent "Adjacent Searches" sidecard module. BST evaluation engine preserved for surface intelligence.
+
+84. False-positive strong matches due to missing dominant work mode constraint — **SHIPPED** (2026-03-19) → see #83
+  - Execution-heavy roles (sales, support, coordinator) scoring ≥7.0 for misaligned profiles due to keyword overlap without mode awareness.
+  - Fixed by dominant work mode classification (5 modes) + 3-tier score governance: conflicting=6.5 cap, adjacent=8.5 soft cap, compatible=no change. 30 tests.
+
+83. Dominant Work Mode Classification + Score Ceiling Override — **SHIPPED** (2026-03-19)
+  - **Symptom:** Alignment scoring uses 6 structural dimensions (structuralMaturity, authorityScope, revenueOrientation, roleAmbiguity, breadthVsDepth, stakeholderDensity). Jobs with overlapping process/cross-functional vocabulary could score 7.0+ against misaligned profiles — e.g. an inside-sales role scoring 7.0+ for a Builder/Systems user — because the 6-dim vector doesn't capture *what kind of work* the job fundamentally requires.
+  - **Root cause:** Dimension overlap: sales roles with cross-functional stakeholder needs, process improvement language, and low ambiguity scored similarly to systems/product roles on the 6-dim vector. No mechanism existed to detect that the dominant operating mode of the job (sales execution) conflicted with the user's dominant operating mode (builder/systems).
+  - **Fix:** Post-scoring classification layer (`lib/work_mode.ts`) classifies both user profile and job into one of 5 work modes via weighted lexical triggers, checks compatibility via deterministic 5×5 map, and enforces a hard ceiling of 6.5 for conflicting modes when both sides have sufficient confidence.
+  - **5 modes:** `builder_systems`, `sales_execution`, `operational_execution`, `analytical_investigative`, `creative_ideation`.
+  - **User classification source:** Resume text + prompt answers 1, 3, 4, 5 (prompt_2 excluded — it's the "drain" prompt, which contains anti-mode signals that would incorrectly boost conflicting mode scores).
+  - **Job classification source:** Full job description text.
+  - **Compatibility map (key entries):** builder↔sales=conflicting, analytical↔sales=conflicting, creative↔sales=conflicting, builder↔ops=adjacent, same mode=compatible.
+  - **Ceiling rules:** Conflicting modes: hard cap at 6.5 when both modes have confidence ≥ "low" and rawScore > 6.5. Adjacent modes: soft cap at 8.5 (mild compression) when both modes have confidence ≥ "low" and rawScore > 8.5. Compatible modes: no adjustment.
+  - **Confidence thresholds:** HIGH ≥ 4 weighted hits, LOW ≥ 2, NONE < 2 (NONE = no ceiling applied).
+  - **Debug output:** API response includes `debug_work_mode` object with: userMode, userModeConfidence, userModeScores, userModeMatches, jobMode, jobModeConfidence, jobModeScores, jobModeMatches, compatibility, preScore, postScore, ceilingApplied, ceilingReason.
+  - **Functions added:** `classifyText()`, `classifyUserWorkMode()`, `classifyJobWorkMode()`, `getWorkModeCompatibility()`, `applyWorkModeCeiling()`, `evaluateWorkMode()`.
+  - **Tests:** 30 regression tests covering classification accuracy (Chris→builder, Fabio→analytical, Jen≠builder), compatibility map, conflicting + adjacent ceiling enforcement, and end-to-end scenarios (Chris vs inside-sales capped <7.0, Chris vs systems role uncapped at 8.2, Fabio vs sales capped, Fabio vs security uncapped, adjacent soft cap at 8.5).
+  - **Status:** Shipped. All 30 tests passing, Next.js build verified.
+  - **Files:** `lib/work_mode.ts`, `lib/work_mode.test.ts`, `app/api/extension/fit/route.ts`.
+
+83b. Pipeline save regression — generation guards + diagnostic logging — **FIX SHIPPED** (2026-03-19)
+  - **Symptom:** Pipeline save (manual and auto) failing intermittently in live usage after sidecard refactoring. Likely caused by stale async callbacks executing against the wrong job's sidecard state when user switches jobs while pipeline check or auto-save is in flight.
+  - **Root cause:** `CALIBER_PIPELINE_CHECK` callback and auto-save (`CALIBER_PIPELINE_SAVE`) callback in `showResults()` had no generation guard. If user clicked a new job before the async response returned, the stale callback could call `updatePipelineRow()` against the new job's sidecard, showing wrong pipeline status or silently failing.
+  - **Fix:** (1) Captured `sidecardGeneration` at callback-setup time for both pipeline check and auto-save flows. (2) Added stale guard in each callback: if `sidecardGeneration !== capturedGeneration`, the callback is discarded with a diagnostic log. (3) Enhanced logging with source tracing: manual save logs `titleSource`/`companySource` (lastJobMeta vs freshExtract vs sentinel), auto-save logs the same. (4) All save callbacks log `CONFIRMED`/`FAILED` with entry ID, `alreadyExists` flag, and generation context. (5) `updatePipelineRow()` now logs every state transition with current generation.
+  - **Status:** Fix shipped. Requires live validation to confirm no more stale cross-job pipeline writes.
   - **Files:** `extension/content_linkedin.js`.
 
-81. BST surface classification firing on wrong surfaces — **FIX SHIPPED** (2026-03-18)
-  - **Symptom (2 defects):**
-    1. BST banner appearing on surfaces that already contain good scores (e.g., multiple 7.0+ jobs present but BST still fires).
-    2. BST failing to appear on surfaces where only 1–2 weak-strong scores (~7.1) are present — old logic treated any single ≥7.0 as "healthy surface."
-  - **Root cause:** Binary banner logic classified surfaces as healthy on finding *any* score ≥7.0, even a single borderline 7.1. This was too eager — one weak match does not make a productive surface. Additionally, classification could fire before LinkedIn finished hydrating the DOM with all job cards, using incomplete evidence.
-  - **Investigation:** DOM hydration observer added (v0.9.17 validation instrumentation). LinkedIn *does* incrementally hydrate search result cards — initial DOM may contain only a partial set.
-  - **Fix (v0.9.17):** Replaced binary banner logic with two-phase classification model:
-    - Phase 1 (pre-evidence): no banner until ≥5 jobs scored.
-    - Phase 2 (provisional, 5–9 scored): healthy requires ≥2 strong (≥7.0) OR ≥1 at ≥8.0. BST requires 0 strong. Exactly 1 job in [7.0, 7.9] → neutral (no banner, wait).
-    - Phase 3 (final, 10+ scored): force classification from available evidence.
-    - BST and healthy-surface banners are mutually exclusive via `suppressAllBanners()`.
-    - All banner state derived from fresh current-surface evidence only — stale restored state never influences classification.
-    - Sidecard weak-job click path now respects surface classification state (won't show BST if surface is "healthy" or "neutral").
-  - **Instrumentation (temporary, remove after validation):** `logSurfaceValidationState()` logs: totalCardsInDOM, visibleCards, scoredCards, jobsGte7, maxScore, classificationPhase, classificationState, bstActive, surfaceBannerActive, batchQueue. Fires on: page-load, scoring-batch, banner-change, dom-hydration. `startHydrationObserver()` tracks LinkedIn DOM expansion events.
-  - **Status:** Fix shipped (v0.9.17). Validation instrumentation active — validation pending.
+83c. LinkedIn DOM extraction hardening — duplicated title cleanup — **FIX SHIPPED** (2026-03-19)
+  - **Symptom:** LinkedIn sometimes renders job card titles as duplicated text (e.g. "Sales SpecialistSales Specialist") in the DOM. While `sanitizeJobTitle` catches and deduplicates the extracted title, the full card `innerText` (used as `jobText` for scoring) still contained the duplicated title, inflating keyword match scores.
+  - **Root cause:** `cardText` was the raw `innerText` of the job card element, which included the title area. If the title was duplicated in the DOM, the scoring text contained double the title keywords, affecting scoring, BST evaluation, and clustering.
+  - **Fix:** Added `cleanCardText(cardText, rawTitle, canonicalTitle)` function that detects when the title was deduplicated by `canonicalizeCardTitle` and replaces the first occurrence of the raw duplicated title in the full card text with the canonical form. Applied in both `getVisibleJobCards()` and `scanAndBadge()` extraction paths.
+  - **Functions added:** `cleanCardText()`.
+  - **Status:** Shipped. Diagnostic logging on card text cleanup.
   - **Files:** `extension/content_linkedin.js`.
-  - **Validation Note — DOM Behavior + 3 Example Surfaces:**
 
-    **Observed DOM behavior:** LinkedIn search results pages do NOT expose the full result set on initial load. The results list container renders with a partial set of `<li>` cards (typically 7–12 on first paint). Additional cards are hydrated incrementally as the user scrolls or after JavaScript lazy-loading completes. The hydration observer (`[Caliber][hydration]`) confirms `addedNodes` events fire after initial page load, expanding the card count. This means any classification logic that evaluates at DOM-ready or after a single scoring batch is working with incomplete evidence.
+82. BST popup replaced by persistent Adjacent Search Terms module — **SHIPPED** (2026-03-19)
+  - **Symptom:** The BST (Better Search Trigger) popup banner was an interruptive UI element that appeared above the sidecard, competing for attention and mixing page-level surface intelligence with per-job decision UI.
+  - **Change:** Replaced the BST popup banner with a persistent, collapsible "Adjacent Searches" section inside the sidecard, positioned between Bottom Line and the pipeline row. Adjacent terms are populated from calibration title + nearby roles data (same source as BST). Section uses chip-styled links that navigate to LinkedIn search.
+  - **Pulse/glow behavior:** The section applies a subtle border glow animation only when: (1) at least 20 jobs have been scored on the current surface, AND (2) the surface is classified as "bst" (weak/poor match-wise). Before those thresholds, the section is calm and inert.
+  - **BST evaluation preserved:** `evaluateBSTFromBadgeCache()` still runs and classifies surfaces (healthy/bst/neutral). Only the popup banner presentation (`showPrescanBSTBanner`) is disabled. Surface classification state drives the adjacent-terms pulse.
+  - **Functions added:** `getAdjacentSearchTerms()`, `updateAdjacentTermsModule()`, `updateAdjacentTermsPulse()`.
+  - **Status:** Shipped. `showPrescanBSTBanner()` returns early (no-op). Sidecard weak-job BST trigger block replaced with `updateAdjacentTermsModule(data)` call.
+  - **Files:** `extension/content_linkedin.js`.
 
-    **Example Surface 1 — Clearly weak surface (BST should fire):**
-    - Query: "bartender" (user calibrated as Product Manager or similar)
-    - Expected scores: all <6.0 (domain-mismatch guardrail does not apply in prescan, but role-family disparity yields raw scores <6.0)
-    - After 5 scored: strongCount=0, maxScore ~4.5 → `bannerDecision=bst`, phase=provisional
-    - After 10 scored: forced, still 0 strong → `bannerDecision=bst`, phase=final
-    - BST fires with suggestion (calibration title or nearby role)
-
-    **Example Surface 2 — Ambiguous surface with one ~7.1 job (neutral, then BST):**
-    - Query: "specialist" (user calibrated as Partnerships Manager)
-    - Expected scores: mostly 4.0–6.0, one job at ~7.1
-    - After 5 scored: strongCount=1, neutralZoneCount=1 (7.1 is in [7.0, 7.9]), maxScore=7.1 (< 8.0) → `bannerDecision=neutral`, no banner shown
-    - After 10 scored: forced classification — strongCount=1, below healthy threshold (needs ≥2 or ≥8.0) → `bannerDecision=bst`, phase=final
-    - BST fires after force window; surface correctly identified as weak despite the one borderline match
-
-    **Example Surface 3 — Clearly healthy surface (BST should NOT fire):**
-    - Query: "product manager" (user calibrated as Product Manager)
-    - Expected scores: multiple 7.0–9.0+
-    - After 5 scored: strongCount≥2 (e.g., 3 jobs ≥7.0) → `bannerDecision=healthy`, phase=provisional
-    - OR: 1 job at 8.2+ → `bannerDecision=healthy` via single-high rule (≥8.0)
-    - BST never fires; surface-quality state tracked (underlying state for future overlay)
+81. Sidecard score flip (High→Low / multi-pass overwrite) — **FIX SHIPPED** (2026-03-19)
+  - **Symptom:** Selected-job sidecard score visibly changes shortly after click (e.g. 7.7 → 6.6 within ~1 second). Most noticeable when an initially high score drops lower.
+  - **Root cause:** LinkedIn renders job descriptions in multiple DOM hydration stages. `waitForJobDescription()` resolved immediately on finding any text ≥80 chars (partial). First scoring cycle completed with partial text → displayed score A. LinkedIn finished hydrating → poll/observer detected text growth → second scoring cycle ran with full text → displayed score B, overwriting A. The user experienced a visible score flip for the same job.
+  - **Contributing factors:** (1) No text stability mechanism — extraction resolved on first DOM hit. (2) No request versioning — stale responses from previous jobs could theoretically overwrite newer results. (3) No visual distinction between partial-text and full-text scores.
+  - **Fix (v0.9.19):**
+    - **Text stability wait:** After initial extraction, if text < 800 chars, `tryExpandDescription()` is called and a 500ms stability delay allows LinkedIn DOM to finish hydrating. Text is re-extracted and the longer version used. Prevents scoring partial descriptions.
+    - **Request versioning:** `sidecardGeneration` (increments on job/URL change) and `sidecardRequestId` (increments per scoring call) are captured at cycle start. Four stale-response checkpoints verify generation/request match before applying results. Mismatched responses are discarded with debug logs.
+    - **Provisional labeling:** Scores from text below 400 chars are labeled "(preview)" in the sidecard UI with distinct styling. Authoritative scores replace provisional transparently.
+    - **Debug logging:** Each scoring cycle logs: job identity, request ID, generation, extraction phase (full/partial), stability source, text length, payload fingerprint, score returned, and apply/discard verdict with reason.
+    - **Trigger logging:** Poll and MutationObserver triggers now log text length changes and generation context before initiating re-scoring.
+  - **Authority rule:** Sidecard score comes from one authoritative path only. Prescan/listing scores never overwrite sidecard state. Provisional scores are visually distinct and replaced only by authoritative scores.
+  - **Status:** Fix shipped (v0.9.19). Requires validation on repeated clicks across ≥5 jobs.
+  - **Files:** `extension/content_linkedin.js`.
 
 80. Landing-page hero communication scope — **DECIDED** (2026-03-17)
   - **Decision:** Pre-beta landing page uses lightweight hero: tagline ("See which jobs actually fit you"), product-preview card (3 scored roles with stagger animation), LinkedIn context line, CTA support copy.

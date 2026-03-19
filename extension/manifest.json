@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Caliber — Job Fit Score",
-  "version": "0.9.21",
+  "version": "0.9.19",
   "description": "Score how well LinkedIn jobs match your career pattern. Requires a Caliber calibration at caliber-app.com.",
   "permissions": ["activeTab", "storage", "scripting", "cookies"],
   "host_permissions": [
-    "http://localhost:3000/*",
+    "https://www.caliber-app.com/*",
     "https://www.linkedin.com/*",
     "https://www.indeed.com/*"
   ],
@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "matches": [
-        "http://localhost:3000/*"
+        "https://www.caliber-app.com/*"
       ],
       "js": ["env.js", "content_caliber.js"],
       "run_at": "document_idle"
