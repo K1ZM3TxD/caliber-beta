@@ -3,6 +3,12 @@
 
 ## Current Open Issues
 
+91. Execution-dominated roles misclassified as builder_systems via ambiguous vocabulary — **SHIPPED** (2026-03-20)
+  - Construction PMs, program coordinators, and other execution-heavy roles triggered builder_systems via overlapping vocabulary (infrastructure, workflow, engineering, implementation, integration, "building systems", process improvement). This produced false-positive "compatible" matches for builder users.
+  - Fixed by adding a structural-vs-execution discriminator to `classifyJobWorkMode`. Two new trigger arrays: STRUCTURAL_SIGNALS (15 unambiguous tech-creation triggers) and EXECUTION_MANAGEMENT_SIGNALS (20 coordination/management triggers). When a job classifies as builder_systems but execution signals dominate structural signals (score ≥4 and execution > structural), the job is reclassified to operational_execution. Builder users then get "adjacent" penalty (-0.8) instead of "compatible" (0).
+  - 2 new fixture jobs (construction PM, program coordinator), 19 new tests (discriminator unit, job classification, e2e evaluateWorkMode). 95 total tests passing, zero regressions.
+  - Files: `lib/work_mode.ts`, `lib/__fixtures__/work_mode_fixtures.ts`, `lib/work_mode.test.ts`.
+
 90. Work-mode fixture library insufficient for regression confidence — **SHIPPED** (2026-03-20)
   - Only 3 user fixtures (Chris, Fabio, Jen) and 6 job fixtures covered 3 of 5 work modes. No sales, ops, or creative user profiles. No blended/crossover profiles. No false-positive trap jobs.
   - Fixed by creating centralized fixture module at `lib/__fixtures__/work_mode_fixtures.ts`: 5 core users (one per mode), 5 blended crossover profiles, 19 job fixtures, 3 false-positive trap jobs. 35 new tests. 76 total passing.

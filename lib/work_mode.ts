@@ -1,10 +1,10 @@
 // lib/work_mode.ts
 //
-// Dominant Work Mode classification + score ceiling/compression.
+// Dominant Work Mode classification + weighted scoring adjustments.
 //
 // Detects the dominant work mode for both user profiles and jobs,
-// then enforces a compatibility rule that prevents false-positive
-// strong-match scores when modes conflict.
+// computes proportional negative adjustments for mode mismatch,
+// and applies an execution-intensity layer for grind-heavy roles.
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -24,14 +24,23 @@ export type WorkModeClassification = {
   confidence: "high" | "low" | "none";
 };
 
+export type ExecutionIntensityResult = {
+  score: number;           // 0 = no intensity signals, higher = more grind-heavy
+  adjustment: number;      // negative adjustment to apply (0 or negative)
+  triggers: string[];      // matched trigger labels
+  reason: string | null;   // human-readable explanation
+};
+
 export type WorkModeResult = {
   userMode: WorkModeClassification;
   jobMode: WorkModeClassification;
   compatibility: WorkModeCompatibility;
+  executionIntensity: ExecutionIntensityResult;
   preScore: number;
+  workModeAdjustment: number;
+  executionIntensityAdjustment: number;
   postScore: number;
-  ceilingApplied: boolean;
-  ceilingReason: string | null;
+  adjustmentReason: string | null;
 };
 
 // ─── Mode Trigger Patterns ──────────────────────────────────
@@ -167,6 +176,130 @@ const MODE_TRIGGERS: Record<WorkMode, Trigger[]> = {
   creative_ideation: CREATIVE_IDEATION_TRIGGERS,
 };
 
+// ─── Structural vs Execution Discriminator ──────────────────
+// Catches roles that trigger builder_systems via ambiguous vocabulary
+// (infrastructure, workflow, engineering, process improvement) but
+// where the daily work is coordination/management, not creation.
+//
+// Applied ONLY to job classification. When execution-management signals
+// dominate structural (system-building) signals, reclassifies the job
+// from builder_systems to operational_execution so the compatibility
+// map applies the correct penalty.
+
+// Structural: hands-on technical system creation/design. These signals
+// almost never appear in construction, coordination, or PM roles.
+const STRUCTURAL_SIGNALS: Trigger[] = [
+  { pattern: /\bsystem(s)? design\b/i, weight: 2, label: "system design" },
+  { pattern: /\barchitect(ure|ing)\b/i, weight: 2, label: "architecture" },
+  { pattern: /\b(prototype|MVP|proof of concept)\b/i, weight: 2, label: "prototype/MVP" },
+  { pattern: /\b(CI\/CD|devops|dev ops)\b/i, weight: 2, label: "CI/CD" },
+  { pattern: /\b(technical lead|tech lead)\b/i, weight: 2, label: "tech lead" },
+  { pattern: /\b(full[- ]stack|backend|frontend)\b/i, weight: 2, label: "software dev" },
+  { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deployment" },
+  { pattern: /\bcod(e|ing|er)\b/i, weight: 2, label: "coding" },
+  { pattern: /\b(API|REST|GraphQL|microservice)/i, weight: 2, label: "API/services" },
+  { pattern: /\bSaaS\b/i, weight: 1, label: "SaaS" },
+  { pattern: /\bsoftware (develop|engineer)/i, weight: 2, label: "software development" },
+  { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 1, label: "automation" },
+  { pattern: /\b(SOP|SOPs|standard operating procedure)\b/i, weight: 1, label: "SOP creation" },
+  { pattern: /\bproduct develop(ment|er|ing)\b/i, weight: 2, label: "product development" },
+  { pattern: /\b(agile|scrum|sprint)\b/i, weight: 1, label: "agile/scrum" },
+];
+
+// Execution-management: managing/coordinating/supervising work done by others.
+// Presence of these signals without structural signals indicates the builder
+// vocabulary is contextual (construction, logistics) not technical creation.
+const EXECUTION_MANAGEMENT_SIGNALS: Trigger[] = [
+  { pattern: /\bproject manage(r|ment)\b/i, weight: 2, label: "project management" },
+  { pattern: /\bconstruction\b/i, weight: 2, label: "construction" },
+  { pattern: /\bbudget (management|tracking|oversight|performance)\b/i, weight: 2, label: "budget management" },
+  { pattern: /\bstakeholder (management|coordination|communication)\b/i, weight: 2, label: "stakeholder management" },
+  { pattern: /\b(status|progress) report(s|ing)?\b/i, weight: 2, label: "status/progress reporting" },
+  { pattern: /\bvendor (management|coordination|relations)\b/i, weight: 2, label: "vendor management" },
+  { pattern: /\bclient (management|relations|communication)\b/i, weight: 2, label: "client management" },
+  { pattern: /\bsubcontract(or|ing|ors)\b/i, weight: 2, label: "subcontractor management" },
+  { pattern: /\bchange order(s)?\b/i, weight: 2, label: "change orders" },
+  { pattern: /\b(permit|inspection)(s|ing)?\b/i, weight: 2, label: "permits/inspections" },
+  { pattern: /\bsite (manage|supervis|superintendent)/i, weight: 2, label: "site management" },
+  { pattern: /\b(RFP|RFI|RFQ)\b/i, weight: 2, label: "RFP/RFI" },
+  { pattern: /\bresource allocation\b/i, weight: 2, label: "resource allocation" },
+  { pattern: /\bpreconstruction\b/i, weight: 2, label: "preconstruction" },
+  { pattern: /\bprogram manage(r|ment)\b/i, weight: 2, label: "program management" },
+  { pattern: /\bproject coordinat(or|ion)\b/i, weight: 2, label: "project coordination" },
+  { pattern: /\bregulatory compliance\b/i, weight: 2, label: "regulatory compliance" },
+  { pattern: /\bsafety (compliance|management|program)\b/i, weight: 2, label: "safety compliance" },
+  { pattern: /\boversee(ing|s)?\b/i, weight: 1, label: "overseeing" },
+  { pattern: /\bsupervis(e|ion|ing|or)\b/i, weight: 1, label: "supervision" },
+];
+
+// Minimum execution score to trigger reclassification
+const EXECUTION_DOMINANCE_THRESHOLD = 4;
+
+export type DiscriminatorResult = {
+  applied: boolean;
+  structuralScore: number;
+  executionScore: number;
+  structuralTriggers: string[];
+  executionTriggers: string[];
+};
+
+function applyExecutionDiscriminator(
+  text: string,
+  classification: WorkModeClassification,
+): { classification: WorkModeClassification; discriminator: DiscriminatorResult } {
+  let structuralScore = 0;
+  let executionScore = 0;
+  const structuralTriggers: string[] = [];
+  const executionTriggers: string[] = [];
+
+  for (const trigger of STRUCTURAL_SIGNALS) {
+    if (trigger.pattern.test(text)) {
+      structuralScore += trigger.weight;
+      structuralTriggers.push(trigger.label);
+    }
+  }
+
+  for (const trigger of EXECUTION_MANAGEMENT_SIGNALS) {
+    if (trigger.pattern.test(text)) {
+      executionScore += trigger.weight;
+      executionTriggers.push(trigger.label);
+    }
+  }
+
+  const shouldReclassify =
+    executionScore >= EXECUTION_DOMINANCE_THRESHOLD &&
+    executionScore > structuralScore;
+
+  if (shouldReclassify) {
+    return {
+      classification: {
+        mode: "operational_execution",
+        scores: classification.scores,
+        topMatches: executionTriggers,
+        confidence: classification.confidence,
+      },
+      discriminator: {
+        applied: true,
+        structuralScore,
+        executionScore,
+        structuralTriggers,
+        executionTriggers,
+      },
+    };
+  }
+
+  return {
+    classification,
+    discriminator: {
+      applied: false,
+      structuralScore,
+      executionScore,
+      structuralTriggers,
+      executionTriggers,
+    },
+  };
+}
+
 // ─── Compatibility Map ──────────────────────────────────────
 // Deterministic mapping: COMPATIBILITY_MAP[userMode][jobMode]
 
@@ -208,12 +341,20 @@ const COMPATIBILITY_MAP: Record<WorkMode, Record<WorkMode, WorkModeCompatibility
   },
 };
 
-// ─── Score Governance ───────────────────────────────────────
-// Ceilings applied per compatibility tier.
+// ─── Weighted Scoring Adjustments ────────────────────────────
+// Proportional negative adjustments per compatibility tier.
+// These replace the old ceiling/cap system with continuous penalties
+// that make bad jobs obviously bad while preserving viable adjacent roles.
 
+const WORK_MODE_ADJUSTMENTS: Record<WorkModeCompatibility, number> = {
+  compatible: 0,        // no penalty for same-mode alignment
+  adjacent: -0.8,       // mild drag — viable but not ideal daily work
+  conflicting: -2.5,    // strong drag — fundamentally misaligned daily work
+};
+
+// Legacy constants preserved for _testing export backward compat
 const CONFLICTING_CEILING = 6.5;
 const ADJACENT_CEILING = 8.5;
-// Compatible: no adjustment
 
 // Minimum match count to classify with confidence
 const HIGH_CONFIDENCE_THRESHOLD = 4;
@@ -291,7 +432,15 @@ export function classifyUserWorkMode(
 // ─── Job Classification ─────────────────────────────────────
 
 export function classifyJobWorkMode(jobText: string): WorkModeClassification {
-  return classifyText(jobText);
+  const result = classifyText(jobText);
+  // Apply structural vs execution discriminator for builder_systems classifications.
+  // Prevents construction PMs, coordinators, and other execution-heavy roles from
+  // being misclassified as builder_systems via ambiguous vocabulary overlap.
+  if (result.mode === "builder_systems") {
+    const { classification } = applyExecutionDiscriminator(jobText, result);
+    return classification;
+  }
+  return result;
 }
 
 // ─── Compatibility Lookup ───────────────────────────────────
@@ -305,53 +454,132 @@ export function getWorkModeCompatibility(
   return COMPATIBILITY_MAP[userMode][jobMode];
 }
 
-// ─── Score Governance ───────────────────────────────────────
+// ─── Execution Intensity Detection ──────────────────────────
+// Detects grind-heavy role patterns that make daily work draining
+// regardless of skill overlap. Produces a weighted intensity score
+// that translates to a proportional negative adjustment.
+
+type IntensityTrigger = { pattern: RegExp; weight: number; label: string };
+
+const EXECUTION_INTENSITY_TRIGGERS: IntensityTrigger[] = [
+  // Outbound calling / prospecting
+  { pattern: /\b\d+\+?\s*(outbound\s+)?calls?\s*(per|a)\s*(day|shift)\b/i, weight: 3, label: "high-volume daily calls" },
+  { pattern: /\bcold call(s|ing)?\b/i, weight: 2, label: "cold calling" },
+  { pattern: /\boutbound (call|dial|prospect)/i, weight: 2, label: "outbound prospecting" },
+  { pattern: /\bdialer\b/i, weight: 2, label: "auto-dialer" },
+  { pattern: /\bphone[- ]based\b/i, weight: 2, label: "phone-based work" },
+  // Quota / commission pressure
+  { pattern: /\bquota[- ]carry(ing)?\b/i, weight: 2, label: "quota-carrying" },
+  { pattern: /\bcommission[- ]?(based|only|driven|structure)\b/i, weight: 2, label: "commission-driven" },
+  { pattern: /\b(OTE|on[- ]target[- ]earnings)\b/i, weight: 1, label: "OTE comp" },
+  { pattern: /\buncapped (commission|earning|comp)/i, weight: 2, label: "uncapped commission" },
+  // Repetitive high-volume execution
+  { pattern: /\bhigh[- ]volume\b/i, weight: 2, label: "high-volume" },
+  { pattern: /\bfast[- ]paced (sales|environment|team)\b/i, weight: 1, label: "fast-paced sales" },
+  { pattern: /\b(metrics|KPI)[- ]driven\b/i, weight: 1, label: "metrics-driven" },
+  { pattern: /\bdaily (activity|metric|target|goal)\b/i, weight: 2, label: "daily activity targets" },
+  // Rejection-heavy / thick skin
+  { pattern: /\bthick skin\b/i, weight: 3, label: "thick skin required" },
+  { pattern: /\bresilien(ce|t)\b.*\b(rejection|no|objection)/i, weight: 2, label: "rejection resilience" },
+  { pattern: /\bobjection handling\b/i, weight: 1, label: "objection handling" },
+  { pattern: /\brejection\b/i, weight: 1, label: "rejection" },
+  // Door-to-door / field canvassing
+  { pattern: /\bdoor[- ]to[- ]door\b/i, weight: 3, label: "door-to-door" },
+  { pattern: /\bdoor knock(ing|s)?\b/i, weight: 3, label: "door knocking" },
+  { pattern: /\bfield (canvass|sales|rep)/i, weight: 2, label: "field canvassing" },
+  { pattern: /\bin[- ]person (sales|prospect|canvass)/i, weight: 2, label: "in-person sales" },
+  { pattern: /\bwalk[- ]in(s)?\b/i, weight: 1, label: "walk-ins" },
+];
+
+// Intensity thresholds for adjustment tiers
+const INTENSITY_MILD_THRESHOLD = 3;     // >= 3 intensity score: mild drag
+const INTENSITY_HEAVY_THRESHOLD = 6;    // >= 6 intensity score: heavy drag
+const INTENSITY_EXTREME_THRESHOLD = 10; // >= 10 intensity score: extreme drag
+
+// Adjustment values per intensity tier
+const INTENSITY_ADJUSTMENTS = {
+  none: 0,
+  mild: -0.5,
+  heavy: -1.5,
+  extreme: -2.5,
+};
+
+export function detectExecutionIntensity(jobText: string): ExecutionIntensityResult {
+  let intensityScore = 0;
+  const triggers: string[] = [];
+
+  for (const trigger of EXECUTION_INTENSITY_TRIGGERS) {
+    if (trigger.pattern.test(jobText)) {
+      intensityScore += trigger.weight;
+      triggers.push(trigger.label);
+    }
+  }
+
+  let adjustment = 0;
+  let tier = "none";
+  if (intensityScore >= INTENSITY_EXTREME_THRESHOLD) {
+    adjustment = INTENSITY_ADJUSTMENTS.extreme;
+    tier = "extreme";
+  } else if (intensityScore >= INTENSITY_HEAVY_THRESHOLD) {
+    adjustment = INTENSITY_ADJUSTMENTS.heavy;
+    tier = "heavy";
+  } else if (intensityScore >= INTENSITY_MILD_THRESHOLD) {
+    adjustment = INTENSITY_ADJUSTMENTS.mild;
+    tier = "mild";
+  }
+
+  const reason = triggers.length > 0
+    ? `Execution intensity: ${tier} (score=${intensityScore}, triggers=[${triggers.join(", ")}]). Adjustment: ${adjustment}.`
+    : null;
+
+  return { score: intensityScore, adjustment, triggers, reason };
+}
+
+// ─── Weighted Score Adjustment ──────────────────────────────
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+export function applyWorkModeAdjustment(
+  rawScore: number,
+  compatibility: WorkModeCompatibility,
+  userMode: WorkModeClassification,
+  jobMode: WorkModeClassification,
+): { adjustment: number; reason: string | null } {
+  // Compatible modes: no adjustment
+  if (compatibility === "compatible") {
+    return { adjustment: 0, reason: null };
+  }
+
+  // Require at least low confidence on BOTH sides to apply any adjustment
+  if (userMode.confidence === "none" || jobMode.confidence === "none") {
+    return { adjustment: 0, reason: null };
+  }
+
+  const adj = WORK_MODE_ADJUSTMENTS[compatibility];
+  const reason =
+    `Work mode ${compatibility}: user=${userMode.mode} (${userMode.confidence}) ` +
+    `vs job=${jobMode.mode} (${jobMode.confidence}). ` +
+    `Adjustment: ${adj}.`;
+
+  return { adjustment: adj, reason };
+}
+
+// Legacy compat wrapper — calls new adjustment logic
 export function applyWorkModeCeiling(
   rawScore: number,
   compatibility: WorkModeCompatibility,
   userMode: WorkModeClassification,
   jobMode: WorkModeClassification,
 ): { score: number; ceilingApplied: boolean; ceilingReason: string | null } {
-  // Compatible modes: no adjustment
-  if (compatibility === "compatible") {
-    return { score: rawScore, ceilingApplied: false, ceilingReason: null };
-  }
-
-  // Require at least low confidence on BOTH sides to enforce any ceiling
-  if (userMode.confidence === "none" || jobMode.confidence === "none") {
-    return { score: rawScore, ceilingApplied: false, ceilingReason: null };
-  }
-
-  // Adjacent modes: mild compression — soft cap at 8.5
-  if (compatibility === "adjacent") {
-    if (rawScore <= ADJACENT_CEILING) {
-      return { score: rawScore, ceilingApplied: false, ceilingReason: null };
-    }
-    const capped = round1(Math.min(rawScore, ADJACENT_CEILING));
-    const reason =
-      `Adjacent work modes: user=${userMode.mode} (${userMode.confidence}) ` +
-      `vs job=${jobMode.mode} (${jobMode.confidence}). ` +
-      `Soft ceiling ${ADJACENT_CEILING} applied (raw=${rawScore}).`;
-    return { score: capped, ceilingApplied: true, ceilingReason: reason };
-  }
-
-  // Conflicting modes: hard cap at 6.5
-  if (rawScore <= CONFLICTING_CEILING) {
-    return { score: rawScore, ceilingApplied: false, ceilingReason: null };
-  }
-
-  const capped = round1(Math.min(rawScore, CONFLICTING_CEILING));
-  const reason =
-    `Work mode conflict: user=${userMode.mode} (${userMode.confidence}, score=${userMode.scores[userMode.mode!]}) ` +
-    `vs job=${jobMode.mode} (${jobMode.confidence}, score=${jobMode.scores[jobMode.mode!]}). ` +
-    `Ceiling ${CONFLICTING_CEILING} applied (raw=${rawScore}).`;
-
-  return { score: capped, ceilingApplied: true, ceilingReason: reason };
+  const { adjustment, reason } = applyWorkModeAdjustment(rawScore, compatibility, userMode, jobMode);
+  const adjusted = round1(Math.max(0, Math.min(10, rawScore + adjustment)));
+  return {
+    score: adjusted,
+    ceilingApplied: adjustment !== 0,
+    ceilingReason: reason,
+  };
 }
 
 // ─── Full Pipeline ──────────────────────────────────────────
@@ -365,18 +593,39 @@ export function evaluateWorkMode(
   const userMode = classifyUserWorkMode(resumeText, promptAnswers);
   const jobMode = classifyJobWorkMode(jobText);
   const compatibility = getWorkModeCompatibility(userMode.mode, jobMode.mode);
-  const { score, ceilingApplied, ceilingReason } = applyWorkModeCeiling(
+
+  // Work mode adjustment (proportional penalty for mismatch)
+  const { adjustment: wmAdj, reason: wmReason } = applyWorkModeAdjustment(
     rawScore, compatibility, userMode, jobMode,
   );
+
+  // Execution intensity adjustment (grind-heavy role penalty)
+  const executionIntensity = detectExecutionIntensity(jobText);
+  const eiAdj = executionIntensity.adjustment;
+
+  // Compose final score: base + work mode adjustment + execution intensity adjustment
+  // When both adjustments fire, dampen intensity to avoid double-counting daily-work misalignment.
+  // Intensity applies at half strength when work mode is already conflicting.
+  const dampedEiAdj = (compatibility === "conflicting" && eiAdj < 0) ? eiAdj * 0.5 : eiAdj;
+  const totalAdjustment = wmAdj + dampedEiAdj;
+  const postScore = round1(Math.max(0, Math.min(10, rawScore + totalAdjustment)));
+
+  // Build composite reason
+  const reasons: string[] = [];
+  if (wmReason) reasons.push(wmReason);
+  if (executionIntensity.reason) reasons.push(executionIntensity.reason);
+  const adjustmentReason = reasons.length > 0 ? reasons.join(" | ") : null;
 
   return {
     userMode,
     jobMode,
     compatibility,
+    executionIntensity,
     preScore: rawScore,
-    postScore: score,
-    ceilingApplied,
-    ceilingReason,
+    workModeAdjustment: wmAdj,
+    executionIntensityAdjustment: dampedEiAdj,
+    postScore,
+    adjustmentReason,
   };
 }
 
@@ -388,4 +637,12 @@ export const _testing = {
   CONFLICTING_CEILING,
   ADJACENT_CEILING,
   MODE_TRIGGERS,
+  WORK_MODE_ADJUSTMENTS,
+  EXECUTION_INTENSITY_TRIGGERS,
+  INTENSITY_ADJUSTMENTS,
+  detectExecutionIntensity,
+  STRUCTURAL_SIGNALS,
+  EXECUTION_MANAGEMENT_SIGNALS,
+  EXECUTION_DOMINANCE_THRESHOLD,
+  applyExecutionDiscriminator,
 };

@@ -25,10 +25,16 @@ import {
   CREATIVE_DIRECTOR_JOB, CONTENT_STRATEGIST_JOB,
   SALES_OPS_HYBRID_JOB, PROPERTY_MAX_GRIND_JOB,
   VP_SALES_STRATEGY_JOB, STARTUP_COO_OPS_JOB, FIELD_OPS_DIRECTOR_JOB,
+  CONSTRUCTION_PM_JOB, PROGRAM_COORDINATOR_JOB,
   FALSE_POSITIVE_TRAP_JOBS, ALL_JOBS,
 } from "./__fixtures__/work_mode_fixtures";
 
-const { classifyText, COMPATIBILITY_MAP, WORK_MODE_ADJUSTMENTS, EXECUTION_INTENSITY_TRIGGERS, INTENSITY_ADJUSTMENTS } = _testing;
+const {
+  classifyText, COMPATIBILITY_MAP, WORK_MODE_ADJUSTMENTS,
+  EXECUTION_INTENSITY_TRIGGERS, INTENSITY_ADJUSTMENTS,
+  STRUCTURAL_SIGNALS, EXECUTION_MANAGEMENT_SIGNALS,
+  EXECUTION_DOMINANCE_THRESHOLD, applyExecutionDiscriminator,
+} = _testing;
 
 // ─── Backward-compatible aliases for existing tests ─────────
 
@@ -684,5 +690,200 @@ describe("evaluateWorkMode — false-positive prevention", () => {
     const result = evaluateWorkMode(7.0, FABIO.resumeText, FABIO.promptAnswers, BDR_OUTBOUND_JOB.text);
     expect(result.compatibility).toBe("conflicting");
     expect(result.postScore).toBeLessThan(7.0);
+  });
+});
+
+// ─── Structural vs Execution Discriminator Tests ────────────
+
+describe("applyExecutionDiscriminator", () => {
+  // Helper: build a fake builder_systems classification for discriminator input
+  function builderClassification(score: number): WorkModeClassification {
+    return {
+      mode: "builder_systems",
+      scores: {
+        builder_systems: score,
+        sales_execution: 0,
+        operational_execution: 2,
+        analytical_investigative: 0,
+        creative_ideation: 0,
+      },
+      topMatches: ["infrastructure", "workflow", "engineering"],
+      confidence: "high",
+    };
+  }
+
+  it("reclassifies construction PM text from builder_systems → operational_execution", () => {
+    const base = builderClassification(9);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      CONSTRUCTION_PM_JOB.text, base,
+    );
+    expect(discriminator.applied).toBe(true);
+    expect(discriminator.executionScore).toBeGreaterThanOrEqual(EXECUTION_DOMINANCE_THRESHOLD);
+    expect(discriminator.executionScore).toBeGreaterThan(discriminator.structuralScore);
+    expect(classification.mode).toBe("operational_execution");
+  });
+
+  it("reclassifies program coordinator text from builder_systems → operational_execution", () => {
+    const base = builderClassification(7);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      PROGRAM_COORDINATOR_JOB.text, base,
+    );
+    expect(discriminator.applied).toBe(true);
+    expect(classification.mode).toBe("operational_execution");
+  });
+
+  it("does NOT reclassify Systems/Product Manager (legitimate builder)", () => {
+    const base = builderClassification(21);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      SYSTEMS_PRODUCT_JOB.text, base,
+    );
+    expect(discriminator.applied).toBe(false);
+    expect(classification.mode).toBe("builder_systems");
+    expect(discriminator.structuralScore).toBeGreaterThan(discriminator.executionScore);
+  });
+
+  it("does NOT reclassify DevOps Engineer (legitimate builder)", () => {
+    const base = builderClassification(14);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      DEVOPS_ENGINEER_JOB.text, base,
+    );
+    expect(discriminator.applied).toBe(false);
+    expect(classification.mode).toBe("builder_systems");
+  });
+
+  it("does NOT reclassify Full-Stack Engineer (legitimate builder)", () => {
+    const base = builderClassification(10);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      FULLSTACK_ENGINEER_JOB.text, base,
+    );
+    expect(discriminator.applied).toBe(false);
+    expect(classification.mode).toBe("builder_systems");
+  });
+
+  it("structural signals detect unambiguous tech-creation vocabulary", () => {
+    const techText = "Design CI/CD pipelines, deploy microservices on Kubernetes, " +
+      "architect backend systems, write production code in TypeScript, agile scrum sprints";
+    const base = builderClassification(10);
+    const { discriminator } = applyExecutionDiscriminator(techText, base);
+    expect(discriminator.structuralScore).toBeGreaterThanOrEqual(8);
+    expect(discriminator.executionScore).toBe(0);
+  });
+
+  it("execution signals detect management/coordination vocabulary", () => {
+    const mgmtText = "Project management for construction programs, " +
+      "budget tracking, stakeholder communication, vendor management, " +
+      "subcontractor coordination, site supervision, preconstruction planning, " +
+      "regulatory compliance and safety management";
+    const base = builderClassification(9);
+    const { discriminator } = applyExecutionDiscriminator(mgmtText, base);
+    expect(discriminator.executionScore).toBeGreaterThanOrEqual(12);
+    expect(discriminator.structuralScore).toBe(0);
+  });
+
+  it("preserves confidence level after reclassification", () => {
+    const base = builderClassification(9);
+    const { classification } = applyExecutionDiscriminator(
+      CONSTRUCTION_PM_JOB.text, base,
+    );
+    expect(classification.confidence).toBe("high");
+  });
+
+  it("updates topMatches to execution triggers after reclassification", () => {
+    const base = builderClassification(9);
+    const { classification, discriminator } = applyExecutionDiscriminator(
+      CONSTRUCTION_PM_JOB.text, base,
+    );
+    expect(classification.topMatches).toEqual(discriminator.executionTriggers);
+    expect(classification.topMatches.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Discriminator-Integrated Job Classification ────────────
+
+describe("classifyJobWorkMode — discriminator traps", () => {
+  it("Construction PM classifies as operational_execution (not builder_systems)", () => {
+    const result = classifyJobWorkMode(CONSTRUCTION_PM_JOB.text);
+    expect(result.mode).toBe("operational_execution");
+  });
+
+  it("Program Coordinator classifies as operational_execution (not builder_systems)", () => {
+    const result = classifyJobWorkMode(PROGRAM_COORDINATOR_JOB.text);
+    expect(result.mode).toBe("operational_execution");
+  });
+
+  it("Systems/Product Manager still classifies as builder_systems after discriminator", () => {
+    const result = classifyJobWorkMode(SYSTEMS_PRODUCT_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("DevOps Engineer still classifies as builder_systems after discriminator", () => {
+    const result = classifyJobWorkMode(DEVOPS_ENGINEER_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("Full-Stack Engineer still classifies as builder_systems after discriminator", () => {
+    const result = classifyJobWorkMode(FULLSTACK_ENGINEER_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+  });
+});
+
+// ─── Discriminator E2E: evaluateWorkMode scenarios ──────────
+
+describe("evaluateWorkMode — discriminator integration", () => {
+  it("Chris (Builder) vs Construction PM → adjacent, score in 4–6 range", () => {
+    const result = evaluateWorkMode(
+      6.5, CHRIS.resumeText, CHRIS.promptAnswers, CONSTRUCTION_PM_JOB.text,
+    );
+    // Construction PM reclassified to operational_execution via discriminator
+    expect(result.jobMode.mode).toBe("operational_execution");
+    // Builder user vs ops job = adjacent
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.workModeAdjustment).toBe(WORK_MODE_ADJUSTMENTS.adjacent);
+    expect(result.postScore).toBeGreaterThanOrEqual(4.0);
+    expect(result.postScore).toBeLessThanOrEqual(6.0);
+  });
+
+  it("Chris (Builder) vs Program Coordinator → adjacent, penalized", () => {
+    const result = evaluateWorkMode(
+      6.0, CHRIS.resumeText, CHRIS.promptAnswers, PROGRAM_COORDINATOR_JOB.text,
+    );
+    expect(result.jobMode.mode).toBe("operational_execution");
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.postScore).toBeLessThan(6.0);
+  });
+
+  it("Fabio (Analytical) vs Construction PM → conflicting, strongly penalized", () => {
+    const result = evaluateWorkMode(
+      7.0, FABIO.resumeText, FABIO.promptAnswers, CONSTRUCTION_PM_JOB.text,
+    );
+    // analytical vs operational_execution = conflicting
+    expect(result.jobMode.mode).toBe("operational_execution");
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.workModeAdjustment).toBe(WORK_MODE_ADJUSTMENTS.conflicting);
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
+  });
+
+  it("Priya (Ops) vs Construction PM → compatible, no drag", () => {
+    const result = evaluateWorkMode(
+      7.0, PRIYA.resumeText, PRIYA.promptAnswers, CONSTRUCTION_PM_JOB.text,
+    );
+    // ops vs ops = compatible
+    expect(result.jobMode.mode).toBe("operational_execution");
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.postScore).toBe(7.0);
+  });
+
+  it("Chris (Builder) vs Systems/Product Job still compatible (discriminator safe)", () => {
+    // Verify the discriminator does NOT damage legitimate builder→builder classification
+    const result = evaluateWorkMode(
+      8.5, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text,
+    );
+    expect(result.jobMode.mode).toBe("builder_systems");
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.postScore).toBe(8.5);
   });
 });

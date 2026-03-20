@@ -2,8 +2,8 @@
 //
 // Centralized fixture library for work_mode scoring tests.
 // 5 core user profiles (one per mode), 5 blended crossover profiles,
-// 1 weak control (Dingus), and 19 job fixtures covering all modes,
-// intensity tiers, and false-positive traps.
+// 1 weak control (Dingus), and 21 job fixtures covering all modes,
+// intensity tiers, false-positive traps, and discriminator traps.
 
 import type { WorkMode } from "../work_mode";
 
@@ -686,6 +686,58 @@ export const FIELD_OPS_DIRECTOR_JOB: JobFixture = {
     "- Strong administrative and clerical management skills",
 };
 
+// ─── Execution-Dominated Builder-Vocabulary Traps ───────────
+// Roles that trigger builder_systems via ambiguous vocabulary
+// (infrastructure, workflow, engineering, implementation, integration,
+// process improvement, "building systems") but are fundamentally
+// execution/coordination roles. The structural-vs-execution discriminator
+// should reclassify these from builder_systems → operational_execution.
+
+export const CONSTRUCTION_PM_JOB: JobFixture = {
+  name: "Construction PM (builder vocabulary trap)",
+  expectedMode: "operational_execution",
+  text:
+    "Construction Project Manager — GreenField Builders\n" +
+    "Lead the planning and execution of large-scale commercial construction projects.\n" +
+    "Responsibilities:\n" +
+    "- Oversee project implementation from preconstruction through final delivery\n" +
+    "- Manage project scheduling and coordinate workflow across trades\n" +
+    "- Drive process improvement initiatives to optimize site operations\n" +
+    "- Integrate building systems and coordinate with engineering consultants\n" +
+    "- Build and maintain project infrastructure including document management\n" +
+    "- Manage stakeholder communication and vendor coordination\n" +
+    "- Track budget performance and resource allocation across projects\n" +
+    "- Ensure regulatory compliance and inspection readiness\n" +
+    "- Review and process change orders, RFIs, and submittals\n" +
+    "- Supervise subcontractor work and site safety compliance\n" +
+    "Requirements:\n" +
+    "- 7+ years construction project management experience\n" +
+    "- PMP or equivalent certification preferred\n" +
+    "- Experience with preconstruction planning and procurement\n" +
+    "- Strong scheduling, budget tracking, and stakeholder management skills",
+};
+
+export const PROGRAM_COORDINATOR_JOB: JobFixture = {
+  name: "Program Coordinator (builder vocabulary trap)",
+  expectedMode: "operational_execution",
+  text:
+    "Program Coordinator — Municipal Infrastructure Division\n" +
+    "Coordinate cross-functional infrastructure programs and ensure smooth project delivery.\n" +
+    "Responsibilities:\n" +
+    "- Manage project coordination for engineering infrastructure programs\n" +
+    "- Oversee workflow integration across multiple construction phases\n" +
+    "- Drive process improvement for project delivery and implementation timelines\n" +
+    "- Produce progress reports and track project milestones\n" +
+    "- Coordinate vendor management and subcontractor scheduling\n" +
+    "- Manage budget tracking and resource allocation for program portfolio\n" +
+    "- Ensure safety compliance and regulatory inspection readiness\n" +
+    "- Support preconstruction planning and permit coordination\n" +
+    "Requirements:\n" +
+    "- 5+ years program coordination or project management experience\n" +
+    "- Experience with infrastructure or construction programs\n" +
+    "- Strong stakeholder communication and status reporting skills",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -714,10 +766,14 @@ export const ALL_JOBS = [
   VP_SALES_STRATEGY_JOB,
   STARTUP_COO_OPS_JOB,
   FIELD_OPS_DIRECTOR_JOB,
+  CONSTRUCTION_PM_JOB,
+  PROGRAM_COORDINATOR_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [
   VP_SALES_STRATEGY_JOB,
   STARTUP_COO_OPS_JOB,
   FIELD_OPS_DIRECTOR_JOB,
+  CONSTRUCTION_PM_JOB,
+  PROGRAM_COORDINATOR_JOB,
 ] as const;
