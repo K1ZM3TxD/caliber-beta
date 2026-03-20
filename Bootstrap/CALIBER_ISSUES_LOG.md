@@ -3,6 +3,12 @@
 
 ## Current Open Issues
 
+92. Sidecard UX: BST popup + Bottom Line replaced with in-sidecard collapsibles — **SHIPPED** (2026-03-20)
+  - BST rendered as a floating popup (`cb-recovery-banner`) above the sidecard — interruptive, hard to dismiss, broke on LinkedIn DOM changes. Bottom Line was a single opaque sentence generated server-side, not scannable.
+  - Fixed: (1) BST now renders as a collapsible "Adjacent Searches" section inside the sidecard body, hidden by default, shown when BST evaluation triggers. (2) Bottom Line replaced with 3-point Executive Summary (fit signal ✓, risk/stretch ⚠, decision guidance →) derived client-side from `supports_fit`, `stretch_factors`, and score band. All external banner HTML/CSS removed. Dead code cleaned (surface quality banner unreachable code, dropdown dismiss handler).
+  - 14 insertions, 95 deletions. Build clean, 167 tests passing (2 pre-existing failures in signal_classification unrelated).
+  - Files: `extension/content_linkedin.js`.
+
 91. Execution-dominated roles misclassified as builder_systems via ambiguous vocabulary — **SHIPPED** (2026-03-20)
   - Construction PMs, program coordinators, and other execution-heavy roles triggered builder_systems via overlapping vocabulary (infrastructure, workflow, engineering, implementation, integration, "building systems", process improvement). This produced false-positive "compatible" matches for builder users.
   - Fixed by adding a structural-vs-execution discriminator to `classifyJobWorkMode`. Two new trigger arrays: STRUCTURAL_SIGNALS (15 unambiguous tech-creation triggers) and EXECUTION_MANAGEMENT_SIGNALS (20 coordination/management triggers). When a job classifies as builder_systems but execution signals dominate structural signals (score ≥4 and execution > structural), the job is reclassified to operational_execution. Builder users then get "adjacent" penalty (-0.8) instead of "compatible" (0).

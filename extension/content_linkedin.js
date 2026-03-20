@@ -1687,11 +1687,11 @@
             bstMarkSuggested(title);
             console.debug("[Caliber][BST] SHOW — suggestion: \"" + title + "\" (source: " + titleSource +
               ", class: " + deferredSurfaceClass + ")");
-            showPrescanBSTBanner(title);
+            showSidecardBST(title);
             prescanStoredTitle = title;
           } else {
             console.debug("[Caliber][BST] SHOW (generic) — no suggestion title, class: " + deferredSurfaceClass);
-            showPrescanBSTBanner(null);
+            showSidecardBST(null);
             prescanStoredTitle = null;
           }
           chrome.runtime.sendMessage({
@@ -1707,20 +1707,17 @@
         }, 800);
       }
     } else {
-      // BST SUPPRESS — cancel pending show and hide existing BST banner
+      // BST SUPPRESS — cancel pending show and hide existing BST section
       if (bstShowDebounce) {
         clearTimeout(bstShowDebounce);
         bstShowDebounce = null;
         console.debug("[Caliber][BST] cancelled pending show — " + triggerReason);
       }
       if (prescanBSTActive) {
-        console.debug("[Caliber][BST] SUPPRESS — hiding BST banner — " + triggerReason);
+        console.debug("[Caliber][BST] SUPPRESS — hiding BST section — " + triggerReason);
         prescanBSTActive = false;
         prescanStoredTitle = null;
-        if (shadow) {
-          var banner = shadow.getElementById("cb-recovery-banner");
-          if (banner) banner.style.display = "none";
-        }
+        hideSidecardBST();
       }
 
       // Surface-quality banner: show when strong matches exist on the loaded surface
@@ -2080,11 +2077,8 @@
     badgeBatchQueue = [];
     badgeBatchGeneration++;
 
-    // Hide any previous prescan banner
-    if (shadow) {
-      var banner = shadow.getElementById("cb-recovery-banner");
-      if (banner) banner.style.display = "none";
-    }
+    // Hide any previous prescan BST section
+    hideSidecardBST();
 
     console.debug("[Caliber][prescan] prescan delegated to badge scoring pipeline for surface: " + surfaceKey);
 
@@ -2201,76 +2195,18 @@
       strongCount + ", bestTitle=\"" + sanitizeJobTitle(bestTitle) + "\", bestScore=" +
       (bestScore ? bestScore.toFixed(1) : "0"));
     return;
-    getOrCreatePanel();
-    // Hide BST if active
-    prescanBSTActive = false;
-    prescanStoredTitle = null;
-
-    var banner = shadow.getElementById("cb-recovery-banner");
-    var reason = shadow.getElementById("cb-recovery-reason");
-    var link = shadow.getElementById("cb-recovery-link");
-    var label = shadow.getElementById("cb-recovery-label");
-    if (banner) {
-      banner.style.display = "";
-      banner.className = "cb-recovery-banner cb-surface-quality";
-      // Replace icon with green checkmark
-      var icon = banner.querySelector(".cb-recovery-icon");
-      if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
-      if (reason) {
-        var matchLabel = strongCount + " strong match" + (strongCount > 1 ? "es" : "");
-        var scoreHtml = bestScore ? ' <span class="cb-sq-score">' + bestScore.toFixed(1) + '</span>' : "";
-        var scanningHtml = ' <span class="cb-sq-scanning" id="cb-sq-scanning" style="display:none">&middot; scanning\u2026</span>';
-        reason.innerHTML = matchLabel + ' \u00B7 <span class="cb-sq-best-link" id="cb-sq-best-link">Best so far:</span>' + scoreHtml + scanningHtml +
-          '<div class="cb-sq-dropdown" id="cb-sq-dropdown">' +
-          '<div class="cb-sq-dropdown-title">Why \u201Cbest so far\u201D?</div>' +
-          '<div class="cb-sq-dropdown-body">' +
-          'LinkedIn loads jobs as you scroll.<br>' +
-          'Caliber scores them as they appear.<br>' +
-          'If a stronger match appears, this banner updates.' +
-          '</div></div>';
-        // Wire up click toggle on the "Best so far" link
-        var bestLink = reason.querySelector("#cb-sq-best-link");
-        var dropdown = reason.querySelector("#cb-sq-dropdown");
-        if (bestLink && dropdown) {
-          bestLink.onclick = function (e) {
-            e.stopPropagation();
-            dropdown.classList.toggle("cb-sq-dropdown-open");
-          };
-        }
-      }
-      if (label) label.style.display = "none";
-      if (link) link.style.display = "none";
-    }
   }
 
-  /** Hide surface-quality banner (restores BST slot to hidden state). */
+  /** Hide surface-quality banner — now a no-op since external banner was removed. */
   function hideSurfaceQualityBanner() {
-    if (!shadow) return;
-    var banner = shadow.getElementById("cb-recovery-banner");
-    if (banner) {
-      banner.style.display = "none";
-      banner.className = "cb-recovery-banner";
-      // Restore search icon
-      var icon = banner.querySelector(".cb-recovery-icon");
-      if (icon) icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>';
-      var label = shadow.getElementById("cb-recovery-label");
-      if (label) label.style.display = "";
-    }
+    // External banner removed. Surface state tracking preserved in callers.
   }
 
-  /** Show the "scanning…" indicator on the surface-quality banner. */
-  function showScanningIndicator() {
-    if (!shadow) return;
-    var el = shadow.getElementById("cb-sq-scanning");
-    if (el) el.style.display = "";
-  }
+  /** Show the "scanning…" indicator — no-op since external banner was removed. */
+  function showScanningIndicator() {}
 
-  /** Hide the "scanning…" indicator on the surface-quality banner. */
-  function hideScanningIndicator() {
-    if (!shadow) return;
-    var el = shadow.getElementById("cb-sq-scanning");
-    if (el) el.style.display = "none";
-  }
+  /** Hide the "scanning…" indicator — no-op since external banner was removed. */
+  function hideScanningIndicator() {}
 
   function resetPrescanState() {
     prescanDone = false;
@@ -2284,13 +2220,7 @@
       clearTimeout(bstShowDebounce);
       bstShowDebounce = null;
     }
-    if (shadow) {
-      var banner = shadow.getElementById("cb-recovery-banner");
-      if (banner) {
-        banner.style.display = "none";
-        banner.className = "cb-recovery-banner";
-      }
-    }
+    hideSidecardBST();
     // Clear durable state so new search gets a fresh scan
     chrome.runtime.sendMessage({ type: "CALIBER_PRESCAN_STATE_CLEAR" }, function () {
       console.debug("[Caliber][prescan] durable state cleared");
@@ -2424,17 +2354,6 @@
     });
 
     // (Tailor resume button removed — Tailor lives in Pipeline only)
-
-    // Dismiss "Best so far" dropdown on any click outside it
-    shadow.addEventListener("click", function (e) {
-      var dropdown = shadow.getElementById("cb-sq-dropdown");
-      if (dropdown && dropdown.classList.contains("cb-sq-dropdown-open")) {
-        var link = shadow.getElementById("cb-sq-best-link");
-        if (e.target !== link && !dropdown.contains(e.target)) {
-          dropdown.classList.remove("cb-sq-dropdown-open");
-        }
-      }
-    });
 
     return shadow;
   }
