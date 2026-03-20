@@ -3,6 +3,17 @@
 
 ## Current Open Issues
 
+94. Signal toggle gate for preference modulation (v0.9.25) — **SHIPPED** (2026-03-20)
+  - Preference modulation applied unconditionally regardless of whether user opted into signal-influenced scoring. This meant work preference chips could affect scores even when signals toggle was OFF, violating the principle that baseline scoring should be unaffected by optional features.
+  - Fixed: Preference modulation gated behind `session.includeDetectedSignals === true`. Signals OFF or null → preferences ignored, scoring identical to baseline. `signalsActive` flag added to `debug_work_mode` API response for diagnostics.
+  - 195 tests passing. Files: `app/api/extension/fit/route.ts`, `lib/work_mode.ts`, `lib/work_mode.test.ts`.
+
+93. Sales/partnerships roles under-classified by work mode classifier — **SHIPPED** (2026-03-20)
+  - Relationship-driven B2B sales roles (BDM, Partnerships Manager, Account Executive) were not triggering `sales_execution` classification because SALES_TRIGGERS lacked partnership/sponsorship/channel vocabulary. These roles scored as compatible for builder profiles instead of conflicting.
+  - Fixed by expanding SALES_TRIGGERS with 11 new relationship-driven signals (partnerships, sponsorship, account growth, pipeline ownership, channel development, etc.). Added PRODUCT_STRATEGY_ANCHORS leakage guard to prevent strategy/product roles from being pulled into sales via overlapping vocabulary.
+  - 5 new job fixtures (BDM, Partnerships Manager, Account Executive, Product Manager, Growth Strategy Director). 12 new tests, 107 work_mode tests passing.
+  - Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `lib/__fixtures__/work_mode_fixtures.ts`.
+
 92. Sidecard UX: BST popup + Bottom Line replaced with in-sidecard collapsibles — **SHIPPED** (2026-03-20)
   - BST rendered as a floating popup (`cb-recovery-banner`) above the sidecard — interruptive, hard to dismiss, broke on LinkedIn DOM changes. Bottom Line was a single opaque sentence generated server-side, not scannable.
   - Fixed: (1) BST now renders as a collapsible "Adjacent Searches" section inside the sidecard body, hidden by default, shown when BST evaluation triggers. (2) Bottom Line replaced with 3-point Executive Summary (fit signal ✓, risk/stretch ⚠, decision guidance →) derived client-side from `supports_fit`, `stretch_factors`, and score band. All external banner HTML/CSS removed. Dead code cleaned (surface quality banner unreachable code, dropdown dismiss handler).
