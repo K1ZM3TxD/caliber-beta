@@ -5,152 +5,47 @@ import {
   classifyJobWorkMode,
   getWorkModeCompatibility,
   applyWorkModeCeiling,
+  applyWorkModeAdjustment,
+  detectExecutionIntensity,
   evaluateWorkMode,
   _testing,
   type WorkMode,
   type WorkModeClassification,
 } from "./work_mode";
 
-const { classifyText, COMPATIBILITY_MAP, CONFLICTING_CEILING, ADJACENT_CEILING } = _testing;
+import {
+  CHRIS, MARCUS, PRIYA, FABIO, LUNA,
+  ALEX, DANA, RIO, NADIA, TOMAS,
+  DINGUS, JEN,
+  CORE_USERS, BLENDED_USERS, ALL_USERS,
+  SYSTEMS_PRODUCT_JOB, DEVOPS_ENGINEER_JOB, FULLSTACK_ENGINEER_JOB,
+  INSIDE_SALES_JOB, ENTERPRISE_AE_JOB, BDR_OUTBOUND_JOB,
+  OPS_COORDINATOR_JOB, WAREHOUSE_OPS_JOB, CALL_CENTER_JOB,
+  SECURITY_ANALYST_JOB, DATA_ANALYST_JOB, FORENSIC_ACCOUNTANT_JOB,
+  CREATIVE_DIRECTOR_JOB, CONTENT_STRATEGIST_JOB,
+  SALES_OPS_HYBRID_JOB, PROPERTY_MAX_GRIND_JOB,
+  VP_SALES_STRATEGY_JOB, STARTUP_COO_OPS_JOB, FIELD_OPS_DIRECTOR_JOB,
+  FALSE_POSITIVE_TRAP_JOBS, ALL_JOBS,
+} from "./__fixtures__/work_mode_fixtures";
 
-// ─── Fixture: Chris (Builder / Systems) ─────────────────────
+const { classifyText, COMPATIBILITY_MAP, WORK_MODE_ADJUSTMENTS, EXECUTION_INTENSITY_TRIGGERS, INTENSITY_ADJUSTMENTS } = _testing;
 
-const CHRIS_RESUME =
-  "Product Development Manager | 7 years experience in SaaS and B2B\n" +
-  "Led product development from market research through launch for enterprise software.\n" +
-  "Built systems for evaluating market gaps and customer needs. Created SOPs for product\n" +
-  "development workflows. Designed and maintained pitch decks and proposals for executive\n" +
-  "stakeholders. Conducted feasibility studies for new product initiatives. Automated\n" +
-  "internal workflows and reporting systems. Managed cross-functional product development\n" +
-  "teams. Drove go-to-market strategy and customer discovery processes.";
+// ─── Backward-compatible aliases for existing tests ─────────
 
-const CHRIS_PROMPTS: Record<number, string> = {
-  1: "design, creating systems, making sop's. building web apps/tools Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions.",
-  2: "endless sales cycles, quota driven incentive, jumping from one task to another without real depth or clarity, overall chaos in the company being short staffed and small.",
-  3: "design, creating systems, making sop's. Making pitch decks, call scripts, data miners and customer proposal slide presentations. Creating automated workflows and sharing great tools with coworkers. Marketing and strategy sessions.",
-  4: "problem solving, product development, customer needs and finding gaps in the market.",
-  5: "songwriting, building tools, making graphics, interior design",
-};
+const CHRIS_RESUME = CHRIS.resumeText;
+const CHRIS_PROMPTS = CHRIS.promptAnswers;
+const FABIO_RESUME = FABIO.resumeText;
+const FABIO_PROMPTS = FABIO.promptAnswers;
+const JEN_RESUME = JEN.resumeText;
+const JEN_PROMPTS = JEN.promptAnswers;
 
-// ─── Fixture: Fabio (Analytical / Investigative) ────────────
-
-const FABIO_RESUME =
-  "Fabio Bellini Keizer, Oregon Professional Summary As an OSOC Security Analyst and dedicated cybersecurity professional, " +
-  "I specialize in penetration testing, vulnerability assessment, and security risk mitigation. " +
-  "I bring a strong focus on protecting organizational assets through the design and implementation of comprehensive security measures. " +
-  "With hands-on experience in tools such as Kali Linux, Active Directory, and Python, I'm proficient in red team operations and network security auditing. " +
-  "My background includes serving as an assistant instructor, mentoring students through practical cybersecurity training programs.";
-
-const FABIO_PROMPTS: Record<number, string> = {
-  1: "The part that felt most like me was investigating problems, connecting technical details, and turning them into something clear and actionable.",
-  2: "What drained me fastest was repetitive work that required a lot of manual effort but did not involve much analysis, problem-solving, or improvement.",
-  3: "People often come to me to help make sense of technical situations, especially when something is unclear, urgent, or needs to be explained well.",
-  4: "I find complex challenges exciting when they require investigation, critical thinking, and a structured approach.",
-  5: "I am best at work that sits at the intersection of analysis, problem-solving, and communication.",
-};
-
-// ─── Fixture: Jen (Creative Ops / Enablement) ───────────────
-
-const JEN_RESUME =
-  "Summary Self-motivated go-getter with over 10 years of experience in sales. Known for exceptional customer service " +
-  "and executing sales strategies that produce results. Experience Gracer-West Holdings Salem OR Estate Manager " +
-  "Maintained and managed a large household and complex of upscale properties for a private client. " +
-  "Role included accounting managing staff coordinating events overseeing new projects and setting up a successful rental property. " +
-  "SOYOUU LLC Keizer OR Owner Operated a successful college textbook business for 10 years. " +
-  "Skills Customer service Communication skills Computer literacy Leadership Outside Sales Analytical Thinking";
-
-const JEN_PROMPTS: Record<number, string> = {
-  1: "I think the interaction with people felt the most like me. I enjoyed managing a team and achieving objectives together.",
-  2: "The part that drained me the fastest was dealing with excess material waste.",
-  3: "My job title is pretty flexible so that could be a lot of things. To be specific I would say ad hoc tasks that aren't part of my daily routine.",
-  4: "A challenge that feels exciting is learning a new tool or taking on unfamiliar tasks.",
-  5: "I'm best at relationship and team building, taking on new projects, learning new tools, entrepreneurship.",
-};
-
-// ─── Job Text Fixtures ──────────────────────────────────────
-
-const INSIDE_SALES_JOB =
-  "Inside Sales Representative\n" +
-  "We are looking for a driven Inside Sales Representative to join our growing team.\n" +
-  "Responsibilities:\n" +
-  "- Make 50+ outbound calls per day to prospective clients\n" +
-  "- Manage and grow a pipeline of qualified prospects\n" +
-  "- Meet or exceed monthly sales quota and revenue targets\n" +
-  "- Conduct product demos and close deals\n" +
-  "- Use Salesforce CRM to track pipeline and forecast revenue\n" +
-  "- Collaborate with the sales team to develop territory strategies\n" +
-  "- Handle objection handling and negotiate pricing\n" +
-  "Requirements:\n" +
-  "- 2+ years inside sales or BDR/SDR experience\n" +
-  "- Track record of meeting or exceeding quota\n" +
-  "- Experience with cold calling and outbound prospecting\n" +
-  "- Strong communication and closing skills\n" +
-  "- Commission-based compensation structure";
-
-const SYSTEMS_PRODUCT_JOB =
-  "Product Development Manager\n" +
-  "We are seeking a Product Development Manager to lead our product engineering and systems architecture efforts.\n" +
-  "Responsibilities:\n" +
-  "- Lead product development from concept through launch\n" +
-  "- Design and implement scalable systems and infrastructure\n" +
-  "- Create SOPs and workflow automation for development teams\n" +
-  "- Build internal tools and integrate third-party platforms\n" +
-  "- Define product roadmap and manage sprint planning\n" +
-  "- Work with cross-functional stakeholders on technical architecture\n" +
-  "- Deploy and monitor production systems\n" +
-  "Requirements:\n" +
-  "- 5+ years product development or engineering experience\n" +
-  "- Experience with agile/scrum methodology\n" +
-  "- Strong systems design and integration skills\n" +
-  "- Track record of building and shipping software products";
-
-const OPS_COORDINATOR_JOB =
-  "Operations Coordinator\n" +
-  "We are looking for an Operations Coordinator to support our growing team.\n" +
-  "Responsibilities:\n" +
-  "- Coordinate daily operations including scheduling and logistics\n" +
-  "- Process orders and manage inventory tracking in our ERP system\n" +
-  "- Handle administrative tasks including filing and data entry\n" +
-  "- Support onboarding and training coordination for new hires\n" +
-  "- Manage procurement and invoicing workflows\n" +
-  "- Provide customer support and resolve escalated tickets\n" +
-  "Requirements:\n" +
-  "- 2+ years operations or administrative experience\n" +
-  "- Experience with ERP systems and order processing\n" +
-  "- Strong organizational and scheduling skills";
-
-const SECURITY_ANALYST_JOB =
-  "Cybersecurity Analyst\n" +
-  "We are looking for a Cybersecurity Analyst to join our security operations team.\n" +
-  "Responsibilities:\n" +
-  "- Conduct vulnerability assessments and penetration testing\n" +
-  "- Analyze security threats and investigate incidents\n" +
-  "- Perform risk analysis and develop mitigation strategies\n" +
-  "- Monitor SOC dashboards and respond to alerts\n" +
-  "- Author detailed security audit reports\n" +
-  "- Research emerging threats and attack techniques\n" +
-  "Requirements:\n" +
-  "- Security+ or equivalent certification\n" +
-  "- Experience with red team operations\n" +
-  "- Strong analytical and investigative skills";
-
-// Tricky job: Sales-flavored role with operational/systems vocabulary that
-// could inflate scores for Builder/Systems profiles.
-const SALES_OPS_HYBRID_JOB =
-  "Sales Operations Specialist\n" +
-  "Join our team to manage sales operations, CRM systems, and coordinate cross-functional workflows.\n" +
-  "Responsibilities:\n" +
-  "- Manage Salesforce CRM configuration and workflow automation\n" +
-  "- Build reports and dashboards for the sales team\n" +
-  "- Meet quarterly quota for outbound prospecting and pipeline generation\n" +
-  "- Cold call leads and close deals alongside the BDR team\n" +
-  "- Track territory coverage and revenue targets\n" +
-  "- Coordinate with multiple teams on process improvement\n" +
-  "- Handle administrative coordination and scheduling\n" +
-  "Requirements:\n" +
-  "- 3+ years sales operations or inside sales experience\n" +
-  "- Commission-based compensation\n" +
-  "- Experience with quota-carrying sales roles";
+// Job text aliases for backward compatibility with existing tests
+const INSIDE_SALES_JOB_TEXT = INSIDE_SALES_JOB.text;
+const SYSTEMS_PRODUCT_JOB_TEXT = SYSTEMS_PRODUCT_JOB.text;
+const OPS_COORDINATOR_JOB_TEXT = OPS_COORDINATOR_JOB.text;
+const SECURITY_ANALYST_JOB_TEXT = SECURITY_ANALYST_JOB.text;
+const SALES_OPS_HYBRID_JOB_TEXT = SALES_OPS_HYBRID_JOB.text;
+const PROPERTY_MAX_GRIND_JOB_TEXT = PROPERTY_MAX_GRIND_JOB.text;
 
 // ─── User Classification Tests ──────────────────────────────
 
@@ -187,30 +82,30 @@ describe("classifyUserWorkMode", () => {
 
 describe("classifyJobWorkMode", () => {
   it("classifies inside sales job as sales_execution", () => {
-    const result = classifyJobWorkMode(INSIDE_SALES_JOB);
+    const result = classifyJobWorkMode(INSIDE_SALES_JOB_TEXT);
     expect(result.mode).toBe("sales_execution");
     expect(result.confidence).toBe("high");
   });
 
   it("classifies systems/product job as builder_systems", () => {
-    const result = classifyJobWorkMode(SYSTEMS_PRODUCT_JOB);
+    const result = classifyJobWorkMode(SYSTEMS_PRODUCT_JOB_TEXT);
     expect(result.mode).toBe("builder_systems");
     expect(result.confidence).toBe("high");
   });
 
   it("classifies ops coordinator job as operational_execution", () => {
-    const result = classifyJobWorkMode(OPS_COORDINATOR_JOB);
+    const result = classifyJobWorkMode(OPS_COORDINATOR_JOB_TEXT);
     expect(result.mode).toBe("operational_execution");
   });
 
   it("classifies security analyst job as analytical_investigative", () => {
-    const result = classifyJobWorkMode(SECURITY_ANALYST_JOB);
+    const result = classifyJobWorkMode(SECURITY_ANALYST_JOB_TEXT);
     expect(result.mode).toBe("analytical_investigative");
     expect(result.confidence).toBe("high");
   });
 
   it("classifies sales-ops hybrid as sales_execution (dominant mode wins)", () => {
-    const result = classifyJobWorkMode(SALES_OPS_HYBRID_JOB);
+    const result = classifyJobWorkMode(SALES_OPS_HYBRID_JOB_TEXT);
     expect(result.mode).toBe("sales_execution");
   });
 });
@@ -241,9 +136,65 @@ describe("getWorkModeCompatibility", () => {
   });
 });
 
-// ─── Score Ceiling Tests ────────────────────────────────────
+// ─── Work Mode Adjustment Tests ─────────────────────────────
 
-describe("applyWorkModeCeiling", () => {
+describe("applyWorkModeAdjustment", () => {
+  const highUser: WorkModeClassification = {
+    mode: "builder_systems",
+    scores: { builder_systems: 10, sales_execution: 0, operational_execution: 0, analytical_investigative: 0, creative_ideation: 0 },
+    topMatches: ["product development", "SOP"],
+    confidence: "high",
+  };
+  const highJob: WorkModeClassification = {
+    mode: "sales_execution",
+    scores: { builder_systems: 0, sales_execution: 12, operational_execution: 0, analytical_investigative: 0, creative_ideation: 0 },
+    topMatches: ["quota", "cold calling"],
+    confidence: "high",
+  };
+  const adjJob: WorkModeClassification = {
+    mode: "operational_execution",
+    scores: { builder_systems: 0, sales_execution: 0, operational_execution: 8, analytical_investigative: 0, creative_ideation: 0 },
+    topMatches: ["coordination", "scheduling"],
+    confidence: "high",
+  };
+
+  it("returns negative adjustment for conflicting modes", () => {
+    const result = applyWorkModeAdjustment(7.8, "conflicting", highUser, highJob);
+    expect(result.adjustment).toBe(WORK_MODE_ADJUSTMENTS.conflicting);
+    expect(result.adjustment).toBeLessThan(0);
+    expect(result.reason).toContain("conflicting");
+  });
+
+  it("returns mild negative adjustment for adjacent modes", () => {
+    const result = applyWorkModeAdjustment(8.5, "adjacent", highUser, adjJob);
+    expect(result.adjustment).toBe(WORK_MODE_ADJUSTMENTS.adjacent);
+    expect(result.adjustment).toBeLessThan(0);
+    expect(result.adjustment).toBeGreaterThan(WORK_MODE_ADJUSTMENTS.conflicting);
+    expect(result.reason).toContain("adjacent");
+  });
+
+  it("returns zero adjustment for compatible modes", () => {
+    const result = applyWorkModeAdjustment(8.5, "compatible", highUser, highJob);
+    expect(result.adjustment).toBe(0);
+    expect(result.reason).toBeNull();
+  });
+
+  it("returns zero adjustment when user confidence is none", () => {
+    const weakUser: WorkModeClassification = { ...highUser, confidence: "none" };
+    const result = applyWorkModeAdjustment(7.8, "conflicting", weakUser, highJob);
+    expect(result.adjustment).toBe(0);
+  });
+
+  it("returns zero adjustment when job confidence is none", () => {
+    const weakJob: WorkModeClassification = { ...highJob, confidence: "none" };
+    const result = applyWorkModeAdjustment(7.8, "conflicting", highUser, weakJob);
+    expect(result.adjustment).toBe(0);
+  });
+});
+
+// ─── Legacy applyWorkModeCeiling wrapper ────────────────────
+
+describe("applyWorkModeCeiling (legacy compat)", () => {
   const highUser: WorkModeClassification = {
     mode: "builder_systems",
     scores: { builder_systems: 10, sales_execution: 0, operational_execution: 0, analytical_investigative: 0, creative_ideation: 0 },
@@ -257,55 +208,66 @@ describe("applyWorkModeCeiling", () => {
     confidence: "high",
   };
 
-  it("applies ceiling for conflicting modes when score exceeds limit", () => {
+  it("applies adjustment for conflicting modes via ceiling wrapper", () => {
     const result = applyWorkModeCeiling(7.8, "conflicting", highUser, highJob);
     expect(result.ceilingApplied).toBe(true);
-    expect(result.score).toBe(CONFLICTING_CEILING);
-    expect(result.ceilingReason).toContain("Work mode conflict");
+    expect(result.score).toBeLessThan(7.8);
+    expect(result.score).toBe(Math.round((7.8 + WORK_MODE_ADJUSTMENTS.conflicting) * 10) / 10);
   });
 
-  it("does not apply ceiling when score is below threshold", () => {
-    const result = applyWorkModeCeiling(5.5, "conflicting", highUser, highJob);
-    expect(result.ceilingApplied).toBe(false);
-    expect(result.score).toBe(5.5);
-  });
-
-  it("does not apply ceiling for compatible modes", () => {
+  it("does not adjust for compatible modes", () => {
     const result = applyWorkModeCeiling(8.5, "compatible", highUser, highJob);
     expect(result.ceilingApplied).toBe(false);
     expect(result.score).toBe(8.5);
   });
 
-  it("does not apply ceiling for adjacent modes below soft cap", () => {
-    const result = applyWorkModeCeiling(8.0, "adjacent", highUser, highJob);
-    expect(result.ceilingApplied).toBe(false);
-    expect(result.score).toBe(8.0);
+  it("score does not go below 0", () => {
+    const result = applyWorkModeCeiling(1.0, "conflicting", highUser, highJob);
+    expect(result.score).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─── Execution Intensity Detection Tests ────────────────────
+
+describe("detectExecutionIntensity", () => {
+  it("detects no intensity in a systems/product job", () => {
+    const result = detectExecutionIntensity(SYSTEMS_PRODUCT_JOB_TEXT);
+    expect(result.score).toBe(0);
+    expect(result.adjustment).toBe(0);
+    expect(result.triggers).toHaveLength(0);
   });
 
-  it("applies soft ceiling for adjacent modes above 8.5", () => {
-    const result = applyWorkModeCeiling(9.2, "adjacent", highUser, highJob);
-    expect(result.ceilingApplied).toBe(true);
-    expect(result.score).toBe(ADJACENT_CEILING);
-    expect(result.ceilingReason).toContain("Adjacent work modes");
+  it("detects mild intensity in a basic inside sales job", () => {
+    const result = detectExecutionIntensity(INSIDE_SALES_JOB_TEXT);
+    expect(result.score).toBeGreaterThanOrEqual(3);
+    expect(result.adjustment).toBeLessThan(0);
+    expect(result.triggers.length).toBeGreaterThan(0);
   });
 
-  it("does not apply adjacent ceiling when confidence is none", () => {
-    const weakUser: WorkModeClassification = { ...highUser, confidence: "none" };
-    const result = applyWorkModeCeiling(9.2, "adjacent", weakUser, highJob);
-    expect(result.ceilingApplied).toBe(false);
-    expect(result.score).toBe(9.2);
+  it("detects heavy intensity in a grind-heavy sales job", () => {
+    const result = detectExecutionIntensity(PROPERTY_MAX_GRIND_JOB_TEXT);
+    expect(result.score).toBeGreaterThanOrEqual(6);
+    expect(result.adjustment).toBeLessThanOrEqual(INTENSITY_ADJUSTMENTS.heavy);
+    expect(result.triggers.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("does not apply ceiling when user confidence is none", () => {
-    const weakUser: WorkModeClassification = { ...highUser, confidence: "none" };
-    const result = applyWorkModeCeiling(7.8, "conflicting", weakUser, highJob);
-    expect(result.ceilingApplied).toBe(false);
+  it("detects extreme intensity in a door-to-door cold canvassing role", () => {
+    const extremeJob =
+      "Field Sales Canvasser\n" +
+      "Make 80+ cold calls per day and go door-to-door in assigned territory.\n" +
+      "Commission-based only. Must have thick skin and handle rejection daily.\n" +
+      "High-volume outbound prospecting with daily activity targets.\n" +
+      "Quota-carrying role with uncapped commission. Metrics-driven environment.\n" +
+      "Door knocking in residential neighborhoods for in-person sales pitches.";
+    const result = detectExecutionIntensity(extremeJob);
+    expect(result.score).toBeGreaterThanOrEqual(10);
+    expect(result.adjustment).toBe(INTENSITY_ADJUSTMENTS.extreme);
   });
 
-  it("does not apply ceiling when job confidence is none", () => {
-    const weakJob: WorkModeClassification = { ...highJob, confidence: "none" };
-    const result = applyWorkModeCeiling(7.8, "conflicting", highUser, weakJob);
-    expect(result.ceilingApplied).toBe(false);
+  it("returns reason string with trigger details", () => {
+    const result = detectExecutionIntensity(INSIDE_SALES_JOB_TEXT);
+    expect(result.reason).toBeTruthy();
+    expect(result.reason).toContain("Execution intensity");
   });
 });
 
@@ -313,88 +275,414 @@ describe("applyWorkModeCeiling", () => {
 
 describe("evaluateWorkMode — regression scenarios", () => {
 
-  it("Chris (Builder) vs inside-sales job → NOT a strong match (ceiling applied)", () => {
+  it("Chris (Builder) vs inside-sales job → dragged below 7 (conflicting + intensity)", () => {
     // Simulating a raw score of 7.3 that inflated from keyword overlap
-    const result = evaluateWorkMode(7.3, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB);
+    const result = evaluateWorkMode(7.3, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB_TEXT);
     expect(result.userMode.mode).toBe("builder_systems");
     expect(result.jobMode.mode).toBe("sales_execution");
     expect(result.compatibility).toBe("conflicting");
-    expect(result.ceilingApplied).toBe(true);
-    expect(result.postScore).toBeLessThanOrEqual(CONFLICTING_CEILING);
+    expect(result.workModeAdjustment).toBeLessThan(0);
     expect(result.postScore).toBeLessThan(7.0);
   });
 
-  it("Chris (Builder) vs systems/product role → remains high (no ceiling)", () => {
-    const result = evaluateWorkMode(8.2, CHRIS_RESUME, CHRIS_PROMPTS, SYSTEMS_PRODUCT_JOB);
+  it("Chris (Builder) vs systems/product role → remains high (no adjustment)", () => {
+    const result = evaluateWorkMode(8.2, CHRIS_RESUME, CHRIS_PROMPTS, SYSTEMS_PRODUCT_JOB_TEXT);
     expect(result.userMode.mode).toBe("builder_systems");
     expect(result.jobMode.mode).toBe("builder_systems");
     expect(result.compatibility).toBe("compatible");
-    expect(result.ceilingApplied).toBe(false);
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.executionIntensityAdjustment).toBe(0);
     expect(result.postScore).toBe(8.2);
   });
 
-  it("Fabio (Analytical) vs sales job → suppressed (ceiling applied)", () => {
-    const result = evaluateWorkMode(7.0, FABIO_RESUME, FABIO_PROMPTS, INSIDE_SALES_JOB);
+  it("Fabio (Analytical) vs sales job → suppressed below 7", () => {
+    const result = evaluateWorkMode(7.0, FABIO_RESUME, FABIO_PROMPTS, INSIDE_SALES_JOB_TEXT);
     expect(result.userMode.mode).toBe("analytical_investigative");
     expect(result.jobMode.mode).toBe("sales_execution");
     expect(result.compatibility).toBe("conflicting");
-    expect(result.ceilingApplied).toBe(true);
+    expect(result.workModeAdjustment).toBeLessThan(0);
     expect(result.postScore).toBeLessThan(7.0);
   });
 
   it("Fabio (Analytical) vs security analyst job → remains high", () => {
-    const result = evaluateWorkMode(8.5, FABIO_RESUME, FABIO_PROMPTS, SECURITY_ANALYST_JOB);
+    const result = evaluateWorkMode(8.5, FABIO_RESUME, FABIO_PROMPTS, SECURITY_ANALYST_JOB_TEXT);
     expect(result.userMode.mode).toBe("analytical_investigative");
     expect(result.jobMode.mode).toBe("analytical_investigative");
     expect(result.compatibility).toBe("compatible");
-    expect(result.ceilingApplied).toBe(false);
+    expect(result.workModeAdjustment).toBe(0);
     expect(result.postScore).toBe(8.5);
   });
 
-  it("Jen vs adjacent ops role → may remain viable (not conflicting)", () => {
-    const result = evaluateWorkMode(7.2, JEN_RESUME, JEN_PROMPTS, OPS_COORDINATOR_JOB);
+  it("Jen vs adjacent ops role → mild drag only, remains viable", () => {
+    const result = evaluateWorkMode(7.2, JEN_RESUME, JEN_PROMPTS, OPS_COORDINATOR_JOB_TEXT);
     // Jen's mode could be operational_execution or sales_execution
     // Either way, ops job should NOT be conflicting for her
     expect(result.compatibility).not.toBe("conflicting");
-    expect(result.ceilingApplied).toBe(false);
-    expect(result.postScore).toBe(7.2);
+    // Adjacent gets mild penalty; compatible gets none; either way score stays viable
+    expect(result.postScore).toBeGreaterThanOrEqual(6.0);
+    expect(result.postScore).toBeLessThanOrEqual(7.5);
   });
 
-  it("Chris (Builder) vs sales-ops hybrid → conflicting ceiling prevents inflation", () => {
-    const result = evaluateWorkMode(7.5, CHRIS_RESUME, CHRIS_PROMPTS, SALES_OPS_HYBRID_JOB);
+  it("Chris (Builder) vs sales-ops hybrid → conflicting adjustment prevents inflation", () => {
+    const result = evaluateWorkMode(7.5, CHRIS_RESUME, CHRIS_PROMPTS, SALES_OPS_HYBRID_JOB_TEXT);
     expect(result.userMode.mode).toBe("builder_systems");
     expect(result.jobMode.mode).toBe("sales_execution");
     expect(result.compatibility).toBe("conflicting");
-    expect(result.ceilingApplied).toBe(true);
-    expect(result.postScore).toBeLessThanOrEqual(CONFLICTING_CEILING);
+    expect(result.workModeAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThan(7.0);
   });
 
-  it("low raw score is not further compressed by ceiling", () => {
-    const result = evaluateWorkMode(4.2, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB);
+  it("low raw score receives adjustment and stays low", () => {
+    const result = evaluateWorkMode(4.2, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB_TEXT);
     expect(result.compatibility).toBe("conflicting");
-    expect(result.ceilingApplied).toBe(false);
-    expect(result.postScore).toBe(4.2);
+    expect(result.postScore).toBeLessThan(4.2);
+    // Score never goes below 0
+    expect(result.postScore).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─── Target Band Validation Tests ───────────────────────────
+
+describe("evaluateWorkMode — target band behavior", () => {
+  it("same-mode strong fit: score stays in 7–9 range", () => {
+    const result = evaluateWorkMode(8.5, CHRIS_RESUME, CHRIS_PROMPTS, SYSTEMS_PRODUCT_JOB_TEXT);
+    expect(result.postScore).toBeGreaterThanOrEqual(7);
+    expect(result.postScore).toBeLessThanOrEqual(9.5);
+  });
+
+  it("adjacent fit: score settles in 6–7.5 range", () => {
+    // Builder vs Ops = adjacent
+    const result = evaluateWorkMode(7.5, CHRIS_RESUME, CHRIS_PROMPTS, OPS_COORDINATOR_JOB_TEXT);
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.postScore).toBeGreaterThanOrEqual(6.0);
+    expect(result.postScore).toBeLessThanOrEqual(7.5);
+  });
+
+  it("conflicting but light role: score drops but not catastrophic", () => {
+    // Builder vs sales (no grind signals beyond the standard ones)
+    const result = evaluateWorkMode(6.5, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB_TEXT);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThan(6.5);
+    expect(result.postScore).toBeGreaterThanOrEqual(2.0);
+  });
+
+  it("conflicting + high-intensity grind role: score lands in 'actively wrong' zone (3–5)", () => {
+    // Property Max style grind job against a Builder profile
+    const result = evaluateWorkMode(7.0, CHRIS_RESUME, CHRIS_PROMPTS, PROPERTY_MAX_GRIND_JOB_TEXT);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.executionIntensityAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
+    expect(result.postScore).toBeGreaterThanOrEqual(0);
+  });
+
+  it("Property Max grind job pushed into avoid zone for Builder profile", () => {
+    // Even with raw 7.3 (keyword overlap), total adjustments should crush this
+    const result = evaluateWorkMode(7.3, CHRIS_RESUME, CHRIS_PROMPTS, PROPERTY_MAX_GRIND_JOB_TEXT);
+    expect(result.workModeAdjustment).toBeLessThan(-1);
+    expect(result.executionIntensityAdjustment).toBeLessThan(-1);
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
+  });
+
+  it("Property Max grind job also bad for Analytical profile", () => {
+    const result = evaluateWorkMode(6.5, FABIO_RESUME, FABIO_PROMPTS, PROPERTY_MAX_GRIND_JOB_TEXT);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
   });
 });
 
 // ─── Debug Output Structure ─────────────────────────────────
 
 describe("evaluateWorkMode — debug output", () => {
-  it("returns complete debug structure", () => {
-    const result = evaluateWorkMode(7.0, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB);
+  it("returns complete debug structure with adjustment fields", () => {
+    const result = evaluateWorkMode(7.0, CHRIS_RESUME, CHRIS_PROMPTS, INSIDE_SALES_JOB_TEXT);
     expect(result).toHaveProperty("userMode");
     expect(result).toHaveProperty("jobMode");
     expect(result).toHaveProperty("compatibility");
     expect(result).toHaveProperty("preScore");
     expect(result).toHaveProperty("postScore");
-    expect(result).toHaveProperty("ceilingApplied");
-    expect(result).toHaveProperty("ceilingReason");
+    expect(result).toHaveProperty("workModeAdjustment");
+    expect(result).toHaveProperty("executionIntensityAdjustment");
+    expect(result).toHaveProperty("executionIntensity");
+    expect(result).toHaveProperty("adjustmentReason");
     expect(result.userMode).toHaveProperty("mode");
     expect(result.userMode).toHaveProperty("scores");
     expect(result.userMode).toHaveProperty("topMatches");
     expect(result.userMode).toHaveProperty("confidence");
     expect(result.jobMode).toHaveProperty("mode");
     expect(result.jobMode).toHaveProperty("scores");
-    expect(result.ceilingReason).toContain("Work mode conflict");
+    expect(result.executionIntensity).toHaveProperty("score");
+    expect(result.executionIntensity).toHaveProperty("adjustment");
+    expect(result.executionIntensity).toHaveProperty("triggers");
+    expect(result.adjustmentReason).toBeTruthy();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// NEW FIXTURE COVERAGE (v0.9.22 fixture expansion)
+// ═══════════════════════════════════════════════════════════
+
+// ─── New User Classification Tests ──────────────────────────
+
+describe("classifyUserWorkMode — expanded fixtures", () => {
+  it("classifies Marcus as sales_execution", () => {
+    const result = classifyUserWorkMode(MARCUS.resumeText, MARCUS.promptAnswers);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).not.toBe("none");
+  });
+
+  it("classifies Priya as operational_execution", () => {
+    const result = classifyUserWorkMode(PRIYA.resumeText, PRIYA.promptAnswers);
+    expect(result.mode).toBe("operational_execution");
+    expect(result.confidence).not.toBe("none");
+  });
+
+  it("classifies Luna as creative_ideation", () => {
+    const result = classifyUserWorkMode(LUNA.resumeText, LUNA.promptAnswers);
+    expect(result.mode).toBe("creative_ideation");
+    expect(result.confidence).not.toBe("none");
+  });
+
+  it("classifies Alex (builder+analytical blend) with builder dominant", () => {
+    const result = classifyUserWorkMode(ALEX.resumeText, ALEX.promptAnswers);
+    expect(result.mode).toBe("builder_systems");
+    expect(result.scores.builder_systems).toBeGreaterThan(result.scores.analytical_investigative);
+  });
+
+  it("classifies Dana (sales+ops blend) with sales dominant", () => {
+    const result = classifyUserWorkMode(DANA.resumeText, DANA.promptAnswers);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.scores.sales_execution).toBeGreaterThan(result.scores.operational_execution);
+  });
+
+  it("classifies Rio (creative+builder blend) with creative dominant", () => {
+    const result = classifyUserWorkMode(RIO.resumeText, RIO.promptAnswers);
+    expect(result.mode).toBe("creative_ideation");
+    expect(result.scores.creative_ideation).toBeGreaterThan(result.scores.builder_systems);
+  });
+
+  it("classifies Nadia (analytical+creative blend) with analytical dominant", () => {
+    const result = classifyUserWorkMode(NADIA.resumeText, NADIA.promptAnswers);
+    expect(result.mode).toBe("analytical_investigative");
+    expect(result.scores.analytical_investigative).toBeGreaterThan(result.scores.creative_ideation);
+  });
+
+  it("classifies Tomas (ops+sales blend) with ops dominant", () => {
+    const result = classifyUserWorkMode(TOMAS.resumeText, TOMAS.promptAnswers);
+    expect(result.mode).toBe("operational_execution");
+    expect(result.scores.operational_execution).toBeGreaterThan(result.scores.sales_execution);
+  });
+
+  it("Dingus remains weak/unclassified (control fixture)", () => {
+    const result = classifyUserWorkMode(DINGUS.resumeText, DINGUS.promptAnswers);
+    // Dingus should be low confidence — weak profile
+    expect(result.confidence === "none" || result.confidence === "low").toBe(true);
+  });
+});
+
+// ─── New Job Classification Tests ───────────────────────────
+
+describe("classifyJobWorkMode — expanded fixtures", () => {
+  it("classifies DevOps Engineer as builder_systems", () => {
+    const result = classifyJobWorkMode(DEVOPS_ENGINEER_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("classifies Full-Stack Engineer as builder_systems", () => {
+    const result = classifyJobWorkMode(FULLSTACK_ENGINEER_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+  });
+
+  it("classifies Enterprise AE as sales_execution", () => {
+    const result = classifyJobWorkMode(ENTERPRISE_AE_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("classifies BDR Outbound as sales_execution", () => {
+    const result = classifyJobWorkMode(BDR_OUTBOUND_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+  });
+
+  it("classifies Warehouse Ops as operational_execution", () => {
+    const result = classifyJobWorkMode(WAREHOUSE_OPS_JOB.text);
+    expect(result.mode).toBe("operational_execution");
+  });
+
+  it("classifies Call Center as operational_execution", () => {
+    const result = classifyJobWorkMode(CALL_CENTER_JOB.text);
+    expect(result.mode).toBe("operational_execution");
+  });
+
+  it("classifies Data Analyst as analytical_investigative", () => {
+    const result = classifyJobWorkMode(DATA_ANALYST_JOB.text);
+    expect(result.mode).toBe("analytical_investigative");
+  });
+
+  it("classifies Forensic Accountant as analytical_investigative", () => {
+    const result = classifyJobWorkMode(FORENSIC_ACCOUNTANT_JOB.text);
+    expect(result.mode).toBe("analytical_investigative");
+  });
+
+  it("classifies Creative Director as creative_ideation", () => {
+    const result = classifyJobWorkMode(CREATIVE_DIRECTOR_JOB.text);
+    expect(result.mode).toBe("creative_ideation");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("classifies Content Strategist as creative_ideation", () => {
+    const result = classifyJobWorkMode(CONTENT_STRATEGIST_JOB.text);
+    expect(result.mode).toBe("creative_ideation");
+  });
+});
+
+// ─── Expanded Regression Tests (e2e evaluateWorkMode) ───────
+
+describe("evaluateWorkMode — expanded regression", () => {
+
+  // Same-mode preservation: each pure user vs matching job → no drag
+  it("Marcus (Sales) vs inside sales job → compatible, but execution intensity still drags", () => {
+    const result = evaluateWorkMode(8.0, MARCUS.resumeText, MARCUS.promptAnswers, INSIDE_SALES_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    // Execution intensity still applies — inside sales has heavy grind signals
+    // (50+ calls/day, cold calling, commission, objection handling, etc.)
+    expect(result.executionIntensityAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThan(8.0);
+  });
+
+  it("Priya (Ops) vs ops coordinator job → compatible, score preserved", () => {
+    const result = evaluateWorkMode(7.5, PRIYA.resumeText, PRIYA.promptAnswers, OPS_COORDINATOR_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.postScore).toBe(7.5);
+  });
+
+  it("Luna (Creative) vs creative director job → compatible, score preserved", () => {
+    const result = evaluateWorkMode(8.5, LUNA.resumeText, LUNA.promptAnswers, CREATIVE_DIRECTOR_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.postScore).toBe(8.5);
+  });
+
+  // Conflicting cross-mode: score dragged down
+  it("Marcus (Sales) vs builder/systems job → conflicting, dragged down", () => {
+    const result = evaluateWorkMode(7.5, MARCUS.resumeText, MARCUS.promptAnswers, SYSTEMS_PRODUCT_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.workModeAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  it("Luna (Creative) vs inside sales job → conflicting, dragged down", () => {
+    const result = evaluateWorkMode(7.0, LUNA.resumeText, LUNA.promptAnswers, INSIDE_SALES_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.workModeAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  it("Fabio (Analytical) vs ops coordinator → conflicting, dragged down", () => {
+    const result = evaluateWorkMode(7.0, FABIO.resumeText, FABIO.promptAnswers, OPS_COORDINATOR_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.workModeAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  // Adjacent cross-mode: mild drag only
+  it("Chris (Builder) vs analytical job → adjacent, mild drag", () => {
+    const result = evaluateWorkMode(8.0, CHRIS.resumeText, CHRIS.promptAnswers, SECURITY_ANALYST_JOB.text);
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.workModeAdjustment).toBe(WORK_MODE_ADJUSTMENTS.adjacent);
+    expect(result.postScore).toBeGreaterThanOrEqual(6.5);
+    expect(result.postScore).toBeLessThanOrEqual(8.0);
+  });
+
+  // Blended user: dominant mode determines compatibility
+  it("Alex (builder-dominant blend) vs builder job → compatible", () => {
+    const result = evaluateWorkMode(8.0, ALEX.resumeText, ALEX.promptAnswers, DEVOPS_ENGINEER_JOB.text);
+    expect(result.userMode.mode).toBe("builder_systems");
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+  });
+
+  it("Nadia (analytical-dominant blend) vs sales job → conflicting", () => {
+    const result = evaluateWorkMode(7.0, NADIA.resumeText, NADIA.promptAnswers, INSIDE_SALES_JOB.text);
+    expect(result.userMode.mode).toBe("analytical_investigative");
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  // Dingus (weak control): no adjustment applied due to low confidence
+  it("Dingus (weak profile) vs sales job → low-confidence adjacent, mild drag", () => {
+    const result = evaluateWorkMode(6.0, DINGUS.resumeText, DINGUS.promptAnswers, INSIDE_SALES_JOB.text);
+    // Dingus classifies as operational_execution with low confidence (customer service + scheduling)
+    // ops vs sales = adjacent, and low confidence still triggers adjustment (only "none" skips)
+    expect(result.userMode.confidence).toBe("low");
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.workModeAdjustment).toBe(WORK_MODE_ADJUSTMENTS.adjacent);
+  });
+
+  // Ops user vs call center (compatible but execution intensity applies)
+  it("Priya (Ops) vs call center → compatible, but no execution intensity (no grind triggers)", () => {
+    const result = evaluateWorkMode(7.5, PRIYA.resumeText, PRIYA.promptAnswers, CALL_CENTER_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    // Call center job has customer support but no heavy execution-intensity triggers
+    expect(result.postScore).toBeGreaterThanOrEqual(7.0);
+  });
+
+  // Grind-job still crushes non-sales profiles
+  it("Luna (Creative) vs Property Max grind → conflicting + intensity, crushed", () => {
+    const result = evaluateWorkMode(7.0, LUNA.resumeText, LUNA.promptAnswers, PROPERTY_MAX_GRIND_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.workModeAdjustment).toBeLessThan(0);
+    expect(result.executionIntensityAdjustment).toBeLessThan(0);
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
+  });
+});
+
+// ─── False-Positive Prevention Tests ────────────────────────
+
+describe("evaluateWorkMode — false-positive prevention", () => {
+
+  it("VP Sales with strategy vocabulary still classifies as sales_execution, not builder", () => {
+    // This job uses strategic ownership language ("own the full revenue pipeline",
+    // "build and manage a sales team") that could trick the classifier into
+    // builder_systems. It must still land as sales_execution.
+    const jobResult = classifyJobWorkMode(VP_SALES_STRATEGY_JOB.text);
+    expect(jobResult.mode).toBe("sales_execution");
+    // And a builder user should get conflicting, not compatible
+    const result = evaluateWorkMode(7.8, CHRIS.resumeText, CHRIS.promptAnswers, VP_SALES_STRATEGY_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  it("Startup COO with ownership vocabulary still classifies as operational_execution, not builder", () => {
+    // "Own all operational execution" + "COO" title could inflate builder signals.
+    // The dense ops triggers (procurement, payroll, bookkeeping, onboarding, scheduling,
+    // data entry, ERP) must dominate.
+    const jobResult = classifyJobWorkMode(STARTUP_COO_OPS_JOB.text);
+    expect(jobResult.mode).toBe("operational_execution");
+    // Builder user should get adjacent, not compatible
+    const result = evaluateWorkMode(7.5, CHRIS.resumeText, CHRIS.promptAnswers, STARTUP_COO_OPS_JOB.text);
+    expect(result.compatibility).toBe("adjacent");
+    expect(result.postScore).toBeLessThan(7.5);
+  });
+
+  it("Field Ops Director with leadership vocabulary still classifies as operational_execution", () => {
+    // "Director" title and "ensure operational excellence" could look strategic.
+    // Dense ops triggers (logistics, dispatch, inventory, procurement, invoicing,
+    // payroll, ticketing, order processing, ERP, clerical) must dominate.
+    const jobResult = classifyJobWorkMode(FIELD_OPS_DIRECTOR_JOB.text);
+    expect(jobResult.mode).toBe("operational_execution");
+    // Analytical user should get conflicting
+    const result = evaluateWorkMode(7.5, FABIO.resumeText, FABIO.promptAnswers, FIELD_OPS_DIRECTOR_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThan(7.0);
+  });
+
+  it("BDR outbound grind job not inflated for analytical profile", () => {
+    const result = evaluateWorkMode(7.0, FABIO.resumeText, FABIO.promptAnswers, BDR_OUTBOUND_JOB.text);
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThan(7.0);
   });
 });
