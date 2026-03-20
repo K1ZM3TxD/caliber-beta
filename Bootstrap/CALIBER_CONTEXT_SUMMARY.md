@@ -7,7 +7,7 @@
 **Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Phase-2 overlay scoring is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. Extension operates as a two-layer surface: discovery badges on search result cards + decision sidecard on selected job.
 
 **Beta gates status:**
-1. BST working — IN VALIDATION (surface-classification trigger shipped v0.8.9)
+1. BST working — IN VALIDATION (surface-classification trigger + initial-surface gating shipped; BST evaluation engine operational; popup replaced by Adjacent Searches module v0.9.20)
 2. Sidecard stable — IN VALIDATION (collapsed height resolved, fetch stability fixed)
 3. Pipeline solid — FUNCTIONAL (board implemented, needs product validation)
 4. Sign-in / memory — NOT YET IMPLEMENTED (next major work item)
@@ -120,8 +120,8 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 
 **Structure (top to bottom):**
 
-*Above the sidecard (conditional):*
-0. **Better Search Title recovery banner** — appears when surface classification determines the user needs recovery (out-of-scope surface, or aligned surface with zero strong matches). Uses query-level `classifySearchSurface()` returning aligned/out-of-scope/ambiguous. Minimum 5 scored jobs. Re-evaluable per chunk. Renders as a standalone banner above the sidecard. Contains a clickable suggested title that links to a LinkedIn search. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
+*Inside the sidecard (BST presentation updated v0.9.20):*
+0. **Adjacent Searches module (formerly BST popup banner)** — persistent collapsible section showing chip-styled search term links populated from calibration title + nearby roles (v0.9.20, issue #82). Replaces the standalone popup banner that previously rendered above the sidecard. BST evaluation engine (`evaluateBSTFromBadgeCache()`) still runs and classifies surfaces; surface classification drives a subtle pulse/glow when ≥20 jobs scored + "bst" surface classification. Suggests calibration primary title or adjacent search-surface titles — never listing-specific titles.
 
 *Inside the sidecard:*
 1. **Header bar** — Caliber logo + refresh + close button
@@ -141,13 +141,12 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 
 Better Search Title is a **Search Surface Recovery Mechanism**. It answers the user question: "What title should I search to find better-fit jobs?"
 
-**Trigger (updated 2026-03-15, v0.8.9):** Uses query-level surface classification via `classifySearchSurface()`. Returns aligned/out-of-scope/ambiguous. Decision: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger if no strong AND avg < 6.0. Evaluated after minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
+**Trigger (updated 2026-03-15, v0.8.9; trigger family expanded v0.9.5):** Uses query-level surface classification via `classifySearchSurface()`. Returns aligned/out-of-scope/ambiguous. Decision: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger when strongCount === 0 AND (avgScore < 6.0 OR noClusterOverlap OR bothUnclusteredNoOverlap). Evaluated after minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
 
-**UX:**
-- Recovery banner renders **above** the sidecard, not inside it.
-- Banner is visually connected to the sidecard but structurally separate.
-- The suggested title is the clickable control — clicking navigates to a LinkedIn search for that title.
-- Compact, visually calm (blue accent, not error-red). Feels like a helpful next move, not a warning.
+**UX (updated v0.9.20):**
+- Presented as a persistent collapsible "Adjacent Searches" section inside the sidecard (v0.9.20, issue #82). Previously rendered as a popup banner above the sidecard (popup disabled v0.9.20).
+- Initial-surface gating (v0.9.7+): BST evaluation deferred via `initialSurfaceResolved` gate until initial scoring queue drains.
+- No stale restore (v0.9.10): durable prescan state no longer restores surface banner on init.
 
 **Title suggestion logic:**
 - Primary: calibration primary title (the user's strongest fit direction from their calibration session).

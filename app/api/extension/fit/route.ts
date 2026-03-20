@@ -145,10 +145,16 @@ export async function POST(req: NextRequest) {
         jobModeScores: workMode.jobMode.scores,
         jobModeMatches: workMode.jobMode.topMatches,
         compatibility: workMode.compatibility,
-        preScore: workMode.preScore,
-        postScore: workMode.postScore,
-        ceilingApplied: workMode.ceilingApplied,
-        ceilingReason: workMode.ceilingReason,
+        preAdjustmentScore: workMode.preScore,
+        workModeAdjustment: workMode.workModeAdjustment,
+        executionIntensityAdjustment: workMode.executionIntensityAdjustment,
+        executionIntensity: {
+          score: workMode.executionIntensity.score,
+          triggers: workMode.executionIntensity.triggers,
+          reason: workMode.executionIntensity.reason,
+        },
+        finalScore: workMode.postScore,
+        adjustmentReason: workMode.adjustmentReason,
       },
     }, 200);
   } catch (e: any) {

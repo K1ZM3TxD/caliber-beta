@@ -132,6 +132,25 @@ This applies to ALL extension artifacts shipped to users:
 
 **Violation = regression.** Any production extension build containing localhost endpoints is a shipping defect.
 
+### Extension Release Policy (2026-03-20)
+
+Chrome Web Store uploads are **milestone-gated, not fix-gated.**
+
+**Rules:**
+- Internal extension builds iterate freely on `main` during stabilization. Sideloaded ZIPs for dev/local testing are always permitted.
+- Individual bug fixes, scoring adjustments, and BST/sidecard refinements do **not** trigger a Chrome Store upload.
+- A Chrome Store submission occurs only when:
+  1. A major stabilization block is complete (e.g., all beta gates passing), AND
+  2. The `stable` branch build represents a beta-ready (or later-phase) product state.
+- The candidate build must be promoted to `stable` before store submission. `main` builds are never submitted to the store.
+
+**Rationale:**
+- Avoids Chrome Web Store review bottlenecks during fast internal iteration.
+- Preserves rapid scoring/BST/sidecard stabilization cycles without store latency.
+- Ensures every store-published version represents a meaningful, validated product milestone.
+
+**Violation:** Submitting a routine-fix build to the Chrome Store without PM approval is a process defect. Post-beta release cadence may change.
+
 ## PM/Coder Sequencing Guardrail (2026-03-08)
 
 Locked task order for current phase:
