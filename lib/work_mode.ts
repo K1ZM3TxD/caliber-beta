@@ -39,6 +39,7 @@ export type WorkModeResult = {
   preScore: number;
   workModeAdjustment: number;
   executionIntensityAdjustment: number;
+  preferenceAdjustment: number;
   postScore: number;
   adjustmentReason: string | null;
 };
@@ -597,6 +598,58 @@ export function applyWorkModeCeiling(
   };
 }
 
+// ─── Work Preference Modulation ─────────────────────────────
+// Post-classification nudge based on explicit user preferences.
+// Acts after work mode + execution intensity adjustments.
+// Conservative: nudges direction, does not flip scores.
+
+/** Boost when job mode matches user's primary preferred mode. */
+const PREFERENCE_PRIMARY_BOOST = 0.5;
+/** Boost when job mode matches a secondary preferred mode (not primary). */
+const PREFERENCE_SECONDARY_BOOST = 0.3;
+/** Penalty when job mode matches an explicitly avoided mode. */
+const PREFERENCE_AVOID_PENALTY = -1.5;
+
+export type WorkPreferenceInput = {
+  primaryMode?: string;
+  preferredModes?: string[];
+  avoidedModes?: string[];
+};
+
+/**
+ * Compute preference-based score adjustment.
+ * Rules:
+ *  - avoided takes precedence over preferred (if both match, penalty wins)
+ *  - primary boost only if job mode === primaryMode
+ *  - secondary boost if job mode ∈ preferredModes (and not primary)
+ *  - no preferences → 0
+ */
+export function applyPreferenceModulation(
+  jobMode: WorkMode | null,
+  preferences: WorkPreferenceInput | undefined | null,
+): { adjustment: number; reason: string | null } {
+  if (!preferences || !jobMode) return { adjustment: 0, reason: null };
+
+  const avoided = preferences.avoidedModes ?? [];
+  const preferred = preferences.preferredModes ?? [];
+  const primary = preferences.primaryMode ?? null;
+
+  // Avoided takes precedence
+  if (avoided.includes(jobMode)) {
+    return { adjustment: PREFERENCE_AVOID_PENALTY, reason: `avoided mode (${jobMode})` };
+  }
+
+  if (primary && jobMode === primary) {
+    return { adjustment: PREFERENCE_PRIMARY_BOOST, reason: `primary preferred mode (${jobMode})` };
+  }
+
+  if (preferred.includes(jobMode)) {
+    return { adjustment: PREFERENCE_SECONDARY_BOOST, reason: `secondary preferred mode (${jobMode})` };
+  }
+
+  return { adjustment: 0, reason: null };
+}
+
 // ─── Full Pipeline ──────────────────────────────────────────
 
 export function evaluateWorkMode(
@@ -604,6 +657,7 @@ export function evaluateWorkMode(
   resumeText: string,
   promptAnswers: Record<number, string>,
   jobText: string,
+  preferences?: WorkPreferenceInput | null,
 ): WorkModeResult {
   const userMode = classifyUserWorkMode(resumeText, promptAnswers);
   const jobMode = classifyJobWorkMode(jobText);
@@ -622,13 +676,18 @@ export function evaluateWorkMode(
   // When both adjustments fire, dampen intensity to avoid double-counting daily-work misalignment.
   // Intensity applies at half strength when work mode is already conflicting.
   const dampedEiAdj = (compatibility === "conflicting" && eiAdj < 0) ? eiAdj * 0.5 : eiAdj;
-  const totalAdjustment = wmAdj + dampedEiAdj;
+
+  // Preference modulation (post-classification nudge)
+  const { adjustment: prefAdj, reason: prefReason } = applyPreferenceModulation(jobMode.mode, preferences);
+
+  const totalAdjustment = wmAdj + dampedEiAdj + prefAdj;
   const postScore = round1(Math.max(0, Math.min(10, rawScore + totalAdjustment)));
 
   // Build composite reason
   const reasons: string[] = [];
   if (wmReason) reasons.push(wmReason);
   if (executionIntensity.reason) reasons.push(executionIntensity.reason);
+  if (prefReason) reasons.push(prefReason);
   const adjustmentReason = reasons.length > 0 ? reasons.join(" | ") : null;
 
   return {
@@ -639,6 +698,7 @@ export function evaluateWorkMode(
     preScore: rawScore,
     workModeAdjustment: wmAdj,
     executionIntensityAdjustment: dampedEiAdj,
+    preferenceAdjustment: prefAdj,
     postScore,
     adjustmentReason,
   };
@@ -660,4 +720,7 @@ export const _testing = {
   EXECUTION_MANAGEMENT_SIGNALS,
   EXECUTION_DOMINANCE_THRESHOLD,
   applyExecutionDiscriminator,
+  PREFERENCE_PRIMARY_BOOST,
+  PREFERENCE_SECONDARY_BOOST,
+  PREFERENCE_AVOID_PENALTY,
 };

@@ -101,7 +101,8 @@ export async function POST(req: NextRequest) {
       }
     }
     const rawScore = alignment.score ?? 0;
-    const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText);
+    const workPrefs = session.workPreferences ?? undefined;
+    const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText, workPrefs);
     const finalScore = workMode.postScore;
 
     // Extract calibration titles for search suggestions
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
         preAdjustmentScore: workMode.preScore,
         workModeAdjustment: workMode.workModeAdjustment,
         executionIntensityAdjustment: workMode.executionIntensityAdjustment,
+        preferenceAdjustment: workMode.preferenceAdjustment,
         executionIntensity: {
           score: workMode.executionIntensity.score,
           triggers: workMode.executionIntensity.triggers,

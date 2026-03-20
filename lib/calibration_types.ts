@@ -167,6 +167,19 @@ export interface CalibrationSession {
   // User's explicit choice: true = include in scoring, false = resume only, null/undefined = not yet chosen.
   includeDetectedSignals?: boolean | null;
 
+  // Work preference chips selected during calibration.
+  // Modes map to WorkMode values: builder_systems, sales_execution, etc.
+  workPreferences?: WorkPreferences;
+
   // Result object (shape defined elsewhere)
   result?: any;
+}
+
+export interface WorkPreferences {
+  /** Single strongest preference — receives largest boost. */
+  primaryMode?: string;
+  /** Additional preferred modes (excluding primary) — receive smaller boost. */
+  preferredModes?: string[];
+  /** Modes the user explicitly wants to avoid — receive penalty. */
+  avoidedModes?: string[];
 }

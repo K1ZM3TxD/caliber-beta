@@ -8,6 +8,7 @@ import {
   applyWorkModeAdjustment,
   detectExecutionIntensity,
   evaluateWorkMode,
+  applyPreferenceModulation,
   _testing,
   type WorkMode,
   type WorkModeClassification,
@@ -975,5 +976,133 @@ describe("evaluateWorkMode — Jen sales/partnerships scenarios", () => {
     const result = evaluateWorkMode(8.0, MARCUS.resumeText, MARCUS.promptAnswers, BDM_JOB.text);
     expect(result.compatibility).toBe("compatible");
     expect(result.postScore).toBe(8.0);
+  });
+});
+
+// ─── Preference Modulation ──────────────────────────────────
+
+const { PREFERENCE_PRIMARY_BOOST, PREFERENCE_SECONDARY_BOOST, PREFERENCE_AVOID_PENALTY } = _testing;
+
+describe("applyPreferenceModulation — unit", () => {
+  it("no preferences → zero adjustment", () => {
+    const r = applyPreferenceModulation("builder_systems", undefined);
+    expect(r.adjustment).toBe(0);
+    expect(r.reason).toBeNull();
+  });
+
+  it("null preferences → zero adjustment", () => {
+    const r = applyPreferenceModulation("builder_systems", null);
+    expect(r.adjustment).toBe(0);
+  });
+
+  it("null job mode → zero adjustment", () => {
+    const r = applyPreferenceModulation(null, { primaryMode: "builder_systems" });
+    expect(r.adjustment).toBe(0);
+  });
+
+  it("primary mode match → primary boost", () => {
+    const r = applyPreferenceModulation("sales_execution", { primaryMode: "sales_execution" });
+    expect(r.adjustment).toBe(PREFERENCE_PRIMARY_BOOST);
+    expect(r.reason).toContain("primary preferred");
+  });
+
+  it("secondary preferred match → secondary boost", () => {
+    const r = applyPreferenceModulation("analytical_investigative", {
+      primaryMode: "builder_systems",
+      preferredModes: ["analytical_investigative"],
+    });
+    expect(r.adjustment).toBe(PREFERENCE_SECONDARY_BOOST);
+    expect(r.reason).toContain("secondary preferred");
+  });
+
+  it("avoided mode → penalty", () => {
+    const r = applyPreferenceModulation("sales_execution", {
+      avoidedModes: ["sales_execution"],
+    });
+    expect(r.adjustment).toBe(PREFERENCE_AVOID_PENALTY);
+    expect(r.reason).toContain("avoided mode");
+  });
+
+  it("avoided takes precedence over preferred", () => {
+    const r = applyPreferenceModulation("sales_execution", {
+      primaryMode: "sales_execution",
+      preferredModes: ["sales_execution"],
+      avoidedModes: ["sales_execution"],
+    });
+    expect(r.adjustment).toBe(PREFERENCE_AVOID_PENALTY);
+  });
+
+  it("no match in any list → zero adjustment", () => {
+    const r = applyPreferenceModulation("operational_execution", {
+      primaryMode: "builder_systems",
+      preferredModes: ["analytical_investigative"],
+      avoidedModes: ["creative_ideation"],
+    });
+    expect(r.adjustment).toBe(0);
+  });
+});
+
+describe("evaluateWorkMode — preference modulation integration", () => {
+  it("no preferences → preferenceAdjustment is 0, score unchanged", () => {
+    const r = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text);
+    expect(r.preferenceAdjustment).toBe(0);
+  });
+
+  it("primary preference match boosts score", () => {
+    const without = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text);
+    const withPref = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text, {
+      primaryMode: "builder_systems",
+    });
+    expect(withPref.preferenceAdjustment).toBe(PREFERENCE_PRIMARY_BOOST);
+    expect(withPref.postScore).toBe(without.postScore + PREFERENCE_PRIMARY_BOOST);
+  });
+
+  it("avoided preference applies penalty", () => {
+    const without = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text);
+    const withPref = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text, {
+      avoidedModes: ["builder_systems"],
+    });
+    expect(withPref.preferenceAdjustment).toBe(PREFERENCE_AVOID_PENALTY);
+    expect(withPref.postScore).toBe(without.postScore + PREFERENCE_AVOID_PENALTY);
+  });
+
+  it("score clamped to 0–10 range after preference boost", () => {
+    const r = evaluateWorkMode(9.8, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text, {
+      primaryMode: "builder_systems",
+    });
+    expect(r.postScore).toBeLessThanOrEqual(10);
+    expect(r.postScore).toBeGreaterThanOrEqual(0);
+  });
+
+  it("score clamped to 0 floor after preference penalty", () => {
+    const r = evaluateWorkMode(1.0, CHRIS.resumeText, CHRIS.promptAnswers, INSIDE_SALES_JOB.text, {
+      avoidedModes: ["sales_execution"],
+    });
+    expect(r.postScore).toBeGreaterThanOrEqual(0);
+  });
+
+  it("preference reason appears in adjustmentReason", () => {
+    const r = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, SYSTEMS_PRODUCT_JOB.text, {
+      primaryMode: "builder_systems",
+    });
+    expect(r.adjustmentReason).toContain("primary preferred");
+  });
+
+  it("Jen + BDM with sales primary → score boosted", () => {
+    const without = evaluateWorkMode(8.0, JEN.resumeText, JEN.promptAnswers, BDM_JOB.text);
+    const withPref = evaluateWorkMode(8.0, JEN.resumeText, JEN.promptAnswers, BDM_JOB.text, {
+      primaryMode: "sales_execution",
+    });
+    expect(withPref.postScore).toBeGreaterThan(without.postScore);
+    expect(withPref.preferenceAdjustment).toBe(PREFERENCE_PRIMARY_BOOST);
+  });
+
+  it("Chris + sales job with builder avoided → penalty stacks", () => {
+    const r = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, INSIDE_SALES_JOB.text, {
+      avoidedModes: ["sales_execution"],
+    });
+    // work mode conflicting (-2.5) + avoid penalty (-1.5) = -4.0 from raw
+    expect(r.preferenceAdjustment).toBe(PREFERENCE_AVOID_PENALTY);
+    expect(r.postScore).toBeLessThan(7.0 - 2.5);
   });
 });
