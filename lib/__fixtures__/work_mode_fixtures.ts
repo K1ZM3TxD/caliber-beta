@@ -738,6 +738,103 @@ export const PROGRAM_COORDINATOR_JOB: JobFixture = {
     "- Strong stakeholder communication and status reporting skills",
 };
 
+// ─── sales_execution (relationship-driven / partnerships) ───
+
+export const BDM_JOB: JobFixture = {
+  name: "Business Development Manager",
+  expectedMode: "sales_execution",
+  text:
+    "Business Development Manager\n" +
+    "Build and manage strategic partnerships to drive revenue growth.\n" +
+    "Responsibilities:\n" +
+    "- Develop new business opportunities through relationship development and account management\n" +
+    "- Own revenue pipeline and partner lifecycle from prospecting through close\n" +
+    "- Drive account growth through sponsorships and partnership agreements\n" +
+    "- Manage key client relationships and negotiate partnership terms\n" +
+    "- Meet quarterly revenue targets through pipeline development\n" +
+    "- Identify and pursue new partnership opportunities in target markets\n" +
+    "Requirements:\n" +
+    "- 5+ years business development or partnerships experience\n" +
+    "- Track record of revenue generation through relationship-driven sales\n" +
+    "- Experience managing strategic partnerships and client accounts",
+};
+
+export const PARTNERSHIPS_MANAGER_JOB: JobFixture = {
+  name: "Partnerships Manager",
+  expectedMode: "sales_execution",
+  text:
+    "Partnerships Manager\n" +
+    "Own and grow strategic partnership portfolio.\n" +
+    "Responsibilities:\n" +
+    "- Drive revenue generation through partner development and relationship management\n" +
+    "- Manage partner lifecycle from identification through renewal\n" +
+    "- Negotiate sponsorship agreements and partnership terms\n" +
+    "- Build pipeline of new partnership opportunities\n" +
+    "- Track account growth metrics and client retention rates\n" +
+    "- Collaborate with sales team on joint revenue initiatives\n" +
+    "Requirements:\n" +
+    "- 4+ years partnership management or business development experience\n" +
+    "- Strong relationship building and negotiation skills\n" +
+    "- Experience with sponsorship sales or account management",
+};
+
+export const ACCOUNT_MANAGER_REVENUE_JOB: JobFixture = {
+  name: "Account Manager (revenue-focused)",
+  expectedMode: "sales_execution",
+  text:
+    "Account Manager\n" +
+    "Manage and grow a portfolio of strategic client accounts.\n" +
+    "Responsibilities:\n" +
+    "- Drive revenue growth through account management and client development\n" +
+    "- Own the full client lifecycle from onboarding through renewal and upsell\n" +
+    "- Build relationship development plans for key accounts\n" +
+    "- Identify cross-sell and partnership opportunities within existing accounts\n" +
+    "- Meet quarterly revenue targets and pipeline development goals\n" +
+    "- Manage client retention and satisfaction metrics\n" +
+    "Requirements:\n" +
+    "- 3+ years account management or sales experience\n" +
+    "- Track record of revenue generation and client retention\n" +
+    "- Strong relationship management and closing skills",
+};
+
+export const PRODUCT_MANAGER_JOB: JobFixture = {
+  name: "Product Manager (strategy/growth — NOT sales)",
+  expectedMode: "builder_systems",
+  text:
+    "Product Manager\n" +
+    "Define product strategy and roadmap for our core platform.\n" +
+    "Responsibilities:\n" +
+    "- Work with engineering teams on product development and feature delivery\n" +
+    "- Conduct user research and analyze product metrics\n" +
+    "- Drive growth through product-led initiatives and A/B testing\n" +
+    "- Coordinate cross-functional teams for feature releases\n" +
+    "- Manage sprint planning and agile ceremonies\n" +
+    "- Define technical requirements and acceptance criteria\n" +
+    "Requirements:\n" +
+    "- 4+ years product management experience\n" +
+    "- Experience with software development lifecycle\n" +
+    "- Strong analytical and product strategy skills",
+};
+
+export const STRATEGY_OPS_JOB: JobFixture = {
+  name: "Strategy & Operations Manager (growth language — NOT sales)",
+  expectedMode: "operational_execution",
+  text:
+    "Strategy & Operations Manager\n" +
+    "Lead operational improvement and strategic planning initiatives.\n" +
+    "Responsibilities:\n" +
+    "- Drive operational efficiency through process improvement and scheduling optimization\n" +
+    "- Coordinate cross-functional teams and manage resource allocation\n" +
+    "- Support strategic growth initiatives through operational planning\n" +
+    "- Manage vendor relationships and procurement processes\n" +
+    "- Produce executive reporting and progress dashboards\n" +
+    "- Oversee budget tracking and program delivery timelines\n" +
+    "Requirements:\n" +
+    "- 5+ years operations or strategy experience\n" +
+    "- Strong project management and stakeholder coordination skills\n" +
+    "- Experience with operational planning and resource management",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -753,6 +850,9 @@ export const ALL_JOBS = [
   INSIDE_SALES_JOB,
   ENTERPRISE_AE_JOB,
   BDR_OUTBOUND_JOB,
+  BDM_JOB,
+  PARTNERSHIPS_MANAGER_JOB,
+  ACCOUNT_MANAGER_REVENUE_JOB,
   OPS_COORDINATOR_JOB,
   WAREHOUSE_OPS_JOB,
   CALL_CENTER_JOB,
@@ -768,6 +868,8 @@ export const ALL_JOBS = [
   FIELD_OPS_DIRECTOR_JOB,
   CONSTRUCTION_PM_JOB,
   PROGRAM_COORDINATOR_JOB,
+  PRODUCT_MANAGER_JOB,
+  STRATEGY_OPS_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

@@ -73,6 +73,7 @@ const BUILDER_SYSTEMS_TRIGGERS: Trigger[] = [
 ];
 
 const SALES_EXECUTION_TRIGGERS: Trigger[] = [
+  // Transactional / quota-driven sales
   { pattern: /\bquota\b/i, weight: 2, label: "quota" },
   { pattern: /\bcommission\b/i, weight: 2, label: "commission" },
   { pattern: /\bcold call(s|ing)?\b/i, weight: 2, label: "cold calling" },
@@ -97,6 +98,20 @@ const SALES_EXECUTION_TRIGGERS: Trigger[] = [
   { pattern: /\bnew business\b/i, weight: 1, label: "new business" },
   { pattern: /\bsales (team|org|organization)\b/i, weight: 1, label: "sales org" },
   { pattern: /\b(book|booking)(s|ing)? (meeting|appointment|demo)\b/i, weight: 2, label: "booking meetings" },
+  // Relationship-driven B2B sales / partnerships
+  { pattern: /\bbusiness development\b/i, weight: 2, label: "business development" },
+  { pattern: /\bpartnership(s)?\b/i, weight: 2, label: "partnerships" },
+  { pattern: /\bsponsor(ship|ships|ing)\b/i, weight: 2, label: "sponsorship" },
+  { pattern: /\baccount (manag|growth|develop)/i, weight: 2, label: "account management" },
+  { pattern: /\brelationship (develop|build|manag)/i, weight: 2, label: "relationship development" },
+  { pattern: /\bclient (acqui|develop|grow|retent)/i, weight: 2, label: "client development" },
+  { pattern: /\brevenue (generat|own|driv|growth)/i, weight: 2, label: "revenue generation" },
+  { pattern: /\bpipeline (own|manag|build|develop)/i, weight: 2, label: "pipeline ownership" },
+  { pattern: /\bpartner (lifecycle|relat|manag)/i, weight: 2, label: "partner management" },
+  { pattern: /\boutside sales\b/i, weight: 2, label: "outside sales" },
+  { pattern: /\b(sales|selling) strateg/i, weight: 1, label: "sales strategy" },
+  { pattern: /\bclient retention\b/i, weight: 1, label: "client retention" },
+  { pattern: /\bsales experience\b/i, weight: 1, label: "sales experience" },
 ];
 
 const OPERATIONAL_EXECUTION_TRIGGERS: Trigger[] = [

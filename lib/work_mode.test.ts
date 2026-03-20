@@ -26,6 +26,8 @@ import {
   SALES_OPS_HYBRID_JOB, PROPERTY_MAX_GRIND_JOB,
   VP_SALES_STRATEGY_JOB, STARTUP_COO_OPS_JOB, FIELD_OPS_DIRECTOR_JOB,
   CONSTRUCTION_PM_JOB, PROGRAM_COORDINATOR_JOB,
+  BDM_JOB, PARTNERSHIPS_MANAGER_JOB, ACCOUNT_MANAGER_REVENUE_JOB,
+  PRODUCT_MANAGER_JOB, STRATEGY_OPS_JOB,
   FALSE_POSITIVE_TRAP_JOBS, ALL_JOBS,
 } from "./__fixtures__/work_mode_fixtures";
 
@@ -81,6 +83,13 @@ describe("classifyUserWorkMode", () => {
     const result = classifyUserWorkMode(JEN_RESUME, JEN_PROMPTS);
     // Jen's profile is ops/sales/enablement, not builder
     expect(result.mode).not.toBe("builder_systems");
+  });
+
+  it("classifies Jen as sales_execution (relationship-driven signals)", () => {
+    const result = classifyUserWorkMode(JEN_RESUME, JEN_PROMPTS);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).not.toBe("none");
+    expect(result.scores.sales_execution).toBeGreaterThan(result.scores.operational_execution);
   });
 });
 
@@ -885,5 +894,86 @@ describe("evaluateWorkMode — discriminator integration", () => {
     expect(result.compatibility).toBe("compatible");
     expect(result.workModeAdjustment).toBe(0);
     expect(result.postScore).toBe(8.5);
+  });
+});
+
+// ─── BDM / Partnerships Classification ──────────────────────
+
+describe("classifyJobWorkMode — BDM / partnerships / account management", () => {
+  it("classifies BDM as sales_execution (high confidence)", () => {
+    const result = classifyJobWorkMode(BDM_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("classifies Partnerships Manager as sales_execution (high confidence)", () => {
+    const result = classifyJobWorkMode(PARTNERSHIPS_MANAGER_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("classifies Account Manager (revenue) as sales_execution (high confidence)", () => {
+    const result = classifyJobWorkMode(ACCOUNT_MANAGER_REVENUE_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("Product Manager does NOT classify as sales_execution", () => {
+    const result = classifyJobWorkMode(PRODUCT_MANAGER_JOB.text);
+    expect(result.mode).toBe("builder_systems");
+    expect(result.scores.sales_execution).toBe(0);
+  });
+
+  it("Strategy & Ops does NOT classify as sales_execution", () => {
+    const result = classifyJobWorkMode(STRATEGY_OPS_JOB.text);
+    expect(result.mode).not.toBe("sales_execution");
+    expect(result.scores.sales_execution).toBe(0);
+  });
+});
+
+// ─── Jen vs BDM/Partnerships/PM — e2e scoring ──────────────
+
+describe("evaluateWorkMode — Jen sales/partnerships scenarios", () => {
+  it("Jen vs BDM → compatible, no penalty (both sales_execution)", () => {
+    const result = evaluateWorkMode(8.0, JEN_RESUME, JEN_PROMPTS, BDM_JOB.text);
+    expect(result.userMode.mode).toBe("sales_execution");
+    expect(result.jobMode.mode).toBe("sales_execution");
+    expect(result.compatibility).toBe("compatible");
+    expect(result.workModeAdjustment).toBe(0);
+    expect(result.postScore).toBe(8.0);
+  });
+
+  it("Jen vs Partnerships Manager → compatible, score preserved", () => {
+    const result = evaluateWorkMode(8.5, JEN_RESUME, JEN_PROMPTS, PARTNERSHIPS_MANAGER_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.postScore).toBe(8.5);
+  });
+
+  it("Jen vs Account Manager → compatible, score preserved", () => {
+    const result = evaluateWorkMode(7.5, JEN_RESUME, JEN_PROMPTS, ACCOUNT_MANAGER_REVENUE_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.postScore).toBe(7.5);
+  });
+
+  it("Jen vs Product Manager → conflicting, strong penalty", () => {
+    const result = evaluateWorkMode(6.0, JEN_RESUME, JEN_PROMPTS, PRODUCT_MANAGER_JOB.text);
+    expect(result.userMode.mode).toBe("sales_execution");
+    expect(result.jobMode.mode).toBe("builder_systems");
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThanOrEqual(4.0);
+  });
+
+  it("Chris (Builder) vs BDM → conflicting, penalized", () => {
+    const result = evaluateWorkMode(7.0, CHRIS.resumeText, CHRIS.promptAnswers, BDM_JOB.text);
+    expect(result.userMode.mode).toBe("builder_systems");
+    expect(result.jobMode.mode).toBe("sales_execution");
+    expect(result.compatibility).toBe("conflicting");
+    expect(result.postScore).toBeLessThanOrEqual(5.0);
+  });
+
+  it("Marcus (Sales) vs BDM → compatible, score preserved", () => {
+    const result = evaluateWorkMode(8.0, MARCUS.resumeText, MARCUS.promptAnswers, BDM_JOB.text);
+    expect(result.compatibility).toBe("compatible");
+    expect(result.postScore).toBe(8.0);
   });
 });
