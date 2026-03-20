@@ -798,7 +798,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
             <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step !== "TITLES" ? (
+              {step !== "TITLES" && step !== "WORK_PREFERENCES" ? (
                 <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
               ) : null}
               {/* Fixed-height error area */}

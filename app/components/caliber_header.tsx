@@ -16,6 +16,7 @@ export default function CaliberHeader({ className = "", typedText, showCursor }:
         className="font-semibold tracking-[0.18em] sm:tracking-[0.22em] uppercase cb-wordmark-glow relative inline-block text-[1.6rem] sm:text-[2.15rem]"
         style={{
           color: "rgba(161,161,170,0.75)",
+          fontFamily: "Arial, Helvetica, sans-serif",
         }}
       >
         {display}
