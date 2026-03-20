@@ -94,7 +94,7 @@ function useStagedProgress(active: boolean, done: boolean): { percent: number; l
 
 type AnySession = any;
 
-type UiStep = "LANDING" | "RESUME" | "PROMPT" | "PROCESSING" | "TITLES";
+type UiStep = "LANDING" | "RESUME" | "WORK_PREFERENCES" | "PROMPT" | "PROCESSING" | "TITLES";
 // Helper: returns true if session has results available
 function hasResults(session: any): boolean {
   return Boolean(session?.result) || (String(session?.state) === "PATTERN_SYNTHESIS" && Boolean(session?.patternSummary));
@@ -103,6 +103,7 @@ function hasResults(session: any): boolean {
 function getStepFromState(state: unknown, session?: any): UiStep {
   const s = String(state ?? "");
   if (hasResults(session)) return "TITLES";
+  if (s === "WORK_PREFERENCES") return "WORK_PREFERENCES";
   if (/^PROMPT_\d(_CLARIFIER)?$/.test(s)) return "PROMPT";
   if (s === "CONSOLIDATION_PENDING" || s === "CONSOLIDATION_RITUAL" || s === "PATTERN_SYNTHESIS") return "PROCESSING";
   if (s.startsWith("TITLE_HYPOTHESIS") || s.startsWith("TITLE_DIALOGUE")) return "TITLES";
@@ -359,9 +360,14 @@ export default function CalibrationPage() {
     try {
       const s = await uploadResume(sessionId, selectedFile);
       setSession(s); setAnswerText("");
-      const n = getPromptIndexFromState(s?.state);
-      if (n) setStep("PROMPT");
-      else setStep("PROCESSING");
+      // After resume upload, backend advances to WORK_PREFERENCES state
+      if (String(s?.state) === "WORK_PREFERENCES") {
+        setStep("WORK_PREFERENCES");
+      } else {
+        const n = getPromptIndexFromState(s?.state);
+        if (n) setStep("PROMPT");
+        else setStep("PROCESSING");
+      }
     } catch (e: any) {
       setError(displayError(e));
       // Do NOT clear selectedFile; user can retry or pick another file
@@ -409,6 +415,64 @@ export default function CalibrationPage() {
       setSession(s);
     } catch (_) { /* non-blocking — preference is best-effort */ }
     finally { setSignalPrefBusy(false); }
+  }
+  // Work preference chips state
+  const WORK_MODE_OPTIONS: Array<{ id: string; label: string; desc: string }> = [
+    { id: "builder_systems", label: "Building & Systems", desc: "Creating products, tools, infrastructure" },
+    { id: "sales_execution", label: "Sales & Partnerships", desc: "Revenue, deals, client relationships" },
+    { id: "operational_execution", label: "Operations & Execution", desc: "Process, logistics, getting things done" },
+    { id: "analytical_investigative", label: "Analysis & Research", desc: "Data, investigation, strategy" },
+    { id: "creative_ideation", label: "Creative & Ideation", desc: "Design, content, innovation" },
+  ];
+  const [selectedPrimary, setSelectedPrimary] = useState<string | null>(null);
+  const [selectedPreferred, setSelectedPreferred] = useState<string[]>([]);
+  const [selectedAvoided, setSelectedAvoided] = useState<string[]>([]);
+
+  function togglePreferred(id: string) {
+    if (id === selectedPrimary) return; // primary can't also be preferred
+    setSelectedPreferred(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    // Remove from avoided if toggling to preferred
+    setSelectedAvoided(prev => prev.filter(x => x !== id));
+  }
+  function toggleAvoided(id: string) {
+    if (id === selectedPrimary) { setSelectedPrimary(null); } // unset primary if avoiding
+    setSelectedAvoided(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    // Remove from preferred if toggling to avoided
+    setSelectedPreferred(prev => prev.filter(x => x !== id));
+  }
+  function selectPrimary(id: string) {
+    if (selectedAvoided.includes(id)) return; // can't select avoided as primary
+    setSelectedPrimary(prev => prev === id ? null : id);
+    // Remove from preferred list since it's now primary
+    setSelectedPreferred(prev => prev.filter(x => x !== id));
+  }
+
+  async function submitWorkPreferences() {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) { setError("Missing sessionId."); return; }
+    setError(null); setBusy(true);
+    try {
+      const prefs: any = {};
+      if (selectedPrimary) prefs.primaryMode = selectedPrimary;
+      if (selectedPreferred.length > 0) prefs.preferredModes = selectedPreferred;
+      if (selectedAvoided.length > 0) prefs.avoidedModes = selectedAvoided;
+      const s = await postEvent({ type: "SET_WORK_PREFERENCES", sessionId, workPreferences: prefs } as any);
+      setSession(s);
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) { setError(displayError(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function skipWorkPreferences() {
+    const sessionId = String(session?.sessionId ?? "");
+    if (!sessionId) { setError("Missing sessionId."); return; }
+    setError(null); setBusy(true);
+    try {
+      const s = await postEvent({ type: "ADVANCE", sessionId });
+      setSession(s);
+      setStep(getStepFromState(s?.state, s));
+    } catch (e: any) { setError(displayError(e)); }
+    finally { setBusy(false); }
   }
     // Titles UI state
     const [titleFeedback, setTitleFeedback] = useState("");
@@ -718,7 +782,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
          LANDING and RESUME use my-auto to vertically center within the viewport.
          Content-heavy steps use fixed top padding.
          No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
-      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : "pt-[14vh] sm:pt-[22vh]"}`}>
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : step === "WORK_PREFERENCES" ? "my-auto" : "pt-[14vh] sm:pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -887,6 +951,113 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             ) : null}
 
+              </div>
+            ) : null}
+
+            {/* WORK_PREFERENCES */}
+            {step === "WORK_PREFERENCES" ? (
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+                <div className="mt-8 cb-headline text-center">
+                  What kind of work do you want more of?
+                </div>
+                <p className="mt-3 text-sm text-center" style={{ color: "rgba(161,161,170,0.65)" }}>
+                  Tap to select your primary focus. You can also mark modes to prefer or avoid.
+                </p>
+
+                <div className="mt-8 flex flex-col gap-3">
+                  {WORK_MODE_OPTIONS.map(mode => {
+                    const isPrimary = selectedPrimary === mode.id;
+                    const isPreferred = selectedPreferred.includes(mode.id);
+                    const isAvoided = selectedAvoided.includes(mode.id);
+                    return (
+                      <div
+                        key={mode.id}
+                        className="rounded-lg px-4 py-3 transition-all duration-150 cursor-pointer select-none"
+                        style={{
+                          backgroundColor: isPrimary ? "rgba(74,222,128,0.08)" : isPreferred ? "rgba(74,222,128,0.03)" : isAvoided ? "rgba(239,68,68,0.04)" : "rgba(255,255,255,0.025)",
+                          border: isPrimary ? "1px solid rgba(74,222,128,0.45)" : isPreferred ? "1px solid rgba(74,222,128,0.20)" : isAvoided ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(255,255,255,0.06)",
+                        }}
+                        onClick={() => selectPrimary(mode.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              {isPrimary && <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>}
+                              <span className="text-sm font-medium" style={{ color: isPrimary ? "#4ADE80" : isAvoided ? "rgba(239,68,68,0.7)" : "rgba(237,237,237,0.78)" }}>{mode.label}</span>
+                            </div>
+                            <p className="text-xs mt-0.5" style={{ color: "rgba(161,161,170,0.50)" }}>{mode.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => togglePreferred(mode.id)}
+                              title="Prefer"
+                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
+                              style={{
+                                backgroundColor: isPreferred ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)",
+                                color: isPreferred ? "#4ADE80" : "rgba(161,161,170,0.45)",
+                                border: isPreferred ? "1px solid rgba(74,222,128,0.30)" : "1px solid rgba(255,255,255,0.06)",
+                                cursor: isPrimary ? "not-allowed" : "pointer",
+                                opacity: isPrimary ? 0.3 : 1,
+                              }}
+                              disabled={isPrimary}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleAvoided(mode.id)}
+                              title="Avoid"
+                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
+                              style={{
+                                backgroundColor: isAvoided ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.04)",
+                                color: isAvoided ? "#EF4444" : "rgba(161,161,170,0.45)",
+                                border: isAvoided ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(255,255,255,0.06)",
+                              }}
+                            >
+                              &minus;
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Selection summary */}
+                {(selectedPrimary || selectedPreferred.length > 0 || selectedAvoided.length > 0) && (
+                  <div className="mt-4 text-xs text-center" style={{ color: "rgba(161,161,170,0.50)" }}>
+                    {selectedPrimary && <span style={{ color: "rgba(74,222,128,0.65)" }}>Primary: {WORK_MODE_OPTIONS.find(m => m.id === selectedPrimary)?.label}</span>}
+                    {selectedPreferred.length > 0 && <span className="ml-3">Also open to: {selectedPreferred.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
+                    {selectedAvoided.length > 0 && <span className="ml-3" style={{ color: "rgba(239,68,68,0.55)" }}>Avoiding: {selectedAvoided.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
+                  </div>
+                )}
+
+                <div className="mt-8 flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={submitWorkPreferences}
+                    disabled={!selectedPrimary || busy}
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none"
+                    style={{
+                      backgroundColor: !selectedPrimary || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
+                      color: !selectedPrimary || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
+                      border: !selectedPrimary || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
+                      cursor: !selectedPrimary || busy ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {busy ? <><Spinner /><span className="ml-2">Saving…</span></> : "Continue"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={skipWorkPreferences}
+                    disabled={busy}
+                    className="text-xs transition-colors duration-200"
+                    style={{ color: "rgba(207,207,207,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
+                  >
+                    Skip
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -1082,7 +1253,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               </div>
             ) : null}
             {/* Fallback: never blank */}
-            {!["LANDING","RESUME","PROMPT","PROCESSING","TITLES"].includes(step) ? (
+            {!["LANDING","RESUME","WORK_PREFERENCES","PROMPT","PROCESSING","TITLES"].includes(step) ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
                   <Spinner />

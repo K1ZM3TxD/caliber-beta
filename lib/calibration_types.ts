@@ -10,6 +10,7 @@ export interface CalibrationJob {
 // All possible state strings used in calibration_machine
 export type CalibrationState =
   | "RESUME_INGEST"
+  | "WORK_PREFERENCES"
   | "PROMPT_1"
   | "PROMPT_2"
   | "PROMPT_3"
@@ -58,7 +59,8 @@ export type CalibrationEvent =
   | { type: "RERUN_TITLES"; sessionId: string; clarificationsText: string }
   | { type: "RESET_SESSION"; sessionId: string }
   | { type: "ENCODING_COMPLETE"; sessionId: string }
-  | { type: "SET_SIGNAL_PREFERENCE"; sessionId: string; includeDetectedSignals: boolean };
+  | { type: "SET_SIGNAL_PREFERENCE"; sessionId: string; includeDetectedSignals: boolean }
+  | { type: "SET_WORK_PREFERENCES"; sessionId: string; workPreferences: WorkPreferences };
 
 // History entry for session
 // NOTE: calibration_machine.pushHistory stores { at: nowIso(), ..., event: string }

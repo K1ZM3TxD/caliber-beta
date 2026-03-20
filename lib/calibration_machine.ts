@@ -1401,6 +1401,7 @@ function createSession(): CalibrationSession {
 // (CREATE_SESSION is handled before session lookup.)
 const ALLOWLIST: Record<CalibrationState, ReadonlyArray<CalibrationEvent["type"]>> = {
   RESUME_INGEST: ["SUBMIT_RESUME", "ADVANCE"],
+  WORK_PREFERENCES: ["SET_WORK_PREFERENCES", "ADVANCE"],
   PROMPT_1: ["SUBMIT_PROMPT_ANSWER"],
   PROMPT_1_CLARIFIER: ["SUBMIT_PROMPT_CLARIFIER_ANSWER"],
   PROMPT_2: ["SUBMIT_PROMPT_ANSWER"],
@@ -1519,6 +1520,13 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         if (session.state === "RESUME_INGEST") {
           if (!session.resume.rawText || session.resume.rawText.trim().length === 0)
             return bad("MISSING_REQUIRED_FIELD", "Resume must be submitted before advancing")
+          const to: CalibrationState = "WORK_PREFERENCES"
+          session = pushHistory({ ...session, state: to }, from, to, event.type)
+          storeSet(session)
+          return { ok: true, session }
+        }
+
+        if (session.state === "WORK_PREFERENCES") {
           const to: CalibrationState = "PROMPT_1"
           session = pushHistory({ ...session, state: to }, from, to, event.type)
           storeSet(session)
@@ -1845,6 +1853,26 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
       case "ENCODING_COMPLETE": {
         // Kept for compatibility; encoding is now guarded + run as part of ENCODING_RITUAL ADVANCE.
         return bad("INVALID_EVENT_FOR_STATE", "ENCODING_COMPLETE is not a public event in v1 flow")
+      }
+
+      case "SET_WORK_PREFERENCES": {
+        const prefs = (event as any).workPreferences
+        if (!prefs || typeof prefs !== "object") {
+          return bad("MISSING_REQUIRED_FIELD", "workPreferences must be an object")
+        }
+        session = {
+          ...session,
+          workPreferences: {
+            primaryMode: typeof prefs.primaryMode === "string" ? prefs.primaryMode : undefined,
+            preferredModes: Array.isArray(prefs.preferredModes) ? prefs.preferredModes : undefined,
+            avoidedModes: Array.isArray(prefs.avoidedModes) ? prefs.avoidedModes : undefined,
+          },
+        }
+        // After setting preferences, advance to PROMPT_1
+        const to: CalibrationState = "PROMPT_1"
+        session = pushHistory({ ...session, state: to }, from, to, event.type)
+        storeSet(session)
+        return { ok: true, session }
       }
 
       case "SET_SIGNAL_PREFERENCE": {
