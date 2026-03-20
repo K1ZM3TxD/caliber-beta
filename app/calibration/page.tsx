@@ -755,8 +755,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
-                <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
-                  <p style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(237,237,237,0.78)' }}>{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
+                <div style={{ minHeight: "3em" }} className="mt-8">
+                  <p className="cb-headline">{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
                 <div className="mt-8">
                   <button
@@ -785,8 +785,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* RESUME */}
             {step === "RESUME" ? (
               <div className="w-full max-w-[620px]">
-                <div style={{ minHeight: "3em", lineHeight: 1.5 }} className="mt-8 text-[20px] sm:text-[26px]">
-                  <div style={{ fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(207,207,207,0.72)' }}>{resumeSubtext}</div>
+                <div style={{ minHeight: "3em" }} className="mt-8">
+                  <div className="cb-headline">{resumeSubtext}</div>
                 </div>
                 <div className="mt-6 flex justify-center">
                   <div className="w-full" style={{ maxWidth: 420 }}>
@@ -894,14 +894,14 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "PROMPT" ? (
               <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 {/* Prompt question container — anchored top so second lines extend downward */}
-                <div style={{ minHeight: "3.2em", lineHeight: 1.35 }} className="mt-8 text-lg sm:text-xl font-medium leading-snug tracking-tight text-center">
+                <div style={{ minHeight: "3.2em" }} className="mt-8 cb-headline text-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
                       <Spinner />
                       <span className="ml-2">Loading…</span>
                     </span>
                   ) : (
-                    <span style={{ opacity: promptDone ? 1 : 1, transition: "opacity 0.3s" }}>{promptText}</span>
+                    <span style={{ transition: "opacity 0.3s" }}>{promptText}</span>
                   )}
                 </div>
                 {/* Remove "Prompt X of 5" line */}
@@ -1152,7 +1152,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                     <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
                   </div>
-                  <p className="text-sm sm:text-base leading-relaxed" style={{ color: "rgba(207,207,207,0.72)", fontWeight: 400 }}>Based on your experience, you align most strongly with:</p>
+                  <p className="text-sm sm:text-base leading-relaxed" style={{ color: "rgba(237,237,237,0.78)", fontWeight: 400 }}>Based on your experience, you align most strongly with:</p>
                   {archetypeLabel ? (
                     <span className="text-[11px] font-medium uppercase tracking-widest mt-2" style={{ color: "#555" }}>{archetypeLabel}</span>
                   ) : null}

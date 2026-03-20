@@ -149,7 +149,7 @@ export default function BuildResumePage() {
       {/* ── INTRO ── */}
       {step === "INTRO" && (
         <div className="text-center flex flex-col items-center cb-reveal">
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-200 mb-3">
+          <h1 className="cb-section-heading mb-3">
             Build your base resume
           </h1>
           <p className="text-sm text-neutral-400 leading-relaxed max-w-md mx-auto mb-8">
@@ -183,7 +183,7 @@ export default function BuildResumePage() {
             ))}
           </div>
 
-          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-neutral-200 text-center mb-2">
+          <h2 className="cb-section-heading text-center mb-2">
             {PROMPTS[step].heading}
           </h2>
           {PROMPTS[step].supporting && (
@@ -311,7 +311,7 @@ export default function BuildResumePage() {
       {/* ── RESULT ── */}
       {step === "RESULT" && (
         <div className="flex flex-col items-center cb-reveal">
-          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-neutral-200 text-center mb-1">
+          <h2 className="cb-section-heading text-center mb-1">
             Your base resume
           </h2>
           <p className="text-xs text-neutral-500 text-center mb-6">

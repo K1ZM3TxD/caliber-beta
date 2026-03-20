@@ -13,7 +13,38 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ── Caliber shared typography tokens ── */
+
+/* Primary headline — used for taglines, prompt questions, step headers.
+   Source of truth: LANDING tagline "Career Decision Engine". */
+.cb-headline {
+  font-size: 1.25rem;        /* 20px */
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  line-height: 1.5;
+  color: rgba(237, 237, 237, 0.78);
+}
+@media (min-width: 640px) {
+  .cb-headline {
+    font-size: 1.625rem;     /* 26px */
+  }
+}
+
+/* Section heading — smaller heading for sub-steps and secondary screens */
+.cb-section-heading {
+  font-size: 1.125rem;       /* 18px */
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  color: rgba(237, 237, 237, 0.78);
+}
+@media (min-width: 640px) {
+  .cb-section-heading {
+    font-size: 1.25rem;      /* 20px */
+  }
 }
 
 /* Calibration page: title card entry */
