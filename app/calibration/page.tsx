@@ -788,8 +788,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
-          .cb-dropzone { transition: border-color 0.2s, background-color 0.2s; }
-          .cb-dropzone:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.02) !important; }
+          .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
+          .cb-dropzone:hover { border-color: rgba(74,222,128,0.50) !important; background-color: rgba(255,255,255,0.02) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
