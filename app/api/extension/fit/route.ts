@@ -101,11 +101,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const rawScore = alignment.score ?? 0;
-    // Only apply work preference modulation when signals toggle is ON.
-    // OFF or not-yet-chosen → preferences are ignored, scoring identical to baseline.
-    const signalsOn = session.includeDetectedSignals === true;
-    const workPrefs = signalsOn ? (session.workPreferences ?? undefined) : undefined;
-    const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText, workPrefs);
+    const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText, session.workPreferences ?? null);
     const finalScore = workMode.postScore;
 
     // Extract calibration titles for search suggestions
@@ -149,11 +145,16 @@ export async function POST(req: NextRequest) {
         jobModeScores: workMode.jobMode.scores,
         jobModeMatches: workMode.jobMode.topMatches,
         compatibility: workMode.compatibility,
+        roleType: workMode.roleType,
         preAdjustmentScore: workMode.preScore,
         workModeAdjustment: workMode.workModeAdjustment,
         executionIntensityAdjustment: workMode.executionIntensityAdjustment,
-        preferenceAdjustment: workMode.preferenceAdjustment,
-        signalsActive: signalsOn,
+        roleTypePenalty: workMode.roleTypePenalty,
+        chipSuppression: {
+          suppressed: workMode.chipSuppression.suppressed,
+          adjustment: workMode.chipSuppression.adjustment,
+          reason: workMode.chipSuppression.reason,
+        },
         executionIntensity: {
           score: workMode.executionIntensity.score,
           triggers: workMode.executionIntensity.triggers,

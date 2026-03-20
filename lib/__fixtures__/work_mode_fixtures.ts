@@ -249,11 +249,19 @@ export const TOMAS: UserFixture = {
 
 // ═══════════════════════════════════════════════════════════
 // ─── WEAK CONTROL FIXTURE ───────────────────────────────────
+// Dingus is the weak-control anchor: minimal professional depth,
+// no strong domain signal. However the current classifier resolves
+// operational_execution from customer-service / scheduling /
+// organizing language — this is expected and correct.
+// expectedMode remains null to mark the fixture's *intended*
+// regression role (low signal density control). Tests should
+// assert the actual classified mode (operational_execution)
+// rather than assuming null passthrough.
 // ═══════════════════════════════════════════════════════════
 
 export const DINGUS: UserFixture = {
   name: "Dingus",
-  expectedMode: null, // weak/unclassified — low signal density
+  expectedMode: null, // regression role: weak-control anchor (classifier resolves operational_execution in practice)
   resumeText:
     "Customer Service Associate\n\n" +
     "Responsible for assisting customers with questions and purchases. Handled daily store operations " +
@@ -271,11 +279,19 @@ export const DINGUS: UserFixture = {
   },
 };
 
-// ─── Jen (Creative Ops / Enablement — legacy canonical) ─────
+// ─── Jen (Operational / Enablement — legacy canonical) ──────
+// Jen's resume blends sales and ops vocabulary, but the classifier
+// resolves operational_execution from customer service, coordination,
+// and management signals. Her primary regression role is validating
+// blended-profile behavior: compatible with ops jobs, adjacent to
+// sales, and not misclassified as builder_systems.
+// expectedMode remains null to preserve the legacy blended-anchor
+// contract. Tests should assert the actual classified mode
+// (operational_execution) rather than assuming null.
 
 export const JEN: UserFixture = {
   name: "Jen",
-  expectedMode: null, // blended profile, mode varies — legacy anchor preserved
+  expectedMode: null, // regression role: blended anchor (classifier resolves operational_execution in practice)
   resumeText:
     "Summary Self-motivated go-getter with over 10 years of experience in sales. Known for exceptional customer service " +
     "and executing sales strategies that produce results. Experience Gracer-West Holdings Salem OR Estate Manager " +

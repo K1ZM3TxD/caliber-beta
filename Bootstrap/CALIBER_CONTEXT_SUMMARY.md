@@ -141,7 +141,7 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 
 Better Search Title is a **Search Surface Recovery Mechanism**. It answers the user question: "What title should I search to find better-fit jobs?"
 
-**Trigger (updated 2026-03-15, v0.8.9; trigger family expanded v0.9.5):** Uses query-level surface classification via `classifySearchSurface()`. Returns aligned/out-of-scope/ambiguous. Decision: aligned + strongCount > 0 → suppress; aligned + no strong → trigger; out-of-scope → trigger; ambiguous → trigger when strongCount === 0 AND (avgScore < 6.0 OR noClusterOverlap OR bothUnclusteredNoOverlap). Evaluated after minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch. Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`.
+**Trigger (canonical: see CALIBER_ACTIVE_STATE.md "Better Search Title" section, updated 2026-03-20):** Two-phase composite classifier (v0.9.17). Phase 1: no classification until 5+ scored. Phase 2: healthy (suppress BST) if >=2 strong (>=7.0) or >=1 at 8.0+; BST trigger if zero strong; neutral if exactly 1 in [7.0, 7.9]. Forced classification at 10+ scored. Surface classification (`classifySearchSurface()`) provides diagnostic context only. Named constants: `BST_STRONG_MATCH_THRESHOLD = 7.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`, `BST_HEALTHY_MIN_STRONG = 2`, `BST_HEALTHY_SINGLE_HIGH = 8.0`, `BST_FORCE_CLASSIFY_WINDOW = 10`.
 
 **UX (updated v0.9.20):**
 - Presented as a persistent collapsible "Adjacent Searches" section inside the sidecard (v0.9.20, issue #82). Previously rendered as a popup banner above the sidecard (popup disabled v0.9.20).
@@ -248,7 +248,7 @@ Structured feedback collection active across extension and web app.
 - **Pipeline board implemented.** Rebuilt from vertical list to 4-column board (Resume Prep / Submitted / Interview Prep / Interview). Code is implemented with legacy stage auto-mapping. Product validation is active/next work — board model is not yet PM-approved.
 - **Pipeline truth clarified.** Pipeline entries are created at tailor-prepare time (not after tailoring). Pipeline dedupe uses canonical/normalized job URL. Confirmation banner is truthful and tied to actual pipeline existence. CTA suppression prevents repeat Tailor CTA for jobs already in pipeline.
 - **Extension debug/report label.** Bug-report button changed from icon-only (🐛) to "🐛 Report" with explicit text label. May need further UX refinement.
-- **Better Search Title thresholds widened.** Weak threshold changed from <6.0 to <6.5, strong threshold from >7.0 to >=7.5. Trigger behavior should be verified.
+- **Better Search Title thresholds verified (2026-03-20).** Simple weak/strong thresholds from v0.8.x are superseded by two-phase composite classifier (v0.9.17). See CALIBER_ACTIVE_STATE.md for canonical BST doctrine. Trigger behavior validated and three bugs fixed in v0.9.20.
 - **Routing standardized.** All "Back to Caliber" links now route to /calibration.
 - **Visual drift is an active concern.** Shell composition remains inconsistent across pages. This is the next focused effort after the current session's changes.
 - **Product layer separation reinforced:** Calibration = direction, Extension = evaluation, Tailor + Pipeline = action layer. These layers must not be conflated.
@@ -317,7 +317,7 @@ UX design locked. Implementation deferred until scoring credibility and stable b
 3. **Decide shared shell architecture** — page-local ownership (current) vs reusable shared shell. This is the next shell decision.
 4. **Validate pipeline 4-column board model** — product-level approval of column names and stage decomposition. Code is complete with DnD and fit score.
 5. **Validate tailor page output quality** — tailor page is launch-ready; determine text vs PDF download, review tailoring quality.
-6. **Verify/restore Better Search Title trigger behavior** — thresholds changed to <6.5 weak, >=7.5 strong. Verify feature still activates correctly.
+6. ~~Verify/restore Better Search Title trigger behavior~~ — DONE (v0.9.20: three bugs fixed, docs aligned to two-phase composite classifier, #44 resolved).
 7. **CTA noise-control refinement** — per-session and time-based suppression for first-time 8.0+ exposures.
 8. **Clarify extension debug/report affordance** — text label ("🐛 Report") shipped; may need further UX refinement.
 9. **No unnecessary expansion of calibration scope** — calibration page is stable.

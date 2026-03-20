@@ -15,53 +15,14 @@ Beta remains defined by five core functional gates: (1) BST working, (2) sidecar
 
 **Extension Build Host Rule (2026-03-16):** Production extension source (`extension/`) is locked to `https://www.caliber-app.com`. No localhost references in env.js, manifest.json, or runtime code. Localhost is only allowed for explicitly declared dev builds. Violation = regression. See `CALIBER_EXECUTION_CONTRACT.md`.
 
-**Extension Release Policy (2026-03-20):** Chrome Web Store uploads are milestone-gated, not fix-gated. Internal extension builds iterate freely on `main` during stabilization (dev/local usage, sideloaded ZIP). Store submissions occur only when: (1) a major stabilization block is complete, and (2) the `stable` branch build represents a beta-ready (or later) product state. Individual bug fixes, scoring adjustments, and BST/sidecard refinements do not trigger store uploads. Rationale: avoids Chrome review bottlenecks, preserves fast internal iteration, and ensures store versions represent meaningful product milestones. Post-beta cadence may change. See `CALIBER_EXECUTION_CONTRACT.md` for enforcement rules.
-
 **Durable Telemetry Infrastructure (2026-03-17):** Telemetry and feedback persistence is now durable via Postgres (Neon) through Prisma. File-backed JSONL and SQLite paths are superseded. Both `/api/events` and `/api/feedback` write to `TelemetryEvent` and `FeedbackEvent` tables. Experiment condition is queryable via `sessionId`, `signalPreference`, and `meta` fields. PM can rerun the controlled signal-injection ON/OFF experiment once production `DATABASE_URL` is confirmed set in Vercel and the current code is deployed. Extension dev/prod host split is restored — source `extension/` defaults to localhost:3000 for dev validation.
 
 ## Active Systems Under Validation
-- **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing. Signal normalization layer converts raw tokens to professional labels. When user selects Yes, detected signals are mapped to scoring-vocabulary keywords via SIGNAL_SCORING_KEYWORDS dict; these become anchor boosts applied directly to the anchor weight map in generateTitleRecommendation (bypassing the normal weight-5 cap), plus a signal-affinity bonus adjusts title scores for signature-term overlap. Included signals are displayed on the calibration result page. **Scoring-vector influence verified** (Jen: 8.4→9.0 with YES). **Signal injection impact validated — PASS (2026-03-17):** 28 matched jobs analyzed via Neon telemetry; mean delta +0.02, 27/28 identical, 0 threshold crossings. Signal injection does not distort scoring. Signal preference affects calibration title scoring (anchor boosts in `generateTitleRecommendation`) but does not materially distort extension scoring distribution. **This validation is complete — signal injection is no longer an active uncertainty for beta.**
-- **Surface Quality Banner (SMC)** — BST slot shows "{count} strong matches · Best: {title} ({score})" using true page max score (not filtered max). Fixed in v0.9.7 (issue #73). **Stale boot state fix shipped** (issue #74, v0.9.10): durable prescan restore no longer rehydrates `prescanSurfaceBanner` on init — SMC renders only from fresh current-surface scoring. **Popup presentation disabled** (v0.9.15): `showSurfaceQualityBanner` returns early; all underlying state (`prescanSurfaceBanner`, `pageMaxScore`, `pageBestTitle`, `strongCount`) preserved for surface intelligence evaluation. SMC evaluates raw alignment scores from badge cache — no client-side caps applied.
-- **Better Search Trigger (BST)** — surface-classification-driven recovery mechanism with session-level title dedup preventing loops. Self-suggestion suppression (v0.9.7): BST will not suggest a title matching the current query. Weak-job sidecard click no longer overrides page-level BST suppression on aligned surfaces with strong matches. **Initial-surface gating** (issue #72, v0.9.7+): `initialSurfaceResolved` gate defers BST evaluation until the initial visible-card scoring queue fully drains, preventing premature triggering on partial evidence during refresh. **No stale durable-banner restore** (issue #74, v0.9.10): durable prescan state no longer restores surface banner on init; `runSearchPrescan()` always falls through to fresh scoring. **Trigger family:** aligned + strongCount > 0 → SUPPRESS; aligned + strongCount === 0 → TRIGGER; out-of-scope → TRIGGER; ambiguous → TRIGGER when strongCount === 0 AND (avgScore < 6.0 OR noClusterOverlap OR bothUnclusteredNoOverlap). **Presentation change (v0.9.20, issue #82):** BST popup banner (`showPrescanBSTBanner`) disabled — returns early as no-op. Replaced by persistent collapsible "Adjacent Searches" section inside sidecard. BST evaluation engine preserved — `evaluateBSTFromBadgeCache()` still runs, classifies surfaces, and drives adjacent-terms pulse behavior. BST/SMC evaluate raw alignment scores from badge cache — no client-side caps applied.
+- **Signal Gap Detection (SGD)** — detects professional signals from prompt answers not in resume; polling pause gate ensures calibration waits for explicit Yes/No user choice before advancing. Signal normalization layer converts raw tokens to professional labels. When user selects Yes, detected signals are mapped to scoring-vocabulary keywords via SIGNAL_SCORING_KEYWORDS dict; these become anchor boosts applied directly to the anchor weight map in generateTitleRecommendation (bypassing the normal weight-5 cap), plus a signal-affinity bonus adjusts title scores for signature-term overlap. Included signals are displayed on the calibration result page. **Scoring-vector influence verified** (Jen: 8.4→9.0 with YES). **Signal injection impact validated — PASS (2026-03-17):** 28 matched jobs analyzed via Neon telemetry; mean delta +0.02, 27/28 identical, 0 threshold crossings. Signal injection does not distort scoring. **This validation is complete — signal injection is no longer an active uncertainty for beta.**
+- **Surface Quality Banner (SMC)** — BST slot shows "{count} strong matches · Best: {title} ({score})" using true page max score (not filtered max). Fixed in v0.9.7 (issue #73). **Stale boot state regression** (issue #74): durable prescan restore was rehydrating `prescanSurfaceBanner` on init, causing stale best-score display on fresh surfaces. Fixed in v0.9.10 — SMC now renders only from fresh current-surface scoring. Validation pending.
+- **Better Search Trigger (BST)** — surface-classification-driven recovery suggestion with session-level title dedup preventing loops. Self-suggestion suppression added (v0.9.7): BST will not render if suggested title equals current query. Weak-job sidecard click no longer overrides page-level BST suppression on aligned surfaces with strong matches. **Current blocker:** premature refresh-time evaluation (issue #72). Fix shipped (`initialSurfaceResolved` gate). Post-fix validation pending in both baseline and signal-injected modes. BST is NOT yet fully passed.
 - **Pipeline Trigger >=7** — action thresholds lowered from 8.0 to 7.0 for pipeline/tailor actions. **Manual add-to-pipeline write regression** (issue #75): empty company from DOM extraction failure caused silent API 400. Fixed — both manual and auto-add paths re-extract DOM meta at action time with sentinel fallbacks; `background.js` now forwards error details. Validation pending.
 - **Score Interpretation Labels** — six-band system: Excellent Match (9–10), Very Strong Match (8–9), Strong Partial Match (7–8), Viable Stretch (6–7), Adjacent Background (5–6), Poor Fit (<5).
-
-## Scoring Architecture (current as of v0.9.25)
-All scoring adjustments are applied **server-side** by `evaluateWorkMode()` in `/api/extension/fit`. Both prescan and sidecard calls pass through the same API endpoint and receive the full scoring pipeline. No client-side caps or guardrails exist — `applyDomainMismatchGuardrail()` is dead code, not called from any active path since v0.9.21.
-
-**Server-side scoring pipeline (evaluateWorkMode):**
-1. Raw alignment score from LLM
-2. Work mode classification (user + job → 5 modes)
-3. Compatibility check (5×5 deterministic map)
-4. Work mode adjustment: compatible=0, adjacent=-0.8, conflicting=-2.5
-5. Execution intensity detection: mild=-0.5, heavy=-1.5, extreme=-2.5 (dampened 50% when both work mode and intensity fire)
-6. **Preference modulation (v0.9.24+):** When `session.includeDetectedSignals === true`, user work preferences adjust scores: primary mode +0.5, secondary modes +0.3, avoided modes -1.5. Avoided takes precedence over preferred. When signals toggle is OFF or null, preference modulation is skipped entirely — scores are identical to baseline.
-7. Clamp to 0–10
-
-**Prescan / badge path:** Raw API scores (fully adjusted server-side) flow into `badgeScoreCache`. No additional client-side capping. BST and SMC evaluate these scores directly.
-
-**Sidecard path:** Same API scores (fully adjusted server-side) displayed to the user. No additional client-side capping.
-
-**Score differences between badge and sidecard** are expected: prescan uses card text (shorter extract), sidecard uses full job description. The same server-side pipeline processes both, but different input text may yield different alignment scores.
-
-`scoreSource` tagging on badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`) distinguishes scoring paths; `restored_cache` entries are excluded from `strongCount`.
-
-## User Preference Layer (v0.9.24+)
-Work preference chips allow users to express work mode affinity during or after calibration. The `WorkPreferences` type on `CalibrationSession` holds: `primaryMode` (single favored mode), `preferredModes[]` (secondary acceptable modes), `avoidedModes[]` (modes to penalize). All fields are optional.
-
-**How it works:** Preferences feed into `applyPreferenceModulation()` in `lib/work_mode.ts`, which applies additive adjustments to the post-work-mode score: primary +0.5, secondary (preferred) +0.3, avoided -1.5. Avoided always takes precedence — a mode that is both preferred and avoided receives only the penalty.
-
-**Gating (v0.9.25):** Preference modulation is gated behind the signals toggle. Only when `session.includeDetectedSignals === true` are preferences applied. Signals OFF or null → zero adjustment, identical to baseline scoring. This prevents preference chips from affecting scores when the user has not opted into signal-influenced scoring.
-
-**Debug output:** API response includes `preferenceAdjustment` and `signalsActive` fields in `debug_work_mode` when preferences are active.
-
-## System Layers Overview
-Scoring operates through four conceptual layers, each adding refinement:
-
-1. **Layer 1 — Classifier:** Work mode classification via weighted lexical triggers. Categorizes user and job into one of 5 modes (builder_systems, sales_execution, operational_execution, analytical_investigative, creative_ideation). Determines compatibility (compatible / adjacent / conflicting) via deterministic 5×5 map.
-2. **Layer 2 — User Preference Chips:** Lightweight user correction via `WorkPreferences` (primary, preferred, avoided). Applied as additive score adjustments (+0.5 / +0.3 / -1.5). Gated behind signals toggle.
-3. **Layer 3 — Calibration Prompts:** Five calibration prompts surface behavioral signals and professional identity. Prompt answers feed into classification (prompts 1, 3, 4, 5) and signal detection (SGD). Prompt 2 is the "drain" prompt — excluded from work mode classification to avoid anti-mode signal contamination.
-4. **Layer 4 — Signal Insertion / Modulation:** When user opts into detected signals (SGD → Yes), anchor boosts are applied to title scoring via `SIGNAL_SCORING_KEYWORDS`, and preference modulation adjusts extension fit scores. Signal injection validated as negligible impact on scoring distribution (mean delta +0.02, 27/28 identical).
 
 ## Primary Regression Profile: Jen
 Jen is the primary regression profile for Desktop Stabilization. It validates:
@@ -71,13 +32,21 @@ Jen is the primary regression profile for Desktop Stabilization. It validates:
 - Signal detection coverage (behavioral/conversational keyword dictionary)
 
 All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regression.
-Work-mode fixture library expanded (2026-03-20): 5 core user profiles (one per mode), 5 blended crossover profiles, 19 job fixtures, 12 canonical fixture anchors preserved. Centralized in `lib/__fixtures__/work_mode_fixtures.ts`. 195 tests total (work mode + preference modulation + sales classification).
+
+## Fixture Classification Contracts (validated 2026-03-20)
+| Fixture | Regression Role | Classifier Output | Notes |
+|---------|----------------|-------------------|-------|
+| **Chris** | Builder/Systems anchor | `builder_systems` (high) | Anchors compatible-job preservation (9.9 untouched). Conflicting sales jobs drop to ~2.6. |
+| **Fabio** | Analytical/Investigative anchor | `analytical_investigative` (high) | Compatible with security analyst. Conflicting with both sales and ops. |
+| **Jen** | Blended/ops-enablement anchor | `operational_execution` (low) | Legacy `expectedMode: null` preserved as blended-anchor contract. Classifier resolves ops from customer-service/coordination/management signals. Compatible with ops jobs; adjacent to sales. |
+| **Dingus** | Weak-control anchor | `operational_execution` (low) | Legacy `expectedMode: null` preserved as weak-control contract. Classifier resolves ops from customer-service/scheduling/organizing signals. Compatible with ops jobs; conflicting with analytical. |
+
+**Key contract distinction:** `expectedMode` in fixtures marks the *regression role* (design intent), not the classifier output. Tests assert against actual classified mode. Jen and Dingus both resolve `operational_execution` in practice — this is correct classifier behavior, not a bug.
 
 ## Recent Implementation History
-- **Signal Toggle Gate for Preference Modulation (v0.9.25, 2026-03-20):** Preference modulation gated behind `session.includeDetectedSignals === true`. Signals OFF or null → preferences ignored, scoring identical to baseline. `signalsActive` flag added to `debug_work_mode` API response. 195 tests passing. Files: `app/api/extension/fit/route.ts`, `lib/work_mode.ts`, `lib/work_mode.test.ts`.
-- **Work Preference Signal Insertion Layer (v0.9.24, 2026-03-20):** `WorkPreferences` type added to `CalibrationSession` (primaryMode, preferredModes[], avoidedModes[]). `applyPreferenceModulation()` function applies additive adjustments: primary +0.5, secondary +0.3, avoided -1.5. Avoided takes precedence. Wired through `evaluateWorkMode()` → fit route with `preferenceAdjustment` in debug output. 16 new tests (8 unit + 8 integration). Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `lib/calibration_types.ts`, `app/api/extension/fit/route.ts`.
-- **Sales/Partnerships Classification Expansion (v0.9.23, 2026-03-20):** 11 new relationship-driven B2B sales signals added to SALES_TRIGGERS (partnerships, sponsorship, account growth, pipeline ownership, channel development, etc.). PRODUCT_STRATEGY_ANCHORS leakage guard prevents strategy/product roles from being pulled into sales via overlapping vocabulary. 5 new job fixtures (BDM, Partnerships Manager, Account Executive, Product Manager, Growth Strategy Director). 12 new tests, 107 work_mode tests passing. Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `lib/__fixtures__/work_mode_fixtures.ts`.
-- **Weighted Scoring Adjustments + Execution Intensity Layer (2026-03-19):** BREAK+UPDATE. Cap-based work-mode governance (hard cap 6.5, soft cap 8.5) replaced with proportional weighted adjustments. Score now reflects lived-fit reality including daily-work factors. (1) Work mode mismatch produces additive negative adjustments: compatible=0, adjacent=-0.8, conflicting=-2.5. (2) New execution-intensity detection layer scans job text for grind indicators (outbound calls, quota/commission pressure, door-to-door, rejection-heavy environments, high-volume execution). Intensity tiers: mild=-0.5, heavy=-1.5, extreme=-2.5. (3) When both layers fire (conflicting + intense), intensity is dampened 50% to avoid double-counting. (4) Target score semantics re-centered: 9=ecstatic, 8=great, 7=good/worth doing, 5-and-below=avoid, 3-4=actively wrong. (5) Property Max house-buying-specialist style grind jobs now land in actively-wrong zone (3-5) for misaligned profiles. (6) API debug output exposes full scoring composition: preAdjustmentScore, workModeAdjustment, executionIntensityAdjustment, finalScore, intensity triggers. 76 tests passing (fixture expansion: 5 core users, 5 blended crossover users, 19 job fixtures, 4 false-positive prevention tests). Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `lib/__fixtures__/work_mode_fixtures.ts`, `app/api/extension/fit/route.ts`.
+- **Chip-Enabled Fixture Regression Matrix — PASS (2026-03-20):** Full regression validation across 4 canonical fixtures × 5 job families × 3 chip configs. 39 test assertions pass; 300 determinism repetitions identical. Chip suppression enforces hard caps (sales ≤3.5, ops ≤4.0) when avoidedModes set. Role-type classification (SYSTEM_BUILDER/SYSTEM_OPERATOR/SYSTEM_SELLER) feeds implicit mismatch penalties. Chris anchor preserved (9.9 on builder job). Notable findings: Dingus and Jen both classify as operational_execution (not null) — fixture contracts updated to document this. Files: `lib/work_mode_regression.test.ts` (new, 39 tests), `lib/__fixtures__/work_mode_fixtures.ts` (comments), `Bootstrap/milestones.md`, `Bootstrap/CALIBER_ACTIVE_STATE.md`.
+- **Chip-Based Suppression + Role-Type Separation (2026-03-20):** Chip avoidedModes from workPreferences now flow through evaluateWorkMode pipeline. Three-layer suppression: (1) role-type mismatch penalty (implicit), (2) chip-based hard cap (explicit avoidedModes), (3) tightened builder triggers (removed generic words like "workflow", "platform", "implementation"). New types: RoleType, ChipSuppressionResult, WorkPreferencesInput. New functions: classifyRoleType(), applyChipSuppression(), getRoleTypePenalty(). 68 work_mode tests pass. Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `app/api/extension/fit/route.ts`.
+- **Weighted Scoring Adjustments + Execution Intensity Layer (2026-03-19):** BREAK+UPDATE. Cap-based work-mode governance (hard cap 6.5, soft cap 8.5) replaced with proportional weighted adjustments. Score now reflects lived-fit reality including daily-work factors. (1) Work mode mismatch produces additive negative adjustments: compatible=0, adjacent=-0.8, conflicting=-2.5. (2) New execution-intensity detection layer scans job text for grind indicators (outbound calls, quota/commission pressure, door-to-door, rejection-heavy environments, high-volume execution). Intensity tiers: mild=-0.5, heavy=-1.5, extreme=-2.5. (3) When both layers fire (conflicting + intense), intensity is dampened 50% to avoid double-counting. (4) Target score semantics re-centered: 9=ecstatic, 8=great, 7=good/worth doing, 5-and-below=avoid, 3-4=actively wrong. (5) Property Max house-buying-specialist style grind jobs now land in actively-wrong zone (3-5) for misaligned profiles. (6) API debug output exposes full scoring composition: preAdjustmentScore, workModeAdjustment, executionIntensityAdjustment, finalScore, intensity triggers. 41 tests passing. Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `app/api/extension/fit/route.ts`.
 - **Dominant Work Mode + Adjacent Compression + Pipeline Fix + DOM Hardening (v0.9.21, 2026-03-19):** BREAK+UPDATE. (1) Post-scoring classification layer: 5 work modes, weighted lexical triggers, 5×5 compatibility map. Conflicting modes hard-capped at 6.5; adjacent modes soft-capped at 8.5 (mild compression). Both require confidence ≥ low on both sides. 30 regression tests. (2) Pipeline save regression fix: generation guards added to CALIBER_PIPELINE_CHECK and auto-save callbacks, preventing stale cross-job pipeline state. Full diagnostic logging with source tracing and state transitions. (3) LinkedIn DOM extraction hardening: `cleanCardText()` replaces duplicated title text in card innerText before scoring, preventing keyword inflation. Issues #83, #83b, #83c. Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `app/api/extension/fit/route.ts`, `extension/content_linkedin.js`.
 - **Adjacent Search Terms module replaces BST popup (v0.9.20, 2026-03-19):** BREAK+UPDATE. BST popup banner (`showPrescanBSTBanner`) disabled — returns early as no-op. Replaced by persistent collapsible "Adjacent Searches" section inside sidecard (between Bottom Line and pipeline row). Terms sourced from calibration title + nearby_roles. Chip-styled links navigate to LinkedIn search. Pulse/glow triggers only after ≥20 scored jobs + "bst" surface classification. BST evaluation engine preserved for surface intelligence. Functions added: `getAdjacentSearchTerms()`, `updateAdjacentTermsModule()`, `updateAdjacentTermsPulse()`. Issue #82. Files: `extension/content_linkedin.js`.
 - **Sidecard score-flip fix (v0.9.19, 2026-03-19):** BREAK+UPDATE. Sidecard score could visibly change shortly after click (e.g. 7.7→6.6) due to LinkedIn multi-stage DOM hydration causing partial-text scoring followed by full-text rescoring. Fix: (1) Text stability wait — 500ms delay + re-extraction for short initial text prevents partial scoring. (2) Request versioning — `sidecardGeneration` + `sidecardRequestId` with 4 stale-response checkpoints discard cross-job and stale within-job responses. (3) Provisional labeling — partial-text scores shown as "(preview)" with distinct styling. (4) Comprehensive debug logging for each scoring cycle (identity, phase, fingerprint, verdict). Issue #81. Files: `extension/content_linkedin.js`.
@@ -96,7 +65,7 @@ Work-mode fixture library expanded (2026-03-20): 5 core user profiles (one per m
 - Files changed: `extension/content_linkedin.js`, `extension/background.js`, `app/api/extension/fit/route.ts`, `app/calibration/page.tsx`, `lib/calibration_machine.ts`.
 
 ## Top Blocker
-**Sign-in / memory (beta gate 4).** BST and sidecard stability are in validation. Pipeline is functional (Add to Pipeline working, visual feedback shipped v0.9.15). Telemetry infrastructure is now durable (Postgres/Neon) — no longer a gap. Signal injection validated PASS — no longer an active uncertainty. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Tailor resume also needs end-to-end validation (beta gate 5). Overlay work continues in parallel but does not block beta.
+**Sign-in / memory (beta gate 4).** Scoring pipeline stabilization complete — chip suppression, role-type classification, and fixture regression all validated (2026-03-20). BST and sidecard stability are in validation. Pipeline is functional (Add to Pipeline working, visual feedback shipped v0.9.15). Telemetry infrastructure is now durable (Postgres/Neon) — no longer a gap. Signal injection validated PASS — no longer an active uncertainty. The next major gate to close is sign-in / durable session persistence so pipeline and calibration data survive across browser restarts. Tailor resume also needs end-to-end validation (beta gate 5). Overlay work continues in parallel but does not block beta.
 
 ## Product Surface Doctrine (2026-03-17)
 - **Sidecard** = current-job decision surface. Displays: this job's score, decision label, hiring reality, supports/stretch, bottom line, pipeline action. No page-level comparison signals.
@@ -125,19 +94,16 @@ Work-mode fixture library expanded (2026-03-20): 5 core user profiles (one per m
 - Tailor page completed (2026-03-11): copy-to-clipboard action, retry-on-error for generation failures, polished result area with copy/download, tightened spacing.
 - Pipeline board enhanced (2026-03-11): DnD card movement between columns, fit score displayed on cards, visibility reload on tab focus.
 - Extension ZIP v0.8.9 rebuilt with overlay badge system, badge placement normalization, discovery coverage fixes, BST surface-classification trigger, score color band lock, and fetch stability fixes.
-- Extension v0.9.25 shipped (latest) with: sales classification expansion, work preference signal insertion layer, signal toggle gate for preference modulation.
-- Extension v0.9.22 shipped with: BST in-sidecard collapsible, Executive Summary replacing Bottom Line, dead code cleanup.
 - Extension v0.9.15 shipped with: (1) Sidecard skeleton immediate render + score pop animation + 2.5s timeout fallback. (2) Telemetry dedupe guard (`telemetryEmittedIds`). (3) Pipeline add visual feedback (Saving→Saved✓→In pipeline / Save failed—retry). (4) Pipeline highlight on navigate from extension (scroll-to-card + green glow 2.5s). (5) High-confidence match label + panel glow for scores ≥8.5. (6) Surface-quality banner popup disabled — returns early, all state preserved. (7) `lastSavedPipelineId` passed to background for pipeline highlight.
-- Extension v0.9.14 shipped with: (1) guardrail removed from prescan badge scoring — raw scores flow into badge cache for BST/SMC evaluation. *(v0.9.14 scoring-path split is superseded — as of v0.9.21 all client-side caps are removed; server-side `evaluateWorkMode()` handles all scoring adjustments.)* (2) `scoreSource` tagging on all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (3) `restored_cache` entries excluded from `strongCount`. (4) `lastScoredScore` reset on surface change to prevent stale sidecard score leak. (5) `[Caliber][SCORE_CAPPED]` diagnostic logging on guardrail function. (6) Per-entry surface-truth diagnostic logging with source breakdown.
+- Extension v0.9.14 shipped with: (1) guardrail removed from prescan badge scoring — raw scores flow into badge cache for BST/SMC evaluation; guardrail retained on sidecard path only. (2) `scoreSource` tagging on all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (3) `restored_cache` entries excluded from `strongCount`. (4) `lastScoredScore` reset on surface change to prevent stale sidecard score leak. (5) `[Caliber][SCORE_CAPPED]` diagnostic logging on guardrail function. (6) Per-entry surface-truth diagnostic logging with source breakdown.
 - Extension sidecard is compact, decision-first layout with:
   - Two-column header: company + job title (left), fit score + decision badge (right)
   - Hiring Reality Check (collapsible, with band badge)
-  - Executive Summary (3-point: fit signal ✓, risk/stretch ⚠, decision guidance →) — replaced Bottom Line in v0.9.22
+  - Bottom line (collapsible)
   - Supports fit (green toggle, collapsible with bullet count)
   - Stretch factors (yellow toggle, collapsible with bullet count)
-  - Adjacent Searches (collapsible BST section, shown on BST TRIGGER)
 - Extension v0.8.9 built, zipped, and deployed.
-- Extension v0.9.25 built, zipped, and deployed (latest). *(v0.9.15 superseded)*
+- Extension v0.9.15 built, zipped, and deployed (latest).
 - Extension feedback row includes separate bug-report action with "🐛 Report" text label, distinct from thumbs-down quality feedback.
 - Strong-match contextual card (7.0+) renders above sidecard — triggers “Tailor resume for this job” workflow.
 - Pipeline entry is created at `/api/tailor/prepare` time for `strong_match` jobs — pipeline persistence begins before tailoring, not after.
@@ -184,7 +150,7 @@ calibration → results page → /extension → download ZIP → install in Chro
 Beta gates are the priority. Each gate must be validated before declaring beta. Overlay work is non-blocking and may proceed in parallel.
 
 **Beta Gates (must all pass):**
-1. **BST working** — IN VALIDATION (surface-classification trigger + initial-surface gating shipped; BST evaluation engine operational; popup replaced by Adjacent Searches module v0.9.20)
+1. **BST working** — IN VALIDATION (surface-classification trigger shipped v0.8.9, replaces zero-strong-match window rule)
 2. **Sidecard stable** — IN VALIDATION (collapsed height #48 resolved 2026-03-11, fetch stability fixed v0.8.5)
 3. **Pipeline solid** — FUNCTIONAL (board implemented, DnD, fit scores; product validation ongoing)
 4. **Sign-in / memory operational** — NOT YET IMPLEMENTED (next major work item)
@@ -217,21 +183,47 @@ Product principle: Better Search Title is a **Search Surface Recovery Mechanism*
 
 It answers: "What title should I search to find better-fit jobs?"
 
-Behavior:
-- **Presentation (v0.9.20):** Persistent collapsible "Adjacent Searches" section inside the sidecard, between Bottom Line and pipeline row. Chip-styled links navigate to LinkedIn search. Pulse/glow triggers after ≥20 scored jobs + "bst" surface classification. Previously rendered as a standalone popup banner above the sidecard (popup disabled v0.9.20; `showPrescanBSTBanner` is a no-op).
-- **Trigger (updated 2026-03-15, v0.8.9; trigger family expanded v0.9.5):** Uses query-level surface classification via `classifySearchSurface(query, calibrationTitle, nearbyRoles)` which returns `"aligned"` / `"out-of-scope"` / `"ambiguous"`. Decision tree:
-  - **aligned + strongCount > 0** → SUPPRESS (good surface with real strong matches)
-  - **aligned + strongCount === 0** → TRIGGER (right surface but no strong match yet)
-  - **out-of-scope** → TRIGGER (wrong job family entirely)
-  - **ambiguous** → TRIGGER when strongCount === 0 AND (avgScore < 6.0 OR noClusterOverlap OR bothUnclusteredNoOverlap)
-- **Initial-surface gating (v0.9.7+):** BST evaluation deferred via `initialSurfaceResolved` gate until initial visible-card scoring queue fully drains, preventing premature triggering on partial evidence during refresh.
-- **No stale restore (v0.9.10):** Durable prescan state no longer restores surface banner on init; `runSearchPrescan()` always falls through to fresh scoring.
-- Evaluated after a minimum window of 5 scored jobs. Re-evaluable per chunk — auto-hides if a strong match appears in a later batch.
-- Named constants: `BST_STRONG_MATCH_THRESHOLD = 8.0`, `BST_MIN_WINDOW_SIZE = 5`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`
-- Suggested title is the clickable control — links directly to LinkedIn search
-- Suggests calibration primary title first, then adjacent search-surface titles
+### Presentation (updated 2026-03-20)
+- **Popup banner is DISABLED.** BST recovery suggestions are delivered via the persistent **Adjacent Searches** module inside the sidecard.
+- The Adjacent Searches section starts hidden; a BST badge in the sidecard header becomes visible when terms are available, and pulses when the surface is classified as weak (20+ scored jobs, `surfaceClassificationState === "bst"`).
+- User clicks the badge to reveal/hide the section. Terms link directly to LinkedIn search.
+- No popup/banner is rendered. `showPrescanBSTBanner()` and `showSurfaceQualityBanner()` are disabled with early returns; underlying surface intelligence state is preserved.
+
+### Classifier: Two-Phase Composite (v0.9.17, canonical)
+Supersedes the simple-threshold model from v0.8.x. All previous doc references to simple weak/strong thresholds are outdated.
+
+**Named constants:**
+- `BST_STRONG_MATCH_THRESHOLD = 7.0` — a job at or above this score counts as a "strong match"
+- `BST_MIN_WINDOW_SIZE = 5` — minimum scored cards before any classification
+- `BST_AMBIGUOUS_AVG_CEILING = 6.0` — ambiguous surfaces with avg below this lean BST
+- `BST_HEALTHY_MIN_STRONG = 2` — healthy requires 2+ strong matches
+- `BST_HEALTHY_SINGLE_HIGH = 8.0` — OR 1 job at 8.0+ qualifies as healthy
+- `BST_FORCE_CLASSIFY_WINDOW = 10` — force classification after 10 scored jobs
+
+**Phase 1 (pre-evidence):** `scoredCount < 5` → no banner, no classification.
+
+**Phase 2 (evidence-based):** `scoredCount >= 5`, provisional until 10+.
+- **Healthy** (suppress BST): `strongCount >= 2` OR `pageMaxScore >= 8.0`
+- **BST trigger** (show recovery): `strongCount === 0`
+- **Neutral** (no banner): exactly 1 strong in [7.0, 7.9] — waits for more evidence
+  - At `scoredCount >= 10`, forced to BST (insufficient for healthy)
+
+**Secondary context:** `classifySearchSurface()` returns `aligned` / `out-of-scope` / `ambiguous` — used for diagnostic logging and trigger-reason annotation, not for the primary decision.
+
+### Surface Truth Stability (v0.9.20)
+- Badge-score cache is **never pruned** based on DOM presence. LinkedIn virtualizes off-screen cards; pruning caused scroll-dependent classification oscillation.
+- Cache is only cleared on explicit surface change (`clearAllBadges()`).
+- `initialSurfaceResolved` gate defers classification until the initial scoring queue is fully drained.
+- 800ms debounce on BST show with re-check prevents flicker from late-arriving scores.
+
+### Adjacent Terms Pre-population (v0.9.20)
+- `updateAdjacentTermsModule()` is called from `evaluateBSTFromBadgeCache()` when classification is bst/healthy and no terms are rendered yet, using `lastKnownCalibrationTitle` and `lastKnownNearbyRoles`.
+- This ensures the badge pulse can activate on weak surfaces even before the user clicks a job for sidecard scoring.
+
+### Title Suggestion Logic
+- Calibration primary title first, then nearby roles, then `lastKnownCalibrationTitle`, then `lastKnownNearbyRoles`
+- Never suggests the current search query or a previously-searched/suggested title (session-scoped dedup via `bstSuggestedTitles` + `bstSearchedQueries`)
 - Never suggests exact listing titles or employer-specific phrasing
-- Visually calm, compact. Adjacent Searches section collapsed by default; does not increase sidecard height
 
 Do not re-sequence without new blocking evidence.
 
@@ -244,7 +236,7 @@ Do not re-sequence without new blocking evidence.
 ## Open Issues (summary — see CALIBER_ISSUES_LOG.md for detail)
 - #76 Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (v0.9.14, 2026-03-16)
 - #48 Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
-- #44 Better Search Title trigger — **UPDATED** (surface-classification trigger v0.8.9, supersedes zero-strong-match window)
+- #44 Better Search Title trigger — **RESOLVED** (v0.9.20: cache pruning fix, adjacent-terms pre-population, docs aligned to two-phase classifier)
 - #60 Badge placement normalization — **SHIPPED** (27932b1)
 - #61 Badge discovery coverage fix — **SHIPPED** (5133cd7)
 - #62 BST doctrine update — **SHIPPED** (surface-classification trigger v0.8.9, supersedes zero-strong-match window)
@@ -294,4 +286,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-20 (scoring/BST/SGD documentation stabilization pass — scoring-path split, BST mechanics, SGD validation closure)_
+_Last updated: 2026-03-17 (v0.9.15 — surface/UI doctrine, signal validation PASS, UX polish batch, "Best so far" popup removed from sidecard flow)_

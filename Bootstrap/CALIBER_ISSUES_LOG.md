@@ -3,34 +3,6 @@
 
 ## Current Open Issues
 
-94. Signal toggle gate for preference modulation (v0.9.25) — **SHIPPED** (2026-03-20)
-  - Preference modulation applied unconditionally regardless of whether user opted into signal-influenced scoring. This meant work preference chips could affect scores even when signals toggle was OFF, violating the principle that baseline scoring should be unaffected by optional features.
-  - Fixed: Preference modulation gated behind `session.includeDetectedSignals === true`. Signals OFF or null → preferences ignored, scoring identical to baseline. `signalsActive` flag added to `debug_work_mode` API response for diagnostics.
-  - 195 tests passing. Files: `app/api/extension/fit/route.ts`, `lib/work_mode.ts`, `lib/work_mode.test.ts`.
-
-93. Sales/partnerships roles under-classified by work mode classifier — **SHIPPED** (2026-03-20)
-  - Relationship-driven B2B sales roles (BDM, Partnerships Manager, Account Executive) were not triggering `sales_execution` classification because SALES_TRIGGERS lacked partnership/sponsorship/channel vocabulary. These roles scored as compatible for builder profiles instead of conflicting.
-  - Fixed by expanding SALES_TRIGGERS with 11 new relationship-driven signals (partnerships, sponsorship, account growth, pipeline ownership, channel development, etc.). Added PRODUCT_STRATEGY_ANCHORS leakage guard to prevent strategy/product roles from being pulled into sales via overlapping vocabulary.
-  - 5 new job fixtures (BDM, Partnerships Manager, Account Executive, Product Manager, Growth Strategy Director). 12 new tests, 107 work_mode tests passing.
-  - Files: `lib/work_mode.ts`, `lib/work_mode.test.ts`, `lib/__fixtures__/work_mode_fixtures.ts`.
-
-92. Sidecard UX: BST popup + Bottom Line replaced with in-sidecard collapsibles — **SHIPPED** (2026-03-20)
-  - BST rendered as a floating popup (`cb-recovery-banner`) above the sidecard — interruptive, hard to dismiss, broke on LinkedIn DOM changes. Bottom Line was a single opaque sentence generated server-side, not scannable.
-  - Fixed: (1) BST now renders as a collapsible "Adjacent Searches" section inside the sidecard body, hidden by default, shown when BST evaluation triggers. (2) Bottom Line replaced with 3-point Executive Summary (fit signal ✓, risk/stretch ⚠, decision guidance →) derived client-side from `supports_fit`, `stretch_factors`, and score band. All external banner HTML/CSS removed. Dead code cleaned (surface quality banner unreachable code, dropdown dismiss handler).
-  - 14 insertions, 95 deletions. Build clean, 167 tests passing (2 pre-existing failures in signal_classification unrelated).
-  - Files: `extension/content_linkedin.js`.
-
-91. Execution-dominated roles misclassified as builder_systems via ambiguous vocabulary — **SHIPPED** (2026-03-20)
-  - Construction PMs, program coordinators, and other execution-heavy roles triggered builder_systems via overlapping vocabulary (infrastructure, workflow, engineering, implementation, integration, "building systems", process improvement). This produced false-positive "compatible" matches for builder users.
-  - Fixed by adding a structural-vs-execution discriminator to `classifyJobWorkMode`. Two new trigger arrays: STRUCTURAL_SIGNALS (15 unambiguous tech-creation triggers) and EXECUTION_MANAGEMENT_SIGNALS (20 coordination/management triggers). When a job classifies as builder_systems but execution signals dominate structural signals (score ≥4 and execution > structural), the job is reclassified to operational_execution. Builder users then get "adjacent" penalty (-0.8) instead of "compatible" (0).
-  - 2 new fixture jobs (construction PM, program coordinator), 19 new tests (discriminator unit, job classification, e2e evaluateWorkMode). 95 total tests passing, zero regressions.
-  - Files: `lib/work_mode.ts`, `lib/__fixtures__/work_mode_fixtures.ts`, `lib/work_mode.test.ts`.
-
-90. Work-mode fixture library insufficient for regression confidence — **SHIPPED** (2026-03-20)
-  - Only 3 user fixtures (Chris, Fabio, Jen) and 6 job fixtures covered 3 of 5 work modes. No sales, ops, or creative user profiles. No blended/crossover profiles. No false-positive trap jobs.
-  - Fixed by creating centralized fixture module at `lib/__fixtures__/work_mode_fixtures.ts`: 5 core users (one per mode), 5 blended crossover profiles, 19 job fixtures, 3 false-positive trap jobs. 35 new tests. 76 total passing.
-  - Files: `lib/__fixtures__/work_mode_fixtures.ts`, `lib/work_mode.test.ts`.
-
 89. Cap-based mismatch scoring too forgiving for actively bad jobs — **FIX SHIPPED** (2026-03-19)
   - Hard cap 6.5 (conflicting) and soft cap 8.5 (adjacent) prevented false-positive strong matches but did not push truly bad jobs (grind-heavy, rejection-heavy, commission-only) into the obviously-wrong score zone.
   - Property Max house-buying-specialist style roles scored ~6.0-6.5 for Builder profiles — not clearly "avoid" territory.
@@ -144,7 +116,7 @@
 76. Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (2026-03-16)
   - **Symptom:** On a real LinkedIn search surface, 21 out of 25 jobs scored exactly 5.0 during prescan. Only 1 scored above 6.0 (7.7). "Best so far" started at 7.1 and only updated to 7.7 at position 23.
   - **Root cause:** `applyDomainMismatchGuardrail()` ran per-card during the badge prescan path. The 3-tier cap (HRC=Unlikely, role-family mismatch, cluster-vs-unclustered) flattened scores to 5.0 before BST/SMC could evaluate the full surface. BST saw a monotone 5.0 wall and could not distinguish genuinely weak jobs from guardrail-flattened ones. Surface quality metrics were destroyed before they could be used.
-  - **Fix (v0.9.14):** Removed `applyDomainMismatchGuardrail()` call from badge prescan scoring path entirely. Raw alignment scores now flow into `badgeScoreCache` for BST/SMC evaluation. Guardrail was retained on sidecard `showResults()` path only at this version — *(subsequently removed in v0.9.21 when the work mode system replaced all client-side caps with server-side weighted adjustments via `evaluateWorkMode()`)*. Added `[Caliber][SCORE_CAPPED]` diagnostic logging to guardrail function (rawScore, reason, jobTitle, calibrationTitle, clusters, keywordOverlap).
+  - **Fix (v0.9.14):** Removed `applyDomainMismatchGuardrail()` call from badge prescan scoring path entirely. Raw alignment scores now flow into `badgeScoreCache` for BST/SMC evaluation. Guardrail retained on sidecard `showResults()` path only — user sees the capped score when clicking a specific job, but surface-level intelligence uses uncapped scores. Added `[Caliber][SCORE_CAPPED]` diagnostic logging to guardrail function (rawScore, reason, jobTitle, calibrationTitle, clusters, keywordOverlap).
   - **Additional v0.9.14 fixes in same commit:** (1) `scoreSource` field added to all badge cache entries (`card_text_prescan`, `sidecard_full`, `restored_cache`). (2) `restored_cache` entries excluded from `strongCount` in `evaluateBSTFromBadgeCache`. (3) `lastScoredScore` reset on surface change to prevent stale sidecard score leak. (4) Per-entry surface-truth diagnostic logging with source breakdown.
   - **Status:** Fix shipped (v0.9.14). Validated by user — scores now spread naturally across range instead of collapsing to 5.0.
   - **Files:** `extension/content_linkedin.js`.
@@ -161,7 +133,7 @@
   - **Root cause:** Durable prescan state restore (`CALIBER_PRESCAN_STATE_GET`) was rehydrating `prescanSurfaceBanner` from storage on script init. When the surface key matched, the old `bestScore` was restored before fresh scoring could override it.
   - **Fix (v0.9.10):** Removed `prescanSurfaceBanner = resp.state.surfaceBanner || null` from the durable restore path. SMC now renders only from fresh current-surface scoring. BST restore fields (`prescanBSTActive`, `prescanStoredTitle`) are unaffected.
   - **Prior related fixes:** v0.9.9 addressed cache-reset gaps (clearAllBadges, DOM-presence pruning, prescan cache clear, race condition). This fix addresses the remaining durable-state restore vector.
-  - **Status:** Fix shipped (v0.9.10). Stale prescan restore path eliminated — SMC renders only from fresh current-surface scoring.
+  - **Status:** Fix shipped (v0.9.10). Validation pending.
   - **Files:** `extension/content_linkedin.js`.
 
 73. BST surface-truth and self-suggestion bugs — **SHIPPED** (2026-03-16)
@@ -179,13 +151,13 @@
   - **Status:** Shipped. Validation pending with Jen regression profile.
   - **Files:** `extension/content_linkedin.js`.
 
-72. BST premature rendering on refresh — **FIX SHIPPED** (2026-03-15)
+72. BST premature rendering on refresh — **ACTIVE / IN FIX** (2026-03-15)
   - **Symptom:** On refresh, BST banner appears first on healthy surfaces (account manager, calibrated title) before being replaced by strong-match banner. On out-of-scope surfaces (bartender), BST suppresses on first load and only appears after clicking another job.
   - **Root cause:** `evaluateBSTFromBadgeCache()` fires after every 5-card scoring chunk. With `BST_MIN_WINDOW_SIZE=5`, the very first chunk can trigger BST on partial evidence before strong matches in later chunks arrive. On refresh, durable prescan state restored stale banners before fresh scoring could override them.
   - **Investigation note:** Strong-match count instability on refresh was investigated and RULED OUT. Counts are stable by surface (account manager 5/5, calibrated title 5/5, bartender 0/5). The bug is purely timing/state-resolution.
   - **Fix:** `initialSurfaceResolved` gate — BST evaluation deferred until initial visible-card scoring queue fully drains. Durable-state banner restore removed; `runSearchPrescan()` always falls through to fresh scoring.
   - **Validation required:** Must be re-validated in BOTH baseline and signal-injected calibration modes before BST can be marked passed.
-  - **Status:** Fix shipped. `initialSurfaceResolved` gate operational — BST evaluation deferred until initial visible-card scoring queue drains on every surface load. Durable-state banner restore removed from prescan path.
+  - **Status:** Fix shipped. Post-fix validation pending in both modes.
   - **Files:** `extension/content_linkedin.js`.
 
 71. SGD anchor-boost injection + result page display — **SHIPPED** (2026-03-15)
@@ -209,7 +181,7 @@
   - When user selects “No”, behavior unchanged (resume signals only).
   - Files: `lib/calibration_machine.ts`.
 
-69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15)
+69. BST title suggestion loop — **UNDER VALIDATION** (2026-03-15) — blocked on #72 post-fix revalidation
   - BST sometimes suggested adjacent titles that led to repeated weak surfaces, creating an infinite loop.
   - Root cause: `determinePrescanSuggestion()` and fallback chains only checked `titlesEquivalent(title, currentQuery)` — no session-level memory of previously suggested or searched titles.
   - Fix (v0.9.6, commit `693d5b0`): Session-level tracking via `bstSuggestedTitles` / `bstSearchedQueries` objects. All title selection paths (`determinePrescanSuggestion`, fallback chains, `getCalibrationTitleFallback`) filter against seen titles. Graceful exhaustion when all candidates filtered.
@@ -240,7 +212,7 @@
   - Extension fit API includes `signal_preference` in response.
   - Files: `lib/calibration_types.ts`, `lib/calibration_machine.ts`, `app/calibration/page.tsx`, `app/api/extension/fit/route.ts`.
 
-65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15)
+65. BST suggestion rendering + surface classification edge cases — **IN PROGRESS** (2026-03-15) — blocked on #72 post-fix revalidation
   - Follow-up to #64. Multiple rounds of live testing (v0.9.3→v0.9.4→v0.9.5).
 
   **Round 1 (v0.9.3→v0.9.4):**
@@ -741,10 +713,13 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Bug reporting remains distinct from thumbs-down quality feedback.
   - May need further UX refinement if the combined icon+text is still not clear enough in the compact feedback row.
 
-44. Better Search Title trigger verification — **OPEN** (2026-03-11)
-  - Better Search Title thresholds were widened: weak < 6.5 (was < 6.0), strong >= 7.5 (was > 7.0).
-  - Need to verify the feature still triggers correctly with these thresholds.
-  - If regressed, this is a priority fix — the recovery banner is an important product surface.
+44. Better Search Title trigger verification — **RESOLVED** (2026-03-20)
+  - Validation audit found three live issues, all fixed in v0.9.20:
+  - **(a) Cache pruning scroll instability:** `evaluateBSTFromBadgeCache()` pruned cache entries when LinkedIn virtualized cards out of the DOM on scroll. This caused classification to oscillate (healthy→bst→healthy) as the user scrolled. Fix: cache entries are no longer pruned during BST evaluation; cache is only reset on explicit surface change (`clearAllBadges`).
+  - **(b) Adjacent-terms pulse invisible until first sidecard click:** `updateAdjacentTermsModule()` was only called from `showResults()` (sidecard scoring), so the BST badge never pulsed if the user hadn't clicked a job yet. Fix: `evaluateBSTFromBadgeCache()` now pre-populates adjacent terms from `lastKnownCalibrationTitle` / `lastKnownNearbyRoles` when classification transitions to bst/healthy and terms are not yet rendered.
+  - **(c) Phantom suggestion consumption:** `bstMarkSuggested(title)` was called before the disabled `showPrescanBSTBanner()`, recording titles as "used" even though the popup is disabled. Fix: `bstMarkSuggested()` removed from this path; titles are not consumed unless actually presented to the user.
+  - **(d) Threshold doc mismatch:** Docs referenced simple thresholds (weak < 6.5, strong >= 7.5) but code uses a two-phase composite classifier (`BST_STRONG_MATCH_THRESHOLD = 7.0`, `BST_AMBIGUOUS_AVG_CEILING = 6.0`, healthy requires >=2 strong or >=1 at 8.0+). Docs updated to describe actual composite behavior — no threshold constants changed.
+  - The v0.8.x simple-threshold model is fully superseded by the v0.9.17 two-phase classifier. All doc references updated.
 
 45. Pipeline board product validation — **OPEN** (2026-03-11, active/next)
   - Pipeline rebuilt from list to 4-column board: Resume Prep → Submitted → Interview Prep → Interview.

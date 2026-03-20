@@ -36,12 +36,29 @@ export type WorkModeResult = {
   jobMode: WorkModeClassification;
   compatibility: WorkModeCompatibility;
   executionIntensity: ExecutionIntensityResult;
+  roleType: RoleType | null;
+  chipSuppression: ChipSuppressionResult;
   preScore: number;
   workModeAdjustment: number;
   executionIntensityAdjustment: number;
-  preferenceAdjustment: number;
+  chipSuppressionAdjustment: number;
+  roleTypePenalty: number;
   postScore: number;
   adjustmentReason: string | null;
+};
+
+// ─── Role-Type Classification ───────────────────────────────
+// Coarse role archetype that maps to chip intent.
+// SYSTEM_BUILDER: creates/designs/architects systems
+// SYSTEM_OPERATOR: runs/coordinates/maintains operational processes
+// SYSTEM_SELLER: drives revenue/pipeline/quota
+
+export type RoleType = "SYSTEM_BUILDER" | "SYSTEM_OPERATOR" | "SYSTEM_SELLER";
+
+export type ChipSuppressionResult = {
+  suppressed: boolean;
+  adjustment: number;
+  reason: string | null;
 };
 
 // ─── Mode Trigger Patterns ──────────────────────────────────
@@ -56,13 +73,12 @@ const BUILDER_SYSTEMS_TRIGGERS: Trigger[] = [
   { pattern: /\barchitect(ure|ing)?\b/i, weight: 2, label: "architecture" },
   { pattern: /\binfrastructure\b/i, weight: 2, label: "infrastructure" },
   { pattern: /\b(SOP|SOPs|standard operating procedure)\b/i, weight: 2, label: "SOP" },
-  { pattern: /\bworkflow(s)?\b/i, weight: 1, label: "workflow" },
+  { pattern: /\bworkflow\s+automat(e|ed|ion|ing)\b/i, weight: 2, label: "workflow automation" },
   { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 2, label: "automation" },
-  { pattern: /\bplatform\b/i, weight: 1, label: "platform" },
+  { pattern: /\bplatform\s+(engineering|development|architecture)\b/i, weight: 2, label: "platform engineering" },
   { pattern: /\bengineering\b/i, weight: 1, label: "engineering" },
-  { pattern: /\bimplement(ation|ing|ed)?\b/i, weight: 1, label: "implementation" },
   { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deploy" },
-  { pattern: /\bintegrat(e|ion|ing|ed)\b/i, weight: 1, label: "integration" },
+  { pattern: /\bsystem(s)?\s+integrat(e|ion|ing|ed)\b/i, weight: 2, label: "system integration" },
   { pattern: /\b(CI\/CD|devops|dev ops)\b/i, weight: 2, label: "CI/CD" },
   { pattern: /\bproduct manage(r|ment)\b/i, weight: 2, label: "product management" },
   { pattern: /\b(roadmap|sprint|agile|scrum)\b/i, weight: 1, label: "agile/roadmap" },
@@ -70,11 +86,9 @@ const BUILDER_SYSTEMS_TRIGGERS: Trigger[] = [
   { pattern: /\b(prototype|MVP|proof of concept)\b/i, weight: 2, label: "prototype/MVP" },
   { pattern: /\bbuild(ing|t|s)? (tools|systems|apps|applications|software|platform)\b/i, weight: 2, label: "building tools/systems" },
   { pattern: /\b(technical lead|tech lead)\b/i, weight: 2, label: "tech lead" },
-  { pattern: /\bprocess improvement\b/i, weight: 1, label: "process improvement" },
 ];
 
 const SALES_EXECUTION_TRIGGERS: Trigger[] = [
-  // Transactional / quota-driven sales
   { pattern: /\bquota\b/i, weight: 2, label: "quota" },
   { pattern: /\bcommission\b/i, weight: 2, label: "commission" },
   { pattern: /\bcold call(s|ing)?\b/i, weight: 2, label: "cold calling" },
@@ -99,20 +113,6 @@ const SALES_EXECUTION_TRIGGERS: Trigger[] = [
   { pattern: /\bnew business\b/i, weight: 1, label: "new business" },
   { pattern: /\bsales (team|org|organization)\b/i, weight: 1, label: "sales org" },
   { pattern: /\b(book|booking)(s|ing)? (meeting|appointment|demo)\b/i, weight: 2, label: "booking meetings" },
-  // Relationship-driven B2B sales / partnerships
-  { pattern: /\bbusiness development\b/i, weight: 2, label: "business development" },
-  { pattern: /\bpartnership(s)?\b/i, weight: 2, label: "partnerships" },
-  { pattern: /\bsponsor(ship|ships|ing)\b/i, weight: 2, label: "sponsorship" },
-  { pattern: /\baccount (manag|growth|develop)/i, weight: 2, label: "account management" },
-  { pattern: /\brelationship (develop|build|manag)/i, weight: 2, label: "relationship development" },
-  { pattern: /\bclient (acqui|develop|grow|retent)/i, weight: 2, label: "client development" },
-  { pattern: /\brevenue (generat|own|driv|growth)/i, weight: 2, label: "revenue generation" },
-  { pattern: /\bpipeline (own|manag|build|develop)/i, weight: 2, label: "pipeline ownership" },
-  { pattern: /\bpartner (lifecycle|relat|manag)/i, weight: 2, label: "partner management" },
-  { pattern: /\boutside sales\b/i, weight: 2, label: "outside sales" },
-  { pattern: /\b(sales|selling) strateg/i, weight: 1, label: "sales strategy" },
-  { pattern: /\bclient retention\b/i, weight: 1, label: "client retention" },
-  { pattern: /\bsales experience\b/i, weight: 1, label: "sales experience" },
 ];
 
 const OPERATIONAL_EXECUTION_TRIGGERS: Trigger[] = [
@@ -191,130 +191,6 @@ const MODE_TRIGGERS: Record<WorkMode, Trigger[]> = {
   analytical_investigative: ANALYTICAL_INVESTIGATIVE_TRIGGERS,
   creative_ideation: CREATIVE_IDEATION_TRIGGERS,
 };
-
-// ─── Structural vs Execution Discriminator ──────────────────
-// Catches roles that trigger builder_systems via ambiguous vocabulary
-// (infrastructure, workflow, engineering, process improvement) but
-// where the daily work is coordination/management, not creation.
-//
-// Applied ONLY to job classification. When execution-management signals
-// dominate structural (system-building) signals, reclassifies the job
-// from builder_systems to operational_execution so the compatibility
-// map applies the correct penalty.
-
-// Structural: hands-on technical system creation/design. These signals
-// almost never appear in construction, coordination, or PM roles.
-const STRUCTURAL_SIGNALS: Trigger[] = [
-  { pattern: /\bsystem(s)? design\b/i, weight: 2, label: "system design" },
-  { pattern: /\barchitect(ure|ing)\b/i, weight: 2, label: "architecture" },
-  { pattern: /\b(prototype|MVP|proof of concept)\b/i, weight: 2, label: "prototype/MVP" },
-  { pattern: /\b(CI\/CD|devops|dev ops)\b/i, weight: 2, label: "CI/CD" },
-  { pattern: /\b(technical lead|tech lead)\b/i, weight: 2, label: "tech lead" },
-  { pattern: /\b(full[- ]stack|backend|frontend)\b/i, weight: 2, label: "software dev" },
-  { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deployment" },
-  { pattern: /\bcod(e|ing|er)\b/i, weight: 2, label: "coding" },
-  { pattern: /\b(API|REST|GraphQL|microservice)/i, weight: 2, label: "API/services" },
-  { pattern: /\bSaaS\b/i, weight: 1, label: "SaaS" },
-  { pattern: /\bsoftware (develop|engineer)/i, weight: 2, label: "software development" },
-  { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 1, label: "automation" },
-  { pattern: /\b(SOP|SOPs|standard operating procedure)\b/i, weight: 1, label: "SOP creation" },
-  { pattern: /\bproduct develop(ment|er|ing)\b/i, weight: 2, label: "product development" },
-  { pattern: /\b(agile|scrum|sprint)\b/i, weight: 1, label: "agile/scrum" },
-];
-
-// Execution-management: managing/coordinating/supervising work done by others.
-// Presence of these signals without structural signals indicates the builder
-// vocabulary is contextual (construction, logistics) not technical creation.
-const EXECUTION_MANAGEMENT_SIGNALS: Trigger[] = [
-  { pattern: /\bproject manage(r|ment)\b/i, weight: 2, label: "project management" },
-  { pattern: /\bconstruction\b/i, weight: 2, label: "construction" },
-  { pattern: /\bbudget (management|tracking|oversight|performance)\b/i, weight: 2, label: "budget management" },
-  { pattern: /\bstakeholder (management|coordination|communication)\b/i, weight: 2, label: "stakeholder management" },
-  { pattern: /\b(status|progress) report(s|ing)?\b/i, weight: 2, label: "status/progress reporting" },
-  { pattern: /\bvendor (management|coordination|relations)\b/i, weight: 2, label: "vendor management" },
-  { pattern: /\bclient (management|relations|communication)\b/i, weight: 2, label: "client management" },
-  { pattern: /\bsubcontract(or|ing|ors)\b/i, weight: 2, label: "subcontractor management" },
-  { pattern: /\bchange order(s)?\b/i, weight: 2, label: "change orders" },
-  { pattern: /\b(permit|inspection)(s|ing)?\b/i, weight: 2, label: "permits/inspections" },
-  { pattern: /\bsite (manage|supervis|superintendent)/i, weight: 2, label: "site management" },
-  { pattern: /\b(RFP|RFI|RFQ)\b/i, weight: 2, label: "RFP/RFI" },
-  { pattern: /\bresource allocation\b/i, weight: 2, label: "resource allocation" },
-  { pattern: /\bpreconstruction\b/i, weight: 2, label: "preconstruction" },
-  { pattern: /\bprogram manage(r|ment)\b/i, weight: 2, label: "program management" },
-  { pattern: /\bproject coordinat(or|ion)\b/i, weight: 2, label: "project coordination" },
-  { pattern: /\bregulatory compliance\b/i, weight: 2, label: "regulatory compliance" },
-  { pattern: /\bsafety (compliance|management|program)\b/i, weight: 2, label: "safety compliance" },
-  { pattern: /\boversee(ing|s)?\b/i, weight: 1, label: "overseeing" },
-  { pattern: /\bsupervis(e|ion|ing|or)\b/i, weight: 1, label: "supervision" },
-];
-
-// Minimum execution score to trigger reclassification
-const EXECUTION_DOMINANCE_THRESHOLD = 4;
-
-export type DiscriminatorResult = {
-  applied: boolean;
-  structuralScore: number;
-  executionScore: number;
-  structuralTriggers: string[];
-  executionTriggers: string[];
-};
-
-function applyExecutionDiscriminator(
-  text: string,
-  classification: WorkModeClassification,
-): { classification: WorkModeClassification; discriminator: DiscriminatorResult } {
-  let structuralScore = 0;
-  let executionScore = 0;
-  const structuralTriggers: string[] = [];
-  const executionTriggers: string[] = [];
-
-  for (const trigger of STRUCTURAL_SIGNALS) {
-    if (trigger.pattern.test(text)) {
-      structuralScore += trigger.weight;
-      structuralTriggers.push(trigger.label);
-    }
-  }
-
-  for (const trigger of EXECUTION_MANAGEMENT_SIGNALS) {
-    if (trigger.pattern.test(text)) {
-      executionScore += trigger.weight;
-      executionTriggers.push(trigger.label);
-    }
-  }
-
-  const shouldReclassify =
-    executionScore >= EXECUTION_DOMINANCE_THRESHOLD &&
-    executionScore > structuralScore;
-
-  if (shouldReclassify) {
-    return {
-      classification: {
-        mode: "operational_execution",
-        scores: classification.scores,
-        topMatches: executionTriggers,
-        confidence: classification.confidence,
-      },
-      discriminator: {
-        applied: true,
-        structuralScore,
-        executionScore,
-        structuralTriggers,
-        executionTriggers,
-      },
-    };
-  }
-
-  return {
-    classification,
-    discriminator: {
-      applied: false,
-      structuralScore,
-      executionScore,
-      structuralTriggers,
-      executionTriggers,
-    },
-  };
-}
 
 // ─── Compatibility Map ──────────────────────────────────────
 // Deterministic mapping: COMPATIBILITY_MAP[userMode][jobMode]
@@ -448,15 +324,7 @@ export function classifyUserWorkMode(
 // ─── Job Classification ─────────────────────────────────────
 
 export function classifyJobWorkMode(jobText: string): WorkModeClassification {
-  const result = classifyText(jobText);
-  // Apply structural vs execution discriminator for builder_systems classifications.
-  // Prevents construction PMs, coordinators, and other execution-heavy roles from
-  // being misclassified as builder_systems via ambiguous vocabulary overlap.
-  if (result.mode === "builder_systems") {
-    const { classification } = applyExecutionDiscriminator(jobText, result);
-    return classification;
-  }
-  return result;
+  return classifyText(jobText);
 }
 
 // ─── Compatibility Lookup ───────────────────────────────────
@@ -557,6 +425,212 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+// ─── Role-Type Classifier ───────────────────────────────────
+// Classifies a job into a coarse role archetype based on keyword density.
+// Uses strong-signal keywords only — avoids generic terms that create
+// false positives (e.g., "strategy" alone does NOT trigger SYSTEM_BUILDER).
+
+type RoleTypePattern = { pattern: RegExp; weight: number; label: string };
+
+const SELLER_PATTERNS: RoleTypePattern[] = [
+  { pattern: /\bclose\s+(deals?|business|sales)\b/i, weight: 3, label: "close deals" },
+  { pattern: /\bpipeline\s+(generation|management|development)\b/i, weight: 3, label: "pipeline generation" },
+  { pattern: /\b(revenue|sales)\s+target\b/i, weight: 3, label: "revenue target" },
+  { pattern: /\bquota[- ]?carry(ing)?\b/i, weight: 3, label: "quota-carrying" },
+  { pattern: /\bquota\b/i, weight: 2, label: "quota" },
+  { pattern: /\bcold call(s|ing)?\b/i, weight: 3, label: "cold calling" },
+  { pattern: /\boutbound (call|dial|prospect)/i, weight: 3, label: "outbound prospecting" },
+  { pattern: /\bcommission[- ]?(based|only|driven|structure)\b/i, weight: 3, label: "commission-driven" },
+  { pattern: /\b(BDR|SDR)\b/i, weight: 3, label: "BDR/SDR" },
+  { pattern: /\baccount executive\b/i, weight: 3, label: "account executive" },
+  { pattern: /\binside sales\b/i, weight: 3, label: "inside sales" },
+  { pattern: /\bsales cycle\b/i, weight: 2, label: "sales cycle" },
+  { pattern: /\b(hunting|hunter)\b/i, weight: 2, label: "hunting" },
+  { pattern: /\b(upsell|cross[- ]sell)\b/i, weight: 2, label: "upsell/cross-sell" },
+  { pattern: /\bprospect(s|ing)?\b/i, weight: 2, label: "prospecting" },
+  { pattern: /\bsales (rep|representative)\b/i, weight: 3, label: "sales rep" },
+  { pattern: /\bnew business\b/i, weight: 1, label: "new business" },
+];
+
+const OPERATOR_PATTERNS: RoleTypePattern[] = [
+  { pattern: /\bproject\s+manag(er|ement|ing)\b/i, weight: 3, label: "project management" },
+  { pattern: /\bcoordinat(e|ion|or|ing)\b/i, weight: 2, label: "coordination" },
+  { pattern: /\bdelivery\s+own(er|ership)\b/i, weight: 3, label: "delivery ownership" },
+  { pattern: /\border\s+processing\b/i, weight: 3, label: "order processing" },
+  { pattern: /\blogistics\b/i, weight: 2, label: "logistics" },
+  { pattern: /\bdispatch\b/i, weight: 2, label: "dispatch" },
+  { pattern: /\badministrative\b/i, weight: 2, label: "administrative" },
+  { pattern: /\bschedul(e|ing)\b/i, weight: 2, label: "scheduling" },
+  { pattern: /\bdata entry\b/i, weight: 3, label: "data entry" },
+  { pattern: /\bprocurement\b/i, weight: 2, label: "procurement" },
+  { pattern: /\binventory\b/i, weight: 2, label: "inventory" },
+  { pattern: /\bpayroll\b/i, weight: 3, label: "payroll" },
+  { pattern: /\bbookkeeping\b/i, weight: 3, label: "bookkeeping" },
+  { pattern: /\boffice\s+manage(r|ment)\b/i, weight: 3, label: "office management" },
+  { pattern: /\btransactional\b/i, weight: 2, label: "transactional" },
+  { pattern: /\b(ticketing|help\s*desk)\b/i, weight: 2, label: "ticketing" },
+  { pattern: /\bcustomer\s+(support|service)\b/i, weight: 2, label: "customer support" },
+];
+
+const BUILDER_PATTERNS: RoleTypePattern[] = [
+  { pattern: /\bproduct\s+develop(ment|er|ing)\b/i, weight: 3, label: "product development" },
+  { pattern: /\bsystem(s)?\s+design\b/i, weight: 3, label: "system design" },
+  { pattern: /\barchitect(ure|ing)?\b/i, weight: 3, label: "architecture" },
+  { pattern: /\binfrastructure\b/i, weight: 2, label: "infrastructure" },
+  { pattern: /\b(SOP|SOPs|standard\s+operating\s+procedure)\b/i, weight: 2, label: "SOP" },
+  { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 2, label: "automation" },
+  { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deploy" },
+  { pattern: /\b(CI\/CD|devops)\b/i, weight: 3, label: "CI/CD" },
+  { pattern: /\bproduct\s+manage(r|ment)\b/i, weight: 2, label: "product management" },
+  { pattern: /\b(prototype|MVP|proof\s+of\s+concept)\b/i, weight: 3, label: "prototype/MVP" },
+  { pattern: /\bbuild(ing|t|s)?\s+(tools|systems|apps|applications|software|platform)\b/i, weight: 3, label: "building tools/systems" },
+  { pattern: /\b(technical\s+lead|tech\s+lead)\b/i, weight: 3, label: "tech lead" },
+  { pattern: /\b(full[- ]stack|backend|frontend)\b/i, weight: 2, label: "software dev" },
+  { pattern: /\bplatform\s+engineer/i, weight: 3, label: "platform engineering" },
+];
+
+const ROLE_TYPE_THRESHOLD = 4; // minimum score to classify
+
+export function classifyRoleType(jobText: string): RoleType | null {
+  const sellerScore = scorePatterns(jobText, SELLER_PATTERNS);
+  const operatorScore = scorePatterns(jobText, OPERATOR_PATTERNS);
+  const builderScore = scorePatterns(jobText, BUILDER_PATTERNS);
+
+  const max = Math.max(sellerScore, operatorScore, builderScore);
+  if (max < ROLE_TYPE_THRESHOLD) return null;
+
+  // Deterministic tie-breaking: seller > operator > builder (severity order)
+  if (sellerScore === max && sellerScore >= ROLE_TYPE_THRESHOLD) return "SYSTEM_SELLER";
+  if (operatorScore === max && operatorScore >= ROLE_TYPE_THRESHOLD) return "SYSTEM_OPERATOR";
+  if (builderScore === max && builderScore >= ROLE_TYPE_THRESHOLD) return "SYSTEM_BUILDER";
+  return null;
+}
+
+function scorePatterns(text: string, patterns: RoleTypePattern[]): number {
+  let total = 0;
+  for (const p of patterns) {
+    if (p.pattern.test(text)) total += p.weight;
+  }
+  return total;
+}
+
+// ─── Chip-Based Suppression ─────────────────────────────────
+// When a user has explicitly avoided a mode via chips, and the job's
+// dominant mode or role type matches that avoided mode, apply a hard cap.
+// This is the user's stated intent — it overrides text-based classification.
+
+// Map chip avoidedModes strings to the role types and work modes they suppress
+const AVOIDED_MODE_TO_ROLE_TYPES: Record<string, RoleType[]> = {
+  sales_execution: ["SYSTEM_SELLER"],
+  operational_execution: ["SYSTEM_OPERATOR"],
+  builder_systems: ["SYSTEM_BUILDER"],
+};
+
+const AVOIDED_MODE_TO_WORK_MODES: Record<string, WorkMode[]> = {
+  sales_execution: ["sales_execution"],
+  operational_execution: ["operational_execution"],
+  builder_systems: ["builder_systems"],
+};
+
+// Hard caps when chip suppression fires
+const CHIP_SUPPRESSION_CAPS: Record<string, number> = {
+  sales_execution: 3.5,        // sales with "sales" avoided → ≤ 3.5
+  operational_execution: 4.0,  // ops with "ops" avoided → ≤ 4.0
+  builder_systems: 4.0,        // builder with "builder" avoided → ≤ 4.0
+};
+
+export type WorkPreferencesInput = {
+  primaryMode?: string;
+  preferredModes?: string[];
+  avoidedModes?: string[];
+} | null | undefined;
+
+export function applyChipSuppression(
+  score: number,
+  jobMode: WorkModeClassification,
+  roleType: RoleType | null,
+  workPreferences: WorkPreferencesInput,
+): ChipSuppressionResult {
+  if (!workPreferences?.avoidedModes || workPreferences.avoidedModes.length === 0) {
+    return { suppressed: false, adjustment: 0, reason: null };
+  }
+
+  for (const avoided of workPreferences.avoidedModes) {
+    const matchingRoleTypes = AVOIDED_MODE_TO_ROLE_TYPES[avoided] || [];
+    const matchingWorkModes = AVOIDED_MODE_TO_WORK_MODES[avoided] || [];
+
+    const roleTypeMatch = roleType && matchingRoleTypes.includes(roleType);
+    const workModeMatch = jobMode.mode && matchingWorkModes.includes(jobMode.mode) && jobMode.confidence !== "none";
+
+    if (roleTypeMatch || workModeMatch) {
+      const cap = CHIP_SUPPRESSION_CAPS[avoided] ?? 4.0;
+      if (score > cap) {
+        const adjustment = cap - score;
+        return {
+          suppressed: true,
+          adjustment,
+          reason: `Chip suppression: "${avoided}" is in avoidedModes, ` +
+            `job classified as ${roleType ? `roleType=${roleType}` : `mode=${jobMode.mode}`}. ` +
+            `Score capped from ${round1(score)} to ${cap}.`,
+        };
+      }
+    }
+  }
+
+  return { suppressed: false, adjustment: 0, reason: null };
+}
+
+// ─── Role-Type Mismatch Penalty ─────────────────────────────
+// When the user's dominant chip intent (primaryMode) is a builder type
+// but the job is a seller or operator, apply an additional penalty even
+// without explicit avoidedModes. This catches implicit mismatches.
+
+const ROLE_TYPE_PENALTY_MAP: Record<string, Record<RoleType, number>> = {
+  builder_systems: {
+    SYSTEM_BUILDER: 0,
+    SYSTEM_OPERATOR: -1.0,
+    SYSTEM_SELLER: -2.0,
+  },
+  sales_execution: {
+    SYSTEM_BUILDER: -1.5,
+    SYSTEM_OPERATOR: -0.5,
+    SYSTEM_SELLER: 0,
+  },
+  operational_execution: {
+    SYSTEM_BUILDER: -0.5,
+    SYSTEM_OPERATOR: 0,
+    SYSTEM_SELLER: -1.0,
+  },
+  analytical_investigative: {
+    SYSTEM_BUILDER: 0,
+    SYSTEM_OPERATOR: -1.0,
+    SYSTEM_SELLER: -2.0,
+  },
+  creative_ideation: {
+    SYSTEM_BUILDER: 0,
+    SYSTEM_OPERATOR: -1.0,
+    SYSTEM_SELLER: -1.5,
+  },
+};
+
+export function getRoleTypePenalty(
+  userMode: WorkMode | null,
+  roleType: RoleType | null,
+): { penalty: number; reason: string | null } {
+  if (!userMode || !roleType) return { penalty: 0, reason: null };
+
+  const map = ROLE_TYPE_PENALTY_MAP[userMode];
+  if (!map) return { penalty: 0, reason: null };
+
+  const penalty = map[roleType] ?? 0;
+  if (penalty === 0) return { penalty: 0, reason: null };
+
+  return {
+    penalty,
+    reason: `Role-type mismatch: user=${userMode}, job roleType=${roleType}. Penalty: ${penalty}.`,
+  };
+}
+
 export function applyWorkModeAdjustment(
   rawScore: number,
   compatibility: WorkModeCompatibility,
@@ -598,58 +672,6 @@ export function applyWorkModeCeiling(
   };
 }
 
-// ─── Work Preference Modulation ─────────────────────────────
-// Post-classification nudge based on explicit user preferences.
-// Acts after work mode + execution intensity adjustments.
-// Conservative: nudges direction, does not flip scores.
-
-/** Boost when job mode matches user's primary preferred mode. */
-const PREFERENCE_PRIMARY_BOOST = 0.5;
-/** Boost when job mode matches a secondary preferred mode (not primary). */
-const PREFERENCE_SECONDARY_BOOST = 0.3;
-/** Penalty when job mode matches an explicitly avoided mode. */
-const PREFERENCE_AVOID_PENALTY = -1.5;
-
-export type WorkPreferenceInput = {
-  primaryMode?: string;
-  preferredModes?: string[];
-  avoidedModes?: string[];
-};
-
-/**
- * Compute preference-based score adjustment.
- * Rules:
- *  - avoided takes precedence over preferred (if both match, penalty wins)
- *  - primary boost only if job mode === primaryMode
- *  - secondary boost if job mode ∈ preferredModes (and not primary)
- *  - no preferences → 0
- */
-export function applyPreferenceModulation(
-  jobMode: WorkMode | null,
-  preferences: WorkPreferenceInput | undefined | null,
-): { adjustment: number; reason: string | null } {
-  if (!preferences || !jobMode) return { adjustment: 0, reason: null };
-
-  const avoided = preferences.avoidedModes ?? [];
-  const preferred = preferences.preferredModes ?? [];
-  const primary = preferences.primaryMode ?? null;
-
-  // Avoided takes precedence
-  if (avoided.includes(jobMode)) {
-    return { adjustment: PREFERENCE_AVOID_PENALTY, reason: `avoided mode (${jobMode})` };
-  }
-
-  if (primary && jobMode === primary) {
-    return { adjustment: PREFERENCE_PRIMARY_BOOST, reason: `primary preferred mode (${jobMode})` };
-  }
-
-  if (preferred.includes(jobMode)) {
-    return { adjustment: PREFERENCE_SECONDARY_BOOST, reason: `secondary preferred mode (${jobMode})` };
-  }
-
-  return { adjustment: 0, reason: null };
-}
-
 // ─── Full Pipeline ──────────────────────────────────────────
 
 export function evaluateWorkMode(
@@ -657,11 +679,14 @@ export function evaluateWorkMode(
   resumeText: string,
   promptAnswers: Record<number, string>,
   jobText: string,
-  preferences?: WorkPreferenceInput | null,
+  workPreferences?: WorkPreferencesInput,
 ): WorkModeResult {
   const userMode = classifyUserWorkMode(resumeText, promptAnswers);
   const jobMode = classifyJobWorkMode(jobText);
   const compatibility = getWorkModeCompatibility(userMode.mode, jobMode.mode);
+
+  // Role-type classification (coarse archetype)
+  const roleType = classifyRoleType(jobText);
 
   // Work mode adjustment (proportional penalty for mismatch)
   const { adjustment: wmAdj, reason: wmReason } = applyWorkModeAdjustment(
@@ -672,22 +697,29 @@ export function evaluateWorkMode(
   const executionIntensity = detectExecutionIntensity(jobText);
   const eiAdj = executionIntensity.adjustment;
 
-  // Compose final score: base + work mode adjustment + execution intensity adjustment
-  // When both adjustments fire, dampen intensity to avoid double-counting daily-work misalignment.
-  // Intensity applies at half strength when work mode is already conflicting.
+  // When both adjustments fire, dampen intensity to avoid double-counting.
   const dampedEiAdj = (compatibility === "conflicting" && eiAdj < 0) ? eiAdj * 0.5 : eiAdj;
 
-  // Preference modulation (post-classification nudge)
-  const { adjustment: prefAdj, reason: prefReason } = applyPreferenceModulation(jobMode.mode, preferences);
+  // Role-type mismatch penalty (implicit chip enforcement)
+  const { penalty: rtPenalty, reason: rtReason } = getRoleTypePenalty(userMode.mode, roleType);
+  // Dampen role-type penalty when work mode adjustment already applied
+  const dampedRtPenalty = (wmAdj < 0 && rtPenalty < 0) ? rtPenalty * 0.5 : rtPenalty;
 
-  const totalAdjustment = wmAdj + dampedEiAdj + prefAdj;
-  const postScore = round1(Math.max(0, Math.min(10, rawScore + totalAdjustment)));
+  // Compose pre-chip score
+  const preChipScore = round1(Math.max(0, Math.min(10, rawScore + wmAdj + dampedEiAdj + dampedRtPenalty)));
+
+  // Chip-based suppression (hard cap from user's explicit avoidedModes)
+  const chipSuppression = applyChipSuppression(preChipScore, jobMode, roleType, workPreferences);
+  const chipAdj = chipSuppression.adjustment;
+
+  const postScore = round1(Math.max(0, Math.min(10, preChipScore + chipAdj)));
 
   // Build composite reason
   const reasons: string[] = [];
   if (wmReason) reasons.push(wmReason);
   if (executionIntensity.reason) reasons.push(executionIntensity.reason);
-  if (prefReason) reasons.push(prefReason);
+  if (rtReason) reasons.push(rtReason);
+  if (chipSuppression.reason) reasons.push(chipSuppression.reason);
   const adjustmentReason = reasons.length > 0 ? reasons.join(" | ") : null;
 
   return {
@@ -695,10 +727,13 @@ export function evaluateWorkMode(
     jobMode,
     compatibility,
     executionIntensity,
+    roleType,
+    chipSuppression,
     preScore: rawScore,
     workModeAdjustment: wmAdj,
     executionIntensityAdjustment: dampedEiAdj,
-    preferenceAdjustment: prefAdj,
+    chipSuppressionAdjustment: chipAdj,
+    roleTypePenalty: dampedRtPenalty,
     postScore,
     adjustmentReason,
   };
@@ -716,11 +751,12 @@ export const _testing = {
   EXECUTION_INTENSITY_TRIGGERS,
   INTENSITY_ADJUSTMENTS,
   detectExecutionIntensity,
-  STRUCTURAL_SIGNALS,
-  EXECUTION_MANAGEMENT_SIGNALS,
-  EXECUTION_DOMINANCE_THRESHOLD,
-  applyExecutionDiscriminator,
-  PREFERENCE_PRIMARY_BOOST,
-  PREFERENCE_SECONDARY_BOOST,
-  PREFERENCE_AVOID_PENALTY,
+  SELLER_PATTERNS,
+  OPERATOR_PATTERNS,
+  BUILDER_PATTERNS,
+  CHIP_SUPPRESSION_CAPS,
+  ROLE_TYPE_PENALTY_MAP,
+  classifyRoleType,
+  applyChipSuppression,
+  getRoleTypePenalty,
 };

@@ -571,6 +571,7 @@ export default function CalibrationPage() {
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
+  const [chipHeading, chipHeadingDone] = useTypewriter(step === "WORK_PREFERENCES" ? "What kind of work do you want more of?" : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
@@ -918,7 +919,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     </div>
                   </div>
                 </div>
-                <div className="mt-5 flex justify-center">
+                <div className="mt-5 flex justify-center" style={{ opacity: selectedFile ? 1 : 0, pointerEvents: selectedFile ? "auto" : "none", transition: "opacity 0.4s ease" }}>
                   <button
                     type="button"
                     onClick={submitResume}
@@ -958,9 +959,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "WORK_PREFERENCES" ? (
               <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div className="mt-8 cb-headline text-center">
-                  What kind of work do you want more of?
+                  {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
                 </div>
-                <p className="mt-3 text-sm text-center" style={{ color: "rgba(161,161,170,0.65)" }}>
+                <p className="mt-3 text-sm text-center transition-opacity duration-500" style={{ color: "rgba(161,161,170,0.65)", opacity: chipHeadingDone ? 1 : 0 }}>
                   Tap to select your primary focus. You can also mark modes to prefer or avoid.
                 </p>
 
