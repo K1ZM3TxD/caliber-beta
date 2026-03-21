@@ -16,6 +16,7 @@ import {
   pipelineFindByJob as dbPipelineFindByJob,
   pipelineCreate as dbPipelineCreate,
   pipelineUpdateStage as dbPipelineUpdateStage,
+  pipelineGet as dbPipelineGet,
   migrateFileEntriesToUser,
   pipelineListBySession,
   pipelineFindByJobSession,
@@ -232,6 +233,14 @@ export async function PATCH(req: NextRequest) {
     // Check auth for web requests
     const session = await auth();
     if (session?.user?.id) {
+      // Ownership check: verify the entry belongs to this user
+      const existing = await dbPipelineGet(String(id));
+      if (!existing || existing.userId !== session.user.id) {
+        return NextResponse.json(
+          { ok: false, error: "Pipeline entry not found" },
+          { status: 404 }
+        );
+      }
       const updated = await dbPipelineUpdateStage(
         String(id),
         stage as PipelineStage,

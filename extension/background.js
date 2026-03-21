@@ -252,6 +252,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               score: data.score_0_to_10 || 0,
               calibrationTitle: data.calibration_title || "",
               nearbyRoles: data.nearby_roles || [],
+              recoveryTerms: data.recovery_terms || [],
               hrcBand: (data.hiring_reality_check && data.hiring_reality_check.band) || null,
               debugSignals: data.debug_signals || null,
               ok: true,

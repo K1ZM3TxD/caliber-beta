@@ -8,6 +8,7 @@ import { requireOpenAIKey } from "./env";
 export interface TailorPrep {
   id: string;
   sessionId: string;
+  userId?: string;
   jobTitle: string;
   company: string;
   jobUrl: string;
@@ -20,6 +21,7 @@ export interface TailorResult {
   id: string;
   prepId: string;
   sessionId: string;
+  userId?: string;
   tailoredText: string; // the generated resume text
   createdAt: string;
 }

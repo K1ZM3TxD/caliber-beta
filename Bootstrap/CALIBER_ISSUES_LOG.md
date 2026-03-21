@@ -3,6 +3,25 @@
 
 ## Current Open Issues
 
+91. Adjacent Searches recovery term quality — weak-surface recovery strengthening — **FIX SHIPPED** (2026-03-21)
+  - **Symptom:** Adjacent search terms were underpowered — only 3 titles from calibration's `selectTwoPlusOne()` (primary + 2 adjacent), not work-mode-aware, no cluster diversity enforcement. Insufficient for weak-surface recovery.
+  - **Root cause:** Term generation used calibration output directly (nearby_roles = same 2-3 titles from pattern synthesis). Full 25-title candidate pool from `scoreAllTitles()` was available but never used. Work-mode compatibility data existed but wasn't applied to term ranking.
+  - **Fix:** New `generateRecoveryTerms()` function in `lib/title_scoring.ts`. Pipeline: `scoreAllTitles()` → filter primary → filter base score < 1.5 → apply work-mode bonus (compatible +1.5, adjacent +0.5, conflicting -2.0 via `CLUSTER_MODE_MAP`) → filter recovery score < 2.0 → sort by recovery score descending → select 3 with quality-aware cluster diversity (max 1 per cluster unless score gap > 5.0 — prevents forcing weak cross-cluster picks over strong same-cluster candidates) → fallback fill if < 3. Returns `RecoveryTerm[]` with title/score/recoveryScore/cluster/source + `RecoveryDebug` with candidatePool/filtered/selected.
+  - **API changes:** `app/api/extension/fit/route.ts` computes and returns `recovery_terms` (array of {title, score, recoveryScore, cluster, source}) and `debug_recovery_terms` (full debug object) alongside existing `nearby_roles`.
+  - **Extension changes:** `background.js` relays `recoveryTerms`. `content_linkedin.js` `getAdjacentSearchTerms()` prefers recovery terms over calibration title + nearby roles (fallback preserved for pre-API paths). `updateAdjacentTermsModule()` passes recovery terms through.
+  - **Thin-profile support:** Base score floor 1.5, recovery score floor 2.0 (handles Dingus where max title score is 2.3 — all titles scored below original 4.0 floor).
+  - **Validation:** `analysis/recovery_term_validation.js` — 85/85 assertions across 10 categories × 4 fixtures. Chris: 3 clusters (ProductDev/CreativeOps/DesignSystems), all ≥9.2. Fabio: 3 SecurityAnalysis (quality-aware diversity), all ≥10.0. Jen: 2-cluster diversity, conflicting penalized. Dingus: 3 terms via thin-profile thresholds.
+  - **Regression:** BST 62/62, sidecard 52/52, adjacent 36/36, unit 179/181 (2 pre-existing).
+  - **Files:** `lib/title_scoring.ts`, `app/api/extension/fit/route.ts`, `extension/background.js`, `extension/content_linkedin.js`, `analysis/recovery_term_validation.js`, `analysis/adjacent_interaction_validation.js`.
+
+90. Adjacent Searches interaction model — calm-default behavior — **FIX SHIPPED** (2026-03-21)
+  - **Symptom (2 UX misses from live PM validation):** (1) Adjacent Searches module exposed only 1 suggestion in practice — `getAdjacentSearchTerms()` capped at 5 but `nearbyRoles[i].title` access missed plain-string entries, and the self-suppression + dedup chain reduced yield below usable count with no debug visibility. (2) Module auto-expanded on repeated BST triggers instead of staying calm — no session flag tracked user intent, so badge pulse re-triggered indefinitely.
+  - **Root cause:** (1) Old cap was 5 with display logic `Math.max(3, Math.min(terms.length, 5))` but actual yield was 1 because `nearbyRoles` entries that were plain strings (not objects with `.title`) silently failed. (2) `updateAdjacentTermsPulse()` had no memory of user interaction — pulsed every time classification was "bst" regardless of whether user had already acknowledged the section.
+  - **Fix:** (1) `ADJACENT_TARGET_COUNT = 3` constant replaces old cap. `tryAdd()` handles both `nearbyRoles[i].title` and plain string entries. Debug logging emits detailed filter breakdown (selfSuppressed, alreadySearched, duplicate, sanitizeFail, preSeenCount) when fewer than 3 terms available. (2) New `adjacentUserOpened` session flag set on first badge click. `updateAdjacentTermsPulse()` suppresses all pulse when flag is true. Section never auto-expands — stays `display:none` until user clicks badge. (3) Session dedup and self-suggestion suppression preserved intact.
+  - **Validation:** `analysis/adjacent_interaction_validation.js` — 36/36 assertions: target count constant, cap enforcement, loop break, self-suppression, session dedup, debug logging (5 filter categories), adjacentUserOpened lifecycle (declare, set, suppress pulse), no auto-expand in updateAdjacentTermsModule or updateAdjacentTermsPulse, showPrescanBSTBanner still disabled, finite badge pulse, no programmatic .click(), surface-change reset (section hidden but session flag retained), plain-string nearby-roles handling, 8 functional simulations.
+  - **Regression:** BST 62/62 PASS, sidecard 52/52 PASS, 179/181 unit tests (2 pre-existing).
+  - **Files:** `extension/content_linkedin.js`, `analysis/adjacent_interaction_validation.js`.
+
 89. Cap-based mismatch scoring too forgiving for actively bad jobs — **FIX SHIPPED** (2026-03-19)
   - Hard cap 6.5 (conflicting) and soft cap 8.5 (adjacent) prevented false-positive strong matches but did not push truly bad jobs (grind-heavy, rejection-heavy, commission-only) into the obviously-wrong score zone.
   - Property Max house-buying-specialist style roles scored ~6.0-6.5 for Builder profiles — not clearly "avoid" territory.
@@ -60,13 +79,14 @@
   - **Status:** Shipped. Diagnostic logging on card text cleanup.
   - **Files:** `extension/content_linkedin.js`.
 
-82. BST popup replaced by persistent Adjacent Search Terms module — **SHIPPED** (2026-03-19)
+82. BST popup replaced by persistent Adjacent Search Terms module — **SHIPPED** (2026-03-19, **interaction model locked** 2026-03-21)
   - **Symptom:** The BST (Better Search Trigger) popup banner was an interruptive UI element that appeared above the sidecard, competing for attention and mixing page-level surface intelligence with per-job decision UI.
   - **Change:** Replaced the BST popup banner with a persistent, collapsible "Adjacent Searches" section inside the sidecard, positioned between Bottom Line and the pipeline row. Adjacent terms are populated from calibration title + nearby roles data (same source as BST). Section uses chip-styled links that navigate to LinkedIn search.
-  - **Pulse/glow behavior:** The section applies a subtle border glow animation only when: (1) at least 20 jobs have been scored on the current surface, AND (2) the surface is classified as "bst" (weak/poor match-wise). Before those thresholds, the section is calm and inert.
+  - **Pulse/glow behavior:** The section applies a subtle border glow animation only when: (1) at least 20 jobs have been scored on the current surface, AND (2) the surface is classified as "bst" (weak/poor match-wise). Before those thresholds, the section is calm and inert. Once the user has opened the section (badge click), pulse is permanently suppressed for the session (`adjacentUserOpened` flag).
+  - **Interaction model (2026-03-21):** Exactly 3 suggestions displayed (`ADJACENT_TARGET_COUNT=3`). Section collapsed by default. Pulse/glow for attention only — never auto-expand. Debug logging emits filter breakdown when fewer than 3 terms available (selfSuppressed, alreadySearched, duplicate, sanitizeFail counts). Handles both object and plain-string `nearbyRoles` entries. See issue #90.
   - **BST evaluation preserved:** `evaluateBSTFromBadgeCache()` still runs and classifies surfaces (healthy/bst/neutral). Only the popup banner presentation (`showPrescanBSTBanner`) is disabled. Surface classification state drives the adjacent-terms pulse.
   - **Functions added:** `getAdjacentSearchTerms()`, `updateAdjacentTermsModule()`, `updateAdjacentTermsPulse()`.
-  - **Status:** Shipped. `showPrescanBSTBanner()` returns early (no-op). Sidecard weak-job BST trigger block replaced with `updateAdjacentTermsModule(data)` call.
+  - **Status:** Shipped. `showPrescanBSTBanner()` returns early (no-op). Sidecard weak-job BST trigger block replaced with `updateAdjacentTermsModule(data)` call. Interaction model locked (2026-03-21): calm-default, 3 terms, no auto-expand.
   - **Files:** `extension/content_linkedin.js`.
 
 81. Sidecard score flip (High→Low / multi-pass overwrite) — **FIX SHIPPED** (2026-03-19)
@@ -103,10 +123,20 @@
   - **Conclusion:** Signal injection has negligible scoring impact. Resume/calibration anchors remain the dominant factor. Signal injection PASS for beta.
   - **Status:** Resolved. No longer an active beta risk.
 
-77. Sign-in / durable memory — **OPEN / ACTIVE** (beta gate 4)
-  - **Symptom:** User sessions do not persist across browser restarts. Pipeline and calibration data are not durable without sign-in.
-  - **Impact:** Beta gate 4 cannot be met without this. Users lose pipeline entries and calibration state when they close and reopen the browser.
-  - **Status:** Open. This is the top remaining beta blocker.
+77. Sign-in / durable memory — **FIX SHIPPED** (beta gate 4, 2026-03-21)
+  - **Symptom:** User sessions did not persist across browser restarts. Pipeline and calibration data were not durable without sign-in.
+  - **Impact:** Beta gate 4 — now closed.
+  - **Fix:** Auth system audit confirmed ~85% complete. Two gaps fixed: (1) Added `userId String?` + `@@index([userId])` to TelemetryEvent and FeedbackEvent Prisma models. (2) Added `resolveUserId()` to `/api/events` and `/api/feedback` — resolves via `auth()` for web, then `caliberSessionId→User` lookup for extension.
+  - **Validation:** 67/67 assertions across 16 areas (`analysis/auth_gate_validation.js`).
+  - **Status:** Shipped and validated. Gate 4 closed.
+  - **Files:** `prisma/schema.prisma`, `lib/telemetry_store.ts`, `lib/feedback_store.ts`, `app/api/events/route.ts`, `app/api/feedback/route.ts`.
+
+77c. Magic-link sign-in hardening — **FIX SHIPPED + E2E VALIDATED** (2026-03-22)
+  - **Symptom:** Auth included Google OAuth (product decision: no social auth for beta). File→DB migration dropped `sessionId`, breaking tailor prep lookups for migrated users. Tailor store had no userId awareness.
+  - **Impact:** Product alignment (email-only auth) + durability fix for tailor lookups after session migration.
+  - **Fix:** (1) Removed Google OAuth from `lib/auth.ts`. (2) Simplified sign-in page to email-only flow. (3) `migrateFileEntriesToUser()` now preserves `sessionId`. (4) Added optional `userId` to tailor store interfaces. (5) `pipeline/tailor` route resolves sessionId with fallback to linked `caliberSessionId`.
+  - **Validation:** `tsc --noEmit` clean, Next.js build clean, 179/181 tests pass. E2E: `analysis/magic_link_e2e_validation.js` — 114/114 assertions across 16 areas + 5 scenario simulations. No defects found.
+  - **Files:** `lib/auth.ts`, `app/signin/page.tsx`, `lib/pipeline_store_db.ts`, `lib/tailor_store.ts`, `app/api/pipeline/tailor/route.ts`.
 
 77b. Tailor resume end-to-end validation — **OPEN** (beta gate 5)
   - **Symptom:** Tailor resume feature is functional (copy/download, retry-on-error, progressive step UI) but has not been validated end-to-end in a real user flow.
@@ -271,6 +301,15 @@
   - This work is explicitly scheduled for after beta is stable and outside-user testing has started.
   - Prerequisite (event capture) is complete. Dashboard implementation is the remaining work.
 
+57a. Strong-Match Feed (SMF) — discovery engine initiative — **PLANNED / POST-BETA** (2026-03-21)
+  - Evolve Caliber from evaluation layer (sidecard on job boards) into discovery engine (dedicated feed of high-fit-only jobs).
+  - Aggregate listings from supported sources (LinkedIn, Indeed, etc.), score against calibrated profile, surface only jobs meeting strong-match threshold (>= 7.0, target >= 7.5).
+  - Phased: Phase 1 = manual refresh, limited source integration. Phase 2 = continuous aggregation + auto-pipeline seeding with user confirmation.
+  - Key constraint: no below-threshold padding — truthful emptiness is acceptable. Scoring integrity is non-negotiable.
+  - Dependencies: stable scoring (done), calibration signal (done), pipeline persistence (done), sign-in/memory (done), post-beta TTSM baseline (required).
+  - Full specification documented in `Bootstrap/milestones.md` → "Milestone — Strong-Match Feed (SMF)".
+  - Status: documented, not active. Blocked by beta completion + metrics baseline establishment.
+
 57. Beta release model / external testing workflow not yet defined — **RESOLVED** (2026-03-14)
   - Two-branch release model implemented: `main` = development, `stable` = production.
   - Vercel production deploy from `stable` branch → caliber-app.com. Preview deploys from `main`.
@@ -336,12 +375,13 @@
   - Archive control enlarged to 28×28px hit area with SVG icon and aria-label.
   - Generate route extended to accept pipelineId for pipeline-initiated tailoring.
 
-48. Extension sidecard collapsed height instability — **RESOLVED** (2026-03-11)
-  - The sidecard previously changed height between scored jobs when optional sections (stretch, bottom line, HRC) were conditionally hidden.
-  - Fix: all collapsible section toggles are now always rendered regardless of content. Empty sections show fallback text (“—”). Results body has min-height: 240px.
-  - "Saved to pipeline" row moved to top of results (before score row) for strong matches.
-  - Bullet circles aligned with explicit top: 0 positioning.
-  - Collapsed card height is now stable across all score states.
+48. Extension sidecard collapsed height instability — **RESOLVED** (2026-03-20, v0.9.21)
+  - The sidecard previously changed height between scored jobs due to three variable elements:
+    (a) High-confidence label (8.5+ only) added a block line to toprow (+~20px).
+    (b) Pipeline row (7.0+ only) appeared/disappeared via display:none (+~25px).
+    (c) Skeleton state hid all collapsible section toggles, causing skeleton→results reflow jump.
+  - Fix (v0.9.21): (a) High-conf label absolute-positioned within toprow's reserved 24px padding-bottom — never affects container height. (b) Pipeline row uses visibility:hidden + min-height:24px when hidden — always occupies its layout slot. (c) Skeleton preserves section toggle visibility — clears content without hiding. User's expand/collapse state preserved across job switches.
+  - Collapsed card height is now identical across all score states (low, mid, high 8.5+ CTA).
 
 44. Better Search Title trigger — **UPDATED** (surface-classification trigger v0.8.9)
   - **Old rule (superseded):** Rolling window of last 4 scored jobs; 3/4 below 6.5 and none >= 7.5.
@@ -742,4 +782,22 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Decision needed: build a true shared shell component (single owner for gradient, hero offset, content width) OR continue with page-local ownership and the a211182 baseline as the visual anchor.
   - If shared: define who owns it, what it controls, and how pages opt in.
   - If page-local: accept that per-page visual consistency must be maintained manually and document the a211182 baseline values as the coordination reference.
+
+48. Pipeline PATCH IDOR — **RESOLVED** (2026-03-21, v0.9.21)
+  - PATCH /api/pipeline accepted any entry ID without verifying the authenticated user owned that entry (Insecure Direct Object Reference).
+  - An authenticated user could theoretically update another user's pipeline entries by guessing `pl_` IDs.
+  - Fix: Added ownership verification — `dbPipelineGet(id)` loads the entry and checks `entry.userId === session.user.id` before allowing PATCH for authenticated requests. Unauthenticated/session-based entries (no userId) still update by ID only (no cross-user risk since they have no userId).
+  - File: `app/api/pipeline/route.ts`.
+
+49. Auto-save telemetry missing trigger field — **RESOLVED** (2026-03-21, v0.9.21)
+  - Auto-save pipeline telemetry event (`emitTelemetry("pipeline_save", ...)`) was missing the `trigger` field, making it impossible to distinguish manual vs auto pipeline saves in telemetry data.
+  - Manual save already had `trigger: "manual_sidecard"`.
+  - Fix: Added `trigger: "auto_8.5"` to the auto-save telemetry call.
+  - File: `extension/content_linkedin.js`.
+
+50. Pipeline dedupe — no DB uniqueness constraint — **NOTED** (2026-03-21)
+  - Pipeline entry deduplication is app-level only (check-then-insert). No `@@unique` constraint on `(sessionId, jobUrl)` or `(userId, jobUrl)` in the Prisma schema.
+  - Under extreme concurrency (two identical saves in the same millisecond), duplicates could theoretically be created.
+  - Practical risk: extremely low — UI state machine prevents concurrent manual + auto save for the same job.
+  - Status: Noted for post-beta schema improvement. Not a beta blocker.
   - This is a product/architecture decision, not just a code task.

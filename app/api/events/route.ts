@@ -4,6 +4,8 @@ import {
   isValidEventName,
   TelemetryEvent,
 } from "@/lib/telemetry_store";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 const ALLOWED_ORIGINS = new Set([
@@ -35,6 +37,18 @@ function sanitize(val: unknown, maxLen: number): string | null {
 
 const VALID_SOURCES = new Set(["extension", "web"]);
 
+/** Resolve userId: auth session first, then sessionId→User linkage */
+async function resolveUserId(sessionId: string | null): Promise<string | null> {
+  const session = await auth();
+  if (session?.user?.id) return session.user.id;
+  if (!sessionId) return null;
+  const user = await prisma.user.findFirst({
+    where: { caliberSessionId: sessionId },
+    select: { id: true },
+  });
+  return user?.id ?? null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -46,10 +60,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const sessionId = sanitize(body.sessionId, 200);
+    const userId = await resolveUserId(sessionId);
+
     const event: TelemetryEvent = {
       event: body.event,
       timestamp: new Date().toISOString(),
-      sessionId: sanitize(body.sessionId, 200),
+      userId,
+      sessionId,
       surfaceKey: sanitize(body.surfaceKey, 500),
       jobId: sanitize(body.jobId, 100),
       jobTitle: sanitize(body.jobTitle, 200),

@@ -448,6 +448,7 @@
   var sessionCheckTimer = null;      // timer for session retry
   var lastKnownCalibrationTitle = ""; // fallback calibration title from any successful scoring
   var lastKnownNearbyRoles = [];        // fallback nearby roles from session backup or scoring
+  var lastKnownRecoveryTerms = [];      // recovery terms from API (work-mode-aware, cluster-diverse)
 
   // Load persisted calibration context from chrome.storage.local so BST has
   // a suggestion title immediately, even before the first scoring batch returns.
@@ -770,6 +771,7 @@
   var bstShowDebounce = null;            // debounce timer for BST banner show (prevents flicker)
   var bstSuggestedTitles = {};           // session memory: titles already suggested (normalized→true)
   var bstSearchedQueries = {};           // session memory: queries the user has searched (normalized→true)
+  var adjacentUserOpened = false;        // session flag: true once user manually opens adjacent section (never auto-expand again)
   var initialSurfaceResolved = false;    // true once initial visible-card scoring pass completes
 
   // ─── Surface Classification Validation Instrumentation (v0.9.17) ────
@@ -1277,6 +1279,10 @@
           if (result.nearbyRoles && result.nearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
             lastKnownNearbyRoles = result.nearbyRoles;
             chrome.storage.local.set({ caliberNearbyRoles: result.nearbyRoles });
+          }
+          // Track recovery terms (work-mode-aware, cluster-diverse)
+          if (Array.isArray(result.recoveryTerms) && result.recoveryTerms.length > 0) {
+            lastKnownRecoveryTerms = result.recoveryTerms;
           }
 
           // Apply out-of-scope ceiling before caching
@@ -2730,17 +2736,19 @@
     shadow.getElementById("cb-bst-badge").addEventListener("click", function () {
       var adjSection = shadow.getElementById("cb-adjacent-section");
       if (!adjSection) return;
+      // Mark session-level user intent — once opened, no further auto-expand or pulse
+      adjacentUserOpened = true;
       if (adjSection.style.display === "none") {
         adjSection.style.display = "";
         adjSection.classList.add("cb-open");
         // Stop pulse once user has acknowledged
         var badge = shadow.getElementById("cb-bst-badge");
         if (badge) badge.classList.remove("cb-bst-badge-pulse");
-        console.debug("[Caliber][BST] badge clicked — adjacent section revealed");
+        console.debug("[Caliber][BST] badge clicked — adjacent section revealed (adjacentUserOpened=true)");
       } else {
         adjSection.style.display = "none";
         adjSection.classList.remove("cb-open");
-        console.debug("[Caliber][BST] badge clicked — adjacent section hidden");
+        console.debug("[Caliber][BST] badge clicked — adjacent section hidden (adjacentUserOpened=true)");
       }
     });
 
@@ -2893,17 +2901,17 @@
     viewLink.style.display = "none";
 
     if (state === "hidden") {
-      row.style.display = "none";
+      row.style.visibility = "hidden";
     } else if (state === "add") {
-      row.style.display = "";
+      row.style.visibility = "";
       addBtn.style.display = "";
     } else if (state === "in-pipeline") {
-      row.style.display = "";
+      row.style.visibility = "";
       statusEl.textContent = "\u2713 In pipeline";
       statusEl.style.display = "";
       viewLink.style.display = "";
     } else if (state === "auto-added") {
-      row.style.display = "";
+      row.style.visibility = "";
       statusEl.textContent = "\u2713 Added to pipeline";
       statusEl.style.display = "";
       viewLink.style.display = "";
@@ -3062,18 +3070,35 @@
     titleEl.textContent = meta.title || "";
     companyEl.textContent = meta.company || "";
 
-    // Hide detail sections until results arrive
+    // High-confidence: ensure hidden (absolute within toprow — no height impact)
+    var highConfEl = shadow.getElementById("cb-high-conf");
+    if (highConfEl) highConfEl.style.display = "none";
+
+    // Keep sections visible (preserves consistent collapsed height) but reset
+    // to empty content. Don't toggle open/close — preserve user's expand state.
     var hrcSection = shadow.getElementById("cb-hrc-section");
-    if (hrcSection) hrcSection.style.display = "none";
-    var supSection = shadow.getElementById("cb-supports-section");
-    if (supSection) supSection.style.display = "none";
-    var strSection = shadow.getElementById("cb-stretch-section");
-    if (strSection) strSection.style.display = "none";
-    var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = "none";
-    var fbRow = shadow.getElementById("cb-fb-row");
-    if (fbRow) fbRow.style.display = "none";
+    if (hrcSection) {
+      var hrcBandEl = shadow.getElementById("cb-hrc-band");
+      if (hrcBandEl) { hrcBandEl.textContent = "\u2014"; hrcBandEl.className = "cb-hrc-badge"; hrcBandEl.style.color = "#555"; }
+      var hrcToggle = hrcSection.querySelector(".cb-collapse-toggle");
+      if (hrcToggle) hrcToggle.className = "cb-collapse-toggle";
+      var hrcReason = shadow.getElementById("cb-hrc-reason");
+      if (hrcReason) hrcReason.textContent = "";
+    }
+    var supCount = shadow.getElementById("cb-supports-count");
+    if (supCount) supCount.innerHTML = "";
+    var supList = shadow.getElementById("cb-supports");
+    if (supList) supList.innerHTML = "";
+    var strCount = shadow.getElementById("cb-stretch-count");
+    if (strCount) strCount.innerHTML = "";
+    var strList = shadow.getElementById("cb-stretch");
+    if (strList) strList.innerHTML = "";
+    var blEl = shadow.getElementById("cb-bottomline");
+    if (blEl) blEl.textContent = "";
+
+    // Pipeline row hidden (takes space via min-height + visibility:hidden)
     updatePipelineRow("hidden");
+    // Feedback row stays visible for consistent height
   }
 
   function clearSkeletonTimer() {
@@ -3316,14 +3341,19 @@
 
   // ─── Adjacent Search Terms Module ─────────────────────────
 
+  var ADJACENT_TARGET_COUNT = 3; // exact number of suggestions to display
+
   /**
-   * Build a list of adjacent search terms from calibration title + nearby roles.
-   * Filters out: current query, already-searched queries, nulls, duplicates.
-   * Returns an array of {title, href} objects, capped at 5.
+   * Build a list of adjacent search terms for weak-surface recovery.
+   * Prefers recovery_terms (work-mode-aware, cluster-diverse) from the API
+   * when available, falls back to calibration title + nearby roles.
+   * Filters out: current query, already-searched queries, already-suggested, duplicates.
+   * Returns an array of {title, href, source} objects, targeting exactly ADJACENT_TARGET_COUNT.
    */
-  function getAdjacentSearchTerms(calibrationTitle, nearbyRoles, currentQuery) {
+  function getAdjacentSearchTerms(calibrationTitle, nearbyRoles, currentQuery, recoveryTerms) {
     var seen = {};
     var terms = [];
+    var filtered = { selfSuppressed: 0, alreadySearched: 0, duplicate: 0, sanitizeFail: 0, alreadySuggested: 0 };
     var normQuery = currentQuery ? currentQuery.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() : "";
     if (normQuery) seen[normQuery] = true;
 
@@ -3332,32 +3362,87 @@
     for (var sk = 0; sk < searchedKeys.length; sk++) {
       seen[searchedKeys[sk]] = true;
     }
+    // Mark already-suggested titles as seen
+    var suggestedKeys = Object.keys(bstSuggestedTitles);
+    for (var stk = 0; stk < suggestedKeys.length; stk++) {
+      seen[suggestedKeys[stk]] = true;
+    }
+    var preSeenCount = Object.keys(seen).length;
 
-    function tryAdd(title) {
-      if (!title) return;
+    function tryAdd(title, source) {
+      if (!title) return false;
       var clean = sanitizeJobTitle(title);
-      if (!clean) return;
+      if (!clean) { filtered.sanitizeFail++; return false; }
       var norm = clean.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      if (!norm || seen[norm]) return;
+      if (!norm) { filtered.sanitizeFail++; return false; }
+      if (seen[norm]) {
+        if (norm === normQuery) filtered.selfSuppressed++;
+        else if (bstSearchedQueries[norm]) filtered.alreadySearched++;
+        else if (bstSuggestedTitles[norm]) filtered.alreadySuggested++;
+        else filtered.duplicate++;
+        return false;
+      }
       seen[norm] = true;
       terms.push({
         title: clean,
-        href: "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(clean)
+        href: "https://www.linkedin.com/jobs/search/?keywords=" + encodeURIComponent(clean),
+        source: source || "unknown"
       });
+      return true;
     }
 
-    // Primary: calibration title
-    tryAdd(calibrationTitle);
+    // Primary path: use recovery terms if available (work-mode-aware, cluster-diverse)
+    var useRecovery = Array.isArray(recoveryTerms) && recoveryTerms.length > 0;
+    var candidatePool = [];
 
-    // Secondary: nearby roles
-    if (nearbyRoles && nearbyRoles.length > 0) {
-      for (var i = 0; i < nearbyRoles.length; i++) {
-        if (terms.length >= 5) break;
-        tryAdd(nearbyRoles[i].title);
+    if (useRecovery) {
+      for (var ri = 0; ri < recoveryTerms.length && terms.length < ADJACENT_TARGET_COUNT; ri++) {
+        var rt = recoveryTerms[ri];
+        tryAdd(rt.title, rt.source || "recovery");
+        candidatePool.push({ title: rt.title || "?", source: rt.source || "recovery",
+          score: rt.score, recoveryScore: rt.recoveryScore, cluster: rt.cluster, status: "candidate" });
       }
     }
 
-    return terms.slice(0, 5);
+    // Fallback: fill remaining slots from calibration title + nearby roles
+    if (terms.length < ADJACENT_TARGET_COUNT) {
+      if (calibrationTitle) {
+        tryAdd(calibrationTitle, "calibration_primary");
+        candidatePool.push({ title: calibrationTitle, source: "calibration_primary", status: "fallback" });
+      }
+      if (nearbyRoles && nearbyRoles.length > 0) {
+        for (var i = 0; i < nearbyRoles.length && terms.length < ADJACENT_TARGET_COUNT; i++) {
+          var nrTitle = nearbyRoles[i].title || nearbyRoles[i];
+          tryAdd(nrTitle, "nearby_role");
+          candidatePool.push({ title: nrTitle || "?", source: "nearby_role", status: "fallback" });
+        }
+      }
+    }
+
+    var result = terms.slice(0, ADJACENT_TARGET_COUNT);
+
+    // Debug logging: always show candidate pool and filtering
+    console.debug("[Caliber][Adjacent] term selection: " +
+      "useRecovery=" + useRecovery +
+      " | recoveryCount=" + (recoveryTerms ? recoveryTerms.length : 0) +
+      " | candidatePool=" + candidatePool.length +
+      " | selected=" + result.length + "/" + ADJACENT_TARGET_COUNT +
+      " | filtered: selfSuppressed=" + filtered.selfSuppressed +
+      ", alreadySearched=" + filtered.alreadySearched +
+      ", alreadySuggested=" + filtered.alreadySuggested +
+      ", duplicate=" + filtered.duplicate +
+      ", sanitizeFail=" + filtered.sanitizeFail +
+      " | preSeenCount=" + preSeenCount);
+    if (candidatePool.length > 0) {
+      console.debug("[Caliber][Adjacent] candidate pool: " + JSON.stringify(candidatePool));
+    }
+    if (result.length > 0) {
+      console.debug("[Caliber][Adjacent] final terms: " + result.map(function(t) {
+        return t.title + " [" + t.source + "]";
+      }).join(", "));
+    }
+
+    return result;
   }
 
   /**
@@ -3372,8 +3457,14 @@
 
     var calTitle = (data && data.calibration_title) || lastKnownCalibrationTitle || "";
     var nearby = (data && data.nearby_roles) || lastKnownNearbyRoles || [];
+    var recovery = (data && data.recovery_terms) || lastKnownRecoveryTerms || [];
     var currentQuery = getSearchKeywords() || "";
-    var terms = getAdjacentSearchTerms(calTitle, nearby, currentQuery);
+    var terms = getAdjacentSearchTerms(calTitle, nearby, currentQuery, recovery);
+
+    // Update lastKnownRecoveryTerms from fresh data
+    if (data && Array.isArray(data.recovery_terms) && data.recovery_terms.length > 0) {
+      lastKnownRecoveryTerms = data.recovery_terms;
+    }
 
     var body = section.querySelector(".cb-adjacent-body");
     if (!body) return;
@@ -3387,18 +3478,21 @@
       return;
     }
 
-    // Cap display at 3–5 terms
-    var displayTerms = terms.slice(0, Math.max(3, Math.min(terms.length, 5)));
+    // Display exactly ADJACENT_TARGET_COUNT terms (getAdjacentSearchTerms already caps)
     var html = "";
-    for (var i = 0; i < displayTerms.length; i++) {
-      html += '<a class="cb-adjacent-term" href="' + displayTerms[i].href + '" target="_self">' +
-        displayTerms[i].title + '</a>';
+    for (var i = 0; i < terms.length; i++) {
+      html += '<a class="cb-adjacent-term" href="' + terms[i].href + '" target="_self">' +
+        terms[i].title + '</a>';
     }
     body.innerHTML = html;
 
     // Show badge (but don't auto-show the section — user clicks badge to reveal)
     var badge = shadow.getElementById("cb-bst-badge");
     if (badge) badge.style.display = "";
+
+    // Section stays collapsed — never auto-expand. Visibility is user-controlled.
+    // If user has not manually opened, section remains display:none with badge visible.
+    // If user HAS opened (adjacentUserOpened), leave section in its current state.
 
     // Wire click tracking
     var links = body.querySelectorAll(".cb-adjacent-term");
@@ -3412,7 +3506,7 @@
       })(links[li]);
     }
 
-    console.debug("[Caliber][Adjacent] populated " + displayTerms.length + " terms (badge visible, section hidden until user click)");
+    console.debug("[Caliber][Adjacent] populated " + terms.length + " terms (badge visible, section collapsed by default)");
   }
 
   /**
@@ -3435,6 +3529,10 @@
     // Also check that we actually have terms to show
     var hasTerms = section && section.querySelector(".cb-adjacent-term");
 
+    // Calm-default: never pulse if user has already opened the section in this session.
+    // The user has seen the terms — further pulsing is interruptive.
+    if (adjacentUserOpened) shouldPulse = false;
+
     if (shouldPulse && hasTerms) {
       badge.style.display = "";
       if (!badge.classList.contains("cb-bst-badge-pulse")) {
@@ -3448,7 +3546,7 @@
         badge.style.display = "none";
       }
       badge.classList.remove("cb-bst-badge-pulse");
-      console.debug("[Caliber][BST] badge pulse OFF — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState + ", hasTerms=" + (!!hasTerms));
+      console.debug("[Caliber][BST] badge pulse OFF — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState + ", hasTerms=" + (!!hasTerms) + ", userOpened=" + adjacentUserOpened);
     }
   }
 
@@ -3844,6 +3942,7 @@
               company: autoCompany || null,
               jobUrl: autoUrl,
               score: score,
+              trigger: "auto_8.5",
             });
           } else {
             console.warn("[Caliber][pipeline][auto] save FAILED — error=" +
@@ -4419,7 +4518,7 @@
     '      <div class="cb-collapse-body cb-adjacent-body"></div>',
     '    </div>',
 
-    '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="display:none">',
+    '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="visibility:hidden">',
     '      <button id="cb-pipeline-add" class="cb-pipeline-add">Add to pipeline</button>',
     '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
     '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View pipeline \u2192</a>',
@@ -4598,7 +4697,8 @@
     // Top row: score dominant, then title, then company
     ".cb-toprow {",
     "  display: flex; flex-direction: column; gap: 2px;",
-    "  padding-bottom: 6px; margin-bottom: 3px;",
+    "  position: relative;",
+    "  padding-bottom: 24px; margin-bottom: 3px;",
     "  border-bottom: 1px solid rgba(255,255,255,0.08);",
     "}",
     ".cb-score-row { display: flex; align-items: baseline; gap: 3px; }",
@@ -4715,9 +4815,10 @@
     "}",
     ".cb-stretch li::before { color: #FBBF24; }",
 
-    // Pipeline action row
+    // Pipeline action row — min-height ensures consistent slot even when hidden
     ".cb-pipeline-row {",
     "  display: flex; align-items: center; gap: 8px;",
+    "  min-height: 24px; box-sizing: border-box;",
     "  padding: 5px 0 3px; margin-top: 2px;",
     "  border-top: 1px solid rgba(255,255,255,0.04);",
     "}",
@@ -4837,10 +4938,11 @@
     ".cb-score-reveal {",
     "  animation: cb-score-pop 0.35s ease-out both;",
     "}",
-    // High-confidence match label
+    // High-confidence match label — absolute within toprow so it never affects container height
     ".cb-high-conf {",
+    "  position: absolute; bottom: 6px; left: 0;",
     "  font-size: 9px; font-weight: 700; color: #4ADE80;",
-    "  margin-top: 4px; letter-spacing: 0.03em;",
+    "  letter-spacing: 0.03em;",
     "  padding: 2px 7px; border-radius: 4px;",
     "  background: rgba(74,222,128,0.10);",
     "  display: inline-block;",

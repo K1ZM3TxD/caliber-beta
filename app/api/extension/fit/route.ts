@@ -3,6 +3,7 @@ import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } f
 import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 import { evaluateWorkMode } from "@/lib/work_mode";
+import { generateRecoveryTerms } from "@/lib/title_scoring";
 
 // Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
 export const maxDuration = 30;
@@ -114,6 +115,12 @@ export async function POST(req: NextRequest) {
       : allTitles.filter((t: { title: string }) => t.title !== primaryTitle);
     const nearbyRoles = titlePool.slice(0, 3).map((t: { title: string }) => ({ title: t.title }));
 
+    // Generate recovery search terms — work-mode-aware, cluster-diverse, ranked
+    const promptAnswersList = Object.values(promptAnswers);
+    const recoveryResult = generateRecoveryTerms(
+      resumeText, promptAnswersList, workMode.userMode.mode, primaryTitle,
+    );
+
     return jsonResponse(req, {
       score_0_to_10: finalScore,
       supports_fit: alignment.supports_fit ?? [],
@@ -126,6 +133,13 @@ export async function POST(req: NextRequest) {
       calibrationId: sessionId,
       sourceUrl: body.sourceUrl ?? null,
       nearby_roles: nearbyRoles,
+      recovery_terms: recoveryResult.terms.map(t => ({
+        title: t.title,
+        score: t.score,
+        recoveryScore: t.recoveryScore,
+        cluster: t.cluster,
+        source: t.source,
+      })),
       calibration_title: primaryTitle,
       signal_preference: session.includeDetectedSignals === true ? "yes" : session.includeDetectedSignals === false ? "no" : null,
       debug_signals: alignment.signals ? {
@@ -163,6 +177,7 @@ export async function POST(req: NextRequest) {
         finalScore: workMode.postScore,
         adjustmentReason: workMode.adjustmentReason,
       },
+      debug_recovery_terms: recoveryResult.debug,
     }, 200);
   } catch (e: any) {
     return jsonResponse(req, { error: e?.message ?? "Internal error" }, 500);

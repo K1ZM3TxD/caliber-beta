@@ -821,9 +821,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em" }} className="mt-8">
-                  <p className="cb-headline">{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
+                  <p className="cb-headline">{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ opacity: i < taglineRevealCount ? undefined : 0 }}>{w}{i < taglineAllWords.length - 1 ? ' ' : ''}</span>) : tagline}</p>
                 </div>
-                <div className="mt-8" style={{ opacity: taglineDone ? 1 : 0, pointerEvents: taglineDone ? "auto" : "none", transition: "opacity 0.5s ease 20ms" }}>
+                <div className="mt-8" style={{ opacity: taglineDone ? 1 : 0, pointerEvents: taglineDone ? "auto" : "none", transition: "opacity 0.5s ease 400ms" }}>
                   <button
                     type="button"
                     onClick={begin}

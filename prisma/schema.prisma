@@ -98,6 +98,7 @@ model TelemetryEvent {
   id        String   @id @default(cuid())
   event     String
   timestamp DateTime @default(now())
+  userId    String?
   sessionId String?
   surfaceKey String?
   jobId     String?
@@ -110,6 +111,7 @@ model TelemetryEvent {
   signalPreference String?
   meta      String?  // JSON-encoded
 
+  @@index([userId])
   @@index([sessionId])
   @@index([event])
   @@index([sessionId, event])
@@ -120,6 +122,7 @@ model TelemetryEvent {
 model FeedbackEvent {
   id                          String   @id @default(cuid())
   timestamp                   DateTime @default(now())
+  userId                      String?
   surface                     String   // extension | calibration_results | title_suggestion
   site                        String?
   companyName                 String?
@@ -141,6 +144,7 @@ model FeedbackEvent {
   betterTitleSuggestionShown       Boolean @default(false)
   betterTitleSuggestionClicked     Boolean @default(false)
 
+  @@index([userId])
   @@index([surface])
   @@index([feedbackType])
   @@index([timestamp])

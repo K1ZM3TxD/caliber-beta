@@ -475,6 +475,174 @@ export function scoreAllTitles(resumeText: string, promptAnswers: string[]): Arr
   return enriched.map(({ title, score }) => ({ title, score }));
 }
 
+// ─── Recovery Term Generation ────────────────────────────────────────────────
+// Produces ranked, diverse search terms for weak-surface recovery.
+// Uses the full 25-title candidate pool, work-mode-aware ranking, and cluster
+// diversity enforcement to generate 3 terms that can actually rescue a search.
+
+import { getWorkModeCompatibility, type WorkMode } from "@/lib/work_mode";
+
+/** Maps title clusters to their dominant work mode for compatibility checking. */
+const CLUSTER_MODE_MAP: Record<string, WorkMode> = {
+  ProductDev: "builder_systems",
+  DesignSystems: "creative_ideation",
+  OpsProgram: "operational_execution",
+  ClientGrowth: "sales_execution",
+  SecurityAnalysis: "analytical_investigative",
+  CreativeOps: "creative_ideation",
+};
+
+/** Bonus applied per work-mode compatibility tier when ranking recovery terms. */
+const MODE_BONUS: Record<string, number> = {
+  compatible: 1.5,
+  adjacent: 0.5,
+  conflicting: -2.0,
+};
+
+export interface RecoveryTerm {
+  title: string;
+  score: number;
+  recoveryScore: number;
+  cluster: string | null;
+  source: "primary_adjacent" | "cross_cluster" | "work_mode_compatible";
+}
+
+export interface RecoveryDebug {
+  candidatePool: Array<{ title: string; score: number; cluster: string | null; modeCompat: string | null; recoveryScore: number }>;
+  filtered: Array<{ title: string; reason: string }>;
+  selected: RecoveryTerm[];
+}
+
+/**
+ * Generate 3 ranked, cluster-diverse recovery search terms.
+ *
+ * Pipeline:
+ * 1. Score all 25 title candidates from anchors (same as calibration)
+ * 2. Remove primary title (user already knows it)
+ * 3. Remove titles scoring < 1.5 (genuinely zero-signal)
+ * 4. Apply work-mode compatibility bonus: compatible +1.5, adjacent +0.5, conflicting -2.0
+ * 5. Remove titles with recoveryScore < 2.0 (conflicting + weak = useless)
+ * 6. Sort by recoveryScore descending
+ * 7. Pick top 3 with cluster diversity (max 1 per cluster)
+ */
+export function generateRecoveryTerms(
+  resumeText: string,
+  promptAnswers: string[],
+  userMode: string | null,
+  primaryTitle: string,
+): { terms: RecoveryTerm[]; debug: RecoveryDebug } {
+  const allCandidates = scoreAllTitles(resumeText, promptAnswers);
+  const primaryCluster = TITLE_TO_CLUSTER.get(primaryTitle) ?? null;
+
+  const filtered: Array<{ title: string; reason: string }> = [];
+  const candidatePool: Array<{
+    title: string; score: number; cluster: string | null;
+    modeCompat: string | null; recoveryScore: number;
+  }> = [];
+
+  for (const c of allCandidates) {
+    if (c.title === primaryTitle) {
+      filtered.push({ title: c.title, reason: "primary_title" });
+      continue;
+    }
+    if (c.score < 1.5) {
+      filtered.push({ title: c.title, reason: "low_score_" + c.score });
+      continue;
+    }
+
+    const cluster = TITLE_TO_CLUSTER.get(c.title) ?? null;
+    const clusterMode = cluster ? CLUSTER_MODE_MAP[cluster] ?? null : null;
+
+    let modeCompat: string | null = null;
+    let bonus = 0;
+    if (userMode && clusterMode) {
+      modeCompat = getWorkModeCompatibility(userMode as WorkMode, clusterMode);
+      bonus = MODE_BONUS[modeCompat] ?? 0;
+    }
+
+    const recoveryScore = Math.round((c.score + bonus) * 10) / 10;
+
+    if (recoveryScore < 2.0) {
+      filtered.push({ title: c.title, reason: "weak_after_mode_penalty_" + recoveryScore });
+      continue;
+    }
+
+    candidatePool.push({ title: c.title, score: c.score, cluster, modeCompat, recoveryScore });
+  }
+
+  candidatePool.sort((a, b) => b.recoveryScore - a.recoveryScore || a.title.localeCompare(b.title));
+
+  // Select top 3 with quality-aware cluster diversity
+  // Prefer 1 per cluster, but allow same-cluster when the score gap
+  // to the best unused-cluster candidate exceeds DIVERSITY_GAP
+  const DIVERSITY_GAP = 5.0;
+  const selected: RecoveryTerm[] = [];
+  const usedClusters = new Set<string>();
+
+  for (const c of candidatePool) {
+    if (selected.length >= 3) break;
+
+    if (c.cluster && usedClusters.has(c.cluster)) {
+      // Find best candidate from a cluster we haven't used yet
+      const bestUnused = candidatePool.find(x =>
+        !selected.some(s => s.title === x.title) &&
+        (!x.cluster || !usedClusters.has(x.cluster))
+      );
+      // If a reasonable cross-cluster option exists, prefer diversity
+      if (bestUnused && (c.recoveryScore - bestUnused.recoveryScore) < DIVERSITY_GAP) {
+        continue;
+      }
+    }
+    if (c.cluster) usedClusters.add(c.cluster);
+
+    let source: RecoveryTerm["source"];
+    if (c.cluster === primaryCluster) source = "primary_adjacent";
+    else if (c.modeCompat === "compatible") source = "work_mode_compatible";
+    else source = "cross_cluster";
+
+    selected.push({
+      title: c.title,
+      score: c.score,
+      recoveryScore: c.recoveryScore,
+      cluster: c.cluster,
+      source,
+    });
+  }
+
+  // If cluster diversity left us short, relax the constraint
+  if (selected.length < 3) {
+    for (const c of candidatePool) {
+      if (selected.length >= 3) break;
+      if (selected.some(s => s.title === c.title)) continue;
+
+      let source: RecoveryTerm["source"];
+      if (c.cluster === primaryCluster) source = "primary_adjacent";
+      else if (c.modeCompat === "compatible") source = "work_mode_compatible";
+      else source = "cross_cluster";
+
+      selected.push({
+        title: c.title,
+        score: c.score,
+        recoveryScore: c.recoveryScore,
+        cluster: c.cluster,
+        source,
+      });
+    }
+  }
+
+  return {
+    terms: selected,
+    debug: {
+      candidatePool: candidatePool.map(c => ({
+        title: c.title, score: c.score, cluster: c.cluster,
+        modeCompat: c.modeCompat, recoveryScore: c.recoveryScore,
+      })),
+      filtered,
+      selected,
+    },
+  };
+}
+
 // ─── Signal-to-human-language mapping ────────────────────────────────────────
 
 const SIGNAL_HUMAN_LABEL: Record<string, string> = {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export interface TelemetryEvent {
   event: string;
   timestamp: string;
+  userId: string | null;
   sessionId: string | null;
   surfaceKey: string | null;
   jobId: string | null;
@@ -34,6 +35,7 @@ export async function appendTelemetryEvent(event: TelemetryEvent): Promise<void>
     data: {
       event: event.event,
       timestamp: new Date(event.timestamp),
+      userId: event.userId,
       sessionId: event.sessionId,
       surfaceKey: event.surfaceKey,
       jobId: event.jobId,

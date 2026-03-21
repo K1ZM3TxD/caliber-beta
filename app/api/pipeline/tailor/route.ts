@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { pipelineGet as filePipelineGet, pipelineUpdateStage as filePipelineUpdateStage } from "@/lib/pipeline_store";
-import { pipelineGet as dbPipelineGet, pipelineUpdateStage as dbPipelineUpdateStage } from "@/lib/pipeline_store_db";
+import { pipelineGet as dbPipelineGet, pipelineUpdateStage as dbPipelineUpdateStage, getLinkedCaliberSession } from "@/lib/pipeline_store_db";
 import {
   tailorPrepFindByJob,
   tailorResultGet,
@@ -15,16 +15,21 @@ import { storeGet } from "@/lib/calibration_store";
 
 /**
  * Resolve a pipeline entry from DB (auth'd) or file store (fallback).
- * Returns [entry, source] where source indicates which store was used.
+ * Returns entry, source, and resolved sessionId (falls back to linked caliberSessionId).
  */
 async function resolveEntry(pipelineId: string) {
   const session = await auth();
-  if (session?.user?.id) {
+  const userId = session?.user?.id;
+  if (userId) {
     const entry = await dbPipelineGet(pipelineId);
-    if (entry) return { entry, source: "db" as const };
+    if (entry) {
+      // If DB entry lost its sessionId during migration, recover from user linkage
+      const sessionId = entry.sessionId || (await getLinkedCaliberSession(userId)) || "";
+      return { entry, source: "db" as const, userId, sessionId };
+    }
   }
   const entry = filePipelineGet(pipelineId);
-  if (entry) return { entry, source: "file" as const };
+  if (entry) return { entry, source: "file" as const, userId, sessionId: entry.sessionId };
   return null;
 }
 
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { entry } = resolved;
+  const { entry, sessionId } = resolved;
 
   // If already tailored, return existing result
   if (entry.tailorId) {
@@ -60,10 +65,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Check if prep context exists — use sessionId for file entries, userId for DB
-  const lookupId = "userId" in entry ? (entry as { userId: string }).userId : (entry as { sessionId: string }).sessionId;
-  // tailorPrepFindByJob uses sessionId from calibration — try both
-  const sessionId = "sessionId" in entry ? (entry as { sessionId: string }).sessionId : "";
+  // Check if prep context exists — use resolved sessionId (entry or linked fallback)
   const prep = sessionId ? tailorPrepFindByJob(sessionId, entry.jobUrl) : null;
   if (prep) {
     return NextResponse.json({ ok: true, status: "ready", prepId: prep.id });
@@ -92,10 +94,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { entry, source } = resolved;
+    const { entry, source, userId, sessionId } = resolved;
 
-    // Find prep context for this job (uses sessionId from calibration)
-    const sessionId = "sessionId" in entry ? (entry as { sessionId: string }).sessionId : "";
+    // Find prep context for this job (uses resolved sessionId)
     const prep = sessionId ? tailorPrepFindByJob(sessionId, entry.jobUrl) : null;
     if (!prep) {
       return NextResponse.json(
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
     const result = tailorResultSave({
       prepId: prep.id,
       sessionId: prep.sessionId,
+      ...(userId ? { userId } : {}),
       tailoredText,
     });
 

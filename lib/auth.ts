@@ -1,22 +1,12 @@
 // lib/auth.ts — NextAuth v5 configuration
-// Providers: Google OAuth + Email magic-link (passwordless) + Credentials (beta)
+// Providers: Email magic-link (passwordless) + Credentials (beta fallback)
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
 const providers: any[] = [];
-
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  providers.push(
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    })
-  );
-}
 
 if (process.env.EMAIL_SERVER) {
   providers.push(

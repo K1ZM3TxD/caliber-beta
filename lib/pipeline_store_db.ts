@@ -193,6 +193,7 @@ export async function migrateFileEntriesToUser(
       data: {
         id: fe.id,
         userId,
+        sessionId: fe.sessionId, // preserve for tailor prep lookup
         jobTitle: fe.jobTitle,
         company: fe.company,
         jobUrl: fe.jobUrl,

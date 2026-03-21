@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export interface FeedbackEvent {
   timestamp: string;
+  userId: string | null;
   surface: "extension" | "calibration_results" | "title_suggestion";
   site: string | null;
   company_name: string | null;
@@ -31,6 +32,7 @@ export async function appendFeedbackEvent(event: FeedbackEvent): Promise<void> {
   await prisma.feedbackEvent.create({
     data: {
       timestamp: new Date(event.timestamp),
+      userId: event.userId,
       surface: event.surface,
       site: event.site,
       companyName: event.company_name,

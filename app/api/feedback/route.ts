@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appendFeedbackEvent, FeedbackEvent } from "@/lib/feedback_store";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 const ALLOWED_ORIGINS = new Set([
@@ -38,6 +40,18 @@ const VALID_BUG_CATEGORIES = new Set([
   "other",
 ]);
 
+/** Resolve userId: auth session first, then sessionId→User linkage */
+async function resolveUserId(sessionId: string | null): Promise<string | null> {
+  const session = await auth();
+  if (session?.user?.id) return session.user.id;
+  if (!sessionId) return null;
+  const user = await prisma.user.findFirst({
+    where: { caliberSessionId: sessionId },
+    select: { id: true },
+  });
+  return user?.id ?? null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -50,8 +64,12 @@ export async function POST(req: NextRequest) {
       return withCors(req, NextResponse.json({ error: "Invalid feedback_type" }, { status: 400 }));
     }
 
+    const sessionId = sanitize(body.sessionId, 200);
+    const userId = await resolveUserId(sessionId);
+
     const event: FeedbackEvent = {
       timestamp: new Date().toISOString(),
+      userId,
       surface: body.surface,
       site: VALID_SITES.has(body.site) ? body.site : "other",
       company_name: sanitize(body.company_name, 200),
