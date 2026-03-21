@@ -143,6 +143,18 @@
   - **Impact:** Beta gate 5 cannot be met without explicit validation.
   - **Status:** Open. Needs explicit end-to-end validation after sign-in is working.
 
+78. Pipeline save not available for low-score jobs — **FIX SHIPPED** (v0.9.23, 2026-03-21)
+  - **Symptom:** Pipeline save action was gated behind score ≥7.0 — users couldn't save jobs to pipeline unless the job scored high enough. During PM testing, no job scored high enough to show the pipeline action.
+  - **Impact:** Pipeline feature untestable/unusable when browsing poorly-matched searches.
+  - **Fix:** Removed score threshold gate from `showResults()`. "Save to pipeline" now available for all scored jobs. Auto-save at 8.5+ preserved. Dedupe rules unchanged.
+  - **Files:** `extension/content_linkedin.js`.
+
+79. Adjacent Searches hidden behind cryptic blue-dot — **FIX SHIPPED** (v0.9.23, 2026-03-21)
+  - **Symptom:** Adjacent Searches / BST recovery was represented by a small blue ⦿ dot in the sidecard header — too cryptic and not discoverable.
+  - **Impact:** Users never discovered adjacent search suggestions. Weak-surface attention was invisible.
+  - **Fix:** Removed BST badge from header. Adjacent Searches is now a permanent collapsible section in the sidecard content stack below Bottom Line. Weak-surface attention uses border-glow animation on the section. 3-title output preserved.
+  - **Files:** `extension/content_linkedin.js`.
+
 76. Guardrail over-capping prescan scores (21×5.0 collapse) — **FIX SHIPPED** (2026-03-16)
   - **Symptom:** On a real LinkedIn search surface, 21 out of 25 jobs scored exactly 5.0 during prescan. Only 1 scored above 6.0 (7.7). "Best so far" started at 7.1 and only updated to 7.7 at position 23.
   - **Root cause:** `applyDomainMismatchGuardrail()` ran per-card during the badge prescan path. The 3-tier cap (HRC=Unlikely, role-family mismatch, cluster-vs-unclustered) flattened scores to 5.0 before BST/SMC could evaluate the full surface. BST saw a monotone 5.0 wall and could not distinguish genuinely weak jobs from guardrail-flattened ones. Surface quality metrics were destroyed before they could be used.

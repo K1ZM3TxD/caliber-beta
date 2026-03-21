@@ -129,15 +129,15 @@ assert(
 );
 
 assert(
-  "4.02 — adjacentUserOpened set on badge click",
-  /cb-bst-badge[\s\S]*?addEventListener[\s\S]*?adjacentUserOpened\s*=\s*true/.test(src),
-  "Badge click handler must set adjacentUserOpened = true"
+  "4.02 — adjacentUserOpened set on adjacent section toggle click",
+  /cb-adjacent-section[\s\S]*?adjacentUserOpened\s*=\s*true/.test(src),
+  "Adjacent section toggle must set adjacentUserOpened = true"
 );
 
 assert(
-  "4.03 — Pulse suppressed when adjacentUserOpened",
-  /updateAdjacentTermsPulse[\s\S]*?adjacentUserOpened[\s\S]*?shouldPulse\s*=\s*false/.test(src),
-  "Pulse function must check adjacentUserOpened and suppress pulse"
+  "4.03 — Attention suppressed when adjacentUserOpened",
+  /updateAdjacentTermsPulse[\s\S]*?adjacentUserOpened[\s\S]*?shouldHighlight\s*=\s*false/.test(src),
+  "Attention function must check adjacentUserOpened and suppress highlight"
 );
 
 // ═══════════════════════════════════════════════════════════════
@@ -145,9 +145,9 @@ assert(
 // ═══════════════════════════════════════════════════════════════
 
 assert(
-  "5.01 — Adjacent section starts with display:none",
-  src.includes('id="cb-adjacent-section" style="display:none"'),
-  "Section must start hidden"
+  "5.01 — Adjacent section is always visible (permanent line item)",
+  src.includes('id="cb-adjacent-section">') && !src.includes('id="cb-adjacent-section" style="display:none"'),
+  "Section must be always visible in sidecard stack"
 );
 
 assert(
@@ -197,19 +197,19 @@ assert(
 );
 
 assert(
-  "6.02 — BST badge pulse animation is finite (not infinite)",
-  src.includes("cb-bst-pulse") && (() => {
-    // Check that the cb-bst-pulse keyframe animation definition uses finite count
-    const pulseLineMatch = src.match(/cb-bst-badge-pulse[^}]*animation[^;]*;/);
-    return pulseLineMatch && !pulseLineMatch[0].includes("infinite");
+  "6.02 — Adjacent attention animation is finite (not infinite)",
+  src.includes("cb-adjacent-glow") && (() => {
+    // Check that the cb-adjacent-attention animation uses finite count
+    const attentionMatch = src.match(/cb-adjacent-attention[^}]*animation[^;]*;/);
+    return attentionMatch && !attentionMatch[0].includes("infinite");
   })(),
-  "BST badge pulse animation must be finite (not infinite loop)"
+  "Adjacent attention animation must be finite (not infinite loop)"
 );
 
 assert(
-  "6.03 — Pulse class is cb-bst-badge-pulse (attention via badge only)",
-  src.includes('classList.add("cb-bst-badge-pulse")'),
-  "Pulse must use badge class, not section auto-expand"
+  "6.03 — Attention class is cb-adjacent-attention (in-stack highlight)",
+  src.includes('classList.add("cb-adjacent-attention")'),
+  "Attention must use section class, not header badge"
 );
 
 // ═══════════════════════════════════════════════════════════════
@@ -243,9 +243,9 @@ assert(
 // ═══════════════════════════════════════════════════════════════
 
 assert(
-  "8.01 — Surface change hides adjacent section",
-  src.includes('adjSection.classList.remove("cb-open")') && src.includes('adjSection.style.display = "none"'),
-  "Surface change must reset section visibility"
+  "8.01 — Surface change resets adjacent section content and attention",
+  src.includes('adjSection.classList.remove("cb-open"') && src.includes('adjBody.innerHTML = ""'),
+  "Surface change must clear section content and remove attention class"
 );
 
 assert(

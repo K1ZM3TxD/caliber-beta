@@ -2003,7 +2003,7 @@
       suppressAllBanners("neutral classification (" + triggerReason + ")");
     }
 
-    // Pre-populate adjacent terms from BST path so the badge pulse can
+    // Pre-populate adjacent terms from BST path so the attention highlight can
     // activate on weak surfaces even if the user has not clicked a job yet.
     // showResults() also calls updateAdjacentTermsModule() with full scoring
     // data; this call uses the persisted calibration context as a fallback.
@@ -2669,16 +2669,12 @@
         banner.style.display = "none";
         banner.className = "cb-recovery-banner";
       }
-      // Reset adjacent-terms section and BST badge on surface change
+      // Reset adjacent-terms section on surface change
       var adjSection = shadow.getElementById("cb-adjacent-section");
       if (adjSection) {
-        adjSection.classList.remove("cb-open");
-        adjSection.style.display = "none";
-      }
-      var bstBadge = shadow.getElementById("cb-bst-badge");
-      if (bstBadge) {
-        bstBadge.style.display = "none";
-        bstBadge.classList.remove("cb-bst-badge-pulse");
+        adjSection.classList.remove("cb-open", "cb-adjacent-attention");
+        var adjBody = adjSection.querySelector(".cb-adjacent-body");
+        if (adjBody) adjBody.innerHTML = "";
       }
     }
     // Clear durable state so new search gets a fresh scan
@@ -2728,28 +2724,16 @@
     shadow.querySelectorAll(".cb-collapse-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var section = btn.closest(".cb-collapsible");
-        if (section) section.classList.toggle("cb-open");
+        if (section) {
+          section.classList.toggle("cb-open");
+          // Track adjacent section interaction — once opened, suppress pulse
+          if (section.id === "cb-adjacent-section" && section.classList.contains("cb-open")) {
+            adjacentUserOpened = true;
+            section.classList.remove("cb-adjacent-attention");
+            console.debug("[Caliber][Adjacent] section opened by user (adjacentUserOpened=true)");
+          }
+        }
       });
-    });
-
-    // Wire BST badge click — reveals the adjacent terms section
-    shadow.getElementById("cb-bst-badge").addEventListener("click", function () {
-      var adjSection = shadow.getElementById("cb-adjacent-section");
-      if (!adjSection) return;
-      // Mark session-level user intent — once opened, no further auto-expand or pulse
-      adjacentUserOpened = true;
-      if (adjSection.style.display === "none") {
-        adjSection.style.display = "";
-        adjSection.classList.add("cb-open");
-        // Stop pulse once user has acknowledged
-        var badge = shadow.getElementById("cb-bst-badge");
-        if (badge) badge.classList.remove("cb-bst-badge-pulse");
-        console.debug("[Caliber][BST] badge clicked — adjacent section revealed (adjacentUserOpened=true)");
-      } else {
-        adjSection.style.display = "none";
-        adjSection.classList.remove("cb-open");
-        console.debug("[Caliber][BST] badge clicked — adjacent section hidden (adjacentUserOpened=true)");
-      }
     });
 
     // Wire feedback controls
@@ -2894,7 +2878,7 @@
     // Reset
     addBtn.style.display = "none";
     addBtn.disabled = false;
-    addBtn.textContent = "Add to pipeline";
+    addBtn.textContent = "Save to pipeline";
     addBtn.classList.remove("cb-pipeline-add-error", "cb-pipeline-add-saved");
     statusEl.style.display = "none";
     statusEl.textContent = "";
@@ -3098,6 +3082,15 @@
 
     // Pipeline row hidden (takes space via min-height + visibility:hidden)
     updatePipelineRow("hidden");
+
+    // Adjacent searches: clear body content during skeleton
+    var adjBody = shadow.getElementById("cb-adjacent-section");
+    if (adjBody) {
+      var adjBodyContent = adjBody.querySelector(".cb-adjacent-body");
+      if (adjBodyContent) adjBodyContent.innerHTML = "";
+      adjBody.classList.remove("cb-adjacent-attention");
+    }
+
     // Feedback row stays visible for consistent height
   }
 
@@ -3471,9 +3464,6 @@
 
     if (terms.length === 0) {
       body.innerHTML = '<span class="cb-adjacent-empty">No adjacent terms available yet</span>';
-      // Hide badge when no terms available
-      var badge = shadow.getElementById("cb-bst-badge");
-      if (badge) badge.style.display = "none";
       console.debug("[Caliber][Adjacent] no terms to display (calTitle=\"" + calTitle + "\", nearbyCount=" + nearby.length + ")");
       return;
     }
@@ -3485,14 +3475,6 @@
         terms[i].title + '</a>';
     }
     body.innerHTML = html;
-
-    // Show badge (but don't auto-show the section — user clicks badge to reveal)
-    var badge = shadow.getElementById("cb-bst-badge");
-    if (badge) badge.style.display = "";
-
-    // Section stays collapsed — never auto-expand. Visibility is user-controlled.
-    // If user has not manually opened, section remains display:none with badge visible.
-    // If user HAS opened (adjacentUserOpened), leave section in its current state.
 
     // Wire click tracking
     var links = body.querySelectorAll(".cb-adjacent-term");
@@ -3506,47 +3488,39 @@
       })(links[li]);
     }
 
-    console.debug("[Caliber][Adjacent] populated " + terms.length + " terms (badge visible, section collapsed by default)");
+    console.debug("[Caliber][Adjacent] populated " + terms.length + " terms");
   }
 
   /**
-   * Apply or remove pulse on the BST header badge based on
-   * surface classification evidence. Only pulses when:
+   * Apply or remove attention highlight on the adjacent-searches section
+   * based on surface classification evidence. Highlights when:
    * - At least 20 jobs scored on the current surface
    * - Surface is classified as "bst" (weak/poor match-wise)
-   * Does NOT expand the sidecard — just pulses the header badge.
-   * User can click the badge to reveal the adjacent-terms section.
+   * - User hasn't already opened the section this session
+   * Draws user attention to try alternative search terms.
    */
   function updateAdjacentTermsPulse() {
     if (!shadow) return;
-    var badge = shadow.getElementById("cb-bst-badge");
     var section = shadow.getElementById("cb-adjacent-section");
-    if (!badge) return;
+    if (!section) return;
 
     var scoredCount = Object.keys(badgeScoreCache).length;
-    var shouldPulse = scoredCount >= 20 && surfaceClassificationState === "bst";
+    var shouldHighlight = scoredCount >= 20 && surfaceClassificationState === "bst";
 
     // Also check that we actually have terms to show
-    var hasTerms = section && section.querySelector(".cb-adjacent-term");
+    var hasTerms = section.querySelector(".cb-adjacent-term");
 
-    // Calm-default: never pulse if user has already opened the section in this session.
-    // The user has seen the terms — further pulsing is interruptive.
-    if (adjacentUserOpened) shouldPulse = false;
+    // Calm-default: never highlight if user has already opened the section in this session.
+    if (adjacentUserOpened) shouldHighlight = false;
 
-    if (shouldPulse && hasTerms) {
-      badge.style.display = "";
-      if (!badge.classList.contains("cb-bst-badge-pulse")) {
-        badge.classList.remove("cb-bst-badge-pulse");
-        void badge.offsetWidth; // force reflow to restart animation
-        badge.classList.add("cb-bst-badge-pulse");
-        console.debug("[Caliber][BST] badge pulse ON — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState);
+    if (shouldHighlight && hasTerms) {
+      if (!section.classList.contains("cb-adjacent-attention")) {
+        section.classList.add("cb-adjacent-attention");
+        console.debug("[Caliber][BST] adjacent attention ON — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState);
       }
     } else {
-      if (!hasTerms) {
-        badge.style.display = "none";
-      }
-      badge.classList.remove("cb-bst-badge-pulse");
-      console.debug("[Caliber][BST] badge pulse OFF — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState + ", hasTerms=" + (!!hasTerms) + ", userOpened=" + adjacentUserOpened);
+      section.classList.remove("cb-adjacent-attention");
+      console.debug("[Caliber][BST] adjacent attention OFF — scoredCount=" + scoredCount + ", classification=" + surfaceClassificationState + ", hasTerms=" + (!!hasTerms) + ", userOpened=" + adjacentUserOpened);
     }
   }
 
@@ -3715,47 +3689,43 @@
     var blSection = shadow.getElementById("cb-bottomline-section");
     if (blSection) blSection.style.display = "";
 
-    // Pipeline action row: show for scores >= 7.0, check membership
+    // Pipeline action row: always available for scored jobs, check membership
     // Capture generation at callback-setup time for stale-guard
     var pipelineGeneration = sidecardGeneration;
     var pipelineJobUrl = location.href;
-    if (score >= 7.0) {
-      updatePipelineRow("hidden"); // reset before async check
-      console.debug("[Caliber][pipeline] check started — gen=" + pipelineGeneration +
-        " score=" + score.toFixed(1) + " url=" + pipelineJobUrl.substring(0, 80));
-      chrome.runtime.sendMessage(
-        { type: "CALIBER_PIPELINE_CHECK", jobUrl: pipelineJobUrl },
-        function (resp) {
-          // Stale guard: if user switched jobs, discard this callback
-          if (sidecardGeneration !== pipelineGeneration) {
-            console.debug("[Caliber][pipeline] check callback DISCARDED — stale gen=" +
-              pipelineGeneration + " current=" + sidecardGeneration);
-            return;
-          }
-          if (chrome.runtime.lastError) {
-            console.warn("[Caliber][pipeline] check error:", chrome.runtime.lastError.message);
-            updatePipelineRow("add");
-            return;
-          }
-          if (resp && resp.exists) {
-            console.debug("[Caliber][pipeline] job already in pipeline — gen=" + pipelineGeneration);
-            updatePipelineRow("in-pipeline");
-          } else if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
-            // Auto-save will handle — state updated in auto-save callback
-            console.debug("[Caliber][pipeline] score >= " + PIPELINE_AUTO_SAVE_THRESHOLD +
-              ", auto-add pending — gen=" + pipelineGeneration);
-            updatePipelineRow("hidden"); // will be shown after auto-save completes
-          } else {
-            // 7.0–8.4: show manual add
-            console.debug("[Caliber][pipeline] showing manual add — score=" + score.toFixed(1) +
-              " gen=" + pipelineGeneration);
-            updatePipelineRow("add");
-          }
+    updatePipelineRow("hidden"); // reset before async check
+    console.debug("[Caliber][pipeline] check started — gen=" + pipelineGeneration +
+      " score=" + score.toFixed(1) + " url=" + pipelineJobUrl.substring(0, 80));
+    chrome.runtime.sendMessage(
+      { type: "CALIBER_PIPELINE_CHECK", jobUrl: pipelineJobUrl },
+      function (resp) {
+        // Stale guard: if user switched jobs, discard this callback
+        if (sidecardGeneration !== pipelineGeneration) {
+          console.debug("[Caliber][pipeline] check callback DISCARDED — stale gen=" +
+            pipelineGeneration + " current=" + sidecardGeneration);
+          return;
         }
-      );
-    } else {
-      updatePipelineRow("hidden");
-    }
+        if (chrome.runtime.lastError) {
+          console.warn("[Caliber][pipeline] check error:", chrome.runtime.lastError.message);
+          updatePipelineRow("add");
+          return;
+        }
+        if (resp && resp.exists) {
+          console.debug("[Caliber][pipeline] job already in pipeline — gen=" + pipelineGeneration);
+          updatePipelineRow("in-pipeline");
+        } else if (score >= PIPELINE_AUTO_SAVE_THRESHOLD) {
+          // Auto-save will handle — state updated in auto-save callback
+          console.debug("[Caliber][pipeline] score >= " + PIPELINE_AUTO_SAVE_THRESHOLD +
+            ", auto-add pending — gen=" + pipelineGeneration);
+          updatePipelineRow("hidden"); // will be shown after auto-save completes
+        } else {
+          // Any score: show manual save
+          console.debug("[Caliber][pipeline] showing manual save — score=" + score.toFixed(1) +
+            " gen=" + pipelineGeneration);
+          updatePipelineRow("add");
+        }
+      }
+    );
 
     // Adjacent search terms: update persistent sidecard module with scoring data
     updateAdjacentTermsModule(data);
@@ -4436,7 +4406,6 @@
     '  <div class="cb-header">',
     '    <span class="cb-logo">Caliber</span><span class="cb-version">v' + PANEL_VERSION + '</span>',
     '    <div class="cb-header-controls">',
-    '      <span id="cb-bst-badge" class="cb-bst-badge" style="display:none" title="Adjacent search terms available">\u29BF</span>',
     '      <button id="cb-recalc" class="cb-refresh-btn" aria-label="Refresh score" title="Re-score">\u21BB</button>',
     '      <button id="cb-minimize" class="cb-minimize-btn" aria-label="Minimize" title="Minimize">\u2212</button>',
     '      <button id="cb-close" class="cb-close-btn" aria-label="Close">\u00d7</button>',
@@ -4510,18 +4479,18 @@
     '      </div>',
     '    </div>',
 
-    '    <div class="cb-collapsible" id="cb-adjacent-section" style="display:none">',
-    '      <button class="cb-collapse-toggle cb-toggle-adjacent" type="button">',
-    '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span class="cb-adjacent-label">\u29BF Adjacent Searches</span>',
-    '      </button>',
-    '      <div class="cb-collapse-body cb-adjacent-body"></div>',
-    '    </div>',
-
     '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="visibility:hidden">',
-    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Add to pipeline</button>',
+    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Save to pipeline</button>',
     '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
     '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View pipeline \u2192</a>',
+    '    </div>',
+
+    '    <div class="cb-collapsible" id="cb-adjacent-section">',
+    '      <button class="cb-collapse-toggle cb-toggle-adjacent" type="button">',
+    '        <span class="cb-collapse-icon">\u25b8</span>',
+    '        <span class="cb-adjacent-label">Adjacent Searches</span>',
+    '      </button>',
+    '      <div class="cb-collapse-body cb-adjacent-body"></div>',
     '    </div>',
 
     '    <div id="cb-fb-row" class="cb-fb-row">',
@@ -4733,18 +4702,14 @@
     // Bottom line text
     ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.35; padding: 1px 0 3px; }",
     // BST pulse badge in header
-    ".cb-bst-badge {",
-    "  font-size: 14px; color: #60A5FA; cursor: pointer;",
-    "  line-height: 1; padding: 0 4px;",
-    "  transition: color 0.15s;",
+    // Adjacent search terms section — attention highlight for weak surfaces
+    "@keyframes cb-adjacent-glow {",
+    "  0%   { border-color: rgba(96,165,250,0.06); }",
+    "  50%  { border-color: rgba(96,165,250,0.35); }",
+    "  100% { border-color: rgba(96,165,250,0.06); }",
     "}",
-    ".cb-bst-badge:hover { color: #93C5FD; }",
-    "@keyframes cb-bst-pulse {",
-    "  0%   { color: rgba(96,165,250,0.4); transform: scale(1); }",
-    "  50%  { color: rgba(96,165,250,1); transform: scale(1.25); }",
-    "  100% { color: rgba(96,165,250,0.4); transform: scale(1); }",
-    "}",
-    ".cb-bst-badge-pulse { animation: cb-bst-pulse 2s ease-in-out 3; }",
+    ".cb-adjacent-attention { animation: cb-adjacent-glow 2s ease-in-out 3; }",
+    ".cb-adjacent-attention .cb-collapse-toggle { color: #93C5FD; }",
     // Adjacent search terms section
     ".cb-toggle-adjacent { color: #60A5FA; }",
     ".cb-toggle-adjacent:hover { color: #93C5FD; }",
