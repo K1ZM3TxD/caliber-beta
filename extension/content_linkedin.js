@@ -2779,6 +2779,7 @@
         company: saveCompany,
         jobUrl: saveUrl,
         score: saveScore,
+        jobText: (extractJobText() || "").slice(0, 15000),
       }, function (resp) {
         if (chrome.runtime.lastError) {
           if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
@@ -3887,6 +3888,7 @@
           company: autoCompany,
           jobUrl: autoUrl,
           score: score,
+          jobText: (extractJobText() || "").slice(0, 15000),
         },
         function (resp) {
           // Stale guard: if user switched jobs, discard this callback

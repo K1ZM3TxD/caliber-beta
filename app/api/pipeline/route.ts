@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { tailorPrepSave } from "@/lib/tailor_store";
 
 // File-based store (legacy migration only)
 import {
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { sessionId, jobTitle, company, jobUrl, score, stage } = body ?? {};
+    const { sessionId, jobTitle, company, jobUrl, score, stage, jobText } = body ?? {};
 
     if (!jobTitle || !company) {
       const res = NextResponse.json(
@@ -186,6 +187,24 @@ export async function POST(req: NextRequest) {
         score: typeof score === "number" ? score : 0,
         stage: VALID_STAGES.includes(stage) ? stage : "strong_match",
       });
+
+      // Persist job description as TailorPrep so the tailor flow can find it later
+      if (jobText && typeof jobText === "string" && jobText.trim().length > 50) {
+        try {
+          tailorPrepSave({
+            sessionId: String(sessionId),
+            jobTitle: String(jobTitle).slice(0, 200),
+            company: String(company).slice(0, 200),
+            jobUrl: String(jobUrl ?? "").slice(0, 2000),
+            jobText: String(jobText).slice(0, 15000),
+            score: typeof score === "number" ? score : 0,
+          });
+          console.debug("[Caliber][pipeline][POST] tailor prep created for extension save", { jobUrl });
+        } catch (err) {
+          console.warn("[Caliber][pipeline][POST] tailor prep save failed (non-fatal)", err);
+        }
+      }
+
       const res = NextResponse.json({ ok: true, entry }, { status: 201 });
       for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
       return res;

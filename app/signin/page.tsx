@@ -20,11 +20,23 @@ function SignInForm() {
   const [providers, setProviders] = useState<ProviderMap | null>(null);
 
   useEffect(() => {
-    getProviders().then((p) => setProviders(p ?? {}));
+    getProviders()
+      .then((p) => {
+        console.debug("[Caliber][auth] providers loaded", { keys: p ? Object.keys(p) : "null" });
+        setProviders(p ?? {});
+      })
+      .catch((err) => {
+        console.warn("[Caliber][auth] getProviders failed, falling back to beta-email", err);
+        // beta-email is always configured server-side — allow sign-in even if
+        // the providers API call fails (network error, cold-start timeout, etc.)
+        setProviders({ "beta-email": { id: "beta-email", name: "Email", type: "credentials" } });
+      });
   }, []);
 
   const hasNodemailer = !!providers?.nodemailer;
-  const hasBetaEmail = !!providers?.["beta-email"];
+  // beta-email is unconditionally pushed in auth.ts — treat it as available
+  // even when getProviders() returns an empty map (e.g. NextAuth cold-start).
+  const hasBetaEmail = !!providers?.["beta-email"] || (providers !== null && !hasNodemailer);
 
   const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();

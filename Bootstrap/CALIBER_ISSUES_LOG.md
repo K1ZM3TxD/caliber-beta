@@ -824,4 +824,17 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Under extreme concurrency (two identical saves in the same millisecond), duplicates could theoretically be created.
   - Practical risk: extremely low — UI state machine prevents concurrent manual + auto save for the same job.
   - Status: Noted for post-beta schema improvement. Not a beta blocker.
+
+51. Auth provider "temporarily unavailable" — **RESOLVED** (2026-03-21, v0.9.26)
+  - `getProviders()` could return null or an empty map (network error, cold-start timeout, NextAuth initialization failure) → both `hasNodemailer` and `hasBetaEmail` false → "Sign-in is temporarily unavailable" error shown.
+  - Since `beta-email` Credentials provider is unconditionally pushed in auth.ts, sign-in should always be available.
+  - Fix: (a) Added `.catch()` handler to `getProviders()` — on failure, falls back to synthetic beta-email provider entry. (b) `hasBetaEmail` now defaults to true when providers loaded but Nodemailer absent (since beta-email is always server-configured).
+  - File: `app/signin/page.tsx`.
+
+52. Tailor "No job context available" for pipeline-saved jobs — **RESOLVED** (2026-03-21, v0.9.26)
+  - When saving a job via extension pipeline (CALIBER_PIPELINE_SAVE), only metadata (title, company, url, score) was sent. Job description text (jobText) was not included.
+  - TailorPrep (required for tailor flow) was only created via the separate `/api/tailor/prepare` endpoint, which is never called during pipeline save.
+  - Result: pipeline entries had no TailorPrep file → `tailorPrepFindByJob()` returned null → "No job context available" error.
+  - Fix: (a) Extension content script now includes `extractJobText()` output (sliced to 15KB) in CALIBER_PIPELINE_SAVE messages. (b) Extension background.js forwards `jobText` in the pipeline POST body. (c) Pipeline POST handler creates TailorPrep alongside PipelineEntry when `jobText` is present and >50 chars.
+  - Files: `extension/content_linkedin.js`, `extension/background.js`, `app/api/pipeline/route.ts`.
   - This is a product/architecture decision, not just a code task.

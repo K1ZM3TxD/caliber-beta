@@ -208,6 +208,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             jobUrl: String(msg.jobUrl || "").slice(0, 2000),
             score: typeof msg.score === "number" ? msg.score : 0,
             stage: "strong_match",
+            ...(msg.jobText ? { jobText: String(msg.jobText).slice(0, 15000) } : {}),
           }),
           signal: AbortSignal.timeout(5000),
         });
