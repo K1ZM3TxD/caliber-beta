@@ -3,6 +3,18 @@
 
 ## Current Open Issues
 
+93. Sign-in page hangs on "Signing in\u2026" — unhandled promise rejection in signIn flow — **FIX SHIPPED** (2026-03-21)
+  - **Symptom:** User clicks "Continue with email" on sign-in page. Button shows "Signing in\u2026" and never completes. Page stuck indefinitely.
+  - **Root cause:** `handleEmail()` in `app/signin/page.tsx` called `signIn()` without try/catch. If the call threw (DB connection error, network failure, CSRF issue), `setSending(false)` was never reached. UI showed "Signing in\u2026" forever. Also: beta-email failure path (`result?.ok === false`) set `emailSent(false)` but showed no error message.
+  - **Fix:** Wrapped both Nodemailer and beta-email signIn paths in try/catch. Added `authError` state for inline error display. Catch block always calls `setSending(false)`. No-provider edge case returns user-facing error. Cleared `authError` on new attempt.
+  - **Files:** `app/signin/page.tsx`
+
+94. Tailor panel shows "Pipeline entry not found" for valid visible cards — resolveEntry DB lookup gated behind auth — **FIX SHIPPED** (2026-03-21)
+  - **Symptom:** User saves a job via extension, visits pipeline page, sees the card. Clicks "Tailor resume" — slide-over panel shows error "Pipeline entry not found". Entry visibly exists on the board.
+  - **Root cause:** `resolveEntry()` in `app/api/pipeline/tailor/route.ts` only checked DB (`dbPipelineGet`) inside `if (userId)` block. Unauthenticated users with session-based DB entries (created via extension) were never found in DB because the lookup was skipped. Fallback only checked legacy file store (empty for new entries). Additionally, PATCH ownership check `existing.userId !== session.user.id` rejected entries with null `userId` (pre-migration session entries).
+  - **Fix:** `resolveEntry()` now calls `dbPipelineGet()` unconditionally for all users (auth'd or not). Linked caliberSession fallback for sessionId only attempted when authenticated. PATCH ownership check changed to `existing.userId && existing.userId !== session.user.id` — allows null-userId entries.
+  - **Files:** `app/api/pipeline/tailor/route.ts`, `app/api/pipeline/route.ts`
+
 91. Adjacent Searches recovery term quality — weak-surface recovery strengthening — **FIX SHIPPED** (2026-03-21)
   - **Symptom:** Adjacent search terms were underpowered — only 3 titles from calibration's `selectTwoPlusOne()` (primary + 2 adjacent), not work-mode-aware, no cluster diversity enforcement. Insufficient for weak-surface recovery.
   - **Root cause:** Term generation used calibration output directly (nearby_roles = same 2-3 titles from pattern synthesis). Full 25-title candidate pool from `scoreAllTitles()` was available but never used. Work-mode compatibility data existed but wasn't applied to term ranking.

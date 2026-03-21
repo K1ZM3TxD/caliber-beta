@@ -461,9 +461,13 @@ export default function PipelinePage() {
     // Pass calibration sessionId so server can migrate file-based entries
     const calSessionId = getCookie("caliber_sessionId") || "";
     const qs = calSessionId ? `?sessionId=${encodeURIComponent(calSessionId)}` : "";
+    console.debug("[Caliber][pipeline] loading", { authStatus, calSessionId: calSessionId || "none" });
     fetch(`/api/pipeline${qs}`)
       .then((r) => {
-        if (!r.ok) return { ok: false };
+        if (!r.ok) {
+          console.warn("[Caliber][pipeline] load HTTP error", { status: r.status });
+          return { ok: false };
+        }
         return r.json();
       })
       .then((data) => {
@@ -471,6 +475,7 @@ export default function PipelinePage() {
           const filtered = (data.entries as PipelineEntry[]).filter(
             (e) => e.stage !== "archived"
           );
+          console.debug("[Caliber][pipeline] loaded", { count: filtered.length });
           setEntries(filtered);
           // If server resolved a caliberSessionId we didn't have, restore the cookie
           // so the extension and future loads can use it

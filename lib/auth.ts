@@ -28,11 +28,18 @@ providers.push(
     },
     async authorize(credentials) {
       const email = (credentials?.email as string | undefined)?.trim().toLowerCase();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+      console.debug("[Caliber][auth] beta-email authorize", { email: email ?? "none" });
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        console.debug("[Caliber][auth] beta-email rejected — invalid email");
+        return null;
+      }
       // Find or create user by email
       let user = await prisma.user.findUnique({ where: { email } });
       if (!user) {
         user = await prisma.user.create({ data: { email } });
+        console.debug("[Caliber][auth] beta-email created user", { userId: user.id });
+      } else {
+        console.debug("[Caliber][auth] beta-email found user", { userId: user.id });
       }
       return { id: user.id, email: user.email, name: user.name };
     },

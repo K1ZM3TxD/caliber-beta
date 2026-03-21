@@ -14,22 +14,38 @@ import {
 import { storeGet } from "@/lib/calibration_store";
 
 /**
- * Resolve a pipeline entry from DB (auth'd) or file store (fallback).
+ * Resolve a pipeline entry from DB (auth'd or session-based) or file store (fallback).
  * Returns entry, source, and resolved sessionId (falls back to linked caliberSessionId).
  */
 async function resolveEntry(pipelineId: string) {
   const session = await auth();
   const userId = session?.user?.id;
-  if (userId) {
-    const entry = await dbPipelineGet(pipelineId);
-    if (entry) {
-      // If DB entry lost its sessionId during migration, recover from user linkage
-      const sessionId = entry.sessionId || (await getLinkedCaliberSession(userId)) || "";
-      return { entry, source: "db" as const, userId, sessionId };
+  console.debug("[Caliber][tailor] resolveEntry start", { pipelineId, userId: userId ?? "none" });
+
+  // Always check DB first (covers both user-owned and session-based entries)
+  const entry = await dbPipelineGet(pipelineId);
+  if (entry) {
+    // Resolve sessionId: from entry, then linked fallback
+    let sessionId = entry.sessionId || "";
+    if (!sessionId && userId) {
+      sessionId = (await getLinkedCaliberSession(userId)) || "";
     }
+    console.debug("[Caliber][tailor] resolveEntry DB hit", {
+      pipelineId,
+      entryUserId: entry.userId ?? "none",
+      sessionId: sessionId || "none",
+    });
+    return { entry, source: "db" as const, userId, sessionId };
   }
-  const entry = filePipelineGet(pipelineId);
-  if (entry) return { entry, source: "file" as const, userId, sessionId: entry.sessionId };
+
+  // Fallback to legacy file store
+  const fileEntry = filePipelineGet(pipelineId);
+  if (fileEntry) {
+    console.debug("[Caliber][tailor] resolveEntry file-store hit", { pipelineId });
+    return { entry: fileEntry, source: "file" as const, userId, sessionId: fileEntry.sessionId };
+  }
+
+  console.warn("[Caliber][tailor] resolveEntry NOT FOUND", { pipelineId, userId: userId ?? "none" });
   return null;
 }
 
@@ -45,6 +61,7 @@ export async function GET(req: NextRequest) {
 
   const resolved = await resolveEntry(pipelineId);
   if (!resolved) {
+    console.warn("[Caliber][tailor][GET] entry not found", { pipelineId });
     return NextResponse.json(
       { ok: false, error: "Pipeline entry not found" },
       { status: 404 }
@@ -88,6 +105,7 @@ export async function POST(req: NextRequest) {
 
     const resolved = await resolveEntry(pipelineId);
     if (!resolved) {
+      console.warn("[Caliber][tailor][POST] entry not found", { pipelineId });
       return NextResponse.json(
         { ok: false, error: "Pipeline entry not found" },
         { status: 404 }
@@ -95,6 +113,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { entry, source, userId, sessionId } = resolved;
+    console.debug("[Caliber][tailor][POST] resolved", {
+      pipelineId,
+      source,
+      userId: userId ?? "none",
+      sessionId: sessionId || "none",
+      jobUrl: entry.jobUrl,
+    });
 
     // Find prep context for this job (uses resolved sessionId)
     const prep = sessionId ? tailorPrepFindByJob(sessionId, entry.jobUrl) : null;

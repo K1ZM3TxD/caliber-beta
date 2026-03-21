@@ -93,6 +93,10 @@ export async function GET(req: NextRequest) {
 
   // Web app requests: prefer auth, fall back to sessionId
   const session = await auth();
+  console.debug("[Caliber][pipeline][GET] auth resolved", {
+    userId: session?.user?.id ?? "none",
+    sessionId: sessionId ?? "none",
+  });
 
   if (session?.user?.id) {
     const userId = session.user.id;
@@ -105,6 +109,10 @@ export async function GET(req: NextRequest) {
       // Cookie missing — try to recover from stored linkage
       resolvedSessionId = (await getLinkedCaliberSession(userId)) ?? undefined;
     }
+    console.debug("[Caliber][pipeline][GET] resolved sessionId", {
+      userId,
+      resolvedSessionId: resolvedSessionId ?? "none",
+    });
 
     // Migrate any file-based or session-based entries for this user
     if (resolvedSessionId) {
@@ -235,7 +243,12 @@ export async function PATCH(req: NextRequest) {
     if (session?.user?.id) {
       // Ownership check: verify the entry belongs to this user
       const existing = await dbPipelineGet(String(id));
-      if (!existing || existing.userId !== session.user.id) {
+      if (!existing || (existing.userId && existing.userId !== session.user.id)) {
+        console.warn("[Caliber][pipeline][PATCH] ownership check failed", {
+          id,
+          entryUserId: existing?.userId ?? "none",
+          sessionUserId: session.user.id,
+        });
         return NextResponse.json(
           { ok: false, error: "Pipeline entry not found" },
           { status: 404 }

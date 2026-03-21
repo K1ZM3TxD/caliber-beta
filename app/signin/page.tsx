@@ -16,6 +16,7 @@ function SignInForm() {
   const [email, setEmail] = useState("");
   const [emailSent, setEmailSent] = useState(isVerify);
   const [sending, setSending] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [providers, setProviders] = useState<ProviderMap | null>(null);
 
   useEffect(() => {
@@ -29,27 +30,42 @@ function SignInForm() {
     e.preventDefault();
     if (!email.trim()) return;
     setSending(true);
+    setAuthError("");
+    console.debug("[Caliber][auth] sign-in start", { provider: hasNodemailer ? "nodemailer" : "beta-email", email: email.trim() });
 
-    if (hasNodemailer) {
-      // Magic-link flow — sends email, shows confirmation
-      await signIn("nodemailer", { email: email.trim(), callbackUrl });
-      setEmailSent(true);
-      setSending(false);
-    } else if (hasBetaEmail) {
-      // Beta direct sign-in — no email verification, instant auth
-      const result = await signIn("beta-email", {
-        email: email.trim(),
-        callbackUrl,
-        redirect: false,
-      });
-      setSending(false);
-      if (result?.ok) {
-        // Redirect manually after successful auth
-        window.location.href = callbackUrl;
+    try {
+      if (hasNodemailer) {
+        // Magic-link flow — sends email, shows confirmation
+        await signIn("nodemailer", { email: email.trim(), callbackUrl });
+        console.debug("[Caliber][auth] magic-link sent");
+        setEmailSent(true);
+        setSending(false);
+      } else if (hasBetaEmail) {
+        // Beta direct sign-in — no email verification, instant auth
+        const result = await signIn("beta-email", {
+          email: email.trim(),
+          callbackUrl,
+          redirect: false,
+        });
+        console.debug("[Caliber][auth] beta-email result", { ok: result?.ok, error: result?.error, status: result?.status });
+        setSending(false);
+        if (result?.ok) {
+          // Redirect manually after successful auth
+          window.location.href = callbackUrl;
+        } else {
+          setAuthError(result?.error === "CredentialsSignin"
+            ? "Could not sign in. Please check your email and try again."
+            : "Sign-in failed. Please try again.");
+        }
       } else {
-        // Show error inline
-        setEmailSent(false);
+        console.warn("[Caliber][auth] no provider available");
+        setSending(false);
+        setAuthError("Sign-in is temporarily unavailable. Please try again later.");
       }
+    } catch (err) {
+      console.error("[Caliber][auth] sign-in error", err);
+      setSending(false);
+      setAuthError("Something went wrong. Please try again.");
     }
   };
 
@@ -88,9 +104,11 @@ function SignInForm() {
 
   return (
     <div className="space-y-6">
-      {errorCode && (
+      {(errorCode || authError) && (
         <div className="text-red-400 text-sm text-center px-4 py-3 rounded-lg" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-          {errorCode === "CredentialsSignin"
+          {authError
+            ? authError
+            : errorCode === "CredentialsSignin"
             ? "Could not sign in. Please check your email and try again."
             : "Something went wrong. Please try again."}
         </div>
