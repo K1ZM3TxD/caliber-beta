@@ -838,3 +838,10 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Fix: (a) Extension content script now includes `extractJobText()` output (sliced to 15KB) in CALIBER_PIPELINE_SAVE messages. (b) Extension background.js forwards `jobText` in the pipeline POST body. (c) Pipeline POST handler creates TailorPrep alongside PipelineEntry when `jobText` is present and >50 chars.
   - Files: `extension/content_linkedin.js`, `extension/background.js`, `app/api/pipeline/route.ts`.
   - This is a product/architecture decision, not just a code task.
+
+53. Auth "Server error — problem with the server configuration" — **RESOLVED** (2026-03-21)
+  - Sign-in redirected to NextAuth built-in error page (`/api/auth/error?error=Configuration`) showing "Server error — There is a problem with the server configuration."
+  - Root causes: (a) `authorize()` in beta-email Credentials provider had no try/catch — any Prisma/DB failure threw an unhandled exception, which NextAuth v5 interprets as a "Configuration" error. (b) No `pages.error` configured — auth errors redirected to generic NextAuth error page. (c) No env validation — missing `AUTH_SECRET` or `DATABASE_URL` on Vercel produces opaque failures.
+  - Fix: (a) Wrapped `authorize()` in try/catch — DB failures now return null (CredentialsSignin) instead of throwing (Configuration). (b) Added `pages.error: "/signin"` — all auth errors redirect to sign-in page with error query param. (c) Sign-in page maps error codes (CredentialsSignin, Configuration, AccessDenied) to user-friendly messages. (d) Added env validation logging at auth init (AUTH_SECRET, DATABASE_URL). (e) Added `logger` config for structured error/warn logging. (f) Added comprehensive server + client diagnostic logging throughout auth flow.
+  - Validation: 5/5 end-to-end tests pass: providers endpoint, successful sign-in (302 → /pipeline + session cookie), invalid email → controlled CredentialsSignin (not server error page), error page redirect to /signin, returning user re-sign-in.
+  - Files: `lib/auth.ts`, `app/signin/page.tsx`.

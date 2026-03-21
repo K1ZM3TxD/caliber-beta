@@ -48,22 +48,26 @@ function SignInForm() {
     try {
       if (hasNodemailer) {
         // Magic-link flow — sends email, shows confirmation
+        console.debug("[Caliber][auth] signIn request — provider=nodemailer");
         await signIn("nodemailer", { email: email.trim(), callbackUrl });
         console.debug("[Caliber][auth] magic-link sent");
         setEmailSent(true);
         setSending(false);
       } else if (hasBetaEmail) {
         // Beta direct sign-in — no email verification, instant auth
+        console.debug("[Caliber][auth] signIn request — provider=beta-email, callbackUrl=" + callbackUrl);
         const result = await signIn("beta-email", {
           email: email.trim(),
           callbackUrl,
           redirect: false,
         });
-        console.debug("[Caliber][auth] beta-email result", { ok: result?.ok, error: result?.error, status: result?.status });
+        console.debug("[Caliber][auth] signIn result", { ok: result?.ok, error: result?.error, status: result?.status, url: result?.url });
         setSending(false);
         if (result?.ok) {
           // Redirect manually after successful auth
-          window.location.href = callbackUrl;
+          const target = result?.url || callbackUrl;
+          console.debug("[Caliber][auth] redirecting to", target);
+          window.location.href = target;
         } else {
           setAuthError(result?.error === "CredentialsSignin"
             ? "Could not sign in. Please check your email and try again."
@@ -114,15 +118,24 @@ function SignInForm() {
     );
   }
 
+  // Map NextAuth error codes (from pages.error redirect) and inline errors
+  const displayError = authError
+    ? authError
+    : errorCode === "CredentialsSignin"
+    ? "Could not sign in. Please check your email and try again."
+    : errorCode === "Configuration"
+    ? "Sign-in service is starting up. Please try again in a moment."
+    : errorCode === "AccessDenied"
+    ? "Access denied. Your account may not be authorized."
+    : errorCode
+    ? "Something went wrong. Please try again."
+    : "";
+
   return (
     <div className="space-y-6">
-      {(errorCode || authError) && (
+      {displayError && (
         <div className="text-red-400 text-sm text-center px-4 py-3 rounded-lg" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-          {authError
-            ? authError
-            : errorCode === "CredentialsSignin"
-            ? "Could not sign in. Please check your email and try again."
-            : "Something went wrong. Please try again."}
+          {displayError}
         </div>
       )}
 
