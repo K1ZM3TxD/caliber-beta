@@ -2878,7 +2878,7 @@
     // Reset
     addBtn.style.display = "none";
     addBtn.disabled = false;
-    addBtn.textContent = "Save to pipeline";
+    addBtn.textContent = "Save this job";
     addBtn.classList.remove("cb-pipeline-add-error", "cb-pipeline-add-saved");
     statusEl.style.display = "none";
     statusEl.textContent = "";
@@ -2891,12 +2891,12 @@
       addBtn.style.display = "";
     } else if (state === "in-pipeline") {
       row.style.visibility = "";
-      statusEl.textContent = "\u2713 In pipeline";
+      statusEl.textContent = "\u2713 Job saved";
       statusEl.style.display = "";
       viewLink.style.display = "";
     } else if (state === "auto-added") {
       row.style.visibility = "";
-      statusEl.textContent = "\u2713 Added to pipeline";
+      statusEl.textContent = "\u2713 Job saved";
       statusEl.style.display = "";
       viewLink.style.display = "";
     }
@@ -4480,7 +4480,7 @@
     '    </div>',
 
     '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="visibility:hidden">',
-    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Save to pipeline</button>',
+    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Save this job</button>',
     '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
     '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View pipeline \u2192</a>',
     '    </div>',
