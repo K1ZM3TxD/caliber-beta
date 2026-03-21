@@ -34,6 +34,7 @@ async function resolveEntry(pipelineId: string) {
       pipelineId,
       entryUserId: entry.userId ?? "none",
       sessionId: sessionId || "none",
+      hasJobText: !!entry.jobText,
     });
     return { entry, source: "db" as const, userId, sessionId };
   }
@@ -82,12 +83,24 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Check if prep context exists — use resolved sessionId (entry or linked fallback)
+  // Check if prep context exists — file-based first, then DB entry fallback
   const prep = sessionId ? tailorPrepFindByJob(sessionId, entry.jobUrl) : null;
   if (prep) {
+    console.debug("[Caliber][tailor][GET] prep found via file", { pipelineId, prepId: prep.id });
     return NextResponse.json({ ok: true, status: "ready", prepId: prep.id });
   }
 
+  // Fallback: use jobText stored directly in the PipelineEntry DB record
+  if (entry.jobText && entry.jobText.length > 50) {
+    console.debug("[Caliber][tailor][GET] prep found via DB jobText fallback", { pipelineId });
+    return NextResponse.json({ ok: true, status: "ready", prepId: "__db__" });
+  }
+
+  console.debug("[Caliber][tailor][GET] no prep context found", {
+    pipelineId,
+    sessionId: sessionId || "none",
+    hasJobText: !!entry.jobText,
+  });
   return NextResponse.json({ ok: true, status: "unavailable" });
 }
 
@@ -121,9 +134,22 @@ export async function POST(req: NextRequest) {
       jobUrl: entry.jobUrl,
     });
 
-    // Find prep context for this job (uses resolved sessionId)
+    // Find prep context for this job — file-based first, then DB fallback
     const prep = sessionId ? tailorPrepFindByJob(sessionId, entry.jobUrl) : null;
-    if (!prep) {
+
+    // Resolve job context: prefer file prep, fall back to DB entry jobText
+    const jobTitle = prep?.jobTitle ?? entry.jobTitle;
+    const company = prep?.company ?? entry.company;
+    const jobText = prep?.jobText ?? entry.jobText;
+    const resolvedSessionId = prep?.sessionId ?? sessionId;
+
+    if (!jobText || jobText.length < 50) {
+      console.warn("[Caliber][tailor][POST] no job context", {
+        pipelineId,
+        hasPrep: !!prep,
+        hasEntryJobText: !!entry.jobText,
+        sessionId: sessionId || "none",
+      });
       return NextResponse.json(
         {
           ok: false,
@@ -134,8 +160,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.debug("[Caliber][tailor][POST] context resolved", {
+      pipelineId,
+      source: prep ? "file-prep" : "db-entry",
+      jobTextLen: jobText.length,
+    });
+
     // Load the user's resume from calibration session
-    const calibSession = storeGet(prep.sessionId);
+    const calibSession = resolvedSessionId ? storeGet(resolvedSessionId) : null;
     if (!calibSession) {
       return NextResponse.json(
         { ok: false, error: "Calibration session not found. Recalibrate first." },
@@ -157,15 +189,15 @@ export async function POST(req: NextRequest) {
     // Generate the tailored resume
     const tailoredText = await generateTailoredResume(
       resumeText,
-      prep.jobTitle,
-      prep.company,
-      prep.jobText
+      jobTitle,
+      company,
+      jobText
     );
 
     // Save the result
     const result = tailorResultSave({
-      prepId: prep.id,
-      sessionId: prep.sessionId,
+      prepId: prep?.id ?? entry.id,
+      sessionId: resolvedSessionId || "",
       ...(userId ? { userId } : {}),
       tailoredText,
     });

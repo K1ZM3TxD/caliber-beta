@@ -3,6 +3,16 @@
 
 ## Current Open Issues
 
+95. Tailor context retrieval fails — "No job context available for tailoring" — **FIX SHIPPED** (2026-03-21)
+  - **Symptom:** Extension saves a job with jobText. User visits pipeline, clicks Tailor. Panel shows "No job context available. Use the extension to tailor this job." despite jobText being sent during save.
+  - **Root cause:** TailorPrep was stored as files in `/tmp/.caliber-tailor` on Vercel. Ephemeral serverless storage means files written during pipeline POST don't persist to the serverless instance handling the tailor GET/POST. Additionally, `normalizeJobUrl` didn't handle LinkedIn slug-style URLs (e.g., `/jobs/view/title-at-company-12345/`), and the function was duplicated across `pipeline_store.ts` and `pipeline_store_db.ts`.
+  - **Fix (3-part):**
+    1. **DB-backed jobText**: Added `jobText` column to `PipelineEntry` Prisma model. `pipelineCreateForSession` now stores jobText directly in the DB. If an existing entry is found without jobText but the new request has it, the record is updated.
+    2. **Tailor fallback chain**: `pipeline/tailor/route.ts` GET and POST now try: (a) file-based TailorPrep lookup, then (b) `entry.jobText` from DB. This eliminates dependency on ephemeral `/tmp` storage. File-based TailorPrep kept as secondary for backward compat.
+    3. **Unified normalizeJobUrl**: Removed duplicate from `pipeline_store_db.ts`, re-exported from single source in `pipeline_store.ts`. Added slug-style URL handling (`/jobs/view/title-at-company-{id}/` → canonical `/jobs/view/{id}`).
+  - **Validation:** TSC clean (0 errors), 179/181 tests pass (2 pre-existing), normalizeJobUrl 6/6 patterns including slug URLs.
+  - **Files:** `prisma/schema.prisma`, `lib/pipeline_store.ts`, `lib/pipeline_store_db.ts`, `lib/tailor_store.ts`, `app/api/pipeline/route.ts`, `app/api/pipeline/tailor/route.ts`
+
 93. Sign-in page hangs on "Signing in\u2026" — unhandled promise rejection in signIn flow — **FIX SHIPPED** (2026-03-21)
   - **Symptom:** User clicks "Continue with email" on sign-in page. Button shows "Signing in\u2026" and never completes. Page stuck indefinitely.
   - **Root cause:** `handleEmail()` in `app/signin/page.tsx` called `signIn()` without try/catch. If the call threw (DB connection error, network failure, CSRF issue), `setSending(false)` was never reached. UI showed "Signing in\u2026" forever. Also: beta-email failure path (`result?.ok === false`) set `emailSent(false)` but showed no error message.

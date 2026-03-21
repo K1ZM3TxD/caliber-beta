@@ -179,6 +179,11 @@ export async function POST(req: NextRequest) {
         for (const [k, v] of Object.entries(corsHeaders(req))) res.headers.set(k, v);
         return res;
       }
+      const safeJobText =
+        jobText && typeof jobText === "string" && jobText.trim().length > 50
+          ? String(jobText).slice(0, 15000)
+          : undefined;
+
       const entry = await pipelineCreateForSession({
         sessionId: String(sessionId),
         jobTitle: String(jobTitle).slice(0, 200),
@@ -186,22 +191,27 @@ export async function POST(req: NextRequest) {
         jobUrl: String(jobUrl ?? "").slice(0, 2000),
         score: typeof score === "number" ? score : 0,
         stage: VALID_STAGES.includes(stage) ? stage : "strong_match",
+        jobText: safeJobText,
+      });
+      console.debug("[Caliber][pipeline][POST] entry created/found", {
+        id: entry.id,
+        hasJobText: !!entry.jobText,
+        jobUrl,
       });
 
-      // Persist job description as TailorPrep so the tailor flow can find it later
-      if (jobText && typeof jobText === "string" && jobText.trim().length > 50) {
+      // Also persist as TailorPrep file (secondary, for backward compat)
+      if (safeJobText) {
         try {
           tailorPrepSave({
             sessionId: String(sessionId),
             jobTitle: String(jobTitle).slice(0, 200),
             company: String(company).slice(0, 200),
             jobUrl: String(jobUrl ?? "").slice(0, 2000),
-            jobText: String(jobText).slice(0, 15000),
+            jobText: safeJobText,
             score: typeof score === "number" ? score : 0,
           });
-          console.debug("[Caliber][pipeline][POST] tailor prep created for extension save", { jobUrl });
         } catch (err) {
-          console.warn("[Caliber][pipeline][POST] tailor prep save failed (non-fatal)", err);
+          console.warn("[Caliber][pipeline][POST] tailor prep file save failed (non-fatal)", err);
         }
       }
 

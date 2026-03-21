@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { PipelineEntry as PrismaEntry } from "@prisma/client";
 import {
   pipelineList as filePipelineList,
-  normalizeJobUrl as fileNormalizeJobUrl,
+  normalizeJobUrl,
 } from "@/lib/pipeline_store";
 
 // ── Auth ↔ Calibration session linkage ────────────────────────
@@ -61,6 +61,7 @@ export interface PipelineEntry {
   createdAt: string;
   updatedAt: string;
   tailorId?: string;
+  jobText?: string;
 }
 
 function toApi(e: PrismaEntry): PipelineEntry {
@@ -76,29 +77,11 @@ function toApi(e: PrismaEntry): PipelineEntry {
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
     tailorId: e.tailorId ?? undefined,
+    jobText: e.jobText ?? undefined,
   };
 }
 
-/**
- * Normalize a job URL for consistent comparison.
- */
-export function normalizeJobUrl(raw: string): string {
-  if (!raw) return "";
-  try {
-    const u = new URL(raw);
-    const jobViewMatch = u.pathname.match(/\/jobs\/view\/(\d+)/);
-    const currentJobId = u.searchParams.get("currentJobId");
-    if (currentJobId && /^\d+$/.test(currentJobId)) {
-      return u.origin + "/jobs/view/" + currentJobId;
-    }
-    if (jobViewMatch) {
-      return u.origin + "/jobs/view/" + jobViewMatch[1];
-    }
-    return (u.origin + u.pathname).replace(/\/+$/, "");
-  } catch {
-    return raw.split("?")[0].split("#")[0].replace(/\/+$/, "");
-  }
-}
+export { normalizeJobUrl } from "@/lib/pipeline_store";
 
 export async function pipelineList(userId: string): Promise<PipelineEntry[]> {
   const rows = await prisma.pipelineEntry.findMany({
@@ -145,6 +128,7 @@ export async function pipelineCreate(
       score: entry.score,
       stage: entry.stage,
       tailorId: entry.tailorId ?? null,
+      jobText: entry.jobText ?? null,
     },
   });
   return toApi(row);
@@ -182,11 +166,11 @@ export async function migrateFileEntriesToUser(
 
   // Get existing DB entries for this user to avoid duplicates
   const existing = await prisma.pipelineEntry.findMany({ where: { userId } });
-  const existingUrls = new Set(existing.map((e) => fileNormalizeJobUrl(e.jobUrl)));
+  const existingUrls = new Set(existing.map((e) => normalizeJobUrl(e.jobUrl)));
 
   let migrated = 0;
   for (const fe of fileEntries) {
-    const normalized = fileNormalizeJobUrl(fe.jobUrl);
+    const normalized = normalizeJobUrl(fe.jobUrl);
     if (existingUrls.has(normalized)) continue;
 
     await prisma.pipelineEntry.create({
@@ -239,10 +223,21 @@ export async function pipelineCreateForSession(
     score: number;
     stage: string;
     tailorId?: string;
+    jobText?: string;
   }
 ): Promise<PipelineEntry> {
   const existing = await pipelineFindByJobSession(entry.sessionId, entry.jobUrl);
-  if (existing) return existing;
+  if (existing) {
+    // If existing entry lacks jobText but we now have it, update the record
+    if (entry.jobText && !existing.jobText) {
+      await prisma.pipelineEntry.update({
+        where: { id: existing.id },
+        data: { jobText: entry.jobText },
+      });
+      existing.jobText = entry.jobText;
+    }
+    return existing;
+  }
 
   const row = await prisma.pipelineEntry.create({
     data: {
@@ -254,6 +249,7 @@ export async function pipelineCreateForSession(
       score: entry.score,
       stage: entry.stage,
       tailorId: entry.tailorId ?? null,
+      jobText: entry.jobText ?? null,
     },
   });
   return toApi(row);

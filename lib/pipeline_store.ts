@@ -26,6 +26,7 @@ export interface PipelineEntry {
   createdAt: string; // ISO
   updatedAt: string; // ISO
   tailorId?: string; // link to tailor output if tailored
+  jobText?: string; // job description for tailor context
 }
 
 const DATA_DIR =
@@ -68,19 +69,25 @@ export function pipelineGet(id: string): PipelineEntry | null {
  * Normalize a job URL for consistent comparison.
  * Strips tracking query params, hash, and trailing slashes.
  * For LinkedIn /jobs/view/<id> URLs, extracts the canonical path.
+ * Handles slug-style URLs like /jobs/view/title-at-company-12345/
  */
 export function normalizeJobUrl(raw: string): string {
   if (!raw) return "";
   try {
     const u = new URL(raw);
     // LinkedIn: extract job ID from currentJobId param or /jobs/view/<id>
-    const jobViewMatch = u.pathname.match(/\/jobs\/view\/(\d+)/);
     const currentJobId = u.searchParams.get("currentJobId");
     if (currentJobId && /^\d+$/.test(currentJobId)) {
       return u.origin + "/jobs/view/" + currentJobId;
     }
+    const jobViewMatch = u.pathname.match(/\/jobs\/view\/(\d+)/);
     if (jobViewMatch) {
       return u.origin + "/jobs/view/" + jobViewMatch[1];
+    }
+    // Slug-style: /jobs/view/title-at-company-12345
+    const slugMatch = u.pathname.match(/\/jobs\/view\/[^/]*?-(\d{5,})(?:\/|$)/);
+    if (slugMatch) {
+      return u.origin + "/jobs/view/" + slugMatch[1];
     }
     // Generic: strip query and hash, trim trailing slash
     return (u.origin + u.pathname).replace(/\/+$/, "");
