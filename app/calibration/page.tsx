@@ -381,7 +381,9 @@ export default function CalibrationPage() {
     if (!hasAnswer) return;
     setError(null); setBusy(true);
     try {
-      const s = await postEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerText.trim() });
+      const inClarifier = String(session?.state ?? "").endsWith("_CLARIFIER");
+      const eventType = inClarifier ? "SUBMIT_PROMPT_CLARIFIER_ANSWER" : "SUBMIT_PROMPT_ANSWER";
+      const s = await postEvent({ type: eventType, sessionId, answer: answerText.trim() });
       setSession(s); setAnswerText("");
       setStep(getStepFromState(s?.state, s));
     } catch (e: any) { setError(displayError(e)); }
@@ -572,9 +574,11 @@ export default function CalibrationPage() {
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
   const [chipHeading, chipHeadingDone] = useTypewriter(step === "WORK_PREFERENCES" ? "What kind of work do you want more of?" : "");
+  const inClarifierState = String(session?.state ?? "").endsWith("_CLARIFIER");
+  const clarifierQuestion = promptIndex ? (session as any)?.prompts?.[promptIndex]?.clarifier?.question : null;
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
-      ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
+      ? (inClarifierState && clarifierQuestion ? clarifierQuestion : CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5])
       : ""
   );
 
