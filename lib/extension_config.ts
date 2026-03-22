@@ -12,7 +12,7 @@ export const EXTENSION_LANDING_PATH = "/extension";
 export const EXTENSION_ZIP_PATH = "/caliber-extension-beta-v0.9.26.zip";
 
 /** Current beta version label shown to users. */
-export const EXTENSION_BETA_VERSION = "0.9.26";
+export const EXTENSION_BETA_VERSION = "0.9.27";
 
 /** Feedback email for beta testers. */
 export const BETA_FEEDBACK_EMAIL = "feedback@caliber-app.com";
