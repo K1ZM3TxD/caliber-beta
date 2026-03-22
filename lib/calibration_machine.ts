@@ -1675,7 +1675,8 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         const trimmed = answer.trim()
 
         // Signal gate: if weak and clarifier not yet used, move to clarifier state (visible) WITHOUT accepting.
-        if (!meetsSignal(trimmed) && !slot.clarifier?.asked) {
+        // Prompt 5 asks for terse bullets — exempt from signal gate.
+        if (idx !== 5 && !meetsSignal(trimmed) && !slot.clarifier?.asked) {
           const to = clarifierStateForIndex(idx)
           const clarifierQ = "Please add concrete structural detail: scope, constraints, decisions, and measurable outcomes."
 
@@ -1733,7 +1734,8 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
         const trimmed = answer.trim()
 
         // If still insufficient after clarifier, fail deterministically (no silent acceptance).
-        if (!meetsSignal(trimmed)) {
+        // Prompt 5 asks for terse bullets — exempt from signal gate.
+        if (idx !== 5 && !meetsSignal(trimmed)) {
           return bad("INSUFFICIENT_SIGNAL_AFTER_CLARIFIER", "Answer still too short after clarifier; add more structural detail")
         }
 
