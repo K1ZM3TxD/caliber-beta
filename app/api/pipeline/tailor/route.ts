@@ -186,15 +186,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate the tailored resume
-    const tailoredText = await generateTailoredResume(
+    // Generate the tailored resume (pass score if available)
+    const score = typeof entry.score === "number" ? entry.score : (typeof prep?.score === "number" ? prep.score : undefined);
+    const fullOutput = await generateTailoredResume(
       resumeText,
       jobTitle,
       company,
-      jobText
+      jobText,
+      score
     );
 
-    // Save the result
+    // Split tailoredText and debugTrace
+    let tailoredText = fullOutput;
+    let debugTrace = "";
+    const debugMarker = /\r?\n===INTERNAL_DEBUG_TRACE===/;
+    const match = fullOutput.match(debugMarker);
+    if (match && match.index !== undefined) {
+      tailoredText = fullOutput.slice(0, match.index).trim();
+      debugTrace = fullOutput.slice(match.index + match[0].length).trim();
+    }
+
+    // Save the result (store only the tailoredText)
     const result = tailorResultSave({
       prepId: prep?.id ?? entry.id,
       sessionId: resolvedSessionId || "",
@@ -212,6 +224,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       tailoredText,
+      debugTrace,
       resultId: result.id,
     });
   } catch (e: unknown) {

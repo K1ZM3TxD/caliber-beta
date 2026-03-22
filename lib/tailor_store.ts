@@ -95,32 +95,55 @@ export function tailorResultGet(id: string): TailorResult | null {
  * Generate a tailored resume using the user's existing resume and a job description.
  * Returns the tailored resume text.
  */
+
+/**
+ * Generate a tailored resume using the user's existing resume and a job description.
+ * Returns the tailored resume text and internal debug trace.
+ * @param resumeText The user's resume
+ * @param jobTitle The job title
+ * @param company The company
+ * @param jobDescription The job description
+ * @param score (optional) The match score (float, 0-10)
+ */
 export async function generateTailoredResume(
   resumeText: string,
   jobTitle: string,
   company: string,
-  jobDescription: string
+  jobDescription: string,
+  score?: number
 ): Promise<string> {
   const apiKey = requireOpenAIKey();
+  const model = (process.env.OPENAI_MODEL_TAILOR || "gpt-4o-mini").trim();
 
-  const model = (
-    process.env.OPENAI_MODEL_TAILOR || "gpt-4o-mini"
-  ).trim();
+  const matchBand = typeof score === "number" && score >= 7.0 ? "STRONG" : "WEAK";
 
-  const systemPrompt = `You are a professional resume tailoring assistant. Your job is to rewrite a candidate's resume to better align with a specific job opportunity.
+  const systemPrompt = `You are a strict, factual resume tailoring assistant.
 
-RULES:
-- NEVER fabricate experience, skills, or accomplishments the candidate does not have.
-- NEVER invent job titles, companies, or dates that are not in the original resume.
-- Emphasize and foreground existing experience that is most relevant to the target role.
-- Adjust wording, bullet points, and emphasis to align with the job description's language and priorities.
-- Reorder sections or bullets to put the most relevant content first.
-- Strengthen action verbs and quantify where the original allows.
-- Remove or de-emphasize less relevant details to keep focus tight.
-- Maintain professional tone and clean formatting.
-- Output ONLY the tailored resume text, ready to use. No commentary or explanations.`;
+## ABSOLUTE GUARDRAILS (never violate):
+1. Every word in the tailored resume MUST be traceable to the ORIGINAL RESUME. If a skill, industry, tool, domain, title, metric, or term does not appear in the original resume, you are FORBIDDEN from adding it — even if it appears in the job description.
+2. You MUST NOT introduce: quota, SaaS, enterprise, technical sales, engineering-driven, or ANY domain/industry claim not in the original resume.
+3. Do not invent metrics, percentages, headcounts, revenue figures, or performance claims.
+4. Do not upgrade a job title, role scope, or seniority beyond what the resume states.
+
+## MATCH BAND BEHAVIOR:
+- WEAK match (score < 7.0): Use conservative language. Only reorder and lightly rephrase existing evidence. Do NOT foreground skills or domains absent from the resume. Acknowledge limited fit implicitly by staying grounded in the candidate's actual background.
+- STRONG match (score >= 7.0): Be assertive in elevating and foregrounding relevant evidence. Sharpen language, prioritize matching bullets, rewrite the summary to lead with the strongest fit — but ONLY using what's in the resume. Still blocked from fabrication.
+
+## OUTPUT FORMAT (MANDATORY):
+First, output the complete tailored resume text (ready to use, professional formatting).
+Then, output exactly the following separator on its own line:
+===INTERNAL_DEBUG_TRACE===
+Then, for EACH section you modified, output:
+SECTION: <name>
+SOURCE: <exact quote or paraphrase from original resume used>
+TRANSFORM: <one of: reframe | compress | elevate | preserve>
+BLOCKED: <list any JD terms you considered but blocked because they lacked resume evidence, or "none">
+---
+
+Do not skip the debug trace. It is required for every response.`;
 
   const userPrompt = `TARGET ROLE: ${jobTitle} at ${company}
+MATCH BAND: ${matchBand} (score: ${typeof score === "number" ? score : "unknown"})
 
 JOB DESCRIPTION:
 ${jobDescription.slice(0, 6000)}
@@ -128,7 +151,7 @@ ${jobDescription.slice(0, 6000)}
 ORIGINAL RESUME:
 ${resumeText.slice(0, 8000)}
 
-Produce the tailored resume now.`;
+Produce the tailored resume now. Follow ALL guardrails. After the resume, output the ===INTERNAL_DEBUG_TRACE=== section exactly as specified.`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
