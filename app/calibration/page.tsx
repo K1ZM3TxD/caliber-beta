@@ -428,15 +428,35 @@ export default function CalibrationPage() {
   ];
   const [selectedPreferred, setSelectedPreferred] = useState<string[]>([]);
   const [selectedAvoided, setSelectedAvoided] = useState<string[]>([]);
+  const [chipIndex, setChipIndex] = useState(0);
+  const chipsDone = chipIndex >= WORK_MODE_OPTIONS.length;
+
+  function advanceChip() {
+    setChipIndex(prev => prev + 1);
+  }
 
   function togglePreferred(id: string) {
     setSelectedPreferred(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     setSelectedAvoided(prev => prev.filter(x => x !== id));
+    advanceChip();
   }
   function toggleAvoided(id: string) {
     setSelectedAvoided(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
     setSelectedPreferred(prev => prev.filter(x => x !== id));
+    advanceChip();
   }
+  function skipChip() {
+    advanceChip();
+  }
+
+  // Auto-submit preferences when all chips have been reviewed
+  const chipsAutoSubmitted = useRef(false);
+  useEffect(() => {
+    if (chipsDone && !chipsAutoSubmitted.current && !busy) {
+      chipsAutoSubmitted.current = true;
+      submitWorkPreferences();
+    }
+  }, [chipsDone]);
 
   async function submitWorkPreferences() {
     const sessionId = String(session?.sessionId ?? "");
@@ -954,98 +974,98 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
                 </div>
                 <p className="mt-3 text-sm text-center transition-opacity duration-500" style={{ color: "rgba(161,161,170,0.65)", opacity: chipHeadingDone ? 1 : 0 }}>
-                  Use + and &minus; to mark what you want more or less of.
+                  Tap + or &minus; for each category. Skip if neutral.
                 </p>
 
-                <div className="mt-8 flex flex-col gap-3" style={{ opacity: chipHeadingDone ? 1 : 0, pointerEvents: chipHeadingDone ? "auto" : "none", transition: "opacity 0.5s ease" }}>
-                  {WORK_MODE_OPTIONS.map(mode => {
+                <div className="mt-8 overflow-hidden" style={{ opacity: chipHeadingDone ? 1 : 0, pointerEvents: chipHeadingDone ? "auto" : "none", transition: "opacity 0.5s ease", minHeight: "150px" }}>
+                  {!chipsDone && (() => {
+                    const mode = WORK_MODE_OPTIONS[chipIndex];
+                    if (!mode) return null;
                     const isPreferred = selectedPreferred.includes(mode.id);
                     const isAvoided = selectedAvoided.includes(mode.id);
                     return (
                       <div
                         key={mode.id}
-                        className="rounded-lg px-4 py-3 transition-all duration-150 cursor-pointer select-none"
+                        className="rounded-lg px-5 py-4 select-none cb-chip-enter"
                         style={{
                           backgroundColor: isPreferred ? "rgba(74,222,128,0.08)" : isAvoided ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.025)",
                           border: isPreferred ? "1px solid rgba(74,222,128,0.45)" : isAvoided ? "1px solid rgba(239,68,68,0.35)" : "1px solid rgba(255,255,255,0.08)",
                         }}
-                        onClick={() => togglePreferred(mode.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              {isPreferred && <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>}
-                              <span className="text-sm font-medium" style={{ color: isPreferred ? "#4ADE80" : isAvoided ? "rgba(239,68,68,0.8)" : "rgba(237,237,237,0.85)" }}>{mode.label}</span>
-                            </div>
-                            <p className="text-xs mt-0.5" style={{ color: "rgba(161,161,170,0.50)" }}>{mode.desc}</p>
-                          </div>
-                          <div className="flex items-center gap-2 ml-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => togglePreferred(mode.id)}
-                              title="Want more"
-                              className="rounded-md w-8 h-8 text-base font-bold transition-colors flex items-center justify-center"
-                              style={{
-                                backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.07)",
-                                color: isPreferred ? "#4ADE80" : "rgba(200,200,210,0.7)",
-                                border: isPreferred ? "1.5px solid rgba(74,222,128,0.5)" : "1.5px solid rgba(255,255,255,0.15)",
-                              }}
-                            >
-                              +
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleAvoided(mode.id)}
-                              title="Want less"
-                              className="rounded-md w-8 h-8 text-base font-bold transition-colors flex items-center justify-center"
-                              style={{
-                                backgroundColor: isAvoided ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.07)",
-                                color: isAvoided ? "#EF4444" : "rgba(200,200,210,0.7)",
-                                border: isAvoided ? "1.5px solid rgba(239,68,68,0.45)" : "1.5px solid rgba(255,255,255,0.15)",
-                              }}
-                            >
-                              &minus;
-                            </button>
-                          </div>
+                        <div className="text-center mb-4">
+                          <span className="text-base font-semibold" style={{ color: "rgba(237,237,237,0.9)" }}>{mode.label}</span>
+                          <p className="text-sm mt-1" style={{ color: "rgba(161,161,170,0.60)" }}>{mode.desc}</p>
+                        </div>
+                        <div className="flex items-center justify-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => togglePreferred(mode.id)}
+                            title="Want more"
+                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.07)",
+                              color: isPreferred ? "#4ADE80" : "rgba(200,200,210,0.7)",
+                              border: isPreferred ? "2px solid rgba(74,222,128,0.5)" : "2px solid rgba(255,255,255,0.15)",
+                            }}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => skipChip()}
+                            title="Neutral"
+                            className="rounded-lg px-4 h-10 text-xs transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: "transparent",
+                              color: "rgba(161,161,170,0.55)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                            }}
+                          >
+                            Skip
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAvoided(mode.id)}
+                            title="Want less"
+                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: isAvoided ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.07)",
+                              color: isAvoided ? "#EF4444" : "rgba(200,200,210,0.7)",
+                              border: isAvoided ? "2px solid rgba(239,68,68,0.45)" : "2px solid rgba(255,255,255,0.15)",
+                            }}
+                          >
+                            &minus;
+                          </button>
                         </div>
                       </div>
                     );
-                  })}
+                  })()}
+
+                  {/* Progress dots */}
+                  {!chipsDone && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      {WORK_MODE_OPTIONS.map((_, i) => (
+                        <div
+                          key={i}
+                          className="rounded-full"
+                          style={{
+                            width: 7, height: 7,
+                            backgroundColor: i < chipIndex ? "rgba(74,222,128,0.5)"
+                              : i === chipIndex ? "rgba(237,237,237,0.6)"
+                              : "rgba(255,255,255,0.12)",
+                            transition: "background-color 0.3s",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Selection summary */}
-                {(selectedPreferred.length > 0 || selectedAvoided.length > 0) && (
-                  <div className="mt-4 text-xs text-center" style={{ color: "rgba(161,161,170,0.50)" }}>
-                    {selectedPreferred.length > 0 && <span style={{ color: "rgba(74,222,128,0.65)" }}>Want more: {selectedPreferred.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
-                    {selectedAvoided.length > 0 && <span className={selectedPreferred.length > 0 ? "ml-3" : ""} style={{ color: "rgba(239,68,68,0.6)" }}>Want less: {selectedAvoided.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
+                {chipsDone && (
+                  <div className="mt-8 flex items-center justify-center" style={{ animation: "fadeIn 0.4s ease" }}>
+                    <Spinner /><span className="ml-2" style={{ color: "rgba(161,161,170,0.6)" }}>Saving…</span>
                   </div>
                 )}
-
-                <div className="mt-8 flex items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={submitWorkPreferences}
-                    disabled={(selectedPreferred.length === 0 && selectedAvoided.length === 0) || busy}
-                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none"
-                    style={{
-                      backgroundColor: (selectedPreferred.length === 0 && selectedAvoided.length === 0) || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
-                      color: (selectedPreferred.length === 0 && selectedAvoided.length === 0) || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: (selectedPreferred.length === 0 && selectedAvoided.length === 0) || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
-                      cursor: (selectedPreferred.length === 0 && selectedAvoided.length === 0) || busy ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {busy ? <><Spinner /><span className="ml-2">Saving…</span></> : "Continue"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={skipWorkPreferences}
-                    disabled={busy}
-                    className="text-xs transition-colors duration-200"
-                    style={{ color: "rgba(207,207,207,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
-                  >
-                    Skip
-                  </button>
-                </div>
               </div>
             ) : null}
 
