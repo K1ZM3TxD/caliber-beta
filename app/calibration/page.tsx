@@ -802,12 +802,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
   return (
     <div className="fixed inset-0 overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
-      {/* Subtle ambient glow */}
+      {/* Full-page green depth layer — creates ambient separation behind all content */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-0"
+        className="pointer-events-none fixed inset-0"
         style={{
-          height: "50vh",
-          background: "radial-gradient(ellipse 100% 70% at 50% -20%, rgba(74,222,128,0.045) 0%, rgba(74,222,128,0.015) 40%, transparent 70%)",
+          background: "radial-gradient(ellipse 80% 60% at 50% 45%, rgba(74,222,128,0.09) 0%, rgba(74,222,128,0.05) 35%, rgba(74,222,128,0.02) 60%, transparent 85%)",
           zIndex: 0,
         }}
       />
@@ -820,6 +819,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
           .cb-title-card:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.06) !important; }
+          .cb-depth-layer { position: relative; }
+          .cb-depth-layer > * { position: relative; z-index: 1; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
           .cb-dropzone:hover { border-color: rgba(74,222,128,0.50) !important; background-color: rgba(255,255,255,0.02) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.55) !important; box-shadow: 0 0 0 1.5px rgba(74,222,128,0.22), 0 0 24px rgba(74,222,128,0.08) !important; }
@@ -829,7 +830,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
-            <div style={{ minHeight: step === "LANDING" ? "5.5em" : "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ minHeight: "3.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               {step === "LANDING" ? (
                 <CaliberHeader typedText={caliberTyped} showCursor />
               ) : null}
@@ -846,7 +847,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div className="w-full flex flex-col items-center" style={{ minHeight: "400px" }}>
+              <div className="w-full flex flex-col items-center">
 
             {/* LANDING */}
             {step === "LANDING" ? (
@@ -889,7 +890,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(255,255,255,0.14)",
+                        border: "1px dashed rgba(74,222,128,0.30)",
                         backgroundColor: selectedFile ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.025)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
@@ -988,7 +989,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* WORK_PREFERENCES */}
             {step === "WORK_PREFERENCES" ? (
-              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-[620px]">
                 <div className="mt-8 cb-headline text-center">
                   {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
                 </div>
@@ -1000,18 +1001,22 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     const isPreferred = selectedPreferred.includes(mode.id);
                     const isAvoided = selectedAvoided.includes(mode.id);
                     return (
+                      <div key={mode.id} className="cb-depth-layer">
                       <div
-                        key={mode.id}
                         className="rounded-xl px-6 py-6 select-none cb-chip-enter"
                         style={{
-                          backgroundColor: isPreferred ? "rgba(74,222,128,0.09)" : isAvoided ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.05)",
-                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.45)" : isAvoided ? "1.5px solid rgba(239,68,68,0.38)" : "1.5px solid rgba(255,255,255,0.16)",
-                          boxShadow: "0 2px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04) inset",
+                          backgroundColor: isPreferred ? "rgba(74,222,128,0.09)" : isAvoided ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.20)",
+                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.90)" : isAvoided ? "1.5px solid rgba(239,68,68,0.76)" : "1.5px solid rgba(255,255,255,0.36)",
+                          boxShadow: isPreferred
+                            ? "0 0 0 1px rgba(74,222,128,0.18), 0 2px 16px rgba(0,0,0,0.25)"
+                            : isAvoided
+                            ? "0 0 0 1px rgba(239,68,68,0.15), 0 2px 16px rgba(0,0,0,0.25)"
+                            : "0 0 0 1px rgba(255,255,255,0.06), 0 2px 16px rgba(0,0,0,0.25)",
                         }}
                       >
                         <div className="text-center mb-4">
-                          <span className="text-base font-semibold" style={{ color: "rgba(237,237,237,0.9)" }}>{mode.label}</span>
-                          <p className="text-sm mt-1" style={{ color: "rgba(161,161,170,0.60)" }}>{mode.desc}</p>
+                          <span className="text-lg font-semibold" style={{ color: "rgba(237,237,237,0.9)", letterSpacing: "0.06em" }}>{mode.label}</span>
+                          <p className="text-sm mt-1" style={{ color: "rgba(161,161,170,0.60)", letterSpacing: "0.04em" }}>{mode.desc}</p>
                         </div>
                         <div className="flex items-center justify-center gap-4">
                           <button
@@ -1055,6 +1060,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           </button>
                         </div>
                       </div>
+                      </div>
                     );
                   })()}
 
@@ -1088,7 +1094,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* PROMPT */}
             {step === "PROMPT" ? (
-              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-2xl">
                 {/* Prompt question container — anchored top so second lines extend downward */}
                 <div style={{ minHeight: "3.2em" }} className="mt-8 cb-headline text-center">
                   {promptIndex == null ? (
@@ -1152,7 +1158,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* PROCESSING */}
             {step === "PROCESSING" ? (
-              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-[620px]">
                 <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
                   <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
                     <Spinner />
@@ -1280,7 +1286,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             ) : null}
             {/* Fallback: never blank */}
             {!["LANDING","RESUME","WORK_PREFERENCES","PROMPT","PROCESSING","TITLES"].includes(step) ? (
-              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-2xl">
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
                   <Spinner />
                   <span className="ml-2">Loading…</span>
@@ -1364,13 +1370,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Hero title card — the payoff moment */}
                 {heroTitle ? (
+                  <div className="cb-depth-layer" style={{ marginTop: 32, animation: "cb-title-enter 0.35s ease-out 0.15s both" }}>
                   <div
                     className="cb-title-card rounded-2xl"
                     style={{
-                      marginTop: 32,
-                      animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: "rgba(255,255,255,0.025)",
-                      border: "1px solid rgba(74,222,128,0.25)",
+                      backgroundColor: "rgba(255,255,255,0.20)",
+                      border: "1.5px solid rgba(74,222,128,0.36)",
+                      boxShadow: "0 0 0 1px rgba(74,222,128,0.15), 0 2px 20px rgba(0,0,0,0.4)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
@@ -1417,6 +1423,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         >Search on LinkedIn</a>
                       </div>
                     </div>
+                  </div>
                   </div>
                 ) : null}
 

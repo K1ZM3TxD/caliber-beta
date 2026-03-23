@@ -94,6 +94,26 @@ Surface intelligence and job-decision UI are distinct presentation surfaces. Mix
 - Underlying surface intelligence state (`prescanSurfaceBanner`, `pageMaxScore`, `pageBestTitle`, `strongCount`) MUST be preserved even when its presentation is disabled — future overlay features depend on it.
 - Combining surface-level signals with job-level decision UI is a UX regression.
 
+## Calibration Immersive Flow Invariant (2026-03-23)
+
+The calibration flow is an immersive experience. No system UI chrome (headers, navigation, branding) is permitted during active calibration steps.
+
+- The CALIBER header is ONLY shown on: **Landing page** and **Saved Jobs page**.
+- The CALIBER header MUST NOT appear on: resume ingest, prompt pages, chips page, processing, or results page.
+- Calibration steps operate in a chrome-free environment — the user's focus is on the calibration task, not the system frame.
+- Adding header or navigation elements to calibration steps is a UX regression.
+- System pages (landing, saved jobs) use the header as an anchored brand element.
+
+## Chip Preference Model Invariant (2026-03-23)
+
+The chip system uses a **2-tier preference model**: preferred (+) and avoided (−). No third tier exists.
+
+- `selectedPrimary` / `primaryMode` / "most prominent chip" are deprecated concepts. Do not reintroduce.
+- Chip interaction: tap chip body or "+" → preferred. Tap "−" → avoided. Mutual exclusion: selecting one clears the other.
+- Submit sends `preferredModes` and `avoidedModes` only.
+- The 2-tier model is the correct level of granularity for preference signaling. The 3-tier model was removed because users could not reliably distinguish "primary focus" from "also preferred."
+- Scoring pipeline (`applyChipSuppression`, `getRoleTypePenalty`, `evaluateWorkMode`) consumes only `avoidedModes` for suppression. Adding a primary tier would require scoring pipeline changes and re-validation.
+
 ## Telemetry Documentation Truth Invariant (2026-03-17)
 
 Telemetry storage documentation must match actual operator reality.

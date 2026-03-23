@@ -4,8 +4,6 @@ import React from "react";
 
 interface IngestLayoutProps {
   children: React.ReactNode;
-  /** Extra top padding for result/post-calibration screens */
-  extendedTop?: boolean;
   /** Override max-width (default 760px) */
   maxWidth?: string;
   /** Show the hero surface band behind the content zone */
@@ -21,7 +19,6 @@ interface IngestLayoutProps {
  */
 export default function IngestLayout({
   children,
-  extendedTop = false,
   maxWidth = "760px",
   showHeroSurface = false,
 }: IngestLayoutProps) {
@@ -82,9 +79,9 @@ export default function IngestLayout({
         />
       )}
       {/* Scrollable content layer */}
-      <div className="relative z-10 h-full overflow-y-auto flex justify-center">
+      <div className="relative z-10 h-full overflow-y-auto flex flex-col items-center justify-center">
         <div
-          className={`w-full px-6 pb-16 ${extendedTop ? "pt-[32vh]" : "pt-[22vh]"}`}
+          className="w-full px-6 py-12"
           style={{ maxWidth }}
         >
           {children}

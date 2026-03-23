@@ -79,6 +79,102 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-23 — System Stabilization + UX Polish + Auth Hardening (v0.9.27)
+
+**What changed:**
+
+1. **Auth + session persistence fixed.** Sign-in persistence issues resolved. DB-backed storage for pipeline/jobText replaces reliance on `/tmp`. Tailor fallback chain: file (if present) → DB `jobText` (primary persistent source). Dev instrumentation (`[Caliber][auth]`) added for signIn callback, session resolution, redirect events, and client-side session detection. Returning users redirect to Saved Jobs workspace. Session persists across refresh + tab reopen.
+
+2. **Header system locked (BREAKING UX CHANGE).** CALIBER header is ONLY shown on: landing page and Saved Jobs page. Removed from: resume ingest, prompt pages, chips page, all calibration flow steps. Calibration = immersive flow (no UI chrome). System pages = anchored experience.
+
+3. **Layout centering restored globally.** True vertical centering via flex-based layout across: landing, resume ingest, prompt pages, chips page. No padding hacks. No layout shift during typewriter or delayed render.
+
+4. **Chip system simplified from 3-tier → 2-tier.** Removed "most prominent" / primary selection. Model reduced to: preferred (+) and avoided (−). Tap chip or "+" → preferred. Tap "−" → avoided. Increased button size and contrast. Removed instructional text. Chips revealed after typewriter completes.
+
+5. **Chip card visual depth system introduced.** 3-layer depth model: background → soft green-tinted halo → card surface. Applied to chips page card and title result hero card. Subtle, consistent, uses Caliber green tint (`rgba(74,222,128,0.06)` multi-layer shadow).
+
+6. **Typography adjustments.** Chips page: category subheading (e.g. "Building & Systems") increased from `text-base` (16px) to `text-lg` (18px). Reinforced title/description hierarchy.
+
+7. **Calibration flow UX fixes.** Typewriter jitter prevention via `submitLockRef` + `promptTransitioning` with 80ms hold. Two bullets now allowed (permissive `hasAnswer` gate — any non-empty text). Input contrast strengthened (`color: #F2F2F2`, green focus glow). Resume ingest dropzone: green-tinted dashed border (`rgba(74,222,128,0.30)`) replaces neutral white border, matching prompt input green accent.
+
+8. **Saved Jobs page positioning.** Removed separate "Saved Jobs" title — CALIBER header acts as primary. Removed "pipeline" language → "Saved Jobs" concept throughout app surfaces (issue #100). Treated as system workspace, not empty dashboard.
+
+9. **Extension card improvements.** "Save this job" positioned as last action before feedback row (bottom-anchored flow). Adjacent Searches collapsible like other sections — no visual bleed when closed. Sidecard accordion padding normalized across all 5 sections (issue #99). Score label flicker on reopen eliminated via `sidecardResultCache` (issue #98).
+
+10. **Copy cleanup.** Removed "See which jobs actually match…" Removed "+ / −" instructions. Simplified to "Want more" / "Want less" language. "pipeline" → "saved jobs" across all web surfaces.
+
+11. **Scoring system stability confirmed.** Eliminated score drift via sidecard result cache + text stability mechanism + request versioning. Tailor guardrails prevent leakage of quota claims, SaaS/technical claims, engineering language for weak matches. Debug system: `===INTERNAL_DEBUG_TRACE===` marker with SECTION/SOURCE/TRANSFORM/BLOCKED trace structure.
+
+12. **Sign-in provider resolution final fix (issue #97).** Bypassed buggy `signIn()` with `directBetaSignIn()` — direct POST to auth callback, eliminating `getProviders()` cold-start failure vector. Stale `?error=` URL params cleared on mount. Improved error messages.
+
+**Why it changed:**
+- Product shifted from feature iteration → system stabilization. All core loop components functional; focus on consistency, clarity, restraint.
+- Auth persistence was the last major reliability gap — `/tmp` ephemeral storage on Vercel caused Tailor context loss.
+- Header on calibration pages violated immersive flow doctrine — chrome-free calibration is the correct UX.
+- 3-tier chip model (primary/preferred/avoided) created unnecessary cognitive load; 2-tier is sufficient for preference signaling.
+- Chip card depth was too flat against dark background — 3-layer model adds subtle visual separation.
+- Resume ingest border needed green accent for visual consistency with prompt inputs.
+- Score flicker on sidecard reopen destroyed user trust even though scores were technically correct.
+- `signIn()` bug in next-auth beta.30 caused intermittent auth failure that couldn't be fixed upstream.
+
+**What is now expected:**
+- Core product loop fully functional: Calibrate → Discover (LinkedIn) → Evaluate (extension) → Save → Return → Saved Jobs → Continue.
+- Auth: functional. Session persists across refresh, tab reopen, and returning visits.
+- Tailor: working with guardrails and DB-backed jobText fallback.
+- Scoring: stable — no drift, no flicker, deterministic across navigation.
+- Header appears ONLY on landing + Saved Jobs. Nowhere in calibration flow.
+- Chip system is 2-tier (preferred/avoided). No primary selection.
+- Chip card and title hero card have 3-layer depth visual.
+- Resume dropzone has green-tinted dashed border.
+- Chips page category labels are `text-lg` (18px).
+- Sidecard serves cached results on reopen — no skeleton flash for previously scored jobs.
+- Score entrance animation only plays when score value actually changes.
+- Extension "Save this job" at bottom of content stack.
+- Adjacent Searches collapsible with uniform padding.
+- All web surfaces use "saved jobs" language, not "pipeline."
+
+**What is no longer expected:**
+- Header appearing on any calibration flow step (resume, prompts, chips, processing, results).
+- 3-tier chip interaction (primary/preferred/avoided). `selectedPrimary` state is removed.
+- Flat chip cards without depth/halo treatment.
+- Resume dropzone with neutral white dashed border.
+- Chip category labels at `text-base` (16px).
+- Skeleton flash when reopening a previously scored job in the sidecard.
+- Score animation replaying on every `showResults()` call regardless of value change.
+- `signIn()` from `next-auth/react` used for beta-email credentials flow.
+- "Pipeline" language in any user-facing web app surface.
+
+**Risk / fallout:**
+- Green resume border is a visual-only change; no functional impact.
+- `directBetaSignIn()` bypasses the official `signIn()` function — if NextAuth changes the callback contract, this will need updating. Mitigated by pinned dependency version.
+- Sidecard result cache adds a new state layer; cleared on surface change to prevent cross-surface stale data.
+- 2-tier chip model means less granular preference signal. Sufficient for beta — primary-mode distinction was not leveraged by scoring.
+
+**Proof:**
+- TSC clean (0 errors). 179/181 tests pass (2 pre-existing signal_classification).
+- Sidecard stability 52/52. Pipeline 111/111. BST 62/62. Adjacent 36/36. Recovery 85/85.
+- Auth E2E validated via `analysis/magic_link_e2e_validation.js` (114/114).
+- Sign-in provider fix validated via direct fetch to auth callback.
+- Chip depth model visible on both chips page and title result hero card.
+
+**Files touched:**
+- `app/calibration/page.tsx` — header gating, chip simplification, chip depth, typography, resume border, typewriter jitter, layout centering
+- `app/pipeline/page.tsx` — "Saved Jobs" positioning, CaliberHeader as primary, copy alignment
+- `app/signin/page.tsx` — `directBetaSignIn()`, stale error clearing, copy alignment
+- `app/components/pipeline_confirmation_banner.tsx` — copy alignment
+- `app/tailor/page.tsx` — copy alignment
+- `extension/content_linkedin.js` — sidecard result cache, animation dedup, accordion consistency, adjacent collapsible, pipeline row positioning, score label stability
+- `lib/auth.ts` — authorize try/catch, pages.error, structured logging
+- `app/api/pipeline/route.ts` — DB-backed jobText storage
+- `app/api/pipeline/tailor/route.ts` — fallback chain (file → DB jobText)
+- `prisma/schema.prisma` — jobText column on PipelineEntry
+- `Bootstrap/BREAK_AND_UPDATE.md` — This entry
+- `Bootstrap/milestones.md` — Dated block
+- `Bootstrap/CALIBER_ISSUES_LOG.md` — Issues #96–#100
+- `Bootstrap/CALIBER_ACTIVE_STATE.md` — Implementation history
+
+---
+
 ### 2026-03-19 — Dominant Work Mode + Adjacent Compression + Pipeline Fix + DOM Hardening (v0.9.21)
 
 **What changed:**

@@ -3,6 +3,26 @@
 
 ## Current Open Issues
 
+103. Minor contrast tuning across cards — **OPEN**
+  - **Symptom:** Some card elements have near-threshold contrast on bright screens.
+  - **Status:** Known non-blocking. Flagged for post-stabilization polish pass.
+
+102. Score band labels render verification — **OPEN**
+  - **Symptom:** Six-band label system (Excellent Match through Poor Fit) not yet validated across all score ranges in live extension.
+  - **Status:** Completion criterion still open in milestones.md.
+
+101. System stabilization — header, layout, depth, typography, resume border — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** Multiple visual consistency issues across calibration flow: (1) CALIBER header appeared on calibration steps (resume, prompts, chips) breaking immersive flow. (2) Chip category subheadings (e.g. "Building & Systems") at 16px lacked visual hierarchy. (3) Resume dropzone border was neutral white, inconsistent with green-accented prompt inputs. (4) Chip cards and title hero card had insufficient depth separation from background.
+  - **Root cause:** Visual polish items accumulated during feature iteration phase.
+  - **Fix (4-part):**
+    1. Header gated on `step === "LANDING"` only — absent from all calibration flow steps.
+    2. Chip category labels increased from `text-base` (16px) to `text-lg` (18px) for stronger hierarchy.
+    3. Resume dropzone border changed from `rgba(255,255,255,0.14)` to `rgba(74,222,128,0.30)` — green-tinted dashed border matching prompt input accent.
+    4. 3-layer depth model (background → green-tinted halo → card surface) applied to chips card and title hero card using multi-layer `boxShadow` with `rgba(74,222,128,0.06)`.
+  - **No scoring or feature changes.** Visual consistency only.
+  - **Validation:** TSC clean, 179/181 tests pass (2 pre-existing).
+  - **Files:** `app/calibration/page.tsx`
+
 100. Calibration-to-extension terminology inconsistency — "pipeline" vs "saved jobs" — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Extension sidecard uses "Save this job" / "View saved jobs →" / "✓ Saved", but web app surfaces still use "pipeline" terminology: pipeline page heading ("Your Pipeline"), confirmation banner ("Added to your pipeline" / "View Pipeline"), sign-in page ("Save your pipeline"), tailor page ("View pipeline →"), remove tooltip ("Remove from pipeline"). Creates a mental model break when users transition from calibration → extension → web app.
   - **Root cause:** Extension was updated to "saved jobs" language earlier, but web app surfaces were never aligned.
