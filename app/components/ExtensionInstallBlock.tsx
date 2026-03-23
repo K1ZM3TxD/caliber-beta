@@ -23,9 +23,9 @@ export default function ExtensionInstallBlock({ calibratedTitle, hideLinkedIn }:
           onClick={() => setShowInstall((prev) => !prev)}
           className="inline-flex items-center justify-center rounded-lg px-7 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
           style={{
-            background: "rgba(74,222,128,0.06)",
+            background: "rgba(74,222,128,0.10)",
             color: "#4ADE80",
-            border: "1px solid rgba(74,222,128,0.45)",
+            border: "1px solid rgba(74,222,128,0.55)",
             cursor: "pointer",
             minWidth: 240,
           }}
@@ -44,8 +44,8 @@ export default function ExtensionInstallBlock({ calibratedTitle, hideLinkedIn }:
           <div
             className="rounded-lg px-5 py-4 mb-5 text-left"
             style={{
-              backgroundColor: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              backgroundColor: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.09)",
             }}
           >
             <div className="text-xs font-semibold uppercase tracking-widest mb-2.5" style={{ color: "#555" }}>
@@ -84,9 +84,9 @@ export default function ExtensionInstallBlock({ calibratedTitle, hideLinkedIn }:
                 rel="noopener noreferrer"
                 className="group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors duration-200"
                 style={{
-                  background: "rgba(74,222,128,0.06)",
+                  background: "rgba(74,222,128,0.10)",
                   color: "#4ADE80",
-                  border: "1px solid rgba(74,222,128,0.45)",
+                  border: "1px solid rgba(74,222,128,0.55)",
                   cursor: "pointer",
                 }}
               >

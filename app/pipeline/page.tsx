@@ -257,7 +257,7 @@ function TailorPanel({
                 onClick={generate}
                 className="w-full py-3 rounded-lg font-semibold text-sm transition-all"
                 style={{
-                  background: "rgba(74,222,128,0.06)",
+                  background: "rgba(74,222,128,0.10)",
                   color: "#4ADE80",
                   border: "1px solid rgba(74,222,128,0.45)",
                 }}
@@ -404,7 +404,7 @@ function TailorPanel({
                 onClick={download}
                 className="w-full py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2"
                 style={{
-                  background: "rgba(74,222,128,0.06)",
+                  background: "rgba(74,222,128,0.10)",
                   color: "#4ADE80",
                   border: "1px solid rgba(74,222,128,0.45)",
                 }}
@@ -433,7 +433,7 @@ function TailorPanel({
 }
 
 /* ────────────────────────────────────────────────────────────────────────
-   Pipeline Board
+   Saved Jobs Board
    ──────────────────────────────────────────────────────────────────────── */
 
 export default function PipelinePage() {
@@ -607,7 +607,7 @@ export default function PipelinePage() {
         <CaliberHeader />
 
         <h1 className="text-xl font-semibold text-neutral-200 text-center tracking-tight mt-8 mb-8">
-          Your Pipeline
+          Saved Jobs
         </h1>
 
       {/* Sign-in CTA for unauthenticated users — non-blocking */}
@@ -616,20 +616,20 @@ export default function PipelinePage() {
           className="mb-6 mx-auto rounded-lg px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
           style={{
             maxWidth: "960px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.09)",
           }}
         >
           <p className="text-neutral-400 text-sm">
-            Sign in to save your pipeline across sessions and devices.
+            Sign in to keep your saved jobs across sessions and devices.
           </p>
           <Link
             href="/signin?callbackUrl=/pipeline"
             className="inline-block px-5 py-2 rounded-lg font-semibold text-sm transition-all flex-shrink-0"
             style={{
-              background: "rgba(74,222,128,0.06)",
+              background: "rgba(74,222,128,0.10)",
               color: "#4ADE80",
-              border: "1px solid rgba(74,222,128,0.45)",
+              border: "1px solid rgba(74,222,128,0.55)",
             }}
           >
             Sign in
@@ -723,7 +723,7 @@ export default function PipelinePage() {
                               archive(entry.id);
                             }}
                             className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-600 hover:text-red-400 hover:bg-zinc-800/80 opacity-0 group-hover:opacity-100 transition-all"
-                            title="Remove from pipeline"
+                            title="Remove"
                           >
                             <svg
                               className="w-3.5 h-3.5"

@@ -3,6 +3,21 @@
 
 ## Current Open Issues
 
+100. Calibration-to-extension terminology inconsistency — "pipeline" vs "saved jobs" — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** Extension sidecard uses "Save this job" / "View saved jobs →" / "✓ Saved", but web app surfaces still use "pipeline" terminology: pipeline page heading ("Your Pipeline"), confirmation banner ("Added to your pipeline" / "View Pipeline"), sign-in page ("Save your pipeline"), tailor page ("View pipeline →"), remove tooltip ("Remove from pipeline"). Creates a mental model break when users transition from calibration → extension → web app.
+  - **Root cause:** Extension was updated to "saved jobs" language earlier, but web app surfaces were never aligned.
+  - **Fix:** Unified all user-facing text to "saved jobs" language:
+    1. Pipeline page heading: "Your Pipeline" → "Saved Jobs"
+    2. Pipeline sign-in CTA: "save your pipeline across sessions" → "keep your saved jobs across sessions"
+    3. Pipeline remove tooltip: "Remove from pipeline" → "Remove"
+    4. Confirmation banner: "Added to your pipeline" → "Job saved", "View Pipeline" → "View saved jobs"
+    5. Tailor page nav: "View pipeline →" → "View saved jobs →"
+    6. Sign-in page: "Save your pipeline and pick up where you left off" → "Save your scored jobs and pick up where you left off"
+    7. Calibration error: "Pipeline did not reach results" → "Analysis did not reach results"
+  - **No feature changes.** Copy alignment only. URL routes (`/pipeline`) unchanged.
+  - **Validation:** TSC clean, 179/181 tests pass (2 pre-existing).
+  - **Files:** `app/pipeline/page.tsx`, `app/components/pipeline_confirmation_banner.tsx`, `app/tailor/page.tsx`, `app/signin/page.tsx`, `app/calibration/page.tsx`
+
 99. Sidecard accordion section consistency — uneven body padding and structural HTML — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Five collapsible sidecard sections (HRC, Supports, Stretch, Bottom Line, Adjacent Searches) had inconsistent inner padding and structural variance: Adjacent body used `2px 0 5px` vs `1px 0 3px` elsewhere, bullet lists used `padding-bottom: 2px` instead of uniform shorthand, Adjacent empty-state padding was `2px 0`, and Adjacent toggle used a superfluous `<span class="cb-adjacent-label">` wrapper not present in other sections.
   - **Root cause:** Sections were authored at different times with no shared padding contract. Adjacent Searches section was added later with slightly different padding values and extra wrapper markup.

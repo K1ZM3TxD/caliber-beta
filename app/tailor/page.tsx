@@ -221,9 +221,9 @@ function TailorInner() {
             onClick={generate}
             className="w-full py-3 rounded-lg font-semibold text-base transition-all"
             style={{
-              background: "rgba(74,222,128,0.06)",
+              background: "rgba(74,222,128,0.10)",
               color: "#4ADE80",
-              border: "1px solid rgba(74,222,128,0.45)",
+              border: "1px solid rgba(74,222,128,0.55)",
             }}
           >
             Generate Tailored Resume
@@ -338,9 +338,9 @@ function TailorInner() {
             onClick={download}
             className="w-full py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
             style={{
-              background: "rgba(74,222,128,0.06)",
+              background: "rgba(74,222,128,0.10)",
               color: "#4ADE80",
-              border: "1px solid rgba(74,222,128,0.45)",
+              border: "1px solid rgba(74,222,128,0.55)",
             }}
           >
             <svg
@@ -365,7 +365,7 @@ function TailorInner() {
               href="/pipeline"
               className="text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
             >
-              View pipeline →
+              View saved jobs →
             </a>
             <a
               href="/calibration"

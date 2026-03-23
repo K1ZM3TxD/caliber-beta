@@ -21,7 +21,7 @@ export default function PipelineConfirmationBanner({
         <span className="text-emerald-400 text-base flex-shrink-0">✓</span>
         <div className="min-w-0">
           <div className="text-emerald-300 text-sm font-medium">
-            Added to your pipeline
+            Job saved
           </div>
           <div className="text-zinc-400 text-xs truncate">
             {jobTitle} — {company}
@@ -32,7 +32,7 @@ export default function PipelineConfirmationBanner({
         href="/pipeline"
         className="flex-shrink-0 text-xs font-medium text-zinc-400 border border-zinc-700 rounded px-3 py-1.5 hover:text-white hover:border-zinc-500 transition-colors"
       >
-        View Pipeline
+        View saved jobs
       </a>
     </div>
   );

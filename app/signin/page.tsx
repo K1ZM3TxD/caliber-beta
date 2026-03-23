@@ -215,8 +215,8 @@ function SignInForm() {
           required
           className="w-full px-4 py-3 rounded-lg text-sm text-neutral-200 placeholder-neutral-600 outline-none transition-colors"
           style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.14)",
           }}
           autoComplete="email"
         />
@@ -225,9 +225,9 @@ function SignInForm() {
           disabled={sending || !email.trim()}
           className="w-full py-3 rounded-lg font-semibold text-sm transition-all disabled:opacity-40"
           style={{
-            background: "rgba(74,222,128,0.06)",
+            background: "rgba(74,222,128,0.10)",
             color: "#4ADE80",
-            border: "1px solid rgba(74,222,128,0.45)",
+            border: "1px solid rgba(74,222,128,0.55)",
           }}
         >
           {sending ? "Signing in…" : "Continue with email"}
@@ -265,15 +265,15 @@ export default function SignInPage() {
             Sign in to Caliber
           </h1>
           <p className="text-neutral-400 text-sm mt-2">
-            Save your pipeline and pick up where you left off.
+            Save your scored jobs and pick up where you left off.
           </p>
         </div>
 
         <div
           className="mt-8 mx-auto max-w-[380px] p-6 rounded-xl"
           style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.09)",
           }}
         >
           <Suspense fallback={<div className="h-48" />}>

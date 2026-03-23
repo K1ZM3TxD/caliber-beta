@@ -571,7 +571,7 @@ export default function CalibrationPage() {
             setJobResult(buildJobResult(s));
           }
         } else {
-          setError(`Pipeline did not reach results (state: ${String(s?.state)}).`);
+          setError(`Analysis did not reach results (state: ${String(s?.state)}).`);
         }
       } catch (e: any) {
         setError(displayError(e));
@@ -809,11 +809,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
+          .cb-title-card:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.06) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
           .cb-dropzone:hover { border-color: rgba(74,222,128,0.50) !important; background-color: rgba(255,255,255,0.02) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
           .cb-textarea:focus { border-color: rgba(74,222,128,0.55) !important; box-shadow: 0 0 0 1.5px rgba(74,222,128,0.22), 0 0 24px rgba(74,222,128,0.08) !important; }
-          .cb-textarea::placeholder { color: rgba(161,161,170,0.55); }
+          .cb-textarea::placeholder { color: rgba(161,161,170,0.65); }
         `}</style>
         {/* Hero content */}
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -854,9 +854,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       fontSize: '15px',
                       fontWeight: 600,
                       padding: '14px 28px',
-                      backgroundColor: busy ? "rgba(58,180,100,0.08)" : "rgba(74,222,128,0.06)",
+                      backgroundColor: busy ? "rgba(58,180,100,0.10)" : "rgba(74,222,128,0.10)",
                       color: busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
+                      border: busy ? "1px solid rgba(74,222,128,0.28)" : "1px solid rgba(74,222,128,0.55)",
                       cursor: busy ? "not-allowed" : "pointer",
                       boxShadow: "none",
                     }}
@@ -879,8 +879,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(255,255,255,0.08)",
-                        backgroundColor: selectedFile ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+                        border: "1px dashed rgba(255,255,255,0.14)",
+                        backgroundColor: selectedFile ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.025)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
                         pointerEvents: resumeDone ? "auto" : "none",
@@ -908,9 +908,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             disabled={busy}
                             className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                             style={{
-                              backgroundColor: "rgba(255,255,255,0.08)",
+                              backgroundColor: "rgba(255,255,255,0.10)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(255,255,255,0.12)",
+                              border: "1px solid rgba(255,255,255,0.18)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -948,9 +948,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: canContinueResume ? "rgba(74,222,128,0.06)" : "rgba(74,222,128,0.03)",
+                      backgroundColor: canContinueResume ? "rgba(74,222,128,0.10)" : "rgba(74,222,128,0.05)",
                       color: canContinueResume ? "#4ADE80" : "rgba(74,222,128,0.45)",
-                      border: canContinueResume ? "1px solid rgba(74,222,128,0.45)" : "1px solid rgba(74,222,128,0.20)",
+                      border: canContinueResume ? "1px solid rgba(74,222,128,0.55)" : "1px solid rgba(74,222,128,0.28)",
                       cursor: canContinueResume ? "pointer" : "not-allowed",
                       boxShadow: "none",
                       minWidth: 140
@@ -994,8 +994,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         key={mode.id}
                         className="rounded-xl px-6 py-6 select-none cb-chip-enter"
                         style={{
-                          backgroundColor: isPreferred ? "rgba(74,222,128,0.07)" : isAvoided ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.035)",
-                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.4)" : isAvoided ? "1.5px solid rgba(239,68,68,0.3)" : "1.5px solid rgba(255,255,255,0.12)",
+                          backgroundColor: isPreferred ? "rgba(74,222,128,0.09)" : isAvoided ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.05)",
+                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.45)" : isAvoided ? "1.5px solid rgba(239,68,68,0.38)" : "1.5px solid rgba(255,255,255,0.16)",
                           boxShadow: "0 2px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04) inset",
                         }}
                       >
@@ -1010,9 +1010,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             title="Want more"
                             className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
                             style={{
-                              backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.07)",
+                              backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.10)",
                               color: isPreferred ? "#4ADE80" : "rgba(200,200,210,0.7)",
-                              border: isPreferred ? "2px solid rgba(74,222,128,0.5)" : "2px solid rgba(255,255,255,0.15)",
+                              border: isPreferred ? "2px solid rgba(74,222,128,0.5)" : "2px solid rgba(255,255,255,0.22)",
                             }}
                           >
                             +
@@ -1024,8 +1024,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             className="rounded-lg px-4 h-10 text-xs transition-colors flex items-center justify-center"
                             style={{
                               backgroundColor: "transparent",
-                              color: "rgba(161,161,170,0.55)",
-                              border: "1px solid rgba(255,255,255,0.08)",
+                              color: "rgba(161,161,170,0.65)",
+                              border: "1px solid rgba(255,255,255,0.14)",
                             }}
                           >
                             Skip
@@ -1036,9 +1036,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             title="Want less"
                             className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
                             style={{
-                              backgroundColor: isAvoided ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.07)",
+                              backgroundColor: isAvoided ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.10)",
                               color: isAvoided ? "#EF4444" : "rgba(200,200,210,0.7)",
-                              border: isAvoided ? "2px solid rgba(239,68,68,0.45)" : "2px solid rgba(255,255,255,0.15)",
+                              border: isAvoided ? "2px solid rgba(239,68,68,0.45)" : "2px solid rgba(255,255,255,0.22)",
                             }}
                           >
                             &minus;
@@ -1106,7 +1106,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       style={{
                         backgroundColor: answerText.trim().length > 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.08)",
                         color: "#F2F2F2",
-                        border: answerText.trim().length > 0 ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.20)",
+                        border: answerText.trim().length > 0 ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.22)",
                         boxShadow: "none",
                         fontSize: "1em",
                         marginTop: "0.5em",
@@ -1127,9 +1127,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
+                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.05)" : "rgba(74,222,128,0.10)",
                       color: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: promptIndex == null || !hasAnswer || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
+                      border: promptIndex == null || !hasAnswer || busy ? "1px solid rgba(74,222,128,0.28)" : "1px solid rgba(74,222,128,0.55)",
                       cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
                       boxShadow: "none",
                     }}
@@ -1359,8 +1359,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     style={{
                       marginTop: 32,
                       animation: "cb-title-enter 0.35s ease-out 0.15s both",
-                      backgroundColor: "rgba(255,255,255,0.015)",
-                      border: "1px solid rgba(74,222,128,0.18)",
+                      backgroundColor: "rgba(255,255,255,0.025)",
+                      border: "1px solid rgba(74,222,128,0.25)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">

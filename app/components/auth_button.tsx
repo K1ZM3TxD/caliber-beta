@@ -40,7 +40,7 @@ export default function AuthButton() {
         style={{
           background: "rgba(74,222,128,0.10)",
           color: "#4ADE80",
-          border: "1px solid rgba(74,222,128,0.25)",
+          border: "1px solid rgba(74,222,128,0.35)",
         }}
         title={session.user.email || "Account"}
       >
@@ -51,7 +51,7 @@ export default function AuthButton() {
           className="absolute right-0 mt-2 w-52 rounded-lg py-2 z-50 shadow-xl"
           style={{
             background: "#141414",
-            border: "1px solid rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.12)",
           }}
         >
           <div className="px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
