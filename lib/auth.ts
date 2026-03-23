@@ -6,6 +6,8 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 // ── env validation (log at init, not throw — let NextAuth surface its own error) ──
 if (!process.env.AUTH_SECRET) {
   console.error("[Caliber][auth] CRITICAL: AUTH_SECRET is not set. NextAuth will fail to sign JWTs.");
@@ -80,7 +82,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.sub = user.id;
         token.email = user.email;
-        console.debug("[Caliber][auth] jwt callback — user attached", { sub: user.id, email: user.email });
+        if (isDev) console.debug("[Caliber][auth] jwt — user attached", { sub: user.id, email: user.email });
       }
       return token;
     },
@@ -88,7 +90,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
+      if (isDev) console.debug("[Caliber][auth] session callback", { userId: token.sub ?? "none", email: token.email ?? "none" });
       return session;
+    },
+    async signIn({ user, account }) {
+      if (isDev) console.debug("[Caliber][auth] signIn callback", { provider: account?.provider, userId: user?.id, email: user?.email });
+      return true;
+    },
+    async redirect({ url, baseUrl }) {
+      // Allow relative URLs and same-origin URLs
+      if (url.startsWith("/")) {
+        const target = `${baseUrl}${url}`;
+        if (isDev) console.debug("[Caliber][auth] redirect →", target);
+        return target;
+      }
+      if (url.startsWith(baseUrl)) {
+        if (isDev) console.debug("[Caliber][auth] redirect →", url);
+        return url;
+      }
+      if (isDev) console.debug("[Caliber][auth] redirect → (default)", baseUrl);
+      return baseUrl;
     },
   },
   logger: {

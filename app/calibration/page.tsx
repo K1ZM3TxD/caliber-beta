@@ -829,9 +829,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
-            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step !== "TITLES" ? (
-                <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
+            <div style={{ minHeight: step === "LANDING" ? "5.5em" : "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              {step === "LANDING" ? (
+                <CaliberHeader typedText={caliberTyped} showCursor />
               ) : null}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
