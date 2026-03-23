@@ -13,18 +13,12 @@
 
 104. Prompt input dock — fixed-bottom textarea on PROMPT steps — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Typewriter question text pushed the textarea down during character reveal, causing visual jitter and positional instability on prompt steps.
-  - **Fix:** Textarea anchored to viewport bottom via `position: fixed; bottom: 0` dock with gradient fade background. 220px spacer prevents content hiding behind dock. Submit button removed — Enter key is sole submit mechanism (Shift+Enter for newlines). Textarea border changed to green accent (`rgba(74,222,128,0.25/0.40)`) for consistency with resume dropzone.
+  - **Fix:** Fixed-bottom dock pattern applied. See `kernel.md` Prompt Input Dock Invariant and `LAYOUT_SYSTEM.md` §2 for durable rules.
   - **File:** `app/calibration/page.tsx`
 
 101. System stabilization — header, layout, depth, typography, resume border — **FIX SHIPPED** (2026-03-23)
-  - **Symptom:** Multiple visual consistency issues across calibration flow: (1) CALIBER header appeared on calibration steps (resume, prompts, chips) breaking immersive flow. (2) Chip category subheadings (e.g. "Building & Systems") at 16px lacked visual hierarchy. (3) Resume dropzone border was neutral white, inconsistent with green-accented prompt inputs. (4) Chip cards and title hero card had insufficient depth separation from background.
-  - **Root cause:** Visual polish items accumulated during feature iteration phase.
-  - **Fix (4-part):**
-    1. Header gated on `step === "LANDING"` only — absent from all calibration flow steps.
-    2. Chip category labels increased from `text-base` (16px) to `text-lg` (18px) for stronger hierarchy.
-    3. Resume dropzone border changed from `rgba(255,255,255,0.14)` to `rgba(74,222,128,0.30)` — green-tinted dashed border matching prompt input accent.
-    4. 3-layer depth model (background → green-tinted halo → card surface) applied to chips card and title hero card using multi-layer `boxShadow` with `rgba(74,222,128,0.06)`.
-  - **No scoring or feature changes.** Visual consistency only.
+  - **Symptom:** Multiple visual consistency issues across calibration flow: header on calibration steps, weak chip typography, neutral resume border, flat card depth.
+  - **Fix:** Header gated to landing+Saved Jobs only (see `kernel.md` Calibration Immersive Flow Invariant). Chip labels → text-lg. Resume border → green accent. Card depth → 3-layer model (see `LAYOUT_SYSTEM.md` §3–4).
   - **Validation:** TSC clean, 179/181 tests pass (2 pre-existing).
   - **Files:** `app/calibration/page.tsx`
 

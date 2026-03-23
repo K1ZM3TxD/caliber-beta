@@ -125,6 +125,23 @@ The PROMPT step textarea is a **fixed-position viewport-bottom dock**. It does n
 - Textarea border uses the Caliber green accent (`rgba(74,222,128,*)`) — consistent with resume dropzone border treatment.
 - Moving the textarea back into the scrolling content flow, or adding a submit button, is a UX regression.
 
+## Saved Jobs Terminology Invariant (2026-03-23)
+
+All user-facing web app surfaces use **"saved jobs"** language. The word "pipeline" must not appear in any user-facing text.
+
+- Page headings, confirmation banners, sign-in CTAs, tailor navigation, and tooltips all use "saved jobs" / "job saved" / "saved" terminology.
+- The extension already uses "Save this job" / "View saved jobs →" — web app surfaces must match.
+- URL routes (`/pipeline`) are unchanged — this is a user-facing copy rule, not a routing rule.
+- Reintroducing "pipeline" in user-facing copy is a regression.
+
+## Layout System Reference (2026-03-23)
+
+Structural layout rules (vertical centering, fixed-bottom dock pattern, card depth layer model, green accent borders, transition stability) are defined in `Bootstrap/LAYOUT_SYSTEM.md`. That file is the canonical home for spatial/behavioral layout contracts.
+
+- Visual primitives (colors, typography, surfaces): `docs/ui-constitution.md`
+- Page composition zones and reserved heights: `docs/layout-skeleton.md`
+- Do not redefine layout rules inline in other docs — point to `LAYOUT_SYSTEM.md`.
+
 ## Telemetry Documentation Truth Invariant (2026-03-17)
 
 Telemetry storage documentation must match actual operator reality.

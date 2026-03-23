@@ -122,6 +122,8 @@ When the change lands, report:
 - Submit button was unnecessary given Enter-to-submit was already the primary interaction — removing it declutters the prompt interface.
 
 **What is now expected:**
+> Durable rules extracted to `kernel.md` (invariants) and `Bootstrap/LAYOUT_SYSTEM.md` (layout). The following is the post-change state snapshot.
+
 - Core product loop fully functional: Calibrate → Discover (LinkedIn) → Evaluate (extension) → Save → Return → Saved Jobs → Continue.
 - Auth: functional. Session persists across refresh, tab reopen, and returning visits.
 - Tailor: working with guardrails and DB-backed jobText fallback.
@@ -141,6 +143,8 @@ When the change lands, report:
 - Prompt textarea border uses green accent (`rgba(74,222,128,*)`) matching resume dropzone.
 
 **What is no longer expected:**
+> These are historical deprecations from this change. See `kernel.md` for the enforced invariants.
+
 - Header appearing on any calibration flow step (resume, prompts, chips, processing, results).
 - 3-tier chip interaction (primary/preferred/avoided). `selectedPrimary` state is removed.
 - Flat chip cards without depth/halo treatment.

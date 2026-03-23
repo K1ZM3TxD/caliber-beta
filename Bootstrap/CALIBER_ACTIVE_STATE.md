@@ -44,6 +44,9 @@ All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regressi
 **Key contract distinction:** `expectedMode` in fixtures marks the *regression role* (design intent), not the classifier output. Tests assert against actual classified mode. Jen and Dingus both resolve `operational_execution` in practice — this is correct classifier behavior, not a bug.
 
 ## Recent Implementation History
+> Full implementation changelog: `milestones.md` IMPLEMENTATION LOG. This section carries compact summaries of recent changes only.
+> Invariants and layout rules are defined in `kernel.md` and `LAYOUT_SYSTEM.md` — not here.
+
 - **System Stabilization + UX Polish + Auth Hardening (v0.9.27, 2026-03-23):** BREAK+UPDATE. Product shift from feature iteration → system stabilization. Core product loop confirmed functional: Calibrate → Discover (LinkedIn) → Evaluate (extension) → Save → Saved Jobs → Continue. Changes: (1) Auth persistence fixed — DB-backed jobText, Tailor fallback chain (file→DB), session persists across refresh/tab. (2) Header system locked — CALIBER header ONLY on landing + Saved Jobs; removed from all calibration flow steps (immersive flow doctrine). (3) Layout centering restored globally via flex. (4) Chip system simplified 3-tier→2-tier (preferred/avoided; primary selection removed). (5) 3-layer depth model (background→green halo→card surface) on chips card + title hero card. (6) Chip category subheading increased to text-lg (18px). (7) Resume ingest dropzone green-tinted border. (8) Calibration UX: typewriter jitter fix via submitLockRef+promptTransitioning, 2-bullet allowance, input contrast strengthened. (9) Saved Jobs: CALIBER as primary header, no separate title, "pipeline"→"saved jobs" everywhere. (10) Extension: sidecard result cache eliminates flicker on reopen, accordion padding normalized, score animation dedup. (11) Sign-in: directBetaSignIn() bypasses buggy signIn(), stale error params cleared. (12) Scoring stable — no drift, deterministic. (13) Tailor guardrails: blocked quota claims, SaaS claims, engineering language for weak matches. (14) Prompt input dock — PROMPT step textarea anchored to viewport bottom (fixed-position, gradient fade), submit button removed (Enter-to-submit, Shift+Enter for newlines), green accent border for visual consistency. Known non-blocking: minor contrast tuning, empty state polish, score band label verification. Issues #96–#104. Files: `app/calibration/page.tsx`, `app/pipeline/page.tsx`, `app/signin/page.tsx`, `app/components/pipeline_confirmation_banner.tsx`, `app/tailor/page.tsx`, `extension/content_linkedin.js`, `lib/auth.ts`, `app/api/pipeline/route.ts`, `app/api/pipeline/tailor/route.ts`, `prisma/schema.prisma`.
 - **Calibration-to-Extension Terminology Alignment (2026-03-23):** Unified all user-facing "pipeline" references to "saved jobs" across web app surfaces for continuity with extension language ("Save this job" / "View saved jobs →"). Changes: pipeline page heading → "Saved Jobs", confirmation banner → "Job saved" / "View saved jobs", sign-in page → "Save your scored jobs", tailor nav → "View saved jobs →", remove tooltip → "Remove", calibration error → "Analysis did not reach results". URL routes unchanged (`/pipeline`). No feature changes — copy alignment only. Issue #100. Files: `app/pipeline/page.tsx`, `app/components/pipeline_confirmation_banner.tsx`, `app/tailor/page.tsx`, `app/signin/page.tsx`, `app/calibration/page.tsx`.
 - **Sidecard Accordion Section Consistency (2026-03-23):** Pure visual consistency pass across all 5 collapsible sidecard sections (HRC, Supports, Stretch, Bottom Line, Adjacent Searches). Normalized inner body padding to `1px 0 3px` uniformly — Adjacent body was `2px 0 5px`, bullets were `padding-bottom: 2px`, Adjacent empty-state was `2px 0`. Simplified Adjacent toggle HTML by removing superfluous `<span class="cb-adjacent-label">` wrapper (replaced with plain `<span>` matching other sections). Removed unused `.cb-adjacent-label` CSS rule. Added `transition: padding 0.2s ease-out` on Adjacent body for smooth expand. Hover states verified consistent across all color variants (green, yellow, red, blue, default grey). No content or scoring changes. Issue #99. File: `extension/content_linkedin.js`.
@@ -84,16 +87,16 @@ All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regressi
 ## Top Blocker
 **Tailor resume (beta gate 5).** Sign-in provider resolution fix shipped (issue #97) — `directBetaSignIn()` bypasses buggy `signIn()` from next-auth/react. Sign-in completion and tailor pipeline-entry resolution fixed (v0.9.25). Sign-in no longer hangs or shows "starting up" error; tailor resolves entries for both authenticated and unauthenticated users. Scoring pipeline stabilization complete. BST validated (62/62 PASS). Sidecard layout validated (52/52 PASS). Pipeline validated (111/111 PASS). Sign-in/memory validated (67/67 PASS). Sign-in + tailor resolution validated (28/28 PASS). Beta gates 1, 2, 3, and 4 are closed. Remaining: tailor resume end-to-end generation validation (gate 5). The next step is to confirm tailor generation works end-to-end with a real resume + job description.
 
-## Product Surface Doctrine (2026-03-17)
-- **Sidecard** = current-job decision surface. Displays: this job's score, decision label, hiring reality, supports/stretch, bottom line, pipeline action. No page-level comparison signals.
-- **Surface layer** = page/search intelligence. Displays: strong match count, best job on surface, BST recovery suggestions. These are aggregate signals about the search surface, not about any single job.
-- **Rule:** Surface intelligence must not be presented in current-job decision UI. Combining them creates confusion. "Best so far" is a surface-layer construct — it may be reused by overlay/future surface-summary UI, but not by sidecard-adjacent decision UI.
-- **"Best so far" popup status:** Popup/banner presentation in sidecard flow is disabled (v0.9.15). All underlying state (`prescanSurfaceBanner`, `pageMaxScore`, `pageBestTitle`, `strongCount`) remains tracked. CSS retained. Concept available for future overlay feature work.
+## Product Surface Doctrine
+> Canonical rule: `kernel.md` → Surface/Job UI Separation Invariant.
 
-## Beta Landing-Page Media Decision (2026-03-17)
-- Pre-beta landing page uses lightweight hero: tagline ("See which jobs actually fit you"), product-preview card (3 scored roles), LinkedIn context line, CTA support copy.
-- Full animated "Career → Decision → Engine" narrative system is explicitly deferred to post-beta.
-- This is a leverage decision — simple proof-of-product hero is sufficient for beta launch.
+- **Sidecard** = current-job decision surface. **Surface layer** = page/search intelligence. These must not be mixed.
+- "Best so far" popup is disabled (v0.9.15). Underlying surface state preserved for future overlay.
+
+## Beta Landing-Page Media Decision
+> Canonical rule: `kernel.md` → Beta-Scope Marketing Invariant.
+
+- Pre-beta: lightweight hero (tagline + product preview). Full animated narrative system deferred to post-beta.
 
 ## Latest Shipped / Verified State
 - Calibration flow runs end-to-end: resume → prompts → single hero title direction → extension CTA.
@@ -138,6 +141,8 @@ All 4 fixture profiles (Jen, Chris, Dingus, Fabio) are used for broader regressi
 - `/extension` page serves current extension build as the primary user install path.
 
 ## Approved Visual Primitives (2026-03-11, design-system baseline)
+> Canonical source: `docs/ui-constitution.md`. Layout rules: `Bootstrap/LAYOUT_SYSTEM.md`.
+
 These are the approved shell traits. Shell ownership is currently page-local — a shared shell framework is not yet locked.
 - **Visual baseline:** Commit a211182 — lowered CALIBER header and ambient gradient (~12% lower, centered at 50% 12%), page-local radial gradients over #050505 dark surface.
 - **Shell ownership:** Page-local. Each page owns its own gradient size/intensity, hero offset (pt-[10vh] typical), and content width. No shared shell component enforced.
@@ -150,6 +155,8 @@ These are the approved shell traits. Shell ownership is currently page-local —
 - **What is NOT approved:** Three-zone shell (Zone 1 20vh / Zone 2 / Zone 3) as a canonical framework. That framing was attempted and rolled back. Do not introduce Zone 1 wrappers, CaliberHeader compact/noGradient props, or fixed gradient overlays.
 
 ## Known Visual Drift (baseline anchored, framework not locked)
+> Layout behavioral rules (centering, dock pattern, card depth, transitions): `Bootstrap/LAYOUT_SYSTEM.md`.
+
 - Visual baseline restored to commit a211182 (7b03a18): lowered header + lowered ambient gradient across all pages.
 - The three-zone shell framing was attempted this season but introduced drift; it has been rolled back and is not the current shell architecture.
 - Shell ownership is page-local — each page carries its own gradient, hero offset, and content width.
