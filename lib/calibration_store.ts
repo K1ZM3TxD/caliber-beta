@@ -158,20 +158,25 @@ export function storeImport(blob: unknown): boolean {
   return true
 }
 
-/** Return the most recently created session (sync: memory + disk only). */
+/** Return the most recently created session (sync: memory + disk only).
+ *  Prefers locked (completed) sessions so extension endpoints get a usable profile. */
 export function storeLatest(): CalibrationSession | null {
   const store = getStore()
   for (const s of readAllFromDisk()) {
     if (!store.has(s.sessionId)) store.set(s.sessionId, s)
   }
-  let best: CalibrationSession | null = null
-  let bestTs = 0
+  let bestLocked: CalibrationSession | null = null
+  let bestLockedTs = 0
+  let bestAny: CalibrationSession | null = null
+  let bestAnyTs = 0
   for (const s of store.values()) {
     const parts = s.sessionId.split("_")
     const ts = parseInt(parts[parts.length - 1] ?? "0", 16) || 0
-    if (ts > bestTs) { bestTs = ts; best = s }
+    if (ts > bestAnyTs) { bestAnyTs = ts; bestAny = s }
+    const locked = Boolean(s.personVector?.values && s.personVector.locked)
+    if (locked && ts > bestLockedTs) { bestLockedTs = ts; bestLocked = s }
   }
-  return best
+  return bestLocked ?? bestAny
 }
 
 /** Async variant: checks DB when memory + disk are empty (cold Lambda). */

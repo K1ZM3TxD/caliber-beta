@@ -443,10 +443,11 @@ async function trySessionEndpoint(storedId, sessionBackup) {
       console.debug("[Caliber][bg][session] stage1 POST: http=" + resp.status);
       if (resp.ok) {
         const data = await resp.json();
-        if (data.ok && data.sessionId) {
-          return { ok: true, sessionId: data.sessionId, profileComplete: data.profileComplete, state: data.state };
+        if (data.ok && data.sessionId && data.profileComplete) {
+          return { ok: true, sessionId: data.sessionId, profileComplete: true, state: data.state };
         }
-        console.debug("[Caliber][bg][session] stage1 POST: data.ok=" + data.ok + ", data.sessionId=" + !!data.sessionId);
+        console.debug("[Caliber][bg][session] stage1 POST: data.ok=" + data.ok +
+          ", data.sessionId=" + !!data.sessionId + ", profileComplete=" + data.profileComplete);
       }
     } catch (e1) { console.warn("[Caliber][bg][session] stage1 POST failed: " + e1.message); }
   }
@@ -523,14 +524,18 @@ async function discoverSession() {
   // Single locked endpoint — sends backup inline via POST so the Vercel Lambda
   // can import it without a separate PUT (avoids multi-Lambda mismatch).
   const result = await trySessionEndpoint(storedId, sessionBackup);
-  if (result.ok) {
+  if (result.ok && result.profileComplete) {
     if (result.sessionId) {
       await chrome.storage.local.set({ caliberSessionId: result.sessionId });
     }
     console.debug("[Caliber][bg][session] discoverSession resolved via trySessionEndpoint: " + result.sessionId);
     return { sessionId: result.sessionId, profileComplete: result.profileComplete, state: result.state };
   }
-  console.warn("[Caliber][bg][session] trySessionEndpoint returned ok=false (storedId=" + (storedId || "none") + ")");
+  if (result.ok && !result.profileComplete) {
+    console.debug("[Caliber][bg][session] trySessionEndpoint returned ok but profileComplete=false — continuing fallback");
+  } else {
+    console.warn("[Caliber][bg][session] trySessionEndpoint returned ok=false (storedId=" + (storedId || "none") + ")");
+  }
 
   // Server doesn't have the session — try restoring from local backup
   if (storedId) {
@@ -546,14 +551,12 @@ async function discoverSession() {
         if (restoreResp.ok) {
           // Retry session endpoint now that we've restored
           const retry = await trySessionEndpoint(storedId, backup);
-          if (retry.ok) {
-            return { sessionId: retry.sessionId, profileComplete: retry.profileComplete, state: retry.state };
+          if (retry.ok && retry.profileComplete) {
+            return { sessionId: retry.sessionId, profileComplete: true, state: retry.state };
           }
         }
-      } catch { /* restore failed — fall through to optimistic */ }
+      } catch { /* restore failed — fall through */ }
     }
-    // Optimistic fallback — session may still work via inline backup in callFitAPI
-    return { sessionId: storedId, profileComplete: true, state: "UNKNOWN" };
   }
 
   // Last resort: probe Caliber tabs one more time (handles race with fresh install)
