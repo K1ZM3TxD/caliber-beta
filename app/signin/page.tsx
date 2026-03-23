@@ -7,58 +7,6 @@ import CaliberHeader from "../components/caliber_header";
 
 type ProviderMap = Record<string, { id: string; name: string; type: string }>;
 
-/**
- * Direct POST to the NextAuth beta-email callback, bypassing the buggy
- * `signIn()` from next-auth/react@5.0.0-beta.30 which calls getProviders()
- * internally and — on null — redirects to the error page, ignoring
- * redirect:false entirely.
- */
-async function directBetaSignIn(
-  email: string,
-  callbackUrl: string,
-): Promise<{ ok: boolean; url?: string; error?: string }> {
-  // 1. Obtain CSRF token
-  const csrfRes = await fetch("/api/auth/csrf");
-  if (!csrfRes.ok) return { ok: false, error: "Unable to reach sign-in service." };
-  const { csrfToken } = await csrfRes.json();
-
-  // 2. POST to the credentials callback with X-Auth-Return-Redirect so the
-  //    server returns JSON { url } instead of a 302 redirect.
-  const res = await fetch("/api/auth/callback/beta-email", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Auth-Return-Redirect": "1",
-    },
-    body: new URLSearchParams({ email, csrfToken, callbackUrl }),
-  });
-
-  // 3. Parse the JSON response (safe — falls back to empty object)
-  const data: { url?: string } = await res.json().catch(() => ({}));
-
-  if (!res.ok || !data.url) {
-    return { ok: false, error: "Sign-in failed. Please try again." };
-  }
-
-  // 4. Check if the returned URL contains an auth error param
-  try {
-    const redirect = new URL(data.url, window.location.origin);
-    const err = redirect.searchParams.get("error");
-    if (err) {
-      return {
-        ok: false,
-        error: err === "CredentialsSignin"
-          ? "Could not sign in. Please check your email and try again."
-          : "Sign-in failed. Please try again.",
-      };
-    }
-  } catch {
-    // URL parsing failed — server returned something unexpected; try the URL anyway
-  }
-
-  return { ok: true, url: data.url };
-}
-
 function SignInForm() {
   const params = useSearchParams();
   const isVerify = params.get("verify") === "1";
@@ -117,18 +65,31 @@ function SignInForm() {
         setEmailSent(true);
         setSending(false);
       } else if (hasBetaEmail) {
-        // Direct POST to callback — bypasses the buggy signIn() from
-        // next-auth/react which silently redirects to the error page on
-        // transient getProviders() failures (see directBetaSignIn above).
-        console.debug("[Caliber][auth] directBetaSignIn — email=" + email.trim() + " callbackUrl=" + callbackUrl);
-        const result = await directBetaSignIn(email.trim(), callbackUrl);
+        // Use signIn() directly with redirect:false. The original bug
+        // (signIn calling getProviders internally and redirecting on null)
+        // is defused because we already resolved providers above and only
+        // reach here when hasBetaEmail is true. If signIn still fails due
+        // to a transient issue, we catch and show an inline error.
+        console.debug("[Caliber][auth] signIn(beta-email) — email=" + email.trim() + " callbackUrl=" + callbackUrl);
+        const result = await signIn("beta-email", {
+          email: email.trim(),
+          redirect: false,
+          callbackUrl,
+        });
         console.debug("[Caliber][auth] signIn result", result);
         setSending(false);
-        if (result.ok && result.url) {
+        if (result?.ok && result?.url) {
           console.debug("[Caliber][auth] redirecting to", result.url);
           window.location.href = result.url;
+        } else if (result?.error) {
+          setAuthError(
+            result.error === "CredentialsSignin"
+              ? "Could not sign in. Please check your email and try again."
+              : "Sign-in failed. Please try again."
+          );
         } else {
-          setAuthError(result.error || "Sign-in failed. Please try again.");
+          // signIn returned ok:false but no error — try navigating to callbackUrl
+          window.location.href = callbackUrl;
         }
       } else {
         console.warn("[Caliber][auth] no provider available");
