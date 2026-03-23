@@ -107,6 +107,8 @@ When the change lands, report:
 
 12. **Sign-in provider resolution final fix (issue #97).** Bypassed buggy `signIn()` with `directBetaSignIn()` — direct POST to auth callback, eliminating `getProviders()` cold-start failure vector. Stale `?error=` URL params cleared on mount. Improved error messages.
 
+13. **Prompt input dock (ChatGPT-style fixed-bottom).** Textarea on PROMPT steps anchored to viewport bottom via `position: fixed; bottom: 0`, preventing typewriter question text from pushing the input down during character reveal. Gradient fade background (`rgba(0,0,0,0)` → `rgba(0,0,0,0.85)`). 220px spacer in flow prevents content being hidden behind dock. Submit button removed — Enter key submits, Shift+Enter for newlines. Textarea border changed to green accent (`rgba(74,222,128,0.25)` resting / `rgba(74,222,128,0.40)` active) for visual consistency with resume dropzone. Placeholder: "Type your response here… (press Enter to submit)". Issue #104.
+
 **Why it changed:**
 - Product shifted from feature iteration → system stabilization. All core loop components functional; focus on consistency, clarity, restraint.
 - Auth persistence was the last major reliability gap — `/tmp` ephemeral storage on Vercel caused Tailor context loss.
@@ -116,6 +118,8 @@ When the change lands, report:
 - Resume ingest border needed green accent for visual consistency with prompt inputs.
 - Score flicker on sidecard reopen destroyed user trust even though scores were technically correct.
 - `signIn()` bug in next-auth beta.30 caused intermittent auth failure that couldn't be fixed upstream.
+- Typewriter question text pushed textarea down during character reveal, creating visual jitter — fixed-bottom dock eliminates positional instability.
+- Submit button was unnecessary given Enter-to-submit was already the primary interaction — removing it declutters the prompt interface.
 
 **What is now expected:**
 - Core product loop fully functional: Calibrate → Discover (LinkedIn) → Evaluate (extension) → Save → Return → Saved Jobs → Continue.
@@ -132,6 +136,9 @@ When the change lands, report:
 - Extension "Save this job" at bottom of content stack.
 - Adjacent Searches collapsible with uniform padding.
 - All web surfaces use "saved jobs" language, not "pipeline."
+- PROMPT step textarea is fixed to viewport bottom — never moves during typewriter reveal.
+- No submit button on prompt steps — Enter key is the only submit mechanism (Shift+Enter for newlines).
+- Prompt textarea border uses green accent (`rgba(74,222,128,*)`) matching resume dropzone.
 
 **What is no longer expected:**
 - Header appearing on any calibration flow step (resume, prompts, chips, processing, results).
@@ -143,6 +150,9 @@ When the change lands, report:
 - Score animation replaying on every `showResults()` call regardless of value change.
 - `signIn()` from `next-auth/react` used for beta-email credentials flow.
 - "Pipeline" language in any user-facing web app surface.
+- Textarea positioned inline with typewriter question (old behavior — pushed down during reveal).
+- Submit button on prompt steps.
+- Neutral/white textarea border on prompt inputs.
 
 **Risk / fallout:**
 - Green resume border is a visual-only change; no functional impact.
@@ -158,7 +168,7 @@ When the change lands, report:
 - Chip depth model visible on both chips page and title result hero card.
 
 **Files touched:**
-- `app/calibration/page.tsx` — header gating, chip simplification, chip depth, typography, resume border, typewriter jitter, layout centering
+- `app/calibration/page.tsx` — header gating, chip simplification, chip depth, typography, resume border, typewriter jitter, layout centering, prompt input dock (fixed-bottom), green textarea border, submit button removal
 - `app/pipeline/page.tsx` — "Saved Jobs" positioning, CaliberHeader as primary, copy alignment
 - `app/signin/page.tsx` — `directBetaSignIn()`, stale error clearing, copy alignment
 - `app/components/pipeline_confirmation_banner.tsx` — copy alignment
@@ -170,7 +180,7 @@ When the change lands, report:
 - `prisma/schema.prisma` — jobText column on PipelineEntry
 - `Bootstrap/BREAK_AND_UPDATE.md` — This entry
 - `Bootstrap/milestones.md` — Dated block
-- `Bootstrap/CALIBER_ISSUES_LOG.md` — Issues #96–#100
+- `Bootstrap/CALIBER_ISSUES_LOG.md` — Issues #96–#104
 - `Bootstrap/CALIBER_ACTIVE_STATE.md` — Implementation history
 
 ---

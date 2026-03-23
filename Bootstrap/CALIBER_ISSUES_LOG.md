@@ -11,6 +11,11 @@
   - **Symptom:** Six-band label system (Excellent Match through Poor Fit) not yet validated across all score ranges in live extension.
   - **Status:** Completion criterion still open in milestones.md.
 
+104. Prompt input dock — fixed-bottom textarea on PROMPT steps — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** Typewriter question text pushed the textarea down during character reveal, causing visual jitter and positional instability on prompt steps.
+  - **Fix:** Textarea anchored to viewport bottom via `position: fixed; bottom: 0` dock with gradient fade background. 220px spacer prevents content hiding behind dock. Submit button removed — Enter key is sole submit mechanism (Shift+Enter for newlines). Textarea border changed to green accent (`rgba(74,222,128,0.25/0.40)`) for consistency with resume dropzone.
+  - **File:** `app/calibration/page.tsx`
+
 101. System stabilization — header, layout, depth, typography, resume border — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Multiple visual consistency issues across calibration flow: (1) CALIBER header appeared on calibration steps (resume, prompts, chips) breaking immersive flow. (2) Chip category subheadings (e.g. "Building & Systems") at 16px lacked visual hierarchy. (3) Resume dropzone border was neutral white, inconsistent with green-accented prompt inputs. (4) Chip cards and title hero card had insufficient depth separation from background.
   - **Root cause:** Visual polish items accumulated during feature iteration phase.
