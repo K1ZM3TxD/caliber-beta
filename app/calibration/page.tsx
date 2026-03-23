@@ -1095,7 +1095,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             {/* PROMPT */}
             {step === "PROMPT" ? (
               <div className="w-full max-w-2xl">
-                {/* Prompt question container — anchored top so second lines extend downward */}
+                {/* Prompt question — stays in centered flow */}
                 <div style={{ minHeight: "3.2em" }} className="mt-8 cb-headline text-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
@@ -1106,53 +1106,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <span style={{ transition: "opacity 0.3s", opacity: promptTransitioning ? 0 : 1 }}>{promptText}</span>
                   )}
                 </div>
-                {/* Remove "Prompt X of 5" line */}
-                <div className="mt-10">
-                  {promptIndex == null ? (
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 120 }}>
-                      <Spinner />
-                      <span className="ml-2">Loading…</span>
-                    </div>
-                  ) : (
-                    <textarea
-                      value={answerText}
-                      onChange={(e) => setAnswerText(e.target.value)}
-                      rows={6}
-                      className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
-                      style={{
-                        backgroundColor: answerText.trim().length > 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.08)",
-                        color: "#F2F2F2",
-                        border: answerText.trim().length > 0 ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.22)",
-                        boxShadow: "none",
-                        fontSize: "1em",
-                        marginTop: "0.5em",
-                        outline: "none",
-                        opacity: promptTransitioning ? 0 : 1,
-                        transition: "opacity 0.15s ease, border-color 0.2s ease, background-color 0.2s ease",
-                      }}
-                      placeholder="Type your response here…"
-                      disabled={busy}
-                    />
-                  )}
-                </div>
-                <div className="mt-7">
-                  <button
-                    type="button"
-                    onClick={submitAnswer}
-                    disabled={promptIndex == null || !hasAnswer || busy}
-                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    style={{
-                      transitionDuration: "200ms",
-                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.05)" : "rgba(74,222,128,0.10)",
-                      color: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: promptIndex == null || !hasAnswer || busy ? "1px solid rgba(74,222,128,0.28)" : "1px solid rgba(74,222,128,0.55)",
-                      cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
-                      boxShadow: "none",
-                    }}
-                  >
-                    Submit
-                  </button>
-                </div>
+                {/* Spacer so centered content doesn't hide behind the fixed input dock */}
+                <div style={{ height: "220px" }} />
               </div>
             ) : null}
 
@@ -1500,6 +1455,53 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         </div>
       </div>
       </div>
+
+      {/* Fixed-bottom input dock for PROMPT step — anchored like ChatGPT */}
+      {step === "PROMPT" && promptIndex != null && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: "linear-gradient(to top, #050805 60%, rgba(5,8,5,0.95) 80%, transparent 100%)",
+            padding: "16px 16px 24px",
+            pointerEvents: "auto",
+          }}
+        >
+          <div className="w-full max-w-2xl mx-auto">
+            <div style={{ position: "relative" }}>
+              <textarea
+                value={answerText}
+                onChange={(e) => setAnswerText(e.target.value)}
+                rows={4}
+                className="w-full rounded-lg px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
+                style={{
+                  backgroundColor: answerText.trim().length > 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.08)",
+                  color: "#F2F2F2",
+                  border: answerText.trim().length > 0 ? "1px solid rgba(74,222,128,0.40)" : "1px solid rgba(74,222,128,0.25)",
+                  boxShadow: "none",
+                  fontSize: "1em",
+                  outline: "none",
+                  resize: "none",
+                  opacity: promptTransitioning ? 0 : 1,
+                  transition: "opacity 0.15s ease, border-color 0.2s ease, background-color 0.2s ease",
+                }}
+                placeholder="Type your response here… (press Enter to submit)"
+                disabled={busy}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && hasAnswer && !busy) {
+                    e.preventDefault();
+                    submitAnswer();
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
