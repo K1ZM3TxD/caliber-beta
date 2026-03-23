@@ -29,6 +29,19 @@ function jsonResponse(req: NextRequest, data: Record<string, unknown>, status: n
   return res;
 }
 
+/** Build a single concise gap line for the sidecard when execution evidence guardrail fires. */
+function buildExecutionEvidenceGapLine(
+  categories: string[],
+  missingEvidence: string[],
+): string {
+  if (missingEvidence.length === 0) return "This role requires specific execution experience not found in your profile.";
+  const missing = missingEvidence[0];
+  if (categories.includes("domain_locked")) {
+    return `This role requires hands-on ${missing} experience.`;
+  }
+  return "This role requires hands-on coding and stack-specific experience.";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -129,6 +142,9 @@ export async function POST(req: NextRequest) {
       hiring_reality_check: {
         band: hiringCheck.band,
         reason: hiringCheck.reason,
+        execution_evidence_gap: workMode.executionEvidence.triggered
+          ? buildExecutionEvidenceGapLine(workMode.executionEvidence.categories, workMode.executionEvidence.missingEvidence)
+          : null,
       },
       calibrationId: sessionId,
       sourceUrl: body.sourceUrl ?? null,
@@ -173,6 +189,15 @@ export async function POST(req: NextRequest) {
           score: workMode.executionIntensity.score,
           triggers: workMode.executionIntensity.triggers,
           reason: workMode.executionIntensity.reason,
+        },
+        executionEvidence: {
+          triggered: workMode.executionEvidence.triggered,
+          categories: workMode.executionEvidence.categories,
+          signals: workMode.executionEvidence.signals,
+          missingEvidence: workMode.executionEvidence.missingEvidence,
+          cap: workMode.executionEvidence.cap,
+          adjustment: workMode.executionEvidence.adjustment,
+          reason: workMode.executionEvidence.reason,
         },
         finalScore: workMode.postScore,
         adjustmentReason: workMode.adjustmentReason,

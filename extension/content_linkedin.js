@@ -3086,6 +3086,8 @@
       if (hrcToggle) hrcToggle.className = "cb-collapse-toggle";
       var hrcReason = shadow.getElementById("cb-hrc-reason");
       if (hrcReason) hrcReason.textContent = "";
+      var hrcGap = shadow.getElementById("cb-hrc-gap");
+      if (hrcGap) { hrcGap.textContent = ""; hrcGap.style.display = "none"; }
     }
     var supCount = shadow.getElementById("cb-supports-count");
     if (supCount) supCount.innerHTML = "";
@@ -3683,6 +3685,17 @@
       hrcBandEl.style.color = "#555";
       hrcToggle.className = "cb-collapse-toggle";
       hrcReason.textContent = "";
+    }
+    // Execution evidence gap line (single concise line when guardrail fires)
+    var hrcGap = shadow.getElementById("cb-hrc-gap");
+    if (hrcGap) {
+      if (hrc && hrc.execution_evidence_gap) {
+        hrcGap.textContent = hrc.execution_evidence_gap;
+        hrcGap.style.display = "";
+      } else {
+        hrcGap.textContent = "";
+        hrcGap.style.display = "none";
+      }
     }
     hrcSection.style.display = "";
 
@@ -4500,6 +4513,7 @@
     '      </button>',
     '      <div class="cb-collapse-body">',
     '        <p id="cb-hrc-reason" class="cb-hrc-reason"></p>',
+    '        <p id="cb-hrc-gap" class="cb-hrc-gap" style="display:none"></p>',
     '      </div>',
     '    </div>',
     '    <div class="cb-collapsible" id="cb-supports-section">',
@@ -4752,6 +4766,7 @@
     ".cb-hrc-possible { background: rgba(251,191,36,0.15); color: #FBBF24; }",
     ".cb-hrc-unlikely { background: rgba(239,68,68,0.15); color: #EF4444; }",
     ".cb-hrc-reason { font-size: 10px; color: #999; padding: 1px 0 3px; line-height: 1.35; }",
+    ".cb-hrc-gap { font-size: 10px; color: #F87171; padding: 0 0 3px; margin: 0; line-height: 1.35; font-style: italic; }",
     // Bottom line text
     ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.35; padding: 1px 0 3px; }",
     // BST pulse badge in header

@@ -818,7 +818,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          .cb-title-card:hover { border-color: rgba(255,255,255,0.14) !important; background-color: rgba(255,255,255,0.06) !important; }
+          .cb-title-card:hover { border-color: rgba(74,222,128,0.30) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-depth-layer { position: relative; }
           .cb-depth-layer > * { position: relative; z-index: 1; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
@@ -1005,13 +1005,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       <div
                         className="rounded-xl px-6 py-6 select-none cb-chip-enter"
                         style={{
-                          backgroundColor: isPreferred ? "rgba(74,222,128,0.09)" : isAvoided ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.20)",
-                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.90)" : isAvoided ? "1.5px solid rgba(239,68,68,0.76)" : "1.5px solid rgba(255,255,255,0.36)",
+                          backgroundColor: isPreferred ? "rgba(74,222,128,0.07)" : isAvoided ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.07)",
+                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.55)" : isAvoided ? "1.5px solid rgba(239,68,68,0.50)" : "1.5px solid rgba(255,255,255,0.14)",
                           boxShadow: isPreferred
-                            ? "0 0 0 1px rgba(74,222,128,0.18), 0 2px 16px rgba(0,0,0,0.25)"
+                            ? "0 0 0 1px rgba(74,222,128,0.10), 0 2px 16px rgba(0,0,0,0.25)"
                             : isAvoided
-                            ? "0 0 0 1px rgba(239,68,68,0.15), 0 2px 16px rgba(0,0,0,0.25)"
-                            : "0 0 0 1px rgba(255,255,255,0.06), 0 2px 16px rgba(0,0,0,0.25)",
+                            ? "0 0 0 1px rgba(239,68,68,0.08), 0 2px 16px rgba(0,0,0,0.25)"
+                            : "0 0 0 1px rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)",
                         }}
                       >
                         <div className="text-center mb-4">
@@ -1329,9 +1329,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div
                     className="cb-title-card rounded-2xl"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.20)",
-                      border: "1.5px solid rgba(74,222,128,0.36)",
-                      boxShadow: "0 0 0 1px rgba(74,222,128,0.15), 0 2px 20px rgba(0,0,0,0.4)",
+                      backgroundColor: "rgba(255,255,255,0.06)",
+                      border: "1.5px solid rgba(74,222,128,0.22)",
+                      boxShadow: "0 0 0 1px rgba(74,222,128,0.08), 0 2px 20px rgba(0,0,0,0.4)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">

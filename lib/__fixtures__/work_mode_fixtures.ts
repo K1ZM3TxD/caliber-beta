@@ -851,6 +851,56 @@ export const STRATEGY_OPS_JOB: JobFixture = {
     "- Experience with operational planning and resource management",
 };
 
+// ─── Execution-Evidence Guardrail Test Jobs ─────────────────
+// Roles that are directionally aligned with builder_systems but
+// require domain-locked or stack-specific execution depth that
+// a generalist builder profile has not demonstrated.
+
+export const SALESFORCE_CPQ_ARCHITECT_JOB: JobFixture = {
+  name: "Salesforce CPQ Architect",
+  expectedMode: "builder_systems",
+  text:
+    "Salesforce CPQ Architect — Enterprise Quote-to-Cash\n" +
+    "Lead the design and implementation of Salesforce CPQ solutions for enterprise clients.\n" +
+    "Responsibilities:\n" +
+    "- Architect and implement Salesforce CPQ (Configure, Price, Quote) solutions\n" +
+    "- Develop custom Apex classes, triggers, and Lightning Web Components\n" +
+    "- Write SOQL and SOSL queries for data integration and reporting\n" +
+    "- Design quote-to-cash workflows across Sales Cloud and Service Cloud\n" +
+    "- Build automated approval processes and pricing rules in Salesforce\n" +
+    "- Integrate Salesforce with ERP systems for order management\n" +
+    "- Create SOPs for CPQ configuration and deployment processes\n" +
+    "- Lead sprint planning and agile delivery for the Salesforce team\n" +
+    "Requirements:\n" +
+    "- 5+ years Salesforce development experience with CPQ specialization\n" +
+    "- Salesforce Platform Developer certification required\n" +
+    "- Expert-level Apex, Lightning (LWC), and SOQL proficiency\n" +
+    "- Strong systems architecture and integration design skills\n" +
+    "- Experience with enterprise quote-to-cash transformation projects",
+};
+
+export const SENIOR_PYTHON_DEVELOPER_JOB: JobFixture = {
+  name: "Senior Python Developer",
+  expectedMode: "builder_systems",
+  text:
+    "Senior Python Developer — Backend Systems\n" +
+    "Join our engineering team to design and build backend services at scale.\n" +
+    "Responsibilities:\n" +
+    "- Write production code in Python for our backend microservices\n" +
+    "- Build and maintain REST APIs using Django and Django REST Framework\n" +
+    "- Design and implement data models in PostgreSQL\n" +
+    "- Conduct code reviews and maintain high code quality standards\n" +
+    "- Contribute to the codebase with well-tested, production-ready features\n" +
+    "- Deploy services using Docker and CI/CD pipelines\n" +
+    "- Collaborate with frontend engineers building React applications\n" +
+    "Requirements:\n" +
+    "- 5+ years hands-on Python development experience\n" +
+    "- Strong proficiency in Django or Flask\n" +
+    "- Experience with Python algorithms and data structures\n" +
+    "- Code review experience and testing best practices\n" +
+    "- Familiarity with JavaScript and TypeScript is a plus",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -886,6 +936,13 @@ export const ALL_JOBS = [
   PROGRAM_COORDINATOR_JOB,
   PRODUCT_MANAGER_JOB,
   STRATEGY_OPS_JOB,
+  SALESFORCE_CPQ_ARCHITECT_JOB,
+  SENIOR_PYTHON_DEVELOPER_JOB,
+] as const;
+
+export const EXECUTION_EVIDENCE_JOBS = [
+  SALESFORCE_CPQ_ARCHITECT_JOB,
+  SENIOR_PYTHON_DEVELOPER_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

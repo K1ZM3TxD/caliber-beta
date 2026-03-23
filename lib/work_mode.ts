@@ -38,10 +38,12 @@ export type WorkModeResult = {
   executionIntensity: ExecutionIntensityResult;
   roleType: RoleType | null;
   chipSuppression: ChipSuppressionResult;
+  executionEvidence: ExecutionEvidenceResult;
   preScore: number;
   workModeAdjustment: number;
   executionIntensityAdjustment: number;
   chipSuppressionAdjustment: number;
+  executionEvidenceAdjustment: number;
   roleTypePenalty: number;
   postScore: number;
   adjustmentReason: string | null;
@@ -57,6 +59,18 @@ export type RoleType = "SYSTEM_BUILDER" | "SYSTEM_OPERATOR" | "SYSTEM_SELLER";
 
 export type ChipSuppressionResult = {
   suppressed: boolean;
+  adjustment: number;
+  reason: string | null;
+};
+
+export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution";
+
+export type ExecutionEvidenceResult = {
+  triggered: boolean;
+  categories: ExecutionEvidenceCategory[];
+  signals: string[];
+  missingEvidence: string[];
+  cap: number | null;
   adjustment: number;
   reason: string | null;
 };
@@ -672,6 +686,225 @@ export function applyWorkModeCeiling(
   };
 }
 
+// ─── Execution Evidence Guardrail ────────────────────────────
+// Detects execution-heavy requirements in the JD (domain-locked
+// platform experience or stack-specific coding depth) and checks
+// whether the user profile contains explicit evidence of that
+// execution depth. If evidence is missing, final score is capped
+// to prevent over-scoring on directionally-aligned but
+// execution-gapped roles.
+
+type EcosystemDef = {
+  name: string;
+  jobPatterns: { pattern: RegExp; weight: number; label: string }[];
+  evidencePattern: RegExp;
+  threshold: number;
+};
+
+const DOMAIN_LOCKED_ECOSYSTEMS: EcosystemDef[] = [
+  {
+    name: "Salesforce",
+    jobPatterns: [
+      { pattern: /\bsalesforce\b/i, weight: 2, label: "Salesforce" },
+      { pattern: /\bCPQ\b/i, weight: 3, label: "CPQ" },
+      { pattern: /\b[Aa]pex\b/, weight: 3, label: "Apex" },
+      { pattern: /\bSOQL\b/, weight: 3, label: "SOQL" },
+      { pattern: /\b(lightning|LWC)\b/i, weight: 2, label: "Lightning/LWC" },
+      { pattern: /\bquote[- ]?to[- ]?cash\b/i, weight: 3, label: "quote-to-cash" },
+      { pattern: /\b(sales cloud|service cloud)\b/i, weight: 2, label: "Sales/Service Cloud" },
+    ],
+    evidencePattern: /\b(salesforce|CPQ|apex|SOQL|lightning|LWC|quote[- ]?to[- ]?cash|sales cloud|service cloud)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "SAP",
+    jobPatterns: [
+      { pattern: /\bSAP\b/, weight: 2, label: "SAP" },
+      { pattern: /\bABAP\b/i, weight: 3, label: "ABAP" },
+      { pattern: /\bS\/4\s*HANA\b/i, weight: 3, label: "S/4HANA" },
+      { pattern: /\bHANA\b/, weight: 2, label: "HANA" },
+      { pattern: /\bSAP\s+(MM|SD|FI|CO|PP|HCM|BW)\b/, weight: 3, label: "SAP module" },
+    ],
+    evidencePattern: /\b(SAP|ABAP|S\/4\s*HANA|HANA)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "Oracle",
+    jobPatterns: [
+      { pattern: /\boracle\b/i, weight: 2, label: "Oracle" },
+      { pattern: /\bPL\/SQL\b/i, weight: 3, label: "PL/SQL" },
+      { pattern: /\boracle\s+(ERP|HCM|Cloud|E-Business|Fusion)\b/i, weight: 3, label: "Oracle platform" },
+    ],
+    evidencePattern: /\b(oracle|PL\/SQL)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "ServiceNow",
+    jobPatterns: [
+      { pattern: /\bServiceNow\b/i, weight: 3, label: "ServiceNow" },
+      { pattern: /\bITSM\b/, weight: 2, label: "ITSM" },
+      { pattern: /\bITOM\b/, weight: 2, label: "ITOM" },
+    ],
+    evidencePattern: /\b(ServiceNow|ITSM|ITOM)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "Workday",
+    jobPatterns: [
+      { pattern: /\bWorkday\b/i, weight: 3, label: "Workday" },
+      { pattern: /\bWorkday\s+(HCM|Financials|Integration)\b/i, weight: 3, label: "Workday module" },
+    ],
+    evidencePattern: /\bWorkday\b/i,
+    threshold: 4,
+  },
+  {
+    name: "NetSuite",
+    jobPatterns: [
+      { pattern: /\bNetSuite\b/i, weight: 3, label: "NetSuite" },
+      { pattern: /\bSuiteScript\b/i, weight: 3, label: "SuiteScript" },
+      { pattern: /\bSuiteFlow\b/i, weight: 2, label: "SuiteFlow" },
+    ],
+    evidencePattern: /\b(NetSuite|SuiteScript|SuiteFlow)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "Dynamics 365",
+    jobPatterns: [
+      { pattern: /\bDynamics\s*365\b/i, weight: 3, label: "Dynamics 365" },
+      { pattern: /\bD365\b/, weight: 3, label: "D365" },
+      { pattern: /\bMicrosoft\s+Dynamics\b/i, weight: 2, label: "Microsoft Dynamics" },
+    ],
+    evidencePattern: /\b(Dynamics\s*365|D365|Microsoft\s+Dynamics)\b/i,
+    threshold: 4,
+  },
+];
+
+// ─── Stack/Tool Execution Detection ─────────────────────────
+
+type StackPattern = { pattern: RegExp; weight: number; label: string };
+
+const STACK_EXECUTION_JOB_PATTERNS: StackPattern[] = [
+  // Programming languages
+  { pattern: /\bpython\b/i, weight: 2, label: "Python" },
+  { pattern: /\bjava\b/i, weight: 2, label: "Java" },
+  { pattern: /\bjavascript\b/i, weight: 2, label: "JavaScript" },
+  { pattern: /\btypescript\b/i, weight: 2, label: "TypeScript" },
+  { pattern: /\bC\+\+\b/, weight: 2, label: "C++" },
+  { pattern: /\bC#\b/, weight: 2, label: "C#" },
+  { pattern: /\bgolang\b/i, weight: 2, label: "Golang" },
+  { pattern: /\brust\b/i, weight: 2, label: "Rust" },
+  { pattern: /\bruby\b/i, weight: 2, label: "Ruby" },
+  { pattern: /\bPHP\b/i, weight: 2, label: "PHP" },
+  { pattern: /\bswift\b/i, weight: 2, label: "Swift" },
+  { pattern: /\bkotlin\b/i, weight: 2, label: "Kotlin" },
+  { pattern: /\bscala\b/i, weight: 2, label: "Scala" },
+  // Frameworks
+  { pattern: /\breact\b/i, weight: 2, label: "React" },
+  { pattern: /\bangular\b/i, weight: 2, label: "Angular" },
+  { pattern: /\bvue(\.?js)?\b/i, weight: 2, label: "Vue" },
+  { pattern: /\bdjango\b/i, weight: 2, label: "Django" },
+  { pattern: /\bflask\b/i, weight: 2, label: "Flask" },
+  { pattern: /\bspring\s*boot\b/i, weight: 2, label: "Spring Boot" },
+  { pattern: /\b(\.NET|dotnet|ASP\.NET)\b/i, weight: 2, label: ".NET" },
+  { pattern: /\brails\b/i, weight: 2, label: "Rails" },
+  { pattern: /\bnode\.?js\b/i, weight: 2, label: "Node.js" },
+  { pattern: /\blaravel\b/i, weight: 2, label: "Laravel" },
+  { pattern: /\bnext\.?js\b/i, weight: 2, label: "Next.js" },
+  // Coding execution context
+  { pattern: /\bwrite\s+code\b/i, weight: 3, label: "write code" },
+  { pattern: /\bhands[- ]on\s+(coding|programming)\b/i, weight: 3, label: "hands-on coding" },
+  { pattern: /\bcode\s+review\b/i, weight: 2, label: "code review" },
+  { pattern: /\bcontribute\s+to\s+(the\s+)?codebase\b/i, weight: 3, label: "contribute to codebase" },
+  { pattern: /\balgorithm(s|ic)?\b/i, weight: 2, label: "algorithms" },
+  { pattern: /\bdata\s+structures?\b/i, weight: 2, label: "data structures" },
+  { pattern: /\bproduction\s+code\b/i, weight: 3, label: "production code" },
+];
+
+const STACK_EXECUTION_THRESHOLD = 4;
+
+// Evidence: any coding-specific signal in user profile indicates
+// the user has execution depth in some stack. Presence of ANY
+// specific language/framework/coding activity term counts.
+const STACK_EVIDENCE_PATTERN =
+  /\b(python|java|javascript|typescript|C\+\+|C#|golang|rust|ruby|PHP|swift|kotlin|scala|react|angular|vue|django|flask|spring|dotnet|\.NET|rails|node\.?js|laravel|next\.?js|software\s+engineer|software\s+developer|full[- ]stack\s+develop|frontend\s+develop|backend\s+develop|programmer|coding|wrote\s+code|code\s+review)\b/i;
+
+const EXECUTION_EVIDENCE_CAP = 7.0;
+
+export function detectExecutionEvidenceGap(
+  score: number,
+  jobText: string,
+  userEvidenceText: string,
+): ExecutionEvidenceResult {
+  const noTrigger: ExecutionEvidenceResult = {
+    triggered: false, categories: [], signals: [],
+    missingEvidence: [], cap: null, adjustment: 0, reason: null,
+  };
+
+  // Score already at or below cap — no action needed
+  if (score <= EXECUTION_EVIDENCE_CAP) return noTrigger;
+
+  const categories: ExecutionEvidenceCategory[] = [];
+  const allSignals: string[] = [];
+  const missing: string[] = [];
+
+  // ── Domain-locked ecosystem check ─────────────────────
+  for (const eco of DOMAIN_LOCKED_ECOSYSTEMS) {
+    let ecoScore = 0;
+    const ecoSignals: string[] = [];
+    for (const p of eco.jobPatterns) {
+      if (p.pattern.test(jobText)) {
+        ecoScore += p.weight;
+        ecoSignals.push(p.label);
+      }
+    }
+    if (ecoScore >= eco.threshold) {
+      // JD requires this ecosystem — check user evidence
+      if (!eco.evidencePattern.test(userEvidenceText)) {
+        categories.push("domain_locked");
+        allSignals.push(...ecoSignals);
+        missing.push(`${eco.name} ecosystem`);
+      }
+    }
+  }
+
+  // ── Stack/tool execution check ────────────────────────
+  let stackScore = 0;
+  const stackSignals: string[] = [];
+  for (const p of STACK_EXECUTION_JOB_PATTERNS) {
+    if (p.pattern.test(jobText)) {
+      stackScore += p.weight;
+      stackSignals.push(p.label);
+    }
+  }
+  if (stackScore >= STACK_EXECUTION_THRESHOLD) {
+    if (!STACK_EVIDENCE_PATTERN.test(userEvidenceText)) {
+      categories.push("stack_execution");
+      allSignals.push(...stackSignals);
+      missing.push("coding/stack execution evidence");
+    }
+  }
+
+  if (categories.length === 0) return noTrigger;
+
+  const cap = EXECUTION_EVIDENCE_CAP;
+  const adjustment = round1(cap - score);
+  const reason =
+    `Execution evidence guardrail: categories=[${categories.join(", ")}], ` +
+    `signals=[${allSignals.join(", ")}], ` +
+    `missing=[${missing.join(", ")}]. ` +
+    `Score capped from ${round1(score)} to ${cap}.`;
+
+  return {
+    triggered: true,
+    categories,
+    signals: allSignals,
+    missingEvidence: missing,
+    cap,
+    adjustment,
+    reason,
+  };
+}
+
 // ─── Full Pipeline ──────────────────────────────────────────
 
 export function evaluateWorkMode(
@@ -712,7 +945,13 @@ export function evaluateWorkMode(
   const chipSuppression = applyChipSuppression(preChipScore, jobMode, roleType, workPreferences);
   const chipAdj = chipSuppression.adjustment;
 
-  const postScore = round1(Math.max(0, Math.min(10, preChipScore + chipAdj)));
+  let postScore = round1(Math.max(0, Math.min(10, preChipScore + chipAdj)));
+
+  // Execution evidence guardrail (final layer — domain/stack evidence check)
+  const userEvidenceText = [resumeText || "", ...([1, 3, 4, 5].map(k => promptAnswers[k] || ""))].join("\n");
+  const executionEvidence = detectExecutionEvidenceGap(postScore, jobText, userEvidenceText);
+  const eeAdj = executionEvidence.adjustment;
+  postScore = round1(Math.max(0, Math.min(10, postScore + eeAdj)));
 
   // Build composite reason
   const reasons: string[] = [];
@@ -720,6 +959,7 @@ export function evaluateWorkMode(
   if (executionIntensity.reason) reasons.push(executionIntensity.reason);
   if (rtReason) reasons.push(rtReason);
   if (chipSuppression.reason) reasons.push(chipSuppression.reason);
+  if (executionEvidence.reason) reasons.push(executionEvidence.reason);
   const adjustmentReason = reasons.length > 0 ? reasons.join(" | ") : null;
 
   return {
@@ -729,10 +969,12 @@ export function evaluateWorkMode(
     executionIntensity,
     roleType,
     chipSuppression,
+    executionEvidence,
     preScore: rawScore,
     workModeAdjustment: wmAdj,
     executionIntensityAdjustment: dampedEiAdj,
     chipSuppressionAdjustment: chipAdj,
+    executionEvidenceAdjustment: eeAdj,
     roleTypePenalty: dampedRtPenalty,
     postScore,
     adjustmentReason,
@@ -759,4 +1001,10 @@ export const _testing = {
   classifyRoleType,
   applyChipSuppression,
   getRoleTypePenalty,
+  DOMAIN_LOCKED_ECOSYSTEMS,
+  STACK_EXECUTION_JOB_PATTERNS,
+  STACK_EXECUTION_THRESHOLD,
+  STACK_EVIDENCE_PATTERN,
+  EXECUTION_EVIDENCE_CAP,
+  detectExecutionEvidenceGap,
 };

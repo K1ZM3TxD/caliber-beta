@@ -3,9 +3,6 @@
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
-import { jsPDF } from "jspdf";
-import { Document, Packer, Paragraph, TextRun } from "docx";
-import { saveAs } from "file-saver";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
 type DownloadFormat = "pdf" | "docx";
@@ -43,6 +40,7 @@ function TailorInner() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
+  const [downloading, setDownloading] = useState(false);
 
   // Load prepared context
   useEffect(() => {
@@ -79,7 +77,9 @@ function TailorInner() {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Generation failed");
-      setTailoredText(data.tailoredText);
+      // Strip internal debug trace before display
+      const clean = (data.tailoredText ?? "").split("===INTERNAL_DEBUG_TRACE===")[0].trim();
+      setTailoredText(clean);
       setStatus("done");
       // Telemetry: tailor_used (fire-and-forget)
       fetch("/api/events", {
@@ -101,72 +101,42 @@ function TailorInner() {
     }
   }, [prep]);
 
-  const baseFilename = useCallback(
-    () =>
-      prep
-        ? `resume-${prep.company.toLowerCase().replace(/\s+/g, "-")}-${prep.jobTitle.toLowerCase().replace(/\s+/g, "-")}`
-        : "resume-tailored",
-    [prep]
-  );
-
-  const downloadPdf = useCallback(() => {
+  const download = useCallback(async () => {
     if (!tailoredText || !prep) return;
-    const doc = new jsPDF({ unit: "pt", format: "letter" });
-    const margin = 50;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const maxLineWidth = pageWidth - margin * 2;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    const lines = doc.splitTextToSize(tailoredText, maxLineWidth) as string[];
-    let y = margin;
-    const lineHeight = 15;
-    for (const line of lines) {
-      if (y + lineHeight > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(line, margin, y);
-      y += lineHeight;
+    setDownloading(true);
+    try {
+      const endpoint =
+        downloadFormat === "pdf"
+          ? "/api/tailor/export-pdf"
+          : "/api/tailor/export-docx";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tailoredText,
+          jobTitle: prep.jobTitle,
+          company: prep.company,
+        }),
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const fnMatch = disposition.match(/filename="([^"]+)"/);
+      const fn = fnMatch ? fnMatch[1] : `resume.${downloadFormat}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fn;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Download failed. Please try again.");
+    } finally {
+      setDownloading(false);
     }
-    doc.save(`${baseFilename()}.pdf`);
-  }, [tailoredText, prep, baseFilename]);
-
-  const downloadDocx = useCallback(async () => {
-    if (!tailoredText || !prep) return;
-    const paragraphs = tailoredText.split("\n").map(
-      (line) =>
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: line,
-              font: "Calibri",
-              size: 22, // 11pt in half-points
-            }),
-          ],
-          spacing: { after: 120 },
-        })
-    );
-    const doc = new Document({
-      sections: [
-        {
-          properties: {
-            page: {
-              margin: { top: 720, right: 720, bottom: 720, left: 720 },
-            },
-          },
-          children: paragraphs,
-        },
-      ],
-    });
-    const blob = await Packer.toBlob(doc);
-    saveAs(blob, `${baseFilename()}.docx`);
-  }, [tailoredText, prep, baseFilename]);
-
-  const download = useCallback(() => {
-    if (downloadFormat === "pdf") downloadPdf();
-    else downloadDocx();
-  }, [downloadFormat, downloadPdf, downloadDocx]);
+  }, [tailoredText, prep, downloadFormat]);
 
   const copyToClipboard = useCallback(async () => {
     if (!tailoredText) return;
@@ -409,27 +379,32 @@ function TailorInner() {
             </div>
             <button
               onClick={download}
-              className="flex-1 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
+              disabled={downloading}
+              className="flex-1 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               style={{
                 background: "rgba(74,222,128,0.10)",
                 color: "#4ADE80",
                 border: "1px solid rgba(74,222,128,0.55)",
               }}
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              Download {downloadFormat.toUpperCase()}
+              {downloading ? (
+                <div className="cb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+              )}
+              {downloading ? "Generating…" : `Download ${downloadFormat.toUpperCase()}`}
             </button>
           </div>
 

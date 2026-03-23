@@ -14,6 +14,7 @@ import {
   pipelineCreate,
   pipelineUpdateStage,
 } from "@/lib/pipeline_store";
+import { stripDebugTrace } from "@/lib/resume_parser";
 
 export async function POST(req: NextRequest) {
   try {
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
       {
         ok: true,
         resultId: result.id,
-        tailoredText,
+        tailoredText: stripDebugTrace(tailoredText),
         pipelineId: pipeline.id,
       },
       { status: 200 }

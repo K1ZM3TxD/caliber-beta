@@ -16,6 +16,7 @@ import {
   FABIO,
   JEN,
   DINGUS,
+  MARCUS,
   SYSTEMS_PRODUCT_JOB,
   INSIDE_SALES_JOB,
   OPS_COORDINATOR_JOB,
@@ -25,6 +26,8 @@ import {
   CREATIVE_DIRECTOR_JOB,
   ENTERPRISE_AE_JOB,
   BDR_OUTBOUND_JOB,
+  SALESFORCE_CPQ_ARCHITECT_JOB,
+  SENIOR_PYTHON_DEVELOPER_JOB,
   type UserFixture,
   type JobFixture,
 } from "./__fixtures__/work_mode_fixtures";
@@ -524,5 +527,110 @@ describe("Regression Report (console summary)", () => {
         `Regression failures:\n${failed.map((r) => `  ${r.fixture} × ${r.job} [${r.chips}]: raw=${r.raw} post=${r.post}`).join("\n")}`,
       );
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// ─── EXECUTION EVIDENCE GUARDRAIL REGRESSION ────────────────
+// ═══════════════════════════════════════════════════════════
+
+describe("Regression: execution evidence guardrail", () => {
+  // ── Domain-locked: Chris vs Salesforce CPQ ────────────
+  // Chris is builder_systems, Salesforce CPQ is builder_systems → compatible.
+  // But Chris has zero Salesforce ecosystem evidence → guardrail caps at 7.0.
+
+  it("Chris × Salesforce CPQ (raw 9.0) → domain_locked gap, capped ≤ 7.0", () => {
+    const r = run(CHRIS, SALESFORCE_CPQ_ARCHITECT_JOB, 9.0, NO_CHIPS);
+    expect(r.userMode.mode).toBe("builder_systems");
+    expect(r.jobMode.mode).toBe("builder_systems");
+    expect(r.compatibility).toBe("compatible");
+    expect(r.executionEvidence.triggered).toBe(true);
+    expect(r.executionEvidence.categories).toContain("domain_locked");
+    expect(r.executionEvidence.cap).toBe(7.0);
+    expect(r.postScore).toBeLessThanOrEqual(7.0);
+    expect(r.executionEvidenceAdjustment).toBeLessThan(0);
+    expect(r.adjustmentReason).toContain("Execution evidence guardrail");
+  });
+
+  it("Chris × Salesforce CPQ (raw 6.5) → below cap, guardrail does NOT fire", () => {
+    const r = run(CHRIS, SALESFORCE_CPQ_ARCHITECT_JOB, 6.5, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(false);
+    expect(r.executionEvidenceAdjustment).toBe(0);
+    expect(r.postScore).toBe(6.5);
+  });
+
+  // ── Stack execution: Chris vs Senior Python Developer ──
+  // Chris is builder_systems, Python dev is builder_systems → compatible.
+  // But Chris has no specific coding/language evidence → guardrail caps at 7.0.
+
+  it("Chris × Senior Python Dev (raw 8.5) → stack_execution gap, capped ≤ 7.0", () => {
+    const r = run(CHRIS, SENIOR_PYTHON_DEVELOPER_JOB, 8.5, NO_CHIPS);
+    expect(r.userMode.mode).toBe("builder_systems");
+    expect(r.compatibility).toBe("compatible");
+    expect(r.executionEvidence.triggered).toBe(true);
+    expect(r.executionEvidence.categories).toContain("stack_execution");
+    expect(r.executionEvidence.cap).toBe(7.0);
+    expect(r.postScore).toBeLessThanOrEqual(7.0);
+    expect(r.executionEvidenceAdjustment).toBeLessThan(0);
+  });
+
+  it("Chris × Senior Python Dev (raw 6.0) → below cap, guardrail does NOT fire", () => {
+    const r = run(CHRIS, SENIOR_PYTHON_DEVELOPER_JOB, 6.0, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(false);
+    expect(r.postScore).toBe(6.0);
+  });
+
+  // ── Non-trigger: Chris vs generic builder job stays untouched ──
+  // Systems Product job has no domain-locked or stack-execution signals.
+
+  it("Chris × Systems Product (raw 9.0) → guardrail does NOT fire", () => {
+    const r = run(CHRIS, SYSTEMS_PRODUCT_JOB, 9.0, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(false);
+    expect(r.executionEvidenceAdjustment).toBe(0);
+    expect(r.postScore).toBe(9.0);
+  });
+
+  // ── Non-trigger: Marcus has Salesforce evidence ────────
+  // Marcus mentions "Used Salesforce CRM daily" → Salesforce evidence present.
+  // Even though Marcus is sales_execution and would conflict with builder CPQ job,
+  // the domain evidence check would pass. Work mode mismatch handles the rest.
+
+  it("Marcus × Salesforce CPQ → mode-conflicting + domain evidence present → guardrail fires only for stack (if applicable)", () => {
+    const r = run(MARCUS, SALESFORCE_CPQ_ARCHITECT_JOB, 7.0, NO_CHIPS);
+    expect(r.compatibility).toBe("conflicting");
+    // Marcus has Salesforce evidence (mentions "Salesforce CRM" in resume)
+    // so domain_locked should NOT be in categories
+    expect(r.executionEvidence.categories).not.toContain("domain_locked");
+    // Score already dropped by mode conflict so guardrail may not fire at all
+    expect(r.postScore).toBeLessThan(7.0);
+  });
+
+  // ── Sales job: no domain/stack signals → guardrail untouched ──
+
+  it("Chris × Inside Sales (raw 7.3) → no execution evidence signals, guardrail silent", () => {
+    const r = run(CHRIS, INSIDE_SALES_JOB, 7.3, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(false);
+    // Existing behavior preserved: conflicting mode drags score
+    expect(r.postScore).toBeLessThan(7.0);
+  });
+
+  // ── Determinism: execution evidence guardrail is deterministic ──
+
+  it("Chris × Salesforce CPQ is deterministic across 5 runs", () => {
+    const scores: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const r = run(CHRIS, SALESFORCE_CPQ_ARCHITECT_JOB, 9.0, NO_CHIPS);
+      scores.push(r.postScore);
+    }
+    expect(new Set(scores).size).toBe(1);
+  });
+
+  it("Chris × Senior Python Dev is deterministic across 5 runs", () => {
+    const scores: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const r = run(CHRIS, SENIOR_PYTHON_DEVELOPER_JOB, 8.5, NO_CHIPS);
+      scores.push(r.postScore);
+    }
+    expect(new Set(scores).size).toBe(1);
   });
 });

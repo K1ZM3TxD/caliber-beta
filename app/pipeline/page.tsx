@@ -831,6 +831,15 @@ export default function PipelinePage() {
       )}
       </div>
 
+      {/* Signed-in status footer — subtle, informational only */}
+      {authStatus === "authenticated" && session?.user?.email && (
+        <div className="mt-10 pb-6 text-center">
+          <span className="text-xs" style={{ color: "rgba(161,161,170,0.45)" }}>
+            Signed in as {session.user.email}
+          </span>
+        </div>
+      )}
+
       <style jsx>{`
         .cb-spinner {
           width: 28px;
