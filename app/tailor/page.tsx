@@ -3,8 +3,12 @@
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
+import { jsPDF } from "jspdf";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { saveAs } from "file-saver";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
+type DownloadFormat = "pdf" | "docx";
 
 interface Prep {
   id: string;
@@ -38,6 +42,7 @@ function TailorInner() {
   const [tailoredText, setTailoredText] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
 
   // Load prepared context
   useEffect(() => {
@@ -96,20 +101,72 @@ function TailorInner() {
     }
   }, [prep]);
 
-  const download = useCallback(() => {
+  const baseFilename = useCallback(
+    () =>
+      prep
+        ? `resume-${prep.company.toLowerCase().replace(/\s+/g, "-")}-${prep.jobTitle.toLowerCase().replace(/\s+/g, "-")}`
+        : "resume-tailored",
+    [prep]
+  );
+
+  const downloadPdf = useCallback(() => {
     if (!tailoredText || !prep) return;
-    const blob = new Blob([tailoredText], {
-      type: "text/plain;charset=utf-8",
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const margin = 50;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxLineWidth = pageWidth - margin * 2;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    const lines = doc.splitTextToSize(tailoredText, maxLineWidth) as string[];
+    let y = margin;
+    const lineHeight = 15;
+    for (const line of lines) {
+      if (y + lineHeight > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+    doc.save(`${baseFilename()}.pdf`);
+  }, [tailoredText, prep, baseFilename]);
+
+  const downloadDocx = useCallback(async () => {
+    if (!tailoredText || !prep) return;
+    const paragraphs = tailoredText.split("\n").map(
+      (line) =>
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: line,
+              font: "Calibri",
+              size: 22, // 11pt in half-points
+            }),
+          ],
+          spacing: { after: 120 },
+        })
+    );
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: { top: 720, right: 720, bottom: 720, left: 720 },
+            },
+          },
+          children: paragraphs,
+        },
+      ],
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resume-${prep.company.toLowerCase().replace(/\s+/g, "-")}-${prep.jobTitle.toLowerCase().replace(/\s+/g, "-")}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [tailoredText, prep]);
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `${baseFilename()}.docx`);
+  }, [tailoredText, prep, baseFilename]);
+
+  const download = useCallback(() => {
+    if (downloadFormat === "pdf") downloadPdf();
+    else downloadDocx();
+  }, [downloadFormat, downloadPdf, downloadDocx]);
 
   const copyToClipboard = useCallback(async () => {
     if (!tailoredText) return;
@@ -333,31 +390,48 @@ function TailorInner() {
             </div>
           </div>
 
-          {/* Primary action: download */}
-          <button
-            onClick={download}
-            className="w-full py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
-            style={{
-              background: "rgba(74,222,128,0.10)",
-              color: "#4ADE80",
-              border: "1px solid rgba(74,222,128,0.55)",
-            }}
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+          {/* Format selector + download */}
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+              {(["pdf", "docx"] as DownloadFormat[]).map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => setDownloadFormat(fmt)}
+                  className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    downloadFormat === fmt
+                      ? "bg-emerald-900/50 text-emerald-400"
+                      : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {fmt}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={download}
+              className="flex-1 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2"
+              style={{
+                background: "rgba(74,222,128,0.10)",
+                color: "#4ADE80",
+                border: "1px solid rgba(74,222,128,0.55)",
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
-            Download Tailored Resume
-          </button>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              Download {downloadFormat.toUpperCase()}
+            </button>
+          </div>
 
           {/* Secondary nav */}
           <div className="flex items-center justify-between text-xs pt-1">

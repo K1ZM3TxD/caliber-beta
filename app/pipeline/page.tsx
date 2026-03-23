@@ -604,11 +604,7 @@ export default function PipelinePage() {
         }}
       />
       <div className="relative z-10">
-        <CaliberHeader />
-
-        <h1 className="text-xl font-semibold text-neutral-200 text-center tracking-tight mt-8 mb-8">
-          Saved Jobs
-        </h1>
+        <CaliberHeader className="mb-8" />
 
       {/* Sign-in CTA for unauthenticated users — non-blocking */}
       {authStatus === "unauthenticated" && (

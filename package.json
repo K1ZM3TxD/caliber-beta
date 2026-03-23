@@ -18,6 +18,9 @@
     "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-neon": "^7.5.0",
     "@prisma/client": "^6.19.2",
+    "docx": "^9.6.1",
+    "file-saver": "^2.0.5",
+    "jspdf": "^4.2.1",
     "mammoth": "^1.9.0",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",
@@ -29,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/file-saver": "^2.0.7",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",

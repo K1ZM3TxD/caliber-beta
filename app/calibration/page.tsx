@@ -801,7 +801,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
+    <div className="fixed inset-0 overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
       {/* Subtle ambient glow */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
@@ -811,11 +811,10 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           zIndex: 0,
         }}
       />
-      {/* Layout rule: flex-col + items-center on outer = horizontal centering.
-         LANDING and RESUME use my-auto to vertically center within the viewport.
-         Content-heavy steps use fixed top padding.
-         No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
-      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${step === "TITLES" ? "pt-[3vh] sm:pt-[5vh]" : "my-auto"}`}>
+      {/* Centering wrapper: min-h-full ensures vertical centering when content is shorter
+         than the viewport; grows naturally when content overflows so scrolling works. */}
+      <div className={`min-h-full flex flex-col items-center ${step === "TITLES" ? "" : "justify-center"}`}>
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${step === "TITLES" ? "pt-[3vh] sm:pt-[5vh]" : ""}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -831,7 +830,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
             <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step !== "TITLES" && step !== "WORK_PREFERENCES" ? (
+              {step !== "TITLES" ? (
                 <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
               ) : null}
               {/* Fixed-height error area */}
@@ -1407,11 +1406,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
-                      {/* Supporting CTA copy */}
-                      <p className="mt-2 text-[12px] leading-relaxed" style={{ color: "#666", maxWidth: 360 }}>See which jobs actually match this profile — Caliber scores every listing you open.</p>
-
                       {/* Secondary CTA — LinkedIn search */}
-                      <div className="mt-5">
+                      <div className="mt-4">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
@@ -1495,6 +1491,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
