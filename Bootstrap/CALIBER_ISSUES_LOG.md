@@ -3,6 +3,12 @@
 
 ## Current Open Issues
 
+105. DOCX export TS BodyInit type incompatibility — **FIX SHIPPED** (2026-03-24)
+  - **Symptom:** Vercel production build failed: `Buffer<ArrayBufferLike>` not assignable to `BodyInit` parameter type in `app/api/tailor/export-docx/route.ts`.
+  - **Root cause:** `Buffer` is a valid `BodyInit` in Node.js but not in Vercel's stricter TS build (Edge runtime compatibility). The `new NextResponse(buffer, ...)` call rejected `Buffer` as parameter type.
+  - **Fix:** Wrapped `buffer` with `new Uint8Array(buffer)` — `Uint8Array` is a valid `BodyInit` type in all environments while preserving binary content.
+  - **Files:** `app/api/tailor/export-docx/route.ts`
+
 103. Minor contrast tuning across cards — **OPEN**
   - **Symptom:** Some card elements have near-threshold contrast on bright screens.
   - **Status:** Known non-blocking. Flagged for post-stabilization polish pass.

@@ -7,11 +7,11 @@
 **Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Phase-2 overlay scoring is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. Extension operates as a two-layer surface: discovery badges on search result cards + decision sidecard on selected job.
 
 **Beta gates status:**
-1. BST working — IN VALIDATION (surface-classification trigger + initial-surface gating shipped; BST evaluation engine operational; popup replaced by Adjacent Searches module v0.9.20)
-2. Sidecard stable — IN VALIDATION (collapsed height resolved, fetch stability fixed)
-3. Pipeline solid — FUNCTIONAL (board implemented, needs product validation)
-4. Sign-in / memory — NOT YET IMPLEMENTED (next major work item)
-5. Tailor resume — FUNCTIONAL (needs end-to-end validation)
+1. BST working — **CLOSED** (post-fix simulation 62/62 pass, v0.9.21 2026-03-20)
+2. Sidecard stable — **CLOSED** (layout stabilized 52/52 pass, v0.9.21 2026-03-20)
+3. Pipeline solid — **CLOSED** (111/111 assertions, IDOR fix, v0.9.21 2026-03-21)
+4. Sign-in / memory — **CLOSED** (67/67 assertions, magic-link hardened 114/114, 2026-03-22)
+5. Tailor resume — FUNCTIONAL (PDF/DOCX export shipped v0.9.22; needs end-to-end generation validation)
 
 **Parallel (non-blocking):**
 - Overlay scoring — shipped and stable, continues to improve, not a beta gate
@@ -48,7 +48,7 @@
 - Extension v0.8.9 deployed (ZIP rebuilt with overlay badge system, BST surface-classification trigger, score color band lock, and fetch stability fixes).
 - Extension handshake friction (#31) is known — may require manual tab refresh on first install. Not currently blocking.
 - All "Back to Caliber" links route to /calibration.
-- Next priorities: close remaining beta gates (sign-in/memory is the top item) → validate all five gates → declare beta. Overlay and auto-save work continue in parallel without blocking.
+- Next priorities: validate tailor resume end-to-end (gate 5 — the only remaining open gate) → declare beta. Overlay and auto-save work continue in parallel without blocking.
 
 **Real User Flow:**
 ```
@@ -135,7 +135,7 @@ The sidecard is the primary decision surface. Compact, decision-first layout. Co
 9. **Feedback row** — Thumbs up/down; negative feedback expands to chip panel + optional text. Separate bug-report action for reporting extension issues, distinct from quality feedback.
 
 **Dimensions:** 380px wide, 520px max height, 240px min height (results body).
-**Version:** v0.8.9.
+**Version:** v0.9.29.
 
 ## Better Search Title — Search Surface Recovery Mechanism (2026-03-10)
 
@@ -169,7 +169,7 @@ Structured feedback collection active across extension and web app.
 - Separate bug-report action in the feedback row for reporting extension issues — distinct from thumbs-down quality feedback.
 - Web results page: same thumbs → chips → submit flow.
 - Behavioral signals tracked per session: jobs_viewed, scores_below_6, highest_score, suggest_shown, suggest_clicked.
-- Backend: `POST /api/feedback` endpoint, JSONL append-only log at `data/feedback_events.jsonl`.
+- Backend: `POST /api/feedback` endpoint, persisted to Postgres (Neon) via Prisma `FeedbackEvent` model. File-backed JSONL storage is superseded.
 - Session signals reset on search query change and panel deactivate.
 
 ## Known Pain Points
@@ -187,6 +187,19 @@ Structured feedback collection active across extension and web app.
 - Testing must use the current `extension/` folder build (DEV) or `dist/extension-dev/` — never stale zip artifacts.
 - Phase 1 validation flow: open LinkedIn job detail page → click Caliber extension → popup returns score.
 - Phase 2 overlay flow: navigate LinkedIn search results → score badges appear on visible cards → scroll triggers progressive scoring → BST evaluates from accumulated badge cache.
+
+## Scoring Pipeline Architecture (current)
+
+The scoring pipeline applies 7 layered guardrails after raw 6-dimensional vector alignment:
+1. Work mode adjustment (compatible=0, adjacent=-0.8, conflicting=-2.5)
+2. Execution intensity detection (grind signals: mild=-0.5, heavy=-1.5, extreme=-2.5)
+3. Dampening (intensity at 50% when already conflicting)
+4. Role-type penalty (SYSTEM_BUILDER/SYSTEM_OPERATOR/SYSTEM_SELLER)
+5. Chip suppression (hard caps from user avoidedModes)
+6. Execution evidence guardrail (domain-locked ecosystems × 7 + stack-execution patterns × 31; cap at 7.0)
+7. HRC gap line surfacing (one-line italic red reason in sidecard Hiring Reality Check)
+
+4 canonical fixture profiles: Chris (builder/systems), Fabio (analytical/investigative), Jen (blended/ops-enablement), Dingus (weak-control). 6 job fixture families + 2 execution-evidence job fixtures. 200/202 tests pass (2 pre-existing signal_classification failures).
 
 ## Session Decisions (2026-03-14, Lightweight Product Telemetry)
 
