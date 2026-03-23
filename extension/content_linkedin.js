@@ -4535,7 +4535,7 @@
     '    <div class="cb-collapsible" id="cb-adjacent-section">',
     '      <button class="cb-collapse-toggle cb-toggle-adjacent" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span class="cb-adjacent-label">Adjacent Searches</span>',
+    '        <span>Adjacent Searches</span>',
     '      </button>',
     '      <div class="cb-collapse-body cb-adjacent-body"></div>',
     '    </div>',
@@ -4766,9 +4766,8 @@
     // Adjacent search terms section
     ".cb-toggle-adjacent { color: #60A5FA; }",
     ".cb-toggle-adjacent:hover { color: #93C5FD; }",
-    ".cb-adjacent-label { display: flex; align-items: center; gap: 3px; }",
-    ".cb-adjacent-body { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; }",
-    ".cb-open .cb-adjacent-body { padding: 2px 0 5px; }",
+    ".cb-adjacent-body { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; transition: padding 0.2s ease-out; }",
+    ".cb-open .cb-adjacent-body { padding: 1px 0 3px; }",
     ".cb-adjacent-term {",
     "  font-size: 10px; font-weight: 600; color: #93C5FD;",
     "  text-decoration: none; display: inline-block;",
@@ -4778,7 +4777,7 @@
     "  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;",
     "}",
     ".cb-adjacent-term:hover { color: #BFDBFE; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.14); }",
-    ".cb-adjacent-empty { font-size: 10px; color: #555; font-style: italic; padding: 2px 0; }",
+    ".cb-adjacent-empty { font-size: 10px; color: #555; font-style: italic; padding: 1px 0 3px; }",
     // Collapsible sections
     ".cb-collapsible { border-top: 1px solid rgba(255,255,255,0.06); }",
     ".cb-collapse-toggle {",
@@ -4824,7 +4823,7 @@
     ".cb-open .cb-collapse-icon { transform: rotate(90deg); }",
     ".cb-open .cb-collapse-body { max-height: 600px; }",
     // Bullet lists
-    ".cb-bullets { list-style: none; padding-bottom: 2px; }",
+    ".cb-bullets { list-style: none; padding: 1px 0 3px; }",
     ".cb-bullets li {",
     "  position: relative; padding-left: 10px;",
     "  font-size: 11px; color: #CFCFCF; margin-bottom: 1px; line-height: 1.35;",

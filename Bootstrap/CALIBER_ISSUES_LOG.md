@@ -3,6 +3,18 @@
 
 ## Current Open Issues
 
+99. Sidecard accordion section consistency — uneven body padding and structural HTML — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** Five collapsible sidecard sections (HRC, Supports, Stretch, Bottom Line, Adjacent Searches) had inconsistent inner padding and structural variance: Adjacent body used `2px 0 5px` vs `1px 0 3px` elsewhere, bullet lists used `padding-bottom: 2px` instead of uniform shorthand, Adjacent empty-state padding was `2px 0`, and Adjacent toggle used a superfluous `<span class="cb-adjacent-label">` wrapper not present in other sections.
+  - **Root cause:** Sections were authored at different times with no shared padding contract. Adjacent Searches section was added later with slightly different padding values and extra wrapper markup.
+  - **Fix (4-part):**
+    1. **Adjacent body padding:** `.cb-adjacent-body` changed from `padding: 2px 0 5px` to `padding: 0` (collapsed) / `1px 0 3px` (open via `.cb-open .cb-adjacent-body`), with `transition: padding 0.2s ease-out` for smooth expand.
+    2. **Bullet list padding:** `.cb-bullets` changed from `padding-bottom: 2px` to `padding: 1px 0 3px` (matches HRC reason, Bottom Line text).
+    3. **Adjacent empty-state padding:** `.cb-adjacent-empty` changed from `padding: 2px 0` to `padding: 1px 0 3px`.
+    4. **HTML simplification:** Removed `<span class="cb-adjacent-label">` wrapper from Adjacent toggle — replaced with plain `<span>` matching all other sections. Removed unused `.cb-adjacent-label` CSS rule.
+  - **No content or scoring changes.** Pure visual consistency pass.
+  - **Validation:** TSC clean, 179/181 tests pass (2 pre-existing), sidecard stability 52/52.
+  - **Files:** `extension/content_linkedin.js`
+
 98. Score label flicker on sidecard reopen — skeleton flash on cached jobs — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Reopening a previously scored job (close → reopen, navigate away → back) briefly flashes skeleton state (score "—", "Analyzing fit…") before re-displaying the same score. Score entrance animation replays even when value is identical. Creates distrust even though score is technically correct.
   - **Root cause:** Three flicker vectors: (1) URL change always clears `lastScoredText` and calls `showSkeleton()` before the API call, even for already-scored jobs — there was no sidecard-level result cache. (2) `showResults()` unconditionally replays `cb-score-reveal` animation via `void scoreEl.offsetWidth` reflow trick on every call, even when score value is unchanged. (3) Text-dedup early return (`text === lastScoredText`) exits `scoreCurrentJob` without restoring results, leaving orphaned skeleton state.
