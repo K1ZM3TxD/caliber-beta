@@ -47,7 +47,7 @@ function promptsComplete1to5(session: CalibrationSession): boolean {
 }
 
 function meetsSignal(text: string): boolean {
-  return text.trim().length >= 40
+  return text.trim().length >= 20
 }
 
 function clarifierStateForIndex(n: 1 | 2 | 3 | 4 | 5): CalibrationState {
@@ -1733,17 +1733,16 @@ export async function dispatchCalibrationEvent(event: CalibrationEvent): Promise
 
         const trimmed = answer.trim()
 
-        // If still insufficient after clarifier, fail deterministically (no silent acceptance).
-        // Prompt 5 asks for terse bullets — exempt from signal gate.
-        if (idx !== 5 && !meetsSignal(trimmed)) {
-          return bad("INSUFFICIENT_SIGNAL_AFTER_CLARIFIER", "Answer still too short after clarifier; add more structural detail")
-        }
+        // Accept answer after clarifier regardless of length — no dead-end.
+        // Mark low-signal answers so downstream can log/flag if needed.
+        const lowSignal = idx !== 5 && !meetsSignal(trimmed);
 
         const nextSlot = {
           ...slot,
           answer: trimmed,
           accepted: true,
           frozen: true,
+          ...(lowSignal ? { lowSignal: true } : {}),
           clarifier: {
             ...slot.clarifier,
             answer: trimmed,

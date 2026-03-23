@@ -3,6 +3,29 @@
 
 ## Current Open Issues
 
+98. Score label flicker on sidecard reopen — skeleton flash on cached jobs — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** Reopening a previously scored job (close → reopen, navigate away → back) briefly flashes skeleton state (score "—", "Analyzing fit…") before re-displaying the same score. Score entrance animation replays even when value is identical. Creates distrust even though score is technically correct.
+  - **Root cause:** Three flicker vectors: (1) URL change always clears `lastScoredText` and calls `showSkeleton()` before the API call, even for already-scored jobs — there was no sidecard-level result cache. (2) `showResults()` unconditionally replays `cb-score-reveal` animation via `void scoreEl.offsetWidth` reflow trick on every call, even when score value is unchanged. (3) Text-dedup early return (`text === lastScoredText`) exits `scoreCurrentJob` without restoring results, leaving orphaned skeleton state.
+  - **Fix (4-part):**
+    1. **Sidecard result cache:** New `sidecardResultCache` object stores `{ data, scoreMeta, displayScore }` keyed by job ID (from URL `/jobs/view/{id}`). Written after non-provisional API responses. Cleared on surface change (via `clearAllBadges()`).
+    2. **Cache-first rendering in `scoreCurrentJob()`:** Before showing skeleton, checks `sidecardResultCache[jobId]`. On cache hit, calls `showResults()` immediately with cached data — API call still runs in background and updates seamlessly if score changes.
+    3. **Animation dedup in `showResults()`:** New `sidecardDisplayedScore` variable tracks the currently rendered score. `cb-score-reveal` animation only plays when `sidecardDisplayedScore !== displayScore`. Reset to `null` on URL change and in `showSkeleton()` so genuinely new jobs still animate.
+    4. **Text-dedup orphan fix:** When `text === lastScoredText` early return fires, restores cached results if skeleton was shown (prevents orphaned skeleton state).
+  - **No scoring algorithm changes.** Cache is render-only; API always runs and cache updates if score changes.
+  - **Validation:** TSC clean, 179/181 tests pass (2 pre-existing), sidecard stability 52/52.
+  - **Files:** `extension/content_linkedin.js`
+
+97. Sign-in provider resolution — `signIn()` ignores `redirect:false` on transient failure — **FIX SHIPPED** (2026-03-23)
+  - **Symptom:** User clicks "Continue with email" and intermittently sees "Sign-in service is starting up" (mapped from `?error=Configuration` URL param). Refreshing the page shows the same error persistently. Server-side auth works perfectly — full E2E test (CSRF → POST → session) confirmed 302 → /pipeline, session cookie set, valid user session.
+  - **Root cause:** `next-auth/react@5.0.0-beta.30`'s `signIn()` function calls `getProviders()` internally before every sign-in attempt. When `getProviders()` returns null (transient network error, cold start, Vercel edge timeout), the function does `window.location.href = "/api/auth/error"` — **completely ignoring the `redirect: false` option** (source code has a `// TODO: Return error if redirect: false` comment). The error page redirects to `/signin?error=Configuration`, and the `?error=Configuration` URL param persists across page refreshes, showing the "starting up" message indefinitely.
+  - **Fix (3-part):**
+    1. **Bypassed buggy `signIn()` with direct fetch:** New `directBetaSignIn()` function POSTs directly to `/api/auth/callback/beta-email` with `X-Auth-Return-Redirect: 1` header (same header the real signIn uses). Gets CSRF token first, sends credentials, parses JSON `{ url }` response. Safe `.json().catch(() => ({}))` fallback. Checks redirect URL for error params using `new URL(data.url, window.location.origin)` (handles relative URLs). Returns typed `{ ok, url?, error? }`. This eliminates the internal `getProviders()` call that was the failure vector.
+    2. **Clear stale `?error=` URL params on mount:** Added `useEffect` that captures `errorCode` from URL params, then immediately clears it via `window.history.replaceState()`. Error is displayed once but doesn't persist across refreshes.
+    3. **Better error message for "Configuration":** Changed from "Sign-in service is starting up. Please try again in a moment." → "Unable to connect. Please try again." — more accurate and actionable.
+  - **Nodemailer path unchanged:** The magic-link `signIn("nodemailer", ...)` flow uses `redirect: true` (default) which works correctly — it navigates directly. Only the Credentials `redirect: false` path was affected.
+  - **Validation:** TSC clean (0 errors), 179/181 tests pass (2 pre-existing signal_classification).
+  - **Files:** `app/signin/page.tsx`
+
 96. Chips page interaction clarity — weak contrast, cognitive load, premature reveal — **FIX SHIPPED** (2026-03-22)
   - **Symptom (from live PM validation):** (1) Plus/minus affordances have weak contrast — nearly invisible on bright/outdoor screens (unselected: `rgba(161,161,170,0.45)` color, `rgba(255,255,255,0.06)` border, 11px text). (2) "Most prominent chip" (primary selection) adds cognitive load — 3-tier model (primary/preferred/avoided) is not intuitive; users confused about the difference between clicking the chip body vs clicking +. (3) Chip options visible before typewriter heading finishes — violates pacing model used on other pages.
   - **Root cause:** (1) Plus/minus buttons used minimal contrast colors designed for dark-room reading, not real-world lighting. Button size (px-2 py-1, 11px text) too small for reliable touch. (2) Three-tier chip state (selectedPrimary + selectedPreferred + selectedAvoided) forced users to learn the distinction between "primary focus" and "also preferred" — unnecessary complexity for what's fundamentally a binary preference signal (+/-). (3) Chip list rendered immediately with no gating on `chipHeadingDone`, unlike other calibration pages that gate content on typewriter completion.

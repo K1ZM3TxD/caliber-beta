@@ -342,6 +342,12 @@
   let sidecardGeneration = 0;
   let sidecardRequestId = 0;
   let sidecardProvisional = false;  // true if displayed score is from partial text
+  // ─── Sidecard Result Cache ─────────────────────────────────
+  // Stores { data, scoreMeta, displayScore } keyed by job ID so that
+  // re-opening a previously scored job shows results instantly without
+  // a skeleton→score flicker cycle. Cleared on surface change.
+  var sidecardResultCache = {};   // jobId → { data, scoreMeta, displayScore }
+  var sidecardDisplayedScore = null; // currently rendered score value (for animation dedup)
   const FULL_TEXT_THRESHOLD = 400;  // chars: below this, text is likely partial/preview
   const STABILITY_WAIT_MS = 500;    // ms to wait for LinkedIn DOM hydration after initial extraction
   const STABILITY_GROWTH_THRESHOLD = 800; // only stability-wait if initial text below this
@@ -352,6 +358,12 @@
     var head = text.substring(0, 24).replace(/\s+/g, "_");
     var tail = text.substring(Math.max(0, text.length - 24)).replace(/\s+/g, "_");
     return text.length + ":" + head + "…" + tail;
+  }
+
+  /** Extract a stable job ID from the current URL (/jobs/view/{id}). */
+  function currentJobIdFromUrl() {
+    var m = location.href.match(/\/jobs\/view\/(\d+)/);
+    return m ? "job-" + m[1] : null;
   }
 
   // Score history (persisted via chrome.storage.local, used for analytics + fallback)
@@ -2203,6 +2215,8 @@
     badgeScoredIds.clear();
     telemetryEmittedIds.clear();
     badgeScoreCache = {};
+    sidecardResultCache = {};  // clear sidecard result cache on surface change
+    sidecardDisplayedScore = null;
     badgeCacheSurface = "";
     // Reset sidecard score so stale values don't leak across surfaces
     lastScoredScore = 0;
@@ -2892,12 +2906,12 @@
       addBtn.style.display = "";
     } else if (state === "in-pipeline") {
       row.style.visibility = "";
-      statusEl.textContent = "\u2713 Job saved";
+      statusEl.textContent = "\u2713 Saved";
       statusEl.style.display = "";
       viewLink.style.display = "";
     } else if (state === "auto-added") {
       row.style.visibility = "";
-      statusEl.textContent = "\u2713 Job saved";
+      statusEl.textContent = "\u2713 Saved";
       statusEl.style.display = "";
       viewLink.style.display = "";
     }
@@ -3037,6 +3051,9 @@
     getOrCreatePanel();
     hideOverlay();
     setPanelState("cb-results");
+
+    // Reset displayed score so the entrance animation plays for a genuinely new job
+    sidecardDisplayedScore = null;
 
     // Score placeholder
     var scoreEl = shadow.getElementById("cb-score");
@@ -3598,10 +3615,15 @@
       provEl.textContent = "";
       provEl.style.display = "none";
     }
-    // Animate score entrance
-    scoreEl.classList.remove("cb-score-reveal");
-    void scoreEl.offsetWidth; // force reflow to restart animation
-    scoreEl.classList.add("cb-score-reveal");
+    // Animate score entrance — but only when score actually changed.
+    // Skip animation for cache restores and identical re-scores to prevent flicker.
+    var scoreChanged = sidecardDisplayedScore === null || sidecardDisplayedScore !== displayScore;
+    if (scoreChanged) {
+      scoreEl.classList.remove("cb-score-reveal");
+      void scoreEl.offsetWidth; // force reflow to restart animation
+      scoreEl.classList.add("cb-score-reveal");
+    }
+    sidecardDisplayedScore = displayScore;
 
     var decEl = shadow.getElementById("cb-decision");
     decEl.textContent = decision.label;
@@ -4004,17 +4026,31 @@
       // Immediately show skeleton with whatever metadata we can extract now
       lastJobMeta = extractJobMeta();
 
+      // ── Cache-first rendering: restore cached sidecard results instantly ──
+      // If we've already scored this exact job (same job ID), show the previous
+      // results immediately instead of flashing skeleton → score. The API call
+      // still runs; if the score changes, showResults will update seamlessly.
+      var cacheJobId = currentJobIdFromUrl();
+      var cachedResult = cacheJobId ? sidecardResultCache[cacheJobId] : null;
+      var usedCache = false;
+
       // During rescore (results already visible), overlay instead of collapsing
       var resultsEl = shadow && shadow.getElementById("cb-results");
       var isRescore = resultsEl && resultsEl.style.display !== "none";
-      if (isRescore) {
+      if (cachedResult) {
+        // Restore cached results — no skeleton flash, no overlay
+        console.debug("[caliber][sidecard-cycle] CACHE_HIT requestId=" + myRequestId +
+          " jobId=" + cacheJobId + " cachedScore=" + cachedResult.displayScore);
+        showResults(cachedResult.data, Object.assign({}, cachedResult.scoreMeta, { fromCache: true }));
+        usedCache = true;
+      } else if (isRescore) {
         showLoading("Rescoring\u2026");
       } else {
         showSkeleton(lastJobMeta);
       }
 
       // Start 2.5s timeout — if scoring hasn't resolved, update indicator (skeleton only)
-      if (!isRescore) {
+      if (!isRescore && !usedCache) {
         skeletonTimer = setTimeout(function () {
           if (!shadow) return;
           var decEl = shadow.getElementById("cb-decision");
@@ -4137,6 +4173,10 @@
       if (!force && text === lastScoredText) {
         console.debug("[caliber][sidecard-cycle] SKIP requestId=" + myRequestId +
           " reason=same_text textLen=" + text.length);
+        // Restore cached results if skeleton was shown (prevents orphaned skeleton)
+        if (!usedCache && cachedResult) {
+          showResults(cachedResult.data, Object.assign({}, cachedResult.scoreMeta, { fromCache: true }));
+        }
         clearSkeletonTimer(); hideOverlay(); return;
       }
       lastScoredText = text;
@@ -4195,13 +4235,23 @@
         " elapsed=" + (Date.now() - cycleStart) + "ms" +
         " verdict=APPLIED");
 
-      showResults(data, {
+      var scoreMeta = {
         provisional: isProvisional,
         extractionPhase: extractionPhase,
         stabilitySource: stabilitySource,
         requestId: myRequestId,
         textLen: text.length,
-      });
+      };
+      showResults(data, scoreMeta);
+
+      // Write sidecard result cache so reopening this job is instant
+      if (cacheJobId && !isProvisional) {
+        sidecardResultCache[cacheJobId] = {
+          data: data,
+          scoreMeta: scoreMeta,
+          displayScore: Math.round(scoreReturned * 10) / 10,
+        };
+      }
     } catch (err) {
       showError(err.message || "Something went wrong.");
     } finally {
@@ -4220,6 +4270,7 @@
         lastWatchedUrl = location.href;
         lastScoredText = ""; // force re-score on navigation
         sidecardGeneration++;
+        sidecardDisplayedScore = null; // reset so animation plays for new job
         console.debug("[caliber][sidecard-authority] generation++ (" + sidecardGeneration + ") — URL changed: " + location.href.substring(0, 80));
         // Reset rolling window if search surface changed
         var currentKey = getSearchSurfaceKey();
@@ -4481,18 +4532,18 @@
     '      </div>',
     '    </div>',
 
-    '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="visibility:hidden">',
-    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Save this job</button>',
-    '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
-    '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View pipeline \u2192</a>',
-    '    </div>',
-
     '    <div class="cb-collapsible" id="cb-adjacent-section">',
     '      <button class="cb-collapse-toggle cb-toggle-adjacent" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span class="cb-adjacent-label">Adjacent Searches</span>',
     '      </button>',
     '      <div class="cb-collapse-body cb-adjacent-body"></div>',
+    '    </div>',
+
+    '    <div id="cb-pipeline-row" class="cb-pipeline-row" style="visibility:hidden">',
+    '      <button id="cb-pipeline-add" class="cb-pipeline-add">Save this job</button>',
+    '      <span id="cb-pipeline-status" class="cb-pipeline-status" style="display:none"></span>',
+    '      <a id="cb-pipeline-view" class="cb-pipeline-view" style="display:none">View saved jobs \u2192</a>',
     '    </div>',
 
     '    <div id="cb-fb-row" class="cb-fb-row">',
@@ -4716,7 +4767,8 @@
     ".cb-toggle-adjacent { color: #60A5FA; }",
     ".cb-toggle-adjacent:hover { color: #93C5FD; }",
     ".cb-adjacent-label { display: flex; align-items: center; gap: 3px; }",
-    ".cb-adjacent-body { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 0 5px; }",
+    ".cb-adjacent-body { display: flex; flex-wrap: wrap; gap: 4px; padding: 0; }",
+    ".cb-open .cb-adjacent-body { padding: 2px 0 5px; }",
     ".cb-adjacent-term {",
     "  font-size: 10px; font-weight: 600; color: #93C5FD;",
     "  text-decoration: none; display: inline-block;",

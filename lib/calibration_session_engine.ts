@@ -5,7 +5,7 @@ import { canTransition, getAllowedTransitions } from "./calibration_state_machin
 import { generatePatternSynthesis } from "./pattern_synthesis";
 
 export function meetsSignalThreshold(text: string): boolean {
-  return text.trim().length >= 40;
+  return text.trim().length >= 20;
 }
 
 type Input =

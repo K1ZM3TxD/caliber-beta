@@ -13,10 +13,12 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boo
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
+    let cancelled = false;
     setTyped("");
-    if (!text || !startWhen) return;
+    if (!text || !startWhen) return () => { cancelled = true; };
     const timeout = setTimeout(() => {
       const step = () => {
+        if (cancelled) return;
         i++;
         setTyped(text.slice(0, i));
         if (i < text.length) {
@@ -28,7 +30,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boo
       };
       step();
     }, START_DELAY_MS);
-    return () => { clearTimeout(timeout); };
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [text, msPerChar, startWhen]);
   return [typed, typed.length > 0 && typed === text];
 }
@@ -341,6 +343,8 @@ export default function CalibrationPage() {
   }, []);
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
+  const [promptTransitioning, setPromptTransitioning] = useState(false);
+  const submitLockRef = useRef(false);
   function openFilePicker() { fileInputRef.current?.click(); }
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) { setSelectedFile(e.target.files?.[0] ?? null); }
   async function begin() {
@@ -376,18 +380,23 @@ export default function CalibrationPage() {
     }
   }
   async function submitAnswer() {
+    if (submitLockRef.current) return;
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) { setError("Missing sessionId (session not created)."); return; }
     if (!hasAnswer) return;
-    setError(null); setBusy(true);
+    submitLockRef.current = true;
+    setError(null); setBusy(true); setPromptTransitioning(true);
     try {
       const inClarifier = String(session?.state ?? "").endsWith("_CLARIFIER");
       const eventType = inClarifier ? "SUBMIT_PROMPT_CLARIFIER_ANSWER" : "SUBMIT_PROMPT_ANSWER";
       const s = await postEvent({ type: eventType, sessionId, answer: answerText.trim() });
-      setSession(s); setAnswerText("");
+      setAnswerText("");
+      setSession(s);
       setStep(getStepFromState(s?.state, s));
+      // Brief hold so new typewriter starts before we un-freeze
+      await new Promise(r => setTimeout(r, 80));
     } catch (e: any) { setError(displayError(e)); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setPromptTransitioning(false); submitLockRef.current = false; }
   }
   async function advance(): Promise<AnySession> {
     const sessionId = String(session?.sessionId ?? "");
@@ -795,7 +804,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
          LANDING and RESUME use my-auto to vertically center within the viewport.
          Content-heavy steps use fixed top padding.
          No-header pages (TITLES) use pt-[10vh] — enough for ambient glow, no dead space. */}
-      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : step === "WORK_PREFERENCES" ? "my-auto" : "pt-[14vh] sm:pt-[22vh]"}`}>
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${step === "TITLES" ? "pt-[3vh] sm:pt-[5vh]" : "my-auto"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
@@ -803,8 +812,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
           .cb-dropzone:hover { border-color: rgba(74,222,128,0.50) !important; background-color: rgba(255,255,255,0.02) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
-          .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
-          .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
+          .cb-textarea:focus { border-color: rgba(74,222,128,0.55) !important; box-shadow: 0 0 0 1.5px rgba(74,222,128,0.22), 0 0 24px rgba(74,222,128,0.08) !important; }
+          .cb-textarea::placeholder { color: rgba(161,161,170,0.55); }
         `}</style>
         {/* Hero content */}
         <div className="relative" style={{ color: "#F2F2F2" }}>
@@ -973,9 +982,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-8 cb-headline text-center">
                   {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
                 </div>
-                <p className="mt-3 text-sm text-center transition-opacity duration-500" style={{ color: "rgba(161,161,170,0.65)", opacity: chipHeadingDone ? 1 : 0 }}>
-                  Tap + or &minus; for each category. Skip if neutral.
-                </p>
 
                 <div className="mt-8 overflow-hidden" style={{ opacity: chipHeadingDone ? 1 : 0, pointerEvents: chipHeadingDone ? "auto" : "none", transition: "opacity 0.5s ease", minHeight: "150px" }}>
                   {!chipsDone && (() => {
@@ -986,10 +992,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     return (
                       <div
                         key={mode.id}
-                        className="rounded-lg px-5 py-4 select-none cb-chip-enter"
+                        className="rounded-xl px-6 py-6 select-none cb-chip-enter"
                         style={{
-                          backgroundColor: isPreferred ? "rgba(74,222,128,0.08)" : isAvoided ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.025)",
-                          border: isPreferred ? "1px solid rgba(74,222,128,0.45)" : isAvoided ? "1px solid rgba(239,68,68,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                          backgroundColor: isPreferred ? "rgba(74,222,128,0.07)" : isAvoided ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.035)",
+                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.4)" : isAvoided ? "1.5px solid rgba(239,68,68,0.3)" : "1.5px solid rgba(255,255,255,0.12)",
+                          boxShadow: "0 2px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.04) inset",
                         }}
                       >
                         <div className="text-center mb-4">
@@ -1080,7 +1087,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       <span className="ml-2">Loading…</span>
                     </span>
                   ) : (
-                    <span style={{ transition: "opacity 0.3s" }}>{promptText}</span>
+                    <span style={{ transition: "opacity 0.3s", opacity: promptTransitioning ? 0 : 1 }}>{promptText}</span>
                   )}
                 </div>
                 {/* Remove "Prompt X of 5" line */}
@@ -1097,14 +1104,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       rows={6}
                       className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
                       style={{
-                        backgroundColor: "rgba(255,255,255,0.06)",
+                        backgroundColor: answerText.trim().length > 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.08)",
                         color: "#F2F2F2",
-                        border: "1px solid rgba(255,255,255,0.13)",
+                        border: answerText.trim().length > 0 ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.20)",
                         boxShadow: "none",
-                        opacity: 1,
                         fontSize: "1em",
                         marginTop: "0.5em",
                         outline: "none",
+                        opacity: promptTransitioning ? 0 : 1,
+                        transition: "opacity 0.15s ease, border-color 0.2s ease, background-color 0.2s ease",
                       }}
                       placeholder="Type your response here…"
                       disabled={busy}
@@ -1326,7 +1334,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               return (
               <div className="w-full max-w-3xl pb-8">
                 {/* Conclusive framing */}
-                <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
+                <div className="mt-2 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
                   <div className="flex items-center gap-2 mb-3">
                     <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                     <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
