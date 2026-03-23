@@ -1,7 +1,7 @@
 "use client";
 // app/signin/page.tsx — Caliber sign-in (magic-link email + beta email fallback)
-import { signIn, getProviders } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { signIn, getProviders, useSession } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import CaliberHeader from "../components/caliber_header";
 
@@ -206,9 +206,22 @@ function SignInForm() {
   );
 }
 
-export default function SignInPage() {
+function SignInPageContent() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const params = useSearchParams();
+  const isAuthenticated = status === "authenticated" && !!session?.user;
+  const callbackUrl = params.get("callbackUrl") || "/pipeline";
+
+  // Redirect authenticated users — signin page is not needed
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace(callbackUrl);
+    }
+  }, [isAuthenticated, callbackUrl, router]);
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center pb-16">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center pb-16">
       {/* Ambient glow — matches current shell baseline */}
       <div
         className="pointer-events-none fixed inset-x-0 top-0"
@@ -218,30 +231,52 @@ export default function SignInPage() {
           zIndex: 0,
         }}
       />
-      <div className="relative z-10 w-full max-w-[600px] mx-auto px-4">
+      <div className="relative z-10 w-full max-w-[600px] mx-auto px-4 flex-1 flex flex-col justify-center">
         <CaliberHeader />
 
-        <div className="mt-6 text-center">
-          <h1 className="text-neutral-200 text-xl font-semibold tracking-tight">
-            Sign in to Caliber
-          </h1>
-          <p className="text-neutral-400 text-sm mt-2">
-            Save your scored jobs and pick up where you left off.
-          </p>
-        </div>
+        {!isAuthenticated && (
+          /* ── Not signed in — show sign-in form ── */
+          <>
+            <div className="mt-6 text-center">
+              <h1 className="text-neutral-200 text-xl font-semibold tracking-tight">
+                Sign in to Caliber
+              </h1>
+              <p className="text-neutral-400 text-sm mt-2">
+                Save your scored jobs and pick up where you left off.
+              </p>
+            </div>
 
-        <div
-          className="mt-8 mx-auto max-w-[380px] p-6 rounded-xl"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.09)",
-          }}
-        >
-          <Suspense fallback={<div className="h-48" />}>
-            <SignInForm />
-          </Suspense>
-        </div>
+            <div
+              className="mt-8 mx-auto max-w-[380px] p-6 rounded-xl"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
+              }}
+            >
+              <Suspense fallback={<div className="h-48" />}>
+                <SignInForm />
+              </Suspense>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Signed-in status footer — subtle, informational only */}
+      {isAuthenticated && session?.user?.email && (
+        <div className="pb-6 text-center">
+          <span className="text-xs" style={{ color: "rgba(161,161,170,0.45)" }}>
+            Signed in as {session.user.email}
+          </span>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <SignInPageContent />
+    </Suspense>
   );
 }
