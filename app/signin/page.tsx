@@ -7,6 +7,30 @@ import CaliberHeader from "../components/caliber_header";
 
 type ProviderMap = Record<string, { id: string; name: string; type: string }>;
 
+// Bypass NextAuth's client-side signIn() to avoid the known getProviders() bug
+// that ignores redirect:false and sends users to the error page.
+async function directBetaSignIn(email: string, callbackUrl: string) {
+  const csrfRes = await fetch("/api/auth/csrf");
+  const { csrfToken } = await csrfRes.json();
+  const res = await fetch("/api/auth/callback/beta-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Auth-Return-Redirect": "1",
+    },
+    body: new URLSearchParams({ email, csrfToken, callbackUrl, json: "true" }),
+  });
+  const data: { url?: string } = await res.json().catch(() => ({}));
+  if (data.url) {
+    const redirectUrl = new URL(data.url, window.location.origin);
+    if (redirectUrl.searchParams.get("error")) {
+      return { ok: false as const, error: redirectUrl.searchParams.get("error") ?? "unknown" };
+    }
+    return { ok: true as const, url: data.url };
+  }
+  return { ok: false as const, error: "unknown" };
+}
+
 function SignInForm() {
   const params = useSearchParams();
   const isVerify = params.get("verify") === "1";
@@ -65,31 +89,21 @@ function SignInForm() {
         setEmailSent(true);
         setSending(false);
       } else if (hasBetaEmail) {
-        // Use signIn() directly with redirect:false. The original bug
-        // (signIn calling getProviders internally and redirecting on null)
-        // is defused because we already resolved providers above and only
-        // reach here when hasBetaEmail is true. If signIn still fails due
-        // to a transient issue, we catch and show an inline error.
-        console.debug("[Caliber][auth] signIn(beta-email) — email=" + email.trim() + " callbackUrl=" + callbackUrl);
-        const result = await signIn("beta-email", {
-          email: email.trim(),
-          redirect: false,
-          callbackUrl,
-        });
-        console.debug("[Caliber][auth] signIn result", result);
+        // POST directly to the credentials callback — bypasses the getProviders()
+        // bug in NextAuth's client-side signIn() that ignores redirect:false.
+        console.debug("[Caliber][auth] directBetaSignIn — email=" + email.trim() + " callbackUrl=" + callbackUrl);
+        const result = await directBetaSignIn(email.trim(), callbackUrl);
+        console.debug("[Caliber][auth] directBetaSignIn result", result);
         setSending(false);
-        if (result?.ok && result?.url) {
+        if (result.ok) {
           console.debug("[Caliber][auth] redirecting to", result.url);
           window.location.href = result.url;
-        } else if (result?.error) {
+        } else {
           setAuthError(
             result.error === "CredentialsSignin"
               ? "Could not sign in. Please check your email and try again."
               : "Sign-in failed. Please try again."
           );
-        } else {
-          // signIn returned ok:false but no error — try navigating to callbackUrl
-          window.location.href = callbackUrl;
         }
       } else {
         console.warn("[Caliber][auth] no provider available");
@@ -124,6 +138,9 @@ function SignInForm() {
             We sent a sign-in link to your email.
             <br />
             Click it to continue — no password needed.
+          </p>
+          <p className="text-neutral-500 text-xs mt-2">
+            Didn&rsquo;t receive it? Check your spam folder.
           </p>
         </div>
         <button
