@@ -7,11 +7,15 @@ import CaliberHeader from "../components/caliber_header";
 
 type ProviderMap = Record<string, { id: string; name: string; type: string }>;
 
-// Bypass NextAuth's client-side signIn() to avoid the known getProviders() bug
-// that ignores redirect:false and sends users to the error page.
+// Bypass NextAuth's client-side signIn() to avoid the known getProviders() bug.
+// Uses three detection tiers because X-Auth-Return-Redirect:1 is a v4 convention
+// and is not reliably honored in NextAuth v5 beta — when ignored, fetch() follows
+// the 302 redirect to HTML and res.json() silently fails.
 async function directBetaSignIn(email: string, callbackUrl: string) {
-  const csrfRes = await fetch("/api/auth/csrf");
-  const { csrfToken } = await csrfRes.json();
+  const { csrfToken } = await fetch("/api/auth/csrf")
+    .then((r) => r.json())
+    .catch(() => ({ csrfToken: "" }));
+
   const res = await fetch("/api/auth/callback/beta-email", {
     method: "POST",
     headers: {
@@ -20,6 +24,8 @@ async function directBetaSignIn(email: string, callbackUrl: string) {
     },
     body: new URLSearchParams({ email, csrfToken, callbackUrl, json: "true" }),
   });
+
+  // Tier 1: NextAuth honored the header and returned JSON { url }
   const data: { url?: string } = await res.json().catch(() => ({}));
   if (data.url) {
     const redirectUrl = new URL(data.url, window.location.origin);
@@ -28,6 +34,27 @@ async function directBetaSignIn(email: string, callbackUrl: string) {
     }
     return { ok: true as const, url: data.url };
   }
+
+  // Tier 2: fetch() followed the 302 redirect — res.url is the final destination.
+  // A successful auth lands on callbackUrl (/pipeline); an error lands on /signin?error=…
+  if (res.url) {
+    const finalUrl = new URL(res.url, window.location.origin);
+    const errorParam = finalUrl.searchParams.get("error");
+    if (errorParam) {
+      return { ok: false as const, error: errorParam };
+    }
+    // No error param — auth succeeded; navigate to where the server sent us.
+    return { ok: true as const, url: res.url };
+  }
+
+  // Tier 3: Read the session endpoint directly to confirm whether a session exists.
+  const session = await fetch("/api/auth/session")
+    .then((r) => r.json())
+    .catch(() => ({}));
+  if (session?.user?.email) {
+    return { ok: true as const, url: callbackUrl };
+  }
+
   return { ok: false as const, error: "unknown" };
 }
 
