@@ -26,7 +26,16 @@ async function directBetaSignIn(email: string, callbackUrl: string) {
   });
 
   // Tier 1: NextAuth honored the header and returned JSON { url }
-  const data: { url?: string } = await res.json().catch(() => ({}));
+  const data: { url?: string; message?: string } = await res.json().catch(() => ({}));
+
+  // Guard: server returned a non-2xx status (e.g. 500 Configuration error).
+  // Without this check, Tier 2 would see res.url == the API endpoint (no ?error= param)
+  // and navigate the browser to it — surfacing the raw JSON error to the user.
+  if (!res.ok) {
+    console.error("[Caliber][auth] directBetaSignIn server error", { status: res.status, message: data.message ?? "unknown" });
+    return { ok: false as const, error: "Configuration" };
+  }
+
   if (data.url) {
     const redirectUrl = new URL(data.url, window.location.origin);
     if (redirectUrl.searchParams.get("error")) {
@@ -129,6 +138,8 @@ function SignInForm() {
           setAuthError(
             result.error === "CredentialsSignin"
               ? "Could not sign in. Please check your email and try again."
+              : result.error === "Configuration"
+              ? "Server error — please try again in a moment."
               : "Sign-in failed. Please try again."
           );
         }
