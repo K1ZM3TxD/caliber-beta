@@ -492,6 +492,36 @@ export const CALL_CENTER_JOB: JobFixture = {
     "- Strong clerical and organizational skills",
 };
 
+// Verde Solar Project Manager — construction/field ops domain
+// Validates that "green infrastructure" and bare "engineering" (in education)
+// do NOT trigger builder_systems, and that OSHA/subcontractors/permits push
+// the job firmly into operational_execution.
+export const VERDE_SOLAR_PM_JOB: JobFixture = {
+  name: "Verde Solar Project Manager",
+  expectedMode: "operational_execution",
+  text:
+    "Solar Project Manager\n" +
+    "Verde partners with communities most impacted by environmental injustices to develop solutions.\n" +
+    "The Solar Project Manager will lead the development of community and commercial solar projects.\n" +
+    "Essential Duties and Responsibilities:\n" +
+    "Project Management\n" +
+    "Plans, executes, and oversees solar projects from inception to completion, managing budgets, schedules, and resources.\n" +
+    "Coordinates internal teams, subcontractors, and vendors to ensure project milestones are achieved.\n" +
+    "Conducts weekly progress meetings and provides regular updates to stakeholders.\n" +
+    "Assists with grant writing, budgeting, and reporting for public and private funders.\n" +
+    "Construction Management\n" +
+    "Reviews and approves project budgets and schedules, including permits, consultants, and construction costs.\n" +
+    "Negotiates construction contracts, ensures compliance with grant requirements.\n" +
+    "Ensures projects comply with local, state, and federal regulations.\n" +
+    "Monitors productivity, profitability, and adherence to the National Electrical Code and solar-related standards.\n" +
+    "Client and Stakeholder Engagement\n" +
+    "Collaborates with community partners, beneficiaries, government agencies, and contractors.\n" +
+    "Minimum Qualifications\n" +
+    "Bachelor's degree in construction management, project management, environmental science, engineering, or a similar subject.\n" +
+    "2 years of related experience.\n" +
+    "OSHA 30 Training Certification and Construction Contractors Board exam.",
+};
+
 // ─── analytical_investigative ───────────────────────────────
 
 export const SECURITY_ANALYST_JOB: JobFixture = {
@@ -922,6 +952,7 @@ export const ALL_JOBS = [
   OPS_COORDINATOR_JOB,
   WAREHOUSE_OPS_JOB,
   CALL_CENTER_JOB,
+  VERDE_SOLAR_PM_JOB,
   SECURITY_ANALYST_JOB,
   DATA_ANALYST_JOB,
   FORENSIC_ACCOUNTANT_JOB,

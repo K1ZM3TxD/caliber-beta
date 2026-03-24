@@ -85,12 +85,16 @@ const BUILDER_SYSTEMS_TRIGGERS: Trigger[] = [
   { pattern: /\bproduct develop(ment|er|ing)\b/i, weight: 2, label: "product development" },
   { pattern: /\bsystem(s)? design\b/i, weight: 2, label: "system design" },
   { pattern: /\barchitect(ure|ing)?\b/i, weight: 2, label: "architecture" },
-  { pattern: /\binfrastructure\b/i, weight: 2, label: "infrastructure" },
+  // Require a tech-domain adjective so "green infrastructure" / "water infrastructure"
+  // in physical/construction jobs does NOT trigger builder_systems.
+  { pattern: /\b(cloud|it|software|data|platform|network|digital)\s+infrastructure\b/i, weight: 2, label: "infrastructure" },
   { pattern: /\b(SOP|SOPs|standard operating procedure)\b/i, weight: 2, label: "SOP" },
   { pattern: /\bworkflow\s+automat(e|ed|ion|ing)\b/i, weight: 2, label: "workflow automation" },
   { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 2, label: "automation" },
   { pattern: /\bplatform\s+(engineering|development|architecture)\b/i, weight: 2, label: "platform engineering" },
-  { pattern: /\bengineering\b/i, weight: 1, label: "engineering" },
+  // Require a tech-domain qualifier so "construction management, engineering" in
+  // education requirements does NOT trigger builder_systems.
+  { pattern: /\b(software|platform|data|systems?|reliability|cloud|devops)\s+engineer(ing|s)?\b/i, weight: 1, label: "engineering" },
   { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deploy" },
   { pattern: /\bsystem(s)?\s+integrat(e|ion|ing|ed)\b/i, weight: 2, label: "system integration" },
   { pattern: /\b(CI\/CD|devops|dev ops)\b/i, weight: 2, label: "CI/CD" },
@@ -150,6 +154,12 @@ const OPERATIONAL_EXECUTION_TRIGGERS: Trigger[] = [
   { pattern: /\bonboarding\b/i, weight: 1, label: "onboarding" },
   { pattern: /\bfiling\b/i, weight: 1, label: "filing" },
   { pattern: /\boffice manage(r|ment)\b/i, weight: 2, label: "office management" },
+  // Construction / field operations domain signals
+  { pattern: /\bconstruction\s+manage(r|ment)\b/i, weight: 2, label: "construction management" },
+  { pattern: /\bsubcontractors?\b/i, weight: 2, label: "subcontractors" },
+  { pattern: /\bOSHA\b/, weight: 2, label: "OSHA" },
+  { pattern: /\bgrant\s+writ(ing|e|ten)\b/i, weight: 2, label: "grant writing" },
+  { pattern: /\bpermit(s|ting)?\b/i, weight: 1, label: "permits" },
 ];
 
 const ANALYTICAL_INVESTIGATIVE_TRIGGERS: Trigger[] = [
@@ -484,13 +494,20 @@ const OPERATOR_PATTERNS: RoleTypePattern[] = [
   { pattern: /\btransactional\b/i, weight: 2, label: "transactional" },
   { pattern: /\b(ticketing|help\s*desk)\b/i, weight: 2, label: "ticketing" },
   { pattern: /\bcustomer\s+(support|service)\b/i, weight: 2, label: "customer support" },
+  // Construction / field operations domain signals
+  { pattern: /\bconstruction\s+manage(r|ment)\b/i, weight: 3, label: "construction management" },
+  { pattern: /\bsubcontractors?\b/i, weight: 2, label: "subcontractors" },
+  { pattern: /\bOSHA\b/, weight: 2, label: "OSHA" },
+  { pattern: /\bgrant\s+writ(ing|e|ten)\b/i, weight: 2, label: "grant writing" },
+  { pattern: /\bpermit(s|ting)?\b/i, weight: 1, label: "permits" },
 ];
 
 const BUILDER_PATTERNS: RoleTypePattern[] = [
   { pattern: /\bproduct\s+develop(ment|er|ing)\b/i, weight: 3, label: "product development" },
   { pattern: /\bsystem(s)?\s+design\b/i, weight: 3, label: "system design" },
   { pattern: /\barchitect(ure|ing)?\b/i, weight: 3, label: "architecture" },
-  { pattern: /\binfrastructure\b/i, weight: 2, label: "infrastructure" },
+  // Same tech-domain guard as BUILDER_SYSTEMS_TRIGGERS
+  { pattern: /\b(cloud|it|software|data|platform|network|digital)\s+infrastructure\b/i, weight: 2, label: "infrastructure" },
   { pattern: /\b(SOP|SOPs|standard\s+operating\s+procedure)\b/i, weight: 2, label: "SOP" },
   { pattern: /\bautomat(e|ed|ion|ing)\b/i, weight: 2, label: "automation" },
   { pattern: /\b(deploy|deployment)\b/i, weight: 2, label: "deploy" },

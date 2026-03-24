@@ -8,6 +8,7 @@
 import {
   evaluateWorkMode,
   classifyRoleType,
+  classifyJobWorkMode,
   type WorkModeResult,
 } from "./work_mode";
 
@@ -20,6 +21,7 @@ import {
   SYSTEMS_PRODUCT_JOB,
   INSIDE_SALES_JOB,
   OPS_COORDINATOR_JOB,
+  VERDE_SOLAR_PM_JOB,
   SECURITY_ANALYST_JOB,
   SALES_OPS_HYBRID_JOB,
   PROPERTY_MAX_GRIND_JOB,
@@ -121,6 +123,25 @@ describe("Regression: Chris (builder_systems)", () => {
     expect(r.compatibility).toBe("adjacent");
     expect(r.postScore).toBeGreaterThanOrEqual(5.5);
     expect(r.postScore).toBeLessThanOrEqual(7.5);
+  });
+
+  // ── Verde Solar PM — field/construction job must NOT score as builder ──
+  // Regression for: "green infrastructure" and bare "engineering" (education)
+  // previously triggering builder_systems → compatible with Chris → 0 work mode
+  // penalty → inflated score. Fixed by requiring tech-domain qualifiers.
+  it("Verde Solar PM (raw 9.8) → adjacent (not compatible), score < 8.8", () => {
+    const r = run(CHRIS, VERDE_SOLAR_PM_JOB, 9.8, NO_CHIPS);
+    expect(r.jobMode.mode).toBe("operational_execution");
+    expect(r.compatibility).toBe("adjacent");
+    expect(r.workModeAdjustment).toBeLessThan(0);
+    expect(r.roleType).toBe("SYSTEM_OPERATOR");
+    expect(r.postScore).toBeLessThan(8.8);
+  });
+
+  it("Verde Solar PM — job mode classified as operational_execution", () => {
+    const result = classifyJobWorkMode(VERDE_SOLAR_PM_JOB.text);
+    expect(result.mode).toBe("operational_execution");
+    expect(result.confidence).toBe("high");
   });
 
   // ── Chip suppression: sales avoided ────────────────────
