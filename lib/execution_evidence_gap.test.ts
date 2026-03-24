@@ -12,6 +12,7 @@ import {
   SENIOR_PYTHON_DEVELOPER_JOB,
   SYSTEMS_PRODUCT_JOB,
   INSIDE_SALES_JOB,
+  ZOOMINFO_PSE_JOB,
 } from "./__fixtures__/work_mode_fixtures";
 
 // Mirror the gap line builder from the fit route for testability
@@ -23,6 +24,9 @@ function buildExecutionEvidenceGapLine(
   const missing = missingEvidence[0];
   if (categories.includes("domain_locked")) {
     return `This role requires hands-on ${missing} experience.`;
+  }
+  if (categories.includes("integration_platform")) {
+    return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
   }
   return "This role requires hands-on coding and stack-specific experience.";
 }
@@ -108,6 +112,36 @@ describe("Execution evidence gap line — sidecard payload", () => {
     const hrc = buildHrcPayload("Unlikely", "Mismatch reason", wm);
 
     expect(hrc.execution_evidence_gap).toBeNull();
+  });
+
+  // ── Guardrail ON: Chris × ZoomInfo PSE (integration platform depth gap) ──
+
+  it("Chris × ZoomInfo PSE → integration_platform gap triggered, postScore <= 7.0", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      ZOOMINFO_PSE_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("integration_platform");
+    expect(wm.postScore).toBeLessThanOrEqual(7.0);
+  });
+
+  it("Chris × ZoomInfo PSE → gap line present with integration platform copy", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      ZOOMINFO_PSE_JOB.text,
+    );
+    const hrc = buildHrcPayload("Possible", "Some reason", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("integration platform");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
   });
 
   // ── Guardrail OFF: Marcus has Salesforce evidence ──

@@ -522,6 +522,27 @@ export const VERDE_SOLAR_PM_JOB: JobFixture = {
     "OSHA 30 Training Certification and Construction Contractors Board exam.",
 };
 
+// ─── Integration platform depth trap (execution evidence: integration_platform) ──
+
+export const ZOOMINFO_PSE_JOB: JobFixture = {
+  name: "ZoomInfo Partner Solutions Engineer",
+  expectedMode: "builder_systems",
+  text:
+    "Partner Solutions Engineer - ZoomInfo\n" +
+    "We are looking for a Partner Solutions Engineer to join our Product organization.\n" +
+    "Build Scalable Integrations: Use ZoomInfo's no-code integration tools to create pre-built solutions\n" +
+    "that mutual customers can deploy immediately, eliminating the need for custom development.\n" +
+    "Develop Partner Connector Solutions: Build integrations to ZoomInfo's external APIs and MCP tools\n" +
+    "from various partner connector platforms.\n" +
+    "What You'll Bring:\n" +
+    "2-3+ years of experience in a technical role such as Integration Engineer, Partner Engineer,\n" +
+    "Technical Solutions Engineer, or Professional Services Engineer, preferably within a B2B SaaS company.\n" +
+    "Strong technical foundation with hands-on experience working with APIs, webhooks, authentication\n" +
+    "protocols, MCP tools, and integration platforms.\n" +
+    "Experience with no-code/low-code integration platforms (Zapier, Workato, Tray.io, Make, etc.) is a plus.\n" +
+    "Familiarity with GTM tools and workflows (CRM, marketing automation, sales engagement platforms) is a plus.",
+};
+
 // ─── analytical_investigative ───────────────────────────────
 
 export const SECURITY_ANALYST_JOB: JobFixture = {
@@ -969,11 +990,13 @@ export const ALL_JOBS = [
   STRATEGY_OPS_JOB,
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
+  ZOOMINFO_PSE_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
+  ZOOMINFO_PSE_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

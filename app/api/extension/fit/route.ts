@@ -39,6 +39,9 @@ function buildExecutionEvidenceGapLine(
   if (categories.includes("domain_locked")) {
     return `This role requires hands-on ${missing} experience.`;
   }
+  if (categories.includes("integration_platform")) {
+    return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
+  }
   return "This role requires hands-on coding and stack-specific experience.";
 }
 

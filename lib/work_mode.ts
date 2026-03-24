@@ -63,7 +63,7 @@ export type ChipSuppressionResult = {
   reason: string | null;
 };
 
-export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution";
+export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution" | "integration_platform";
 
 export type ExecutionEvidenceResult = {
   triggered: boolean;
@@ -845,6 +845,39 @@ const STACK_EXECUTION_THRESHOLD = 4;
 const STACK_EVIDENCE_PATTERN =
   /\b(python|java|javascript|typescript|C\+\+|C#|golang|rust|ruby|PHP|swift|kotlin|scala|react|angular|vue|django|flask|spring|dotnet|\.NET|rails|node\.?js|laravel|next\.?js|software\s+engineer|software\s+developer|full[- ]stack\s+develop|frontend\s+develop|backend\s+develop|programmer|coding|wrote\s+code|code\s+review)\b/i;
 
+// ─── Integration Platform Depth Detection ────────────────────
+// Fires when a job explicitly requires iPaaS/no-code integration platform expertise
+// (Zapier, Workato, MuleSoft, etc.) — a depth tier not captured by stack_execution.
+// Generic "workflow automation" intentionally excluded; must name a specific platform or role.
+
+const INTEGRATION_PLATFORM_JOB_PATTERNS: StackPattern[] = [
+  // Named iPaaS / no-code platforms
+  { pattern: /\bzapier\b/i, weight: 3, label: "Zapier" },
+  { pattern: /\bworkato\b/i, weight: 3, label: "Workato" },
+  { pattern: /\btray\.io\b/i, weight: 2, label: "Tray.io" },
+  { pattern: /\bboomi\b/i, weight: 3, label: "Boomi" },
+  { pattern: /\bmulesoft\b/i, weight: 3, label: "MuleSoft" },
+  { pattern: /\bn8n\b/i, weight: 2, label: "n8n" },
+  { pattern: /\biPaaS\b/i, weight: 3, label: "iPaaS" },
+  { pattern: /\bintegromat\b/i, weight: 2, label: "Integromat" },
+  { pattern: /\bmake\.com\b/i, weight: 2, label: "Make.com" },
+  // Role-title requirements (job demands prior integration engineering experience)
+  { pattern: /\bintegration\s+engineer/i, weight: 2, label: "integration engineer" },
+  { pattern: /\bpartner\s+engineer/i, weight: 2, label: "partner engineer" },
+  { pattern: /\bprofessional\s+services\s+engineer/i, weight: 2, label: "professional services engineer" },
+  { pattern: /\btechnical\s+solutions\s+engineer/i, weight: 2, label: "technical solutions engineer" },
+  // No-code / low-code integration platform context
+  { pattern: /\bno[- ]code\s+(integration|platform|tool)/i, weight: 2, label: "no-code integration" },
+  { pattern: /\blow[- ]code\s+(integration|platform|tool)/i, weight: 2, label: "low-code integration" },
+];
+
+const INTEGRATION_PLATFORM_THRESHOLD = 5;
+
+// User evidence: explicitly named a no-code/iPaaS platform OR held an integration engineering role.
+// "workflow automation" alone is too generic and intentionally excluded.
+const INTEGRATION_PLATFORM_EVIDENCE_PATTERN =
+  /\b(zapier|workato|tray\.io|boomi|mulesoft|n8n|iPaaS|make\.com|integromat|integration\s+engineer|partner\s+engineer|professional\s+services\s+engineer|connector\s+(platform|build)|no[- ]code\s+(integration|platform))\b/i;
+
 const EXECUTION_EVIDENCE_CAP = 7.0;
 
 export function detectExecutionEvidenceGap(
@@ -898,6 +931,24 @@ export function detectExecutionEvidenceGap(
       categories.push("stack_execution");
       allSignals.push(...stackSignals);
       missing.push("coding/stack execution evidence");
+    }
+  }
+
+  // ── Integration platform depth check ─────────────────
+  // Fires when JD explicitly requires iPaaS/no-code platform expertise and user lacks it.
+  let integrationPlatformScore = 0;
+  const integrationPlatformSignals: string[] = [];
+  for (const p of INTEGRATION_PLATFORM_JOB_PATTERNS) {
+    if (p.pattern.test(jobText)) {
+      integrationPlatformScore += p.weight;
+      integrationPlatformSignals.push(p.label);
+    }
+  }
+  if (integrationPlatformScore >= INTEGRATION_PLATFORM_THRESHOLD) {
+    if (!INTEGRATION_PLATFORM_EVIDENCE_PATTERN.test(userEvidenceText)) {
+      categories.push("integration_platform");
+      allSignals.push(...integrationPlatformSignals);
+      missing.push("integration platform experience");
     }
   }
 
@@ -1022,6 +1073,9 @@ export const _testing = {
   STACK_EXECUTION_JOB_PATTERNS,
   STACK_EXECUTION_THRESHOLD,
   STACK_EVIDENCE_PATTERN,
+  INTEGRATION_PLATFORM_JOB_PATTERNS,
+  INTEGRATION_PLATFORM_THRESHOLD,
+  INTEGRATION_PLATFORM_EVIDENCE_PATTERN,
   EXECUTION_EVIDENCE_CAP,
   detectExecutionEvidenceGap,
 };
