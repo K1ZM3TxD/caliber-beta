@@ -129,6 +129,15 @@ export async function generateTailoredResume(
 - WEAK match (score < 7.0): Use conservative language. Only reorder and lightly rephrase existing evidence. Do NOT foreground skills or domains absent from the resume. Acknowledge limited fit implicitly by staying grounded in the candidate's actual background.
 - STRONG match (score >= 7.0): Be assertive in elevating and foregrounding relevant evidence. Sharpen language, prioritize matching bullets, rewrite the summary to lead with the strongest fit — but ONLY using what's in the resume. Still blocked from fabrication.
 
+## FORMATTING RULES (ATS and recruiter compliance):
+- Section headings: use ONLY these exact names in ALL CAPS — PROFESSIONAL SUMMARY, WORK EXPERIENCE, SKILLS, EDUCATION, CERTIFICATIONS, ADDITIONAL
+- Bullet characters: use ONLY plain hyphens (-). Never use •, ▪, ►, ●, ★, or any Unicode bullet character
+- Layout: single-column plain text only. No tables, no columns, no horizontal rules, no decorative separators
+- Dates: use "Month YYYY – Month YYYY" or "Month YYYY – Present" format consistently
+- Line 1: candidate name only. Line 2: contact info pipe-delimited (email | phone | City, State | LinkedIn URL if present)
+- Keep lines under 100 characters for clean wrapping
+- No special styling, no bold markers, no markdown formatting characters
+
 ## OUTPUT FORMAT (MANDATORY):
 First, output the complete tailored resume text (ready to use, professional formatting).
 Then, output exactly the following separator on its own line:

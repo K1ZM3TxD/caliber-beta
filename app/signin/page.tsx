@@ -259,6 +259,26 @@ function SignInPageContent() {
             </div>
           </>
         )}
+
+        {isAuthenticated && session?.user?.email && (
+          <div className="mt-6 text-center space-y-4">
+            <div className="text-neutral-300 text-base font-medium">
+              You&apos;re signed in
+            </div>
+            <div className="text-neutral-500 text-sm">{session.user.email}</div>
+            <a
+              href="/pipeline"
+              className="inline-block mt-2 px-6 py-2.5 rounded-lg font-semibold text-sm transition-all"
+              style={{
+                background: "rgba(74,222,128,0.10)",
+                color: "#4ADE80",
+                border: "1px solid rgba(74,222,128,0.55)",
+              }}
+            >
+              Go to Saved Jobs →
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Signed-in status footer — subtle, informational only */}

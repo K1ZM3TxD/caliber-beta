@@ -8,7 +8,6 @@ import {
   TextRun,
   AlignmentType,
   BorderStyle,
-  LevelFormat,
 } from "docx";
 import { parseResume, safeFilename } from "@/lib/resume_parser";
 
@@ -118,14 +117,14 @@ export async function POST(req: NextRequest) {
           case "bullet":
             children.push(
               new Paragraph({
-                numbering: { reference: "resume-bullets", level: 0 },
                 children: [
                   new TextRun({
-                    text: item.text,
+                    text: "- " + item.text,
                     font: "Calibri",
                     size: 22, // 11pt
                   }),
                 ],
+                indent: { left: 360 },
                 spacing: { after: 40 },
               }),
             );
@@ -150,26 +149,6 @@ export async function POST(req: NextRequest) {
     }
 
     const doc = new Document({
-      numbering: {
-        config: [
-          {
-            reference: "resume-bullets",
-            levels: [
-              {
-                level: 0,
-                format: LevelFormat.BULLET,
-                text: "\u2022",
-                alignment: AlignmentType.LEFT,
-                style: {
-                  paragraph: {
-                    indent: { left: 360, hanging: 180 },
-                  },
-                },
-              },
-            ],
-          },
-        ],
-      },
       sections: [
         {
           properties: {

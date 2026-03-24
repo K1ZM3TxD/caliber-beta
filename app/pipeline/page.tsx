@@ -606,6 +606,14 @@ export default function PipelinePage() {
       <div className="relative z-10">
         <CaliberHeader className="mb-8" />
 
+        {authStatus === "authenticated" && session?.user?.email && (
+          <div className="text-center mb-6" style={{ marginTop: "-16px" }}>
+            <span className="text-xs" style={{ color: "rgba(74,222,128,0.6)" }}>
+              Signed in as {session.user.email}
+            </span>
+          </div>
+        )}
+
       {/* Sign-in CTA for unauthenticated users — non-blocking */}
       {authStatus === "unauthenticated" && (
         <div
@@ -830,15 +838,6 @@ export default function PipelinePage() {
         />
       )}
       </div>
-
-      {/* Signed-in status footer — subtle, informational only */}
-      {authStatus === "authenticated" && session?.user?.email && (
-        <div className="mt-10 pb-6 text-center">
-          <span className="text-xs" style={{ color: "rgba(161,161,170,0.45)" }}>
-            Signed in as {session.user.email}
-          </span>
-        </div>
-      )}
 
       <style jsx>{`
         .cb-spinner {

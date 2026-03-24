@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import PipelineConfirmationBanner from "../components/pipeline_confirmation_banner";
 
 type Status = "loading" | "ready" | "generating" | "done" | "error";
@@ -41,6 +42,7 @@ function TailorInner() {
   const [copied, setCopied] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
+  const { data: session, status: authStatus } = useSession();
 
   // Load prepared context
   useEffect(() => {
@@ -101,12 +103,13 @@ function TailorInner() {
     }
   }, [prep]);
 
-  const download = useCallback(async () => {
+  const download = useCallback(async (formatOverride?: DownloadFormat) => {
     if (!tailoredText || !prep) return;
+    const fmt = formatOverride ?? downloadFormat;
     setDownloading(true);
     try {
       const endpoint =
-        downloadFormat === "pdf"
+        fmt === "pdf"
           ? "/api/tailor/export-pdf"
           : "/api/tailor/export-docx";
       const res = await fetch(endpoint, {
@@ -122,7 +125,7 @@ function TailorInner() {
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
       const fnMatch = disposition.match(/filename="([^"]+)"/);
-      const fn = fnMatch ? fnMatch[1] : `resume.${downloadFormat}`;
+      const fn = fnMatch ? fnMatch[1] : `resume.${fmt}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -228,6 +231,14 @@ function TailorInner() {
         <div className="space-y-4">
           {jobHeader}
 
+          {authStatus === "authenticated" && session?.user?.email && (
+            <div className="text-center mb-6" style={{ marginTop: "-16px" }}>
+              <span className="text-xs" style={{ color: "rgba(74,222,128,0.6)" }}>
+                Signed in as {session.user.email}
+              </span>
+            </div>
+          )}
+
           <h2 className="text-lg font-semibold text-zinc-300 tracking-tight pt-1">
             Tailor Resume
           </h2>
@@ -287,6 +298,14 @@ function TailorInner() {
         <div className="space-y-4">
           {/* Keep job context visible */}
           {jobHeader}
+
+          {authStatus === "authenticated" && session?.user?.email && (
+            <div className="text-center mb-6" style={{ marginTop: "-16px" }}>
+              <span className="text-xs" style={{ color: "rgba(74,222,128,0.6)" }}>
+                Signed in as {session.user.email}
+              </span>
+            </div>
+          )}
 
           {/* Success confirmation */}
           <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium pt-1">
@@ -360,25 +379,10 @@ function TailorInner() {
             </div>
           </div>
 
-          {/* Format selector + download */}
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-zinc-700">
-              {(["pdf", "docx"] as DownloadFormat[]).map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => setDownloadFormat(fmt)}
-                  className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                    downloadFormat === fmt
-                      ? "bg-emerald-900/50 text-emerald-400"
-                      : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  {fmt}
-                </button>
-              ))}
-            </div>
+          {/* Download buttons */}
+          <div className="flex gap-3">
             <button
-              onClick={download}
+              onClick={() => { setDownloadFormat("pdf"); download("pdf"); }}
               disabled={downloading}
               className="flex-1 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               style={{
@@ -387,7 +391,7 @@ function TailorInner() {
                 border: "1px solid rgba(74,222,128,0.55)",
               }}
             >
-              {downloading ? (
+              {downloading && downloadFormat === "pdf" ? (
                 <div className="cb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
               ) : (
                 <svg
@@ -404,7 +408,36 @@ function TailorInner() {
                   />
                 </svg>
               )}
-              {downloading ? "Generating…" : `Download ${downloadFormat.toUpperCase()}`}
+              Download PDF
+            </button>
+            <button
+              onClick={() => { setDownloadFormat("docx"); download("docx"); }}
+              disabled={downloading}
+              className="flex-1 py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{
+                background: "transparent",
+                color: "#A1A1AA",
+                border: "1px solid rgba(161,161,170,0.3)",
+              }}
+            >
+              {downloading && downloadFormat === "docx" ? (
+                <div className="cb-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+              )}
+              Download DOCX
             </button>
           </div>
 

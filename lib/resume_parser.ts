@@ -72,7 +72,7 @@ function classifyHeader(text: string): ResumeSection["type"] | null {
 
 function extractBullet(line: string): string | null {
   const m = line.match(/^\s*[•\-\*▪▸►●○◦‣⁃]\s+(.+)/);
-  return m ? m[1].trim() : null;
+  return m ? m[1].replace(/^[\u2022\u25AA\u25BA\u25CF\u2023\u25E6\u2043*\-•]+\s*/, "").trim() : null;
 }
 
 function isEntryHeader(line: string): boolean {
