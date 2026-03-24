@@ -224,12 +224,19 @@ async function uploadResume(sessionId: string, file: File): Promise<AnySession> 
   return json.session;
 }
 
-function displayError(e: any): string {
+function displayError(e: any): string | null {
   if (!e) return "Unknown error";
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message || "Error";
-  if (typeof e?.message === "string") return e.message;
-  try { return JSON.stringify(e); } catch { return "Unknown error"; }
+  if (typeof e === "string") {
+    // Internal state machine rejection — transient, polling handles recovery silently
+    if (e.includes("INVALID_EVENT_FOR_STATE")) return null;
+    return e;
+  }
+  const msg: string =
+    e instanceof Error ? (e.message || "Error") :
+    typeof e?.message === "string" ? e.message :
+    (() => { try { return JSON.stringify(e); } catch { return "Unknown error"; } })();
+  if (msg.includes("INVALID_EVENT_FOR_STATE")) return null;
+  return msg;
 }
 
 /** Truncate text to at most N sentences. */
@@ -364,7 +371,7 @@ export default function CalibrationPage() {
       const s = await postEvent({ type: "CREATE_SESSION" });
       if (s?.sessionId) setCookie(COOKIE_NAME, s.sessionId);
       setSession(s); setSelectedFile(null); setAnswerText(""); setStep("RESUME");
-    } catch (e: any) { setError(displayError(e)); }
+    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
     finally { setBusy(false); }
   }
   async function submitResume() {
@@ -384,7 +391,7 @@ export default function CalibrationPage() {
         else setStep("PROCESSING");
       }
     } catch (e: any) {
-      setError(displayError(e));
+      const _msg = displayError(e); if (_msg !== null) setError(_msg);
       // Do NOT clear selectedFile; user can retry or pick another file
     } finally {
       setBusy(false); setResumeUploading(false);
@@ -406,7 +413,7 @@ export default function CalibrationPage() {
       setStep(getStepFromState(s?.state, s));
       // Brief hold so new typewriter starts before we un-freeze
       await new Promise(r => setTimeout(r, 80));
-    } catch (e: any) { setError(displayError(e)); }
+    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
     finally { setBusy(false); setPromptTransitioning(false); submitLockRef.current = false; }
   }
   async function advance(): Promise<AnySession> {
@@ -422,7 +429,7 @@ export default function CalibrationPage() {
       setStep(getStepFromState(s?.state, s));
       return s;
     } catch (e: any) {
-      setError(displayError(e));
+      const _msg = displayError(e); if (_msg !== null) setError(_msg);
       throw e;
     } finally {
       setBusy(false);
@@ -489,7 +496,7 @@ export default function CalibrationPage() {
       const s = await postEvent({ type: "SET_WORK_PREFERENCES", sessionId, workPreferences: prefs } as any);
       setSession(s);
       setStep(getStepFromState(s?.state, s));
-    } catch (e: any) { setError(displayError(e)); }
+    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
     finally { setBusy(false); }
   }
 
@@ -501,7 +508,7 @@ export default function CalibrationPage() {
       const s = await postEvent({ type: "ADVANCE", sessionId });
       setSession(s);
       setStep(getStepFromState(s?.state, s));
-    } catch (e: any) { setError(displayError(e)); }
+    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
     finally { setBusy(false); }
   }
     // Titles UI state
@@ -535,7 +542,7 @@ export default function CalibrationPage() {
         setSession(s);
         setStep("TITLES"); // Stay on TITLES after TITLE_FEEDBACK
       } catch (e: any) {
-        setError(displayError(e));
+        const _msg = displayError(e); if (_msg !== null) setError(_msg);
       } finally { setBusy(false); }
     }
 
@@ -585,7 +592,7 @@ export default function CalibrationPage() {
           setError(`Analysis did not reach results (state: ${String(s?.state)}).`);
         }
       } catch (e: any) {
-        setError(displayError(e));
+        const _msg = displayError(e); if (_msg !== null) setError(_msg);
       } finally { setJobBusy(false); }
     }
   const canContinueResume = !!selectedFile && !busy;
@@ -756,6 +763,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         if (!sessionId) { inFlightRef.current = false; return; }
         const s = await postEvent({ type: "ADVANCE", sessionId });
         setSession(s);
+        setError(null); // clear any transient error from a previous failed poll attempt
         const next = getStepFromState(s?.state, s);
         if (next !== "PROCESSING") deferOrSetStep(next);
       } catch (err: any) {
@@ -763,7 +771,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         if (err?.message?.includes("JOB_REQUIRED") || err?.code === "JOB_REQUIRED") {
           deferOrSetStep("TITLES");
         } else {
-          setError(displayError(err));
+          const _msg = displayError(err); if (_msg !== null) setError(_msg);
         }
       } finally {
         inFlightRef.current = false;
@@ -779,7 +787,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       const target = deferredStepRef.current;
       deferredStepRef.current = null;
       setBackendDone(false);
-      if (target) setStep(target);
+      if (target) {
+        // Belt-and-suspenders: clear any residual error before entering the terminal screen
+        if (target === "TITLES") setError(null);
+        setStep(target);
+      }
     }, 600); // brief pause on "Complete" before transition
     return () => clearTimeout(t);
   }, [staged.complete]);
