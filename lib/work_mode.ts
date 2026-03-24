@@ -63,7 +63,7 @@ export type ChipSuppressionResult = {
   reason: string | null;
 };
 
-export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution" | "integration_platform";
+export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution" | "integration_platform" | "clearance_required";
 
 export type ExecutionEvidenceResult = {
   triggered: boolean;
@@ -878,6 +878,27 @@ const INTEGRATION_PLATFORM_THRESHOLD = 5;
 const INTEGRATION_PLATFORM_EVIDENCE_PATTERN =
   /\b(zapier|workato|tray\.io|boomi|mulesoft|n8n|iPaaS|make\.com|integromat|integration\s+engineer|partner\s+engineer|professional\s+services\s+engineer|connector\s+(platform|build)|no[- ]code\s+(integration|platform))\b/i;
 
+// ── Government clearance patterns ────────────────────────────────────────────
+// Fires when a JD explicitly requires an active government security clearance.
+// TS/SCI alone (weight 4) exceeds the threshold of 3.
+const CLEARANCE_JOB_PATTERNS: { pattern: RegExp; weight: number; label: string }[] = [
+  { pattern: /\bTS\/SCI\b/, weight: 4, label: "TS/SCI" },
+  { pattern: /\btop\s+secret\b/i, weight: 3, label: "Top Secret" },
+  { pattern: /\bDoD\s+8570\b/i, weight: 3, label: "DoD 8570" },
+  { pattern: /\bDoD\s+8140\b/i, weight: 3, label: "DoD 8140" },
+  { pattern: /\bsecret\s+clearance\b/i, weight: 2, label: "secret clearance" },
+  { pattern: /\bsecurity\s+clearance\b/i, weight: 2, label: "security clearance" },
+  { pattern: /\bactive\s+clearance\b/i, weight: 2, label: "active clearance" },
+  { pattern: /\bpublic\s+trust\b/i, weight: 2, label: "public trust" },
+];
+
+const CLEARANCE_THRESHOLD = 3;
+
+// User evidence: explicitly mentions a clearance status, DoD affiliation, or classified environment.
+// Generic "cybersecurity" alone is intentionally excluded.
+const CLEARANCE_EVIDENCE_PATTERN =
+  /\b(clearance|TS\/SCI|top\s+secret|secret\s+clearance|DoD|classified|COMSEC|EMSEC)\b/i;
+
 const EXECUTION_EVIDENCE_CAP = 7.0;
 
 export function detectExecutionEvidenceGap(
@@ -949,6 +970,24 @@ export function detectExecutionEvidenceGap(
       categories.push("integration_platform");
       allSignals.push(...integrationPlatformSignals);
       missing.push("integration platform experience");
+    }
+  }
+
+  // ── Government clearance check ────────────────────────────
+  // Fires when JD requires an active security clearance and user lacks clearance evidence.
+  let clearanceScore = 0;
+  const clearanceSignals: string[] = [];
+  for (const p of CLEARANCE_JOB_PATTERNS) {
+    if (p.pattern.test(jobText)) {
+      clearanceScore += p.weight;
+      clearanceSignals.push(p.label);
+    }
+  }
+  if (clearanceScore >= CLEARANCE_THRESHOLD) {
+    if (!CLEARANCE_EVIDENCE_PATTERN.test(userEvidenceText)) {
+      categories.push("clearance_required");
+      allSignals.push(...clearanceSignals);
+      missing.push("government security clearance");
     }
   }
 
@@ -1076,6 +1115,9 @@ export const _testing = {
   INTEGRATION_PLATFORM_JOB_PATTERNS,
   INTEGRATION_PLATFORM_THRESHOLD,
   INTEGRATION_PLATFORM_EVIDENCE_PATTERN,
+  CLEARANCE_JOB_PATTERNS,
+  CLEARANCE_THRESHOLD,
+  CLEARANCE_EVIDENCE_PATTERN,
   EXECUTION_EVIDENCE_CAP,
   detectExecutionEvidenceGap,
 };

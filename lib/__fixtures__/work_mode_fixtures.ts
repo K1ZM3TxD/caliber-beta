@@ -543,6 +543,28 @@ export const ZOOMINFO_PSE_JOB: JobFixture = {
     "Familiarity with GTM tools and workflows (CRM, marketing automation, sales engagement platforms) is a plus.",
 };
 
+export const DOD_CYBERSECURITY_LEAD_JOB: JobFixture = {
+  name: "DoD Cybersecurity Lead",
+  expectedMode: "analytical_investigative",
+  text:
+    "Cybersecurity Lead — Kirtland Air Force Base\n" +
+    "We are seeking an experienced Cybersecurity Lead to support DoD information assurance initiatives\n" +
+    "at Kirtland AFB, NM. This role requires an active TS/SCI clearance.\n" +
+    "Responsibilities:\n" +
+    "- Lead RMF/ATO processes and maintain DISA STIG compliance across classified systems\n" +
+    "- Conduct vulnerability assessments and penetration testing on DoD networks\n" +
+    "- Manage security operations for classified and top secret environments\n" +
+    "- Develop and implement security controls per NIST SP 800-53 and DoD 8570/8140 requirements\n" +
+    "- Oversee incident response and forensics on classified infrastructure\n" +
+    "- Author A&A documentation and support FISMA reporting\n" +
+    "Requirements:\n" +
+    "- Active TS/SCI clearance required — must hold at time of application\n" +
+    "- CISSP or equivalent IAT Level III certification (DoD 8570 compliant)\n" +
+    "- 8+ years of DoD information assurance experience\n" +
+    "- Deep knowledge of RMF, DISA STIGs, COMSEC, and classified network operations\n" +
+    "- Experience with EMSEC procedures and TEMPEST requirements preferred",
+};
+
 // ─── analytical_investigative ───────────────────────────────
 
 export const SECURITY_ANALYST_JOB: JobFixture = {
@@ -991,12 +1013,14 @@ export const ALL_JOBS = [
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
   ZOOMINFO_PSE_JOB,
+  DOD_CYBERSECURITY_LEAD_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
   ZOOMINFO_PSE_JOB,
+  DOD_CYBERSECURITY_LEAD_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

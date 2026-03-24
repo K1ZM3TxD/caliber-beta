@@ -39,6 +39,9 @@ function buildExecutionEvidenceGapLine(
   if (categories.includes("domain_locked")) {
     return `This role requires hands-on ${missing} experience.`;
   }
+  if (categories.includes("clearance_required")) {
+    return "This role requires an active government security clearance (e.g. TS/SCI).";
+  }
   if (categories.includes("integration_platform")) {
     return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
   }

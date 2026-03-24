@@ -8,11 +8,13 @@ import { evaluateWorkMode, detectExecutionEvidenceGap } from "./work_mode";
 import {
   CHRIS,
   MARCUS,
+  FABIO,
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
   SYSTEMS_PRODUCT_JOB,
   INSIDE_SALES_JOB,
   ZOOMINFO_PSE_JOB,
+  DOD_CYBERSECURITY_LEAD_JOB,
 } from "./__fixtures__/work_mode_fixtures";
 
 // Mirror the gap line builder from the fit route for testability
@@ -24,6 +26,9 @@ function buildExecutionEvidenceGapLine(
   const missing = missingEvidence[0];
   if (categories.includes("domain_locked")) {
     return `This role requires hands-on ${missing} experience.`;
+  }
+  if (categories.includes("clearance_required")) {
+    return "This role requires an active government security clearance (e.g. TS/SCI).";
   }
   if (categories.includes("integration_platform")) {
     return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
@@ -140,6 +145,36 @@ describe("Execution evidence gap line — sidecard payload", () => {
 
     expect(hrc.execution_evidence_gap).not.toBeNull();
     expect(hrc.execution_evidence_gap).toContain("integration platform");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail ON: Fabio × DoD Cybersecurity Lead (clearance_required) ──
+
+  it("Fabio × DoD Cybersecurity Lead → clearance_required triggered, postScore <= 7.0", () => {
+    const wm = evaluateWorkMode(
+      9.4,
+      FABIO.resumeText,
+      FABIO.promptAnswers,
+      DOD_CYBERSECURITY_LEAD_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("clearance_required");
+    expect(wm.postScore).toBeLessThanOrEqual(7.0);
+  });
+
+  it("Fabio × DoD Cybersecurity Lead → gap line present with clearance copy", () => {
+    const wm = evaluateWorkMode(
+      9.4,
+      FABIO.resumeText,
+      FABIO.promptAnswers,
+      DOD_CYBERSECURITY_LEAD_JOB.text,
+    );
+    const hrc = buildHrcPayload("Unlikely", "Missing TS/SCI", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("clearance");
     expect(typeof hrc.execution_evidence_gap).toBe("string");
     expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
   });
