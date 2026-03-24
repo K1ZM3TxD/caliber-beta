@@ -13,9 +13,10 @@
   - **Symptom:** Some card elements have near-threshold contrast on bright screens.
   - **Status:** Known non-blocking. Flagged for post-stabilization polish pass.
 
-102. Score band labels render verification — **OPEN**
+102. Score band labels render verification — **CLOSED** (2026-03-24)
   - **Symptom:** Six-band label system (Excellent Match through Poor Fit) not yet validated across all score ranges in live extension.
-  - **Status:** Completion criterion still open in milestones.md.
+  - **Resolution:** Static inspection of `extension/content_linkedin.js` `getDecision()` function (line ~2923) confirms all six bands present with correct labels and thresholds: Excellent Match (≥9.0), Very Strong Match (≥8.0), Strong Partial Match (≥7.0), Viable Stretch (≥6.0), Adjacent Background (≥5.0), Poor Fit (<5.0). Boundary values at 5.0, 6.0, 7.0, 8.0, 9.0 all correctly handled by sequential `if (score >= N)` guards — no gaps or overlaps. Execution-evidence gate validation harness (`analysis/execution_evidence_gate_validation.js`) exercised boundary scores at 5.0, 6.5, 7.0, 7.5 and confirmed cap at 7.0 does not break label logic.
+  - **Validated:** 2026-03-24 as part of Scoring Gate And Extension Go Or No-Go task brief.
 
 104. Prompt input dock — fixed-bottom textarea on PROMPT steps — **FIX SHIPPED** (2026-03-23)
   - **Symptom:** Typewriter question text pushed the textarea down during character reveal, causing visual jitter and positional instability on prompt steps.
