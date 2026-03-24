@@ -794,6 +794,22 @@ const DOMAIN_LOCKED_ECOSYSTEMS: EcosystemDef[] = [
     evidencePattern: /\b(Dynamics\s*365|D365|Microsoft\s+Dynamics)\b/i,
     threshold: 4,
   },
+  {
+    name: "cryptocurrency/blockchain",
+    jobPatterns: [
+      { pattern: /\bcryptocurrency\s+platform/i, weight: 3, label: "cryptocurrency platforms" },
+      { pattern: /\bblockchain\s+security\b/i, weight: 3, label: "blockchain security" },
+      { pattern: /\bdigital\s+asset\s+secur/i, weight: 2, label: "digital asset security" },
+      { pattern: /\bblockchain\b/i, weight: 2, label: "blockchain" },
+      { pattern: /\bweb3\b/i, weight: 2, label: "web3" },
+      { pattern: /\bsmart\s+contract\b/i, weight: 2, label: "smart contract" },
+      { pattern: /\bDeFi\b/i, weight: 2, label: "DeFi" },
+      { pattern: /\bcrypto\s+exchange\b/i, weight: 2, label: "crypto exchange" },
+    ],
+    // Evidence must cite blockchain/web3 domain work — generic "cryptography" or "CryptoHack" (classical crypto puzzles) intentionally excluded.
+    evidencePattern: /\b(blockchain|web3|DeFi|smart\s+contract|cryptocurrency\s+platform|crypto\s+exchange|on[- ]chain|token\s+audit)\b/i,
+    threshold: 4,
+  },
 ];
 
 // ─── Stack/Tool Execution Detection ─────────────────────────

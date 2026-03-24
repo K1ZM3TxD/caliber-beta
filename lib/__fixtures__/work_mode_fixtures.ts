@@ -567,6 +567,27 @@ export const DOD_CYBERSECURITY_LEAD_JOB: JobFixture = {
 
 // ─── analytical_investigative ───────────────────────────────
 
+export const MAXX_INTEGRATION_CRYPTO_JOB: JobFixture = {
+  name: "Maxx Integration Crypto Cybersecurity Specialist",
+  expectedMode: "analytical_investigative",
+  text:
+    "Crypto-Focused Cybersecurity Specialist — Maxx Integration\n" +
+    "Maxx Integration specializes in creating secure and reliable solutions for emerging technologies,\n" +
+    "including cryptocurrency. We are committed to helping businesses navigate the complex landscape\n" +
+    "of digital assets and technology.\n" +
+    "Role Description:\n" +
+    "This is a part-time, remote role for a Crypto-Focused Cybersecurity Specialist. The specialist\n" +
+    "will be responsible for securing applications, networks, and information systems within the\n" +
+    "cryptocurrency space. Day-to-day tasks include conducting vulnerability assessments, implementing\n" +
+    "security measures, and monitoring systems for potential threats within cryptocurrency platforms.\n" +
+    "Qualifications:\n" +
+    "- Strong expertise in Cybersecurity and Information Security principles\n" +
+    "- Experience with evaluating and implementing advanced Cybersecurity measures for cryptocurrency platforms\n" +
+    "- Hands-on knowledge of vulnerability assessments and threat analysis\n" +
+    "- Relevant certifications (e.g., CISSP, CEH, CISA) are a plus\n" +
+    "- Familiarity with blockchain and cryptocurrency security challenges is highly desirable",
+};
+
 export const SECURITY_ANALYST_JOB: JobFixture = {
   name: "Cybersecurity Analyst",
   expectedMode: "analytical_investigative",
@@ -1014,6 +1035,7 @@ export const ALL_JOBS = [
   SENIOR_PYTHON_DEVELOPER_JOB,
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
+  MAXX_INTEGRATION_CRYPTO_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
@@ -1021,6 +1043,7 @@ export const EXECUTION_EVIDENCE_JOBS = [
   SENIOR_PYTHON_DEVELOPER_JOB,
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
+  MAXX_INTEGRATION_CRYPTO_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

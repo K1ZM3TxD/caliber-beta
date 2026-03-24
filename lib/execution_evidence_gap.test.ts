@@ -15,6 +15,7 @@ import {
   INSIDE_SALES_JOB,
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
+  MAXX_INTEGRATION_CRYPTO_JOB,
 } from "./__fixtures__/work_mode_fixtures";
 
 // Mirror the gap line builder from the fit route for testability
@@ -145,6 +146,36 @@ describe("Execution evidence gap line — sidecard payload", () => {
 
     expect(hrc.execution_evidence_gap).not.toBeNull();
     expect(hrc.execution_evidence_gap).toContain("integration platform");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail ON: Fabio × Maxx Integration Crypto (domain_locked: crypto/blockchain) ──
+
+  it("Fabio × Maxx Crypto → domain_locked triggered, postScore <= 7.0", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      FABIO.resumeText,
+      FABIO.promptAnswers,
+      MAXX_INTEGRATION_CRYPTO_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("domain_locked");
+    expect(wm.postScore).toBeLessThanOrEqual(7.0);
+  });
+
+  it("Fabio × Maxx Crypto → gap line present with cryptocurrency/blockchain copy", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      FABIO.resumeText,
+      FABIO.promptAnswers,
+      MAXX_INTEGRATION_CRYPTO_JOB.text,
+    );
+    const hrc = buildHrcPayload("Possible", "Some reason", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("cryptocurrency/blockchain");
     expect(typeof hrc.execution_evidence_gap).toBe("string");
     expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
   });
