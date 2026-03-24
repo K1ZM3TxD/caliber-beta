@@ -130,7 +130,8 @@ export async function generateTailoredResume(
 - STRONG match (score >= 7.0): Be assertive in elevating and foregrounding relevant evidence. Sharpen language, prioritize matching bullets, rewrite the summary to lead with the strongest fit — but ONLY using what's in the resume. Still blocked from fabrication.
 
 ## FORMATTING RULES (ATS and recruiter compliance):
-- Section headings: use ONLY these exact names in ALL CAPS — PROFESSIONAL SUMMARY, WORK EXPERIENCE, SKILLS, EDUCATION, CERTIFICATIONS, ADDITIONAL
+- Section headings: use ONLY these exact names in ALL CAPS — PROFESSIONAL SUMMARY, WORK EXPERIENCE, PROJECTS, SELECTED PROJECTS, SKILLS, EDUCATION, CERTIFICATIONS, ADDITIONAL
+- If the original resume contains a PROJECTS or SELECTED PROJECTS section, preserve it as a distinct named section (do NOT fold it into ADDITIONAL). For roles requiring technical credibility (e.g. pre-sales, solution engineer, platform, product), elevate PROJECTS / SELECTED PROJECTS to appear immediately after WORK EXPERIENCE
 - Bullet characters: use ONLY plain hyphens (-). Never use •, ▪, ►, ●, ★, or any Unicode bullet character
 - Layout: single-column plain text only. No tables, no columns, no horizontal rules, no decorative separators
 - Dates: use "Month YYYY – Month YYYY" or "Month YYYY – Present" format consistently
