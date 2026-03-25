@@ -3,6 +3,16 @@
 
 ## Current Open Issues
 
+108. LinkedIn search-page unresponsiveness during dense extension scoring run — **OPEN** (2026-03-25)
+  - **Symptom:** LinkedIn jobs search page became unresponsive / Chrome showed "Wait / Exit Page" dialog during a Jen surface experiment rerun on a dense surface (`strategy and operations manager`, ~75 cards). The rerun could not be completed.
+  - **Conditions of occurrence:** Jen fixture, signals ON, chips skipped, dense search result surface. User environment included hotspot latency and possible thermal pressure — exact contribution of environment vs extension is uncertain.
+  - **Root cause (identified, fix shipped):** `logSurfaceValidationState()` called `getBoundingClientRect()` on every DOM card in a loop — a layout-reflow-forcing read — inside a `MutationObserver` callback (`hydrationObserver`). On a 75-card surface with multiple DOM expansion events, this produced N forced main-thread layout reflows per callback, which can block the main thread for seconds.
+  - **Secondary issue (fixed):** The `badgeInjecting` guard in `badgeListObserver` was structurally bypassed — MutationObserver callbacks are async microtasks, so the flag was always `false` by the time the callback fired. Every badge write triggered an unnecessary `restoreBadgesFromCache + scanAndBadgeVisibleCards` rescan.
+  - **Fix shipped:** Commit `ce204b1` — removed `getBoundingClientRect()` loop from `logSurfaceValidationState`; replaced `badgeInjecting` flag check with mutation-record inspection in `badgeListObserver`.
+  - **Uncertainty remaining:** It is not confirmed whether the stability fix fully resolves the unresponsiveness under all conditions (e.g., slow machine + hotspot). The environment may have amplified the issue. The Jen rerun should be re-attempted under stable machine conditions before drawing further conclusions.
+  - **Status:** Fix shipped, outcome unverified. Rerun required to confirm resolution.
+  - **Required action:** Re-run Jen surface experiment after confirming extension behavior is stable on a dense surface (no page unresponsive dialog) with the patched build.
+
 107. Vercel production branch alignment — **OPEN** (2026-03-25)
   - **Symptom:** No `vercel.json` or `.vercel/` config in the repo. Vercel production branch setting cannot be read from the codebase — it must be verified manually in the Vercel dashboard.
   - **Current git state (verified 2026-03-25):**

@@ -79,6 +79,47 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+---
+
+### BREAK+UPDATE — 2026-03-25 — Telemetry Observability Expansion + Jen Rerun Blocked
+
+**What changed:**
+- Telemetry is now experiment-ready: `searchQuery` and `positionIndex` fields added to `job_score_rendered` emit path; `caliberExperimentMeta` tagging added via `background.js`; `FeedbackEvent` linked to surface/session/job via `surfaceKey`, `jobUrl`, `sessionId`; `job_opened` includes `badgeScore`; `pipeline_save` persists `trigger` and `searchQuery`.
+- Per-surface telemetry dedup bug fixed: `telemetryEmittedIds` changed from `Set<jobId>` to `Map<surfaceKey, Set<jobId>>` — prevents cross-surface dedup suppression during search-surface experiments.
+- First Jen surface experiment completed (Run 1, session `sess_b412c36f2e242_19d25dc5622::signal_on`). Three surfaces compared; directional product signal established.
+- Jen surface experiment **rerun was attempted** with the revised query set (including `strategy and operations manager`), signals ON, chips skipped. The rerun **could not be completed** — LinkedIn search page became unresponsive during live scoring on a dense surface. Chrome showed a "Wait / Exit Page" dialog.
+- Extension stability investigation conducted: root cause identified as `getBoundingClientRect()` loop inside a MutationObserver callback (`logSurfaceValidationState` → `hydrationObserver`). Fix shipped: reflow loop removed, badge observer guard corrected (commit `ce204b1`).
+
+**DONE:**
+- ✅ Telemetry observability expansion — all required fields in place for controlled surface experiments
+- ✅ Per-surface dedup fix (`telemetryEmittedIds` → `Map<surfaceKey, Set<jobId>>`)
+- ✅ First Jen surface experiment — usable directional insights from 3 surfaces
+- ✅ Extension stability investigation + minimal patch (forced-layout reflow removed from observer callback)
+
+**PAUSED / BLOCKED:**
+- ⏸ Jen surface experiment rerun — incomplete. Attempted with Jen fixture, signals ON, chips skipped, revised query set (`strategy and operations manager`, `chief of staff operations`, `gtm strategy operations`). Blocked by LinkedIn page unresponsiveness during dense scoring. Stability patch shipped but rerun not yet re-attempted.
+
+**Next unblock step:**
+1. Verify extension stability on a dense surface with the patched build (commit `ce204b1`)
+2. Confirm no Chrome "page unresponsive" dialog with 75+ cards scoring under normal machine conditions
+3. Re-run the Jen experiment when environment conditions are stable (good machine, single tab, no hotspot)
+
+**Why this matters:**
+- The rerun is required to validate whether per-surface dedup fix changes the job count / score distribution
+- The first run's infra gap (global dedup) means its cross-surface comparison is directional only — not yet definitive
+- No scoring model or product behavior changes are blocked; the experiment is a PM-side analysis task
+
+**Risk / fallout:**
+- The extension stability fix removes `visibleCards` from `logSurfaceValidationState` snapshot (logging-only field, no behavioral impact)
+- Badge observer guard is now mutation-record-based instead of flag-based — more accurate, not less restrictive
+- No regression expected; scoring correctness and telemetry correctness are fully preserved
+
+**Smallest observable proof:**
+- Load extension on a LinkedIn search page with 50+ cards, scroll through all; Chrome must not show page unresponsive dialog
+- `job_score_rendered` events in Neon must count correctly per-surface (not undercount) in the rerun
+
+**Files touched:** `extension/content_linkedin.js`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ISSUES_LOG.md`
+
 ### 2026-03-25 — PM Session Pack Consolidation + Workflow Truth Reset (DOCS_ONLY)
 
 **What changed:**

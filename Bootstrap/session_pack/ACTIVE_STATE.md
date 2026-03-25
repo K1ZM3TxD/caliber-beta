@@ -300,7 +300,7 @@ Do not re-sequence without new blocking evidence.
 - #15 Bottom line paragraph repetition (OPEN)
 
 ## Next PM Decision Needed
-1. **Sign-in / memory implementation** — decide auth approach (NextAuth, simple token, etc.) for durable pipeline and calibration persistence. This is beta gate 4.
+1. **Jen surface experiment rerun — BLOCKED** — Rerun was attempted (Jen fixture, signals ON, chips skipped, revised query set: `strategy and operations manager`, `chief of staff operations`, `gtm strategy operations`) and could not be completed. LinkedIn page became unresponsive during dense scoring. Extension stability fix shipped (commit `ce204b1`). **Next action:** verify extension runs cleanly on a dense surface under stable machine conditions, then re-run the experiment.
 2. **Beta gate validation** — run end-to-end flow validating all five gates before declaring beta.
 3. **Auto-save threshold** — confirm score >= 8.5 as the auto-save threshold for pipeline entry (enhancement, not gate).
 4. **Shared shell framework** — deferred; decide after beta gates are met.
@@ -340,4 +340,4 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-21 (SMF post-beta initiative documented)_
+_Last updated: 2026-03-25 (Jen rerun blocked; extension stability fix shipped; telemetry observability complete)_
