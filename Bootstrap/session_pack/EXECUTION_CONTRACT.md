@@ -97,6 +97,42 @@ REQUIREMENTS:
 - Regression/unit tests pass
 ```
 
+## Production Branch Promotion Protocol
+
+**Intended model:**
+- Vercel production (`https://www.caliber-app.com`) auto-deploys from `stable` branch.
+- Vercel preview deploys from `main` branch.
+- Every push to `main` is NOT automatically live for outside users.
+
+**Verified git state (2026-03-25):**
+- `origin/stable` = `04cecd3` (2026-03-24 21:55 UTC)
+- `origin/main` = `e0d0af5` (2026-03-25) — 6 commits ahead of `origin/stable`
+- No `vercel.json` in repo — Vercel configuration is dashboard-only.
+
+**Required manual operator action (one-time, pre-beta):**
+1. Log into the Vercel dashboard at `vercel.com`.
+2. Navigate to the `caliber-beta` project settings → Git → Production Branch.
+3. Confirm the production branch is set to `stable`. If it shows `main`, change it to `stable` and save.
+4. After confirming or correcting the setting, verify that the build at `https://www.caliber-app.com` reflects the `stable` branch.
+
+**Promotion procedure (run when PM declares beta-ready):**
+```bash
+git checkout stable
+git pull origin stable
+git merge --ff-only origin/main   # only valid when main is a clean fast-forward from stable
+git push origin stable
+```
+> If `--ff-only` fails (diverged histories), stop and escalate to PM before proceeding.
+
+**Current pending promotion items (as of 2026-03-25):**
+- `c7bf6e3` fix: restore calibration complete page CTA order
+- `3bdcfd3` revert: remove Score Breakdown debug panel from ScoreClient
+- 4 docs-only session-pack cleanup commits
+
+See issue #107 in `ISSUES_LOG.md` for full tracking.
+
+---
+
 ## Production Stability Rule (2026-03-08)
 
 Production stability comes first. Feature expansion is blocked until stable beta is intentionally frozen and scoring credibility issues are resolved.

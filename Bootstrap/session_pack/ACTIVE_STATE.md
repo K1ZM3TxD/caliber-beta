@@ -11,6 +11,12 @@ SSI subsystems: Signal Gap Detection (SGD), Surface Quality Banner, Better Searc
 
 Beta remains defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Desktop Stabilization must complete before beta gates are evaluated. Production deploys from `stable` branch; development on `main`.
 
+**Production Deployment Status (2026-03-25):**
+- `origin/stable` = `04cecd3` (2026-03-24 21:55 UTC) — last intentional production push. Contains all beta gate work up through "feat: add landing page, /score web scoring interface, wire CTAs".
+- `origin/main` is 6 commits ahead of `origin/stable`: 2 code fixes (`c7bf6e3` restore CTA order, `3bdcfd3` revert Score Breakdown panel) + 4 docs-only.
+- **Vercel production branch must be verified manually** — no `vercel.json` in repo; dashboard setting cannot be read from code.
+- **Required before beta launch:** Operator must (1) confirm Vercel production branch = `stable` in the Vercel dashboard, (2) promote `main` → `stable` when PM declares beta-ready. See issue #107 and EXECUTION_CONTRACT.md → Production Branch Promotion Protocol.
+
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
 **Extension Build Host Rule (2026-03-16):** Production extension source (`extension/`) is locked to `https://www.caliber-app.com`. No localhost references in env.js, manifest.json, or runtime code. Localhost is only allowed for explicitly declared dev builds. Violation = regression. See `CALIBER_EXECUTION_CONTRACT.md`.

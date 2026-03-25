@@ -3,6 +3,22 @@
 
 ## Current Open Issues
 
+107. Vercel production branch alignment — **OPEN** (2026-03-25)
+  - **Symptom:** No `vercel.json` or `.vercel/` config in the repo. Vercel production branch setting cannot be read from the codebase — it must be verified manually in the Vercel dashboard.
+  - **Current git state (verified 2026-03-25):**
+    - `origin/stable` = `04cecd3` — last intentional stable push (2026-03-24 21:55 UTC) — "feat: add landing page, /score web scoring interface, wire CTAs"
+    - `origin/main` = `e0d0af5` — 6 commits ahead of `origin/stable`
+    - Commits in `main` NOT yet in `stable`: `c7bf6e3` (fix: restore calibration CTA order), `3bdcfd3` (revert: remove Score Breakdown debug panel) + 4 docs-only
+  - **Intended model:** Vercel production (`caliber-app.com`) deploys from `stable`; preview deploys from `main`.
+  - **Required operator actions (manual — cannot be done from repo):**
+    1. Log into Vercel dashboard → confirm production branch is `stable` (not `main`).
+    2. If it is set to `main`, change it to `stable` before beta launch.
+    3. After all beta gates pass and PM declares readiness, promote `main` → `stable` to include the 2 pending code fixes:
+       - `c7bf6e3` fix: restore calibration complete page CTA order
+       - `3bdcfd3` revert: remove Score Breakdown debug panel
+    4. Run: `git checkout stable && git merge --ff-only origin/main && git push origin stable`
+  - **Status:** Blocked on operator verification of Vercel dashboard. No code changes required.
+
 106. PM reload drift from oversized repo + stale workflow docs — **RESOLVED** (2026-03-25)
   - **Symptom:** PM sessions picking up stale context: obsolete Claude-agent workflow instructions, `ENVIRONMENT_SPLIT.md` references (old build-script model), "Cloud agent policy" wording, no single canonical reload path.
   - **Resolution:** Created `Bootstrap/session_pack/` with single canonical loader. Stale workflow/env refs removed. `ENVIRONMENT_SPLIT.md` → superseded stub. Canonical workflow: ChatGPT = PM, Claude = builder.
