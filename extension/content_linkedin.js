@@ -765,7 +765,7 @@
   var JOB_ID_ATTR = "data-caliber-job-id";
   var BADGE_STYLE_ID = "caliber-badge-css";
   var badgeScoredIds = new Set();        // job IDs already scored or in-flight
-  var telemetryEmittedIds = new Set();   // job IDs with job_score_rendered already emitted (dedupe)
+  var telemetryEmittedIds = new Map();   // surfaceKey → Set<jobId>; per-surface dedup for job_score_rendered
   var badgeScoreCache = {};              // jobId → { score, calibrationTitle, nearbyRoles, scoreSource }
   var badgeCacheSurface = "";            // surface key the cache belongs to
   var badgeScrollAttached = false;
@@ -1360,10 +1360,14 @@
             initialSurfaceResolved ? "scroll" : "initial"
           );
           // Telemetry: badge score rendered on card (dedupe — one per job per surface)
-          if (entry.id && telemetryEmittedIds.has(entry.id)) {
-            console.debug("[Caliber][telemetry][dedupe] skipped duplicate job_score_rendered for " + entry.id);
+          var _tSurface = getSearchSurfaceKey();
+          if (entry.id && telemetryEmittedIds.get(_tSurface) && telemetryEmittedIds.get(_tSurface).has(entry.id)) {
+            console.debug("[Caliber][telemetry][dedupe] skipped duplicate job_score_rendered for " + entry.id + " on surface " + _tSurface);
           } else {
-            if (entry.id) telemetryEmittedIds.add(entry.id);
+            if (entry.id) {
+              if (!telemetryEmittedIds.has(_tSurface)) telemetryEmittedIds.set(_tSurface, new Set());
+              telemetryEmittedIds.get(_tSurface).add(entry.id);
+            }
             emitTelemetry("job_score_rendered", {
               surfaceKey: getSearchSurfaceKey(),
               jobId: entry.id || null,
