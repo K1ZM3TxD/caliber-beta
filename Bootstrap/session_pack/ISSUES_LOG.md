@@ -4,9 +4,8 @@
 ## Current Open Issues
 
 106. PM reload drift from oversized repo + stale workflow docs — **RESOLVED** (2026-03-25)
-  - **Symptom:** PM sessions starting from `CALIBER_SYSTEM.md` or `PM_bootstrap.md` picked up too much stale context: obsolete Claude-agent / planner-implementer workflow instructions, references to `ENVIRONMENT_SPLIT.md` (old build-script model), "Cloud agent policy" wording, and no single guaranteed reload path.
-  - **Root cause:** Source-of-truth spread across ~8 files with no canonical loader. Two files (`ENVIRONMENT_SPLIT.md`, EXECUTION_CONTRACT's "Cloud agent policy") encoded operating assumptions that were superseded 6+ weeks ago.
-  - **Resolution:** Created `Bootstrap/session_pack/` with single canonical loader (`CALIBER_LOADER.md`). Removed stale workflow framing; canonicalized two-role model (ChatGPT = PM, Claude = builder) and two-branch release model (main/stable) across all session-pack files. `CALIBER_SYSTEM.md` and `Bootstrap/PM_bootstrap.md` converted to redirect stubs. `ENVIRONMENT_SPLIT.md` converted to superseded stub.
+  - **Symptom:** PM sessions picking up stale context: obsolete Claude-agent workflow instructions, `ENVIRONMENT_SPLIT.md` references (old build-script model), "Cloud agent policy" wording, no single canonical reload path.
+  - **Resolution:** Created `Bootstrap/session_pack/` with single canonical loader. Stale workflow/env refs removed. `ENVIRONMENT_SPLIT.md` → superseded stub. Canonical workflow: ChatGPT = PM, Claude = builder.
   - **Files:** `Bootstrap/session_pack/` (9 files), `CALIBER_SYSTEM.md`, `Bootstrap/PM_bootstrap.md`, `ENVIRONMENT_SPLIT.md`, `Bootstrap/CALIBER_EXECUTION_CONTRACT.md`
 
 105. DOCX export TS BodyInit type incompatibility — **FIX SHIPPED** (2026-03-24)

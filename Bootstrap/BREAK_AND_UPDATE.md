@@ -79,6 +79,79 @@ When the change lands, report:
 
 ## Recent BREAK+UPDATE Log (newest first)
 
+### 2026-03-25 — PM Session Pack Consolidation + Workflow Truth Reset (DOCS_ONLY)
+
+**What changed:**
+
+1. **Session pack created.** New `Bootstrap/session_pack/` folder contains all PM reload docs as a single authoritative bundle: `CALIBER_LOADER.md` (entry point), `ACTIVE_STATE.md`, `ISSUES_LOG.md`, `EXECUTION_CONTRACT.md`, `KERNEL.md`, `PROJECT_OVERVIEW.md`, `PM_BOOTSTRAP.md`, `CONTEXT_SUMMARY.md` (conditional), and `README.md`.
+
+2. **Single canonical loader established.** `Bootstrap/session_pack/CALIBER_LOADER.md` is the one file to load for new PM chats. It defines the trigger conditions, load order, source-of-truth hierarchy, workflow roles, and release model.
+
+3. **Root-level compatibility stubs.** `CALIBER_SYSTEM.md` (repo root) and `Bootstrap/PM_bootstrap.md` converted to thin redirect stubs pointing to the session pack. Trigger phrases preserved for backward compatibility.
+
+4. **Workflow truth corrected.** Removed "Claude agents / planner-implementer" framing from active PM docs. Replaced with canonical two-role model:
+   - ChatGPT = PM / planning agent
+   - Claude (Codespaces) = builder / implementation agent
+
+5. **Release model canonicalized.** All session-pack files now state only the current two-branch release model: `main` = development/preview (Vercel preview deploys), `stable` = production (Vercel auto-deploys to caliber-app.com). Promotion: validate on `main` → merge/fast-forward to `stable`.
+
+6. **`ENVIRONMENT_SPLIT.md` superseded.** Converted to a short stub. Content described the old `dist/extension-prod/` + `dist/extension-dev/` build-script model (2026-03-08) which is no longer the operating model. Extension host rules (still active) are canonically in `EXECUTION_CONTRACT.md`.
+
+7. **"Cloud agent policy" wording removed.** `CALIBER_EXECUTION_CONTRACT.md` and session-pack copy updated: "Cloud agent policy / Local mode / cloud agent runs" → "Builder policy (Claude in Codespaces)".
+
+**Why it changed:**
+- PM reloads were drifting because the source-of-truth was spread across too many files, many of which encoded obsolete operating assumptions (Claude agents, old env-split model, planner-implementer loops).
+- A single deterministic loader file with explicit load order eliminates reload ambiguity.
+- The Claude-agent / `pm-planner` / `implementer` agent workflow is not how work is done — ChatGPT writes task briefs; Claude in Codespaces executes them.
+- `ENVIRONMENT_SPLIT.md` described a build model that was superseded by the two-branch release model documented in CALIBER_CONTEXT_SUMMARY.md on 2026-03-14.
+
+**What is now expected:**
+- New PM chat: load `Bootstrap/session_pack/CALIBER_LOADER.md` (one file, one URL).
+- That loader specifies exact load order. No repo scanning needed.
+- All active PM docs reflect two-role workflow and two-branch release model.
+- `ENVIRONMENT_SPLIT.md` is a stub. Extension host rules live in `EXECUTION_CONTRACT.md`.
+
+**What is no longer expected:**
+- Loading `CALIBER_SYSTEM.md` or `Bootstrap/PM_bootstrap.md` directly — those are stubs now.
+- Claude-agent / planner / implementer workflow instructions are not authoritative.
+- `ENVIRONMENT_SPLIT.md` is not a canonical document.
+- "Cloud agent policy / Local mode" wording in execution contract.
+
+**Risk / fallout:**
+- Backward-compatible: trigger phrases still work (they redirect to session pack).
+- Session-pack files are point-in-time copies — need to be kept in sync when source docs are updated significantly. This is an accepted maintenance trade-off.
+- `.claude/agents/` directory still exists (CLAUDE.md references it). That file and those agent definitions are for Claude Code's local `/plan` and `/build` slash commands — they are not PM-session docs and are out of scope for this change.
+
+**Proof:**
+- `Bootstrap/session_pack/` exists with 9 files.
+- `Bootstrap/session_pack/CALIBER_LOADER.md` contains trigger conditions, full load order, workflow roles table, and release model.
+- `ENVIRONMENT_SPLIT.md` opens with `# ENVIRONMENT_SPLIT.md — SUPERSEDED`.
+- `CALIBER_SYSTEM.md` opens with `# CALIBER_SYSTEM.md — Compatibility Stub`.
+- `Bootstrap/PM_bootstrap.md` opens with `# PM_BOOTSTRAP.md — Redirect Stub`.
+- No `ENVIRONMENT_SPLIT.md` references remain in active session-pack docs.
+
+**Files changed (DOCS_ONLY):**
+
+scope.doc_files:
+- `Bootstrap/session_pack/CALIBER_LOADER.md` — new canonical loader
+- `Bootstrap/session_pack/README.md` — new-chat instructions, workflow roles, release model
+- `Bootstrap/session_pack/ACTIVE_STATE.md` — copied from CALIBER_ACTIVE_STATE.md
+- `Bootstrap/session_pack/ISSUES_LOG.md` — copied from CALIBER_ISSUES_LOG.md
+- `Bootstrap/session_pack/EXECUTION_CONTRACT.md` — copied + ENVIRONMENT_SPLIT ref removed + Cloud agent → Builder policy
+- `Bootstrap/session_pack/KERNEL.md` — copied from kernel.md
+- `Bootstrap/session_pack/PROJECT_OVERVIEW.md` — copied from PROJECT_OVERVIEW.md
+- `Bootstrap/session_pack/PM_BOOTSTRAP.md` — copied + ENVIRONMENT_SPLIT ref removed
+- `Bootstrap/session_pack/CONTEXT_SUMMARY.md` — copied from CALIBER_CONTEXT_SUMMARY.md
+- `CALIBER_SYSTEM.md` — converted to compatibility stub
+- `Bootstrap/PM_bootstrap.md` — converted to redirect stub
+- `Bootstrap/CALIBER_EXECUTION_CONTRACT.md` — Cloud agent policy → Builder policy; ENVIRONMENT_SPLIT ref removed
+- `ENVIRONMENT_SPLIT.md` — converted to superseded stub
+- `Bootstrap/BREAK_AND_UPDATE.md` — this entry
+- `Bootstrap/milestones.md` — dated entry added
+- `Bootstrap/CALIBER_ISSUES_LOG.md` — issue #106 added (RESOLVED)
+
+---
+
 ### 2026-03-23 — System Stabilization + UX Polish + Auth Hardening (v0.9.27)
 
 **What changed:**
