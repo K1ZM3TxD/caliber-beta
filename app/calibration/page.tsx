@@ -363,6 +363,7 @@ export default function CalibrationPage() {
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
   const [promptTransitioning, setPromptTransitioning] = useState(false);
   const submitLockRef = useRef(false);
+  const resumeSubmitLockRef = useRef(false);
   function openFilePicker() { fileInputRef.current?.click(); }
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) { setSelectedFile(e.target.files?.[0] ?? null); }
   async function begin() {
@@ -375,9 +376,11 @@ export default function CalibrationPage() {
     finally { setBusy(false); }
   }
   async function submitResume() {
+    if (resumeSubmitLockRef.current) return;
     if (!selectedFile) return;
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) { setError("Missing sessionId (session not created). Click Begin Calibration again."); return; }
+    resumeSubmitLockRef.current = true;
     setError(null); setBusy(true); setResumeUploading(true);
     try {
       const s = await uploadResume(sessionId, selectedFile);
@@ -395,6 +398,7 @@ export default function CalibrationPage() {
       // Do NOT clear selectedFile; user can retry or pick another file
     } finally {
       setBusy(false); setResumeUploading(false);
+      resumeSubmitLockRef.current = false;
     }
   }
   async function submitAnswer() {
@@ -912,6 +916,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative"
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (busy) return;
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) setSelectedFile(file);
                       }}
                     >
                       <input

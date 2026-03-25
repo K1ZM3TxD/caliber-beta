@@ -1371,6 +1371,10 @@
               score: badgeScore,
               scoreSource: "card_text_prescan",
               rawScore: rawBadgeScore !== badgeScore ? rawBadgeScore : undefined,
+              meta: {
+                searchQuery: getSearchKeywords(),
+                positionIndex: typeof entry.positionIndex === "number" ? entry.positionIndex : null,
+              },
             });
           }
         } else {
@@ -3893,6 +3897,7 @@
         jobUrl: location.href,
         score: score,
         scoreSource: "sidecard_full",
+        meta: { searchQuery: getSearchKeywords() },
       });
     }
 
@@ -4297,7 +4302,7 @@
           // Clear stale badges from previous surface
           clearAllBadges();
           // Telemetry: new search surface
-          emitTelemetry("search_surface_opened", { surfaceKey: currentKey });
+          emitTelemetry("search_surface_opened", { surfaceKey: currentKey, meta: { searchQuery: getSearchKeywords() } });
           console.debug("[Caliber] search surface changed, reset rolling window + session signals + prescan + persisted history + badges");
           // Re-trigger prescan for the new search surface
           setTimeout(function () { runSearchPrescan(); }, 3000);
@@ -4391,7 +4396,7 @@
     }
     // Emit search_surface_opened on activation if on a search page
     if (isSearchResultsPage()) {
-      emitTelemetry("search_surface_opened", { surfaceKey: getSearchSurfaceKey() });
+      emitTelemetry("search_surface_opened", { surfaceKey: getSearchSurfaceKey(), meta: { searchQuery: getSearchKeywords() } });
     }
     // Trigger pre-scan of visible job cards on search results pages
     // Badge scoring handles both badges AND BST prescan evaluation
