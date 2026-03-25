@@ -812,13 +812,6 @@
     }
     var totalCards = allCardEls.length;
 
-    // Count visible cards (in viewport or near it)
-    var visibleCards = 0;
-    for (var v = 0; v < allCardEls.length; v++) {
-      var rect = allCardEls[v].getBoundingClientRect();
-      if (rect.top < window.innerHeight + 200 && rect.bottom > -200) visibleCards++;
-    }
-
     // Count scored cards from cache
     var cacheUrls = Object.keys(badgeScoreCache);
     var scoredCount = cacheUrls.length;
@@ -836,7 +829,6 @@
       surfaceKey: getSearchSurfaceKey(),
       query: getSearchKeywords(),
       totalCardsInDOM: totalCards,
-      visibleCards: visibleCards,
       scoredCards: scoredCount,
       jobsGte7: countGte7,
       maxScore: maxScoreOnSurface,
@@ -2203,9 +2195,19 @@
       console.debug("[Caliber][badges] no results list container found for observer");
       return;
     }
-    badgeListObserver = new MutationObserver(function () {
-      // Skip mutations caused by our own badge injection
-      if (badgeInjecting) return;
+    badgeListObserver = new MutationObserver(function (mutations) {
+      // Skip if every mutation record is our own badge injection/replacement.
+      // The badgeInjecting flag is reset synchronously before the observer fires
+      // (callbacks are async microtasks), so a flag check is ineffective here.
+      // Instead, inspect the mutation records: badge nodes carry BADGE_ATTR.
+      var allOwnBadge = mutations.length > 0 && mutations.every(function (m) {
+        var touched = Array.prototype.slice.call(m.addedNodes)
+          .concat(Array.prototype.slice.call(m.removedNodes));
+        return touched.length > 0 && touched.every(function (n) {
+          return n.nodeType !== 1 || (n.getAttribute && n.getAttribute(BADGE_ATTR) != null);
+        });
+      });
+      if (allOwnBadge) return;
       clearTimeout(badgeObserverDebounce);
       badgeObserverDebounce = setTimeout(function () {
         console.debug("[Caliber][diag][detect] observer-triggered rescan");
