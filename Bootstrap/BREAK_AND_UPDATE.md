@@ -83,7 +83,7 @@ When the change lands, report:
 
 **What changed:**
 
-1. **Session pack created.** New `Bootstrap/session_pack/` folder contains all PM reload docs as a single authoritative bundle: `CALIBER_LOADER.md` (entry point), `ACTIVE_STATE.md`, `ISSUES_LOG.md`, `EXECUTION_CONTRACT.md`, `KERNEL.md`, `PROJECT_OVERVIEW.md`, `PM_BOOTSTRAP.md`, `CONTEXT_SUMMARY.md` (conditional), and `README.md`.
+1. **Session pack created.** New `Bootstrap/session_pack/` folder contains all PM reload docs as a single authoritative bundle: `Bootstrap/session_pack/CALIBER_LOADER.md` (entry point), `ACTIVE_STATE.md`, `ISSUES_LOG.md`, `EXECUTION_CONTRACT.md`, `KERNEL.md`, `PROJECT_OVERVIEW.md`, `PM_BOOTSTRAP.md`, `CONTEXT_SUMMARY.md` (conditional), and `README.md`.
 
 2. **Single canonical loader established.** `Bootstrap/session_pack/CALIBER_LOADER.md` is the one file to load for new PM chats. It defines the trigger conditions, load order, source-of-truth hierarchy, workflow roles, and release model.
 

@@ -28,7 +28,7 @@ The loader file activates PM mode and specifies the exact load order for the rem
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `CALIBER_LOADER.md` | **REQUIRED — LOAD FIRST** | Entry point. Triggers PM mode, defines load order. |
+| `Bootstrap/session_pack/CALIBER_LOADER.md` | **REQUIRED — LOAD FIRST** | Entry point. Triggers PM mode, defines load order. |
 | `ACTIVE_STATE.md` | **REQUIRED** | Current phase, open gates, top blocker, next decision. |
 | `ISSUES_LOG.md` | **REQUIRED** | Open issues, active work, recently resolved. |
 | `EXECUTION_CONTRACT.md` | **REQUIRED** | Build targets, delivery rules, hard boundaries. |
