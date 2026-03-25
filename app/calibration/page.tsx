@@ -1371,21 +1371,20 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         </div>
                       ) : null}
 
-                      {/* Bridge to next step */}
-                      <p className="mt-6 text-sm" style={{ color: "#888" }}>You&rsquo;re ready to score jobs.</p>
-
-                      {/* Primary CTA — Score web */}
-                      <div className="mt-5">
-                        <Link
-                          href="/score"
-                          className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
-                          style={{ background: "rgba(74,222,128,0.08)", color: "#4ADE80", border: "1px solid rgba(74,222,128,0.45)", textDecoration: "none" }}
-                        >Score Your First Job &rarr;</Link>
+                      {/* Primary CTA — Extension download */}
+                      <div className="mt-6 w-full">
+                        <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
-                      {/* Secondary CTA — Extension download */}
-                      <div className="mt-4 w-full">
-                        <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
+                      {/* Secondary CTA — Search on LinkedIn */}
+                      <div className="mt-3">
+                        <a
+                          href="https://www.linkedin.com/jobs/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm transition-all duration-150 hover:opacity-80"
+                          style={{ color: "#666", textDecoration: "none" }}
+                        >Score Your First Job &rarr;</a>
                       </div>
                     </div>
                   </div>

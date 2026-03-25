@@ -30,6 +30,7 @@ import {
   BDR_OUTBOUND_JOB,
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
+  CYPFER_ENGAGEMENT_SUPPORT_JOB,
   type UserFixture,
   type JobFixture,
 } from "./__fixtures__/work_mode_fixtures";
@@ -238,6 +239,42 @@ describe("Regression: Fabio (analytical_investigative)", () => {
     // analytical_investigative vs operational_execution = conflicting
     expect(r.compatibility).toBe("conflicting");
     expect(r.postScore).toBeLessThan(7.0);
+  });
+
+  // ── CYPFER Engagement Support: partial match via role-type penalty ——
+  // compatible mode (analytical IR company) but coordination body-of-work
+  // triggers SYSTEM_OPERATOR → -1.0 penalty (not damped, wmAdj=0)
+  it("CYPFER engagement support (raw 8.7) → compatible, SYSTEM_OPERATOR, postScore 7.7", () => {
+    const r = run(FABIO, CYPFER_ENGAGEMENT_SUPPORT_JOB, 8.7, NO_CHIPS);
+    expect(r.userMode.mode).toBe("analytical_investigative");
+    expect(r.jobMode.mode).toBe("analytical_investigative");
+    expect(r.compatibility).toBe("compatible");
+    expect(r.roleType).toBe("SYSTEM_OPERATOR");
+    expect(r.postScore).toBeCloseTo(7.7, 0);
+  });
+
+  // ── CYPFER + avoid ops chip: coordination role is correctly suppressed ──
+  // "avoid sales" does NOT fire (CYPFER is SYSTEM_OPERATOR, not SYSTEM_SELLER).
+  // "avoid operational_execution" is the correct chip to suppress liaison/coordination roles.
+  it("CYPFER engagement support + avoid ops → chip fires, score capped ≤ 4.0", () => {
+    const AVOID_OPS_FABIO: ChipConfig = {
+      label: "ops avoided (fabio)",
+      prefs: { primaryMode: "analytical_investigative", avoidedModes: ["operational_execution"] },
+    };
+    const r = run(FABIO, CYPFER_ENGAGEMENT_SUPPORT_JOB, 8.7, AVOID_OPS_FABIO);
+    expect(r.chipSuppression.suppressed).toBe(true);
+    expect(r.postScore).toBeLessThanOrEqual(4.0);
+  });
+
+  it("CYPFER engagement support + avoid sales → chip does NOT fire (wrong mode)", () => {
+    const AVOID_SALES_FABIO: ChipConfig = {
+      label: "sales avoided (fabio)",
+      prefs: { primaryMode: "analytical_investigative", avoidedModes: ["sales_execution"] },
+    };
+    const r = run(FABIO, CYPFER_ENGAGEMENT_SUPPORT_JOB, 8.7, AVOID_SALES_FABIO);
+    expect(r.chipSuppression.suppressed).toBe(false);
+    // Score is still 7.7 — role-type penalty only, no chip effect
+    expect(r.postScore).toBeCloseTo(7.7, 0);
   });
 });
 

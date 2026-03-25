@@ -3,6 +3,30 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
+interface DebugWorkMode {
+  userMode: string | null;
+  userModeConfidence: string;
+  jobMode: string | null;
+  jobModeConfidence: string;
+  compatibility: string;
+  roleType: string | null;
+  preAdjustmentScore: number;
+  workModeAdjustment: number;
+  executionIntensityAdjustment: number;
+  roleTypePenalty: number;
+  chipSuppression: {
+    suppressed: boolean;
+    adjustment: number;
+    reason: string | null;
+  };
+  executionEvidence: {
+    triggered: boolean;
+    adjustment: number;
+  };
+  finalScore: number;
+  adjustmentReason: string | null;
+}
+
 interface FitResult {
   score_0_to_10: number;
   bottom_line_2s: string;
@@ -14,6 +38,7 @@ interface FitResult {
     execution_evidence_gap: string | null;
   };
   calibration_title: string;
+  debug_work_mode?: DebugWorkMode;
 }
 
 function getDecision(score: number): string {
@@ -45,6 +70,7 @@ export default function ScoreClient() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -60,6 +86,7 @@ export default function ScoreClient() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setShowBreakdown(false);
     try {
       const body: Record<string, unknown> = { jobText: jobText.trim() };
       if (sessionId) body.sessionId = sessionId;
@@ -473,6 +500,176 @@ export default function ScoreClient() {
                 </p>
               )}
             </div>
+
+            {/* Score Breakdown */}
+            {result.debug_work_mode && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowBreakdown(v => !v)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    color: "rgba(161,161,170,0.5)",
+                    fontSize: "0.72rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  Score Breakdown
+                  <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+                    {showBreakdown ? "▲ hide" : "▼ show"}
+                  </span>
+                </button>
+
+                {showBreakdown && (() => {
+                  const d = result.debug_work_mode!;
+                  const rows: { label: string; value: string; dim?: boolean; accent?: string }[] = [
+                    {
+                      label: "User mode",
+                      value: d.userMode
+                        ? `${d.userMode} (${d.userModeConfidence})`
+                        : `unclassified (${d.userModeConfidence})`,
+                    },
+                    {
+                      label: "Job mode",
+                      value: d.jobMode
+                        ? `${d.jobMode} (${d.jobModeConfidence})`
+                        : `unclassified (${d.jobModeConfidence})`,
+                    },
+                    {
+                      label: "Compatibility",
+                      value: d.compatibility,
+                      accent:
+                        d.compatibility === "compatible"
+                          ? "#4ADE80"
+                          : d.compatibility === "adjacent"
+                          ? "#FBBF24"
+                          : "#EF4444",
+                    },
+                    {
+                      label: "Role type",
+                      value: d.roleType ?? "none",
+                      dim: !d.roleType,
+                    },
+                    { label: "Raw score", value: d.preAdjustmentScore.toFixed(1) },
+                    {
+                      label: "Work mode adj",
+                      value:
+                        d.workModeAdjustment === 0
+                          ? "0  (compatible)"
+                          : d.workModeAdjustment.toFixed(1),
+                      accent: d.workModeAdjustment < 0 ? "#EF4444" : undefined,
+                    },
+                    {
+                      label: "Exec intensity adj",
+                      value:
+                        d.executionIntensityAdjustment === 0
+                          ? "0"
+                          : d.executionIntensityAdjustment.toFixed(1),
+                      accent: d.executionIntensityAdjustment < 0 ? "#EF4444" : undefined,
+                    },
+                    {
+                      label: "Role-type penalty",
+                      value:
+                        d.roleTypePenalty === 0
+                          ? "0"
+                          : d.roleTypePenalty.toFixed(1),
+                      accent: d.roleTypePenalty < 0 ? "#EF4444" : undefined,
+                    },
+                    {
+                      label: "Chip suppression",
+                      value: d.chipSuppression.suppressed
+                        ? `fired (${d.chipSuppression.adjustment.toFixed(1)})`
+                        : "not triggered",
+                      accent: d.chipSuppression.suppressed ? "#EF4444" : undefined,
+                      dim: !d.chipSuppression.suppressed,
+                    },
+                    {
+                      label: "Evidence gap",
+                      value: d.executionEvidence.triggered
+                        ? `fired (${d.executionEvidence.adjustment.toFixed(1)})`
+                        : "not triggered",
+                      accent: d.executionEvidence.triggered ? "#EF4444" : undefined,
+                      dim: !d.executionEvidence.triggered,
+                    },
+                    {
+                      label: "Final score",
+                      value: d.finalScore.toFixed(1),
+                      accent: scoreColor,
+                    },
+                  ];
+
+                  return (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        borderRadius: 8,
+                        background: "rgba(255,255,255,0.025)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {rows.map((r, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "6px 14px",
+                            borderBottom:
+                              i < rows.length - 1
+                                ? "1px solid rgba(255,255,255,0.05)"
+                                : "none",
+                            background:
+                              r.label === "Final score"
+                                ? "rgba(255,255,255,0.03)"
+                                : "transparent",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "rgba(161,161,170,0.5)",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {r.label}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              fontFamily:
+                                r.label.includes("score") || r.label.includes("adj") || r.label.includes("penalty")
+                                  ? "var(--font-geist-mono), monospace"
+                                  : "inherit",
+                              color: r.accent
+                                ? r.accent
+                                : r.dim
+                                ? "rgba(161,161,170,0.3)"
+                                : "rgba(237,237,237,0.7)",
+                              fontWeight: r.label === "Final score" ? 600 : 400,
+                            }}
+                          >
+                            {r.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* Actions */}
             <div

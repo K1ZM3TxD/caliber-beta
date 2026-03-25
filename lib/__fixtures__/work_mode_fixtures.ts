@@ -995,6 +995,31 @@ export const SENIOR_PYTHON_DEVELOPER_JOB: JobFixture = {
     "- Familiarity with JavaScript and TypeScript is a plus",
 };
 
+export const CYPFER_ENGAGEMENT_SUPPORT_JOB: JobFixture = {
+  name: "CYPFER Engagement Support Specialist",
+  expectedMode: "analytical_investigative",
+  text:
+    "Engagement Support Specialist — Cybersecurity Incident Response\n" +
+    "CYPFER is a global cybersecurity first-responder firm specializing in ransomware remediation\n" +
+    "and incident response. We are seeking an Engagement Support Specialist to serve as the\n" +
+    "primary liaison between clients, partners, and our technical delivery teams.\n" +
+    "Responsibilities:\n" +
+    "- Coordinate and manage the scoping, quoting, and contracting process for client engagements.\n" +
+    "- Participate in scoping calls and take detailed notes to support cybersecurity assessment documentation.\n" +
+    "- Translate client incident details into actionable service scopes aligned with cyber threat intelligence.\n" +
+    "- Manage engagement scheduling and track milestones throughout the incident response lifecycle.\n" +
+    "- Support preparation of Statements of Work (SoWs) and maintain administrative records for active engagements.\n" +
+    "- Act as liaison between clients and technical IR teams during active security investigations.\n" +
+    "- Prepare engagement documentation and reports for analytical review and audit purposes.\n" +
+    "- Provide after-hours support on a rotational basis during critical cybersecurity incidents.\n" +
+    "Requirements:\n" +
+    "- Strong business communication and analytical thinking skills.\n" +
+    "- Experience in engagement coordination, contracting, or client-facing roles.\n" +
+    "- Familiarity with cybersecurity services, digital investigation principles, or compliance frameworks (preferred).\n" +
+    "- Bilingual English/Italian a plus.\n" +
+    "- Ability to work a 24/7/365 on-call rotation schedule.",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -1036,6 +1061,7 @@ export const ALL_JOBS = [
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
   MAXX_INTEGRATION_CRYPTO_JOB,
+  CYPFER_ENGAGEMENT_SUPPORT_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
