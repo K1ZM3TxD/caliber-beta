@@ -81,6 +81,53 @@ When the change lands, report:
 
 ---
 
+### BREAK+UPDATE — 2026-03-25 — Extension Calibration-Context Freshness Fix
+
+**What changed:**
+A high-severity trust bug in the extension was discovered and fixed. When a LinkedIn tab stayed open across a re-calibration (e.g., Fabio calibration → Jen calibration in a new tab), the extension's in-memory calibration context (`lastKnownCalibrationTitle`, `lastKnownNearbyRoles`) could remain stale for the entire lifetime of the open tab. The result: Adjacent Searches in the sidecard could display roles from the previous calibration (e.g., "Security Analyst", "Security Operations Lead", "Technical Security Consultant") even though Jen calibration was active and the scoring API was already returning Jen-correct adjacent roles.
+
+**Reproduction pattern:**
+1. Calibrate as Fabio — Fabio-oriented roles written to `chrome.storage.local`
+2. Open LinkedIn in a tab (extension loads, seeds `lastKnownNearbyRoles` from storage)
+3. Calibrate as Jen in a different tab — `chrome.storage.local` is correctly overwritten with Jen's context
+4. Return to the LinkedIn tab — extension still showing Fabio-adjacent roles in Adjacent Searches
+
+**Root cause (client-side extension memory/storage refresh bug — not server-side):**
+Three `length === 0` / `!lastKnownCalibrationTitle` guards in `content_linkedin.js` prevented the in-memory context variables from ever being refreshed once populated:
+1. **Scoring batch callback (~line 1283):** `nearbyRoles` from API responses was gated by `&& lastKnownNearbyRoles.length === 0` — meaning it was only written on first set, never refreshed even when the session changed.
+2. **Session discover hydration (~lines 2326–2329):** Both `calibrationTitle` and `nearbyRoles` from the discover response were gated by the same empty-check guards.
+3. **CALIBER_SESSION_READY handler:** No mechanism to re-read `chrome.storage.local` when a new session handoff arrived for an open tab.
+
+**Important:** The API truth was correct throughout. Scoring API responses (`app/api/extension/fit/route.ts`) were returning Jen-correct `calibration_title` and `nearby_roles` from the moment Jen's session was active. The contamination was purely client-side — stale runtime variables that were never refreshed.
+
+**Fix (commit `da6e5ec`, `extension/content_linkedin.js`):**
+1. Removed `&& lastKnownNearbyRoles.length === 0` guard from scoring batch `nearbyRoles` update — API responses now always overwrite in-memory context; a `rolesChanged` diff-check prevents unnecessary storage writes.
+2. Removed `!lastKnownCalibrationTitle` and `&& lastKnownNearbyRoles.length === 0` guards from session discover hydration path — discover response reflects current `chrome.storage.local`, which background.js already updates correctly on each CALIBER_SESSION_HANDOFF.
+3. Added `chrome.storage.local.get` refresh in the `CALIBER_SESSION_READY` handler — immediately overwrites in-memory context when a new session-ready notification arrives. This fires before any badge scanning restarts, ensuring BST prescan and Adjacent Searches are populated with correct context from the first moment.
+
+**DONE:**
+- ✅ Stale calibration context fix shipped — commit `da6e5ec`
+- ✅ Extension-side adjacent-search trust restored post-fix
+- ✅ Implication documented: earlier suspicious extension behavior during Jen surface runs was partially explained by stale extension state, not API-side model confusion
+
+**What remains true after the fix:**
+- The scoring API has always been correct — no server-side cross-user contamination occurred
+- `chrome.storage.local` was correctly overwritten on each re-calibration — the bug was downstream in the content script's failure to re-read it
+- Post-fix, all extension surface runs (Adjacent Searches, BST surface classification) should be treated as the valid baseline
+- Surface experiments run before this fix on open tabs with a prior calibration context are suspect and should not be compared against post-fix runs
+
+**Risk / fallout:**
+- No behavioral regression — guards were only preventing correct refreshes
+- `rolesChanged` diff before storage write prevents unnecessary I/O churn on unchanged context
+- No API, schema, or product behavior changes
+
+**Smallest observable proof:**
+- Calibrate as Fabio, note Fabio-adjacent roles in extension, calibrate as Jen in a new tab, return to LinkedIn tab — Adjacent Searches must update to Jen-oriented roles (either on CALIBER_SESSION_READY or on first scoring batch response)
+
+**Files touched:** `extension/content_linkedin.js`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ISSUES_LOG.md`
+
+---
+
 ### BREAK+UPDATE — 2026-03-25 — Telemetry Observability Expansion + Jen Rerun Blocked
 
 **What changed:**

@@ -3,6 +3,18 @@
 
 ## Current Open Issues
 
+109. Stale extension calibration context across re-calibration in open LinkedIn tabs — **RESOLVED** (2026-03-25)
+  - **Symptom:** After a Fabio → Jen re-calibration, extension Adjacent Searches in open LinkedIn tabs continued showing Fabio/security-oriented roles ("Security Analyst", "Security Operations Lead", "Technical Security Consultant") even though Jen calibration was active and the scoring API was correctly returning Jen's calibration title and adjacent roles.
+  - **Conditions of occurrence:** LinkedIn tab open during or before Jen re-calibration. Extension content script had already initialized and populated in-memory context variables from Fabio's session. New calibration completed in a separate tab.
+  - **Root cause:** Three overly-restrictive guards in `extension/content_linkedin.js` prevented `lastKnownCalibrationTitle` and `lastKnownNearbyRoles` from ever being refreshed once populated:
+    1. Scoring batch callback: `&& lastKnownNearbyRoles.length === 0` — nearbyRoles from API only written on first set
+    2. Session discover hydration: `!lastKnownCalibrationTitle` and `&& lastKnownNearbyRoles.length === 0` — same empty-check guards
+    3. `CALIBER_SESSION_READY` handler: no mechanism to re-read `chrome.storage.local` on session change
+  - **Important:** The API truth was correct throughout. `chrome.storage.local` was also correctly overwritten by `background.js` on each `CALIBER_SESSION_HANDOFF`. The stale state was purely client-side — runtime variables that were never refreshed.
+  - **Fix (commit `da6e5ec`):** Removed all three guards; added unconditional `chrome.storage.local.get` refresh in `CALIBER_SESSION_READY` handler. `nearbyRoles` storage write guarded by `rolesChanged` diff-check to avoid unnecessary I/O.
+  - **Implication for past surface runs:** Any extension surface experiment run in an open tab with a prior calibration context may have shown incorrect Adjacent Search suggestions. Post-fix runs should be treated as the valid baseline.
+  - **Status:** RESOLVED — commit `da6e5ec` (2026-03-25)
+
 108. LinkedIn search-page unresponsiveness during dense extension scoring run — **OPEN** (2026-03-25)
   - **Symptom:** LinkedIn jobs search page became unresponsive / Chrome showed "Wait / Exit Page" dialog during a Jen surface experiment rerun on a dense surface (`strategy and operations manager`, ~75 cards). The rerun could not be completed.
   - **Conditions of occurrence:** Jen fixture, signals ON, chips skipped, dense search result surface. User environment included hotspot latency and possible thermal pressure — exact contribution of environment vs extension is uncertain.
