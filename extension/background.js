@@ -125,19 +125,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === "CALIBER_FEEDBACK") {
-    fetch(API_BASE + "/api/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(msg.payload),
-      signal: AbortSignal.timeout(5000),
-    })
-      .then((r) => r.json())
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-  if (msg.type === "CALIBER_TELEMETRY") {
-    // Enrich payload with sessionId (tagged with signal condition) and signalPreference from storage
+    // Enrich feedback with sessionId (tagged with signal condition) for surface linkage
     (async () => {
       try {
         const store = await chrome.storage.local.get(["caliberSessionId", "caliberSignalPreference"]);
@@ -145,7 +133,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           const condition = store.caliberSignalPreference === "yes" ? "signal_on" : "signal_off";
           msg.payload.sessionId = store.caliberSessionId + "::" + condition;
         }
+      } catch { /* swallow */ }
+      fetch(API_BASE + "/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(msg.payload),
+        signal: AbortSignal.timeout(5000),
+      })
+        .then((r) => r.json())
+        .then((data) => sendResponse({ ok: true, data }))
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
+    })();
+    return true;
+  }
+  if (msg.type === "CALIBER_TELEMETRY") {
+    // Enrich payload with sessionId (tagged with signal condition), signalPreference,
+    // and optional experiment labels (fixture/chips/query_set) from storage.
+    (async () => {
+      try {
+        const store = await chrome.storage.local.get([
+          "caliberSessionId",
+          "caliberSignalPreference",
+          "caliberExperimentMeta",
+        ]);
+        if (store.caliberSessionId) {
+          const condition = store.caliberSignalPreference === "yes" ? "signal_on" : "signal_off";
+          msg.payload.sessionId = store.caliberSessionId + "::" + condition;
+        }
         if (store.caliberSignalPreference) msg.payload.signalPreference = store.caliberSignalPreference;
+        // Merge experiment labels (fixture, chips, query_set, etc.) into meta if set
+        if (store.caliberExperimentMeta && typeof store.caliberExperimentMeta === "object") {
+          msg.payload.meta = Object.assign({}, msg.payload.meta || {}, store.caliberExperimentMeta);
+        }
       } catch { /* swallow */ }
       fetch(API_BASE + "/api/events", {
         method: "POST",

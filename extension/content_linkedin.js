@@ -2825,7 +2825,7 @@
             company: saveCompany || null,
             jobUrl: saveUrl,
             score: saveScore,
-            trigger: "manual_sidecard",
+            meta: { searchQuery: getSearchKeywords(), trigger: "manual_sidecard" },
           });
         } else {
           if (addBtn) { addBtn.textContent = "Save failed \u2014 retry"; addBtn.disabled = false; addBtn.classList.add("cb-pipeline-add-error"); }
@@ -3191,6 +3191,8 @@
       company_name: d.company || null,
       job_title: d.jobTitle || null,
       search_title: getSearchKeywords() || null,
+      surface_key: getSearchSurfaceKey() || null,
+      job_url: location.href || null,
       calibration_title_direction: null,
       fit_score: d.score != null ? d.score : null,
       decision_label: d.decision || null,
@@ -3226,6 +3228,8 @@
       company_name: d.company || null,
       job_title: d.jobTitle || null,
       search_title: getSearchKeywords() || null,
+      surface_key: getSearchSurfaceKey() || null,
+      job_url: location.href || null,
       calibration_title_direction: null,
       fit_score: d.score != null ? d.score : null,
       decision_label: d.decision || null,
@@ -3954,7 +3958,7 @@
               company: autoCompany || null,
               jobUrl: autoUrl,
               score: score,
-              trigger: "auto_8.5",
+              meta: { searchQuery: getSearchKeywords(), trigger: "auto_8.5" },
             });
           } else {
             console.warn("[Caliber][pipeline][auto] save FAILED — error=" +
@@ -4122,6 +4126,10 @@
         jobTitle: lastJobMeta.title || null,
         company: lastJobMeta.company || null,
         jobUrl: location.href,
+        meta: {
+          // Badge pre-score from card if already scored before user opened sidecard
+          badgeScore: (cacheJobId && badgeScoreCache[cacheJobId]) ? badgeScoreCache[cacheJobId].score : null,
+        },
       });
 
       var rawText = await waitForJobDescription(8000);

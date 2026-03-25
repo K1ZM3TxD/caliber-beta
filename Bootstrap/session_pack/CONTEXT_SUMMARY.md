@@ -21,10 +21,175 @@
 - Beta readiness definition updated (2026-03-14) — five-gate model. See `Bootstrap/milestones.md` for gates and readiness questions.
 - Overlay scoring is post-gate parallel work. Shipped and stable but not required for beta declaration.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0. Computable as `MIN(strong_match_viewed.timestamp) - search_surface_opened.timestamp` grouped by `(sessionId, surfaceKey)`.
-- **Telemetry instrumentation is shipped and experiment-ready (2026-03-25).** Event capture via `POST /api/events`, persisted to Neon (Postgres) via Prisma `TelemetryEvent` model. Events: `search_surface_opened`, `job_score_rendered`, `job_opened`, `strong_match_viewed`, `pipeline_save`, `tailor_used`. Non-blocking, fire-and-forget. `meta` JSON column carries `searchQuery` (raw keywords string) and `positionIndex` (card DOM rank, `job_score_rendered` only) as of 2026-03-25 patch. Signal condition embedded in `sessionId` suffix: `::signal_on` / `::signal_off`.
-- **Controlled experiment query guide (surface experiment — e.g. Jen test):** Segment by `sessionId LIKE '%::signal_on'` vs `'%::signal_off'`. Group surfaces by `surfaceKey`. Filter search query via `JSON_EXTRACT(meta, '$.searchQuery')`. Card-position analysis via `JSON_EXTRACT(meta, '$.positionIndex')` on `job_score_rendered`. TTSM per surface: join `strong_match_viewed` + `search_surface_opened` on `(sessionId, surfaceKey)` → `MIN(smv.timestamp) - sso.timestamp`. Score distribution: `COUNT(*) WHERE score >= 7.0 / >= 8.0 / < 5.0` on `job_score_rendered`.
+- **Telemetry instrumentation is shipped and experiment-ready (2026-03-25).** Event capture via `POST /api/events` (TelemetryEvent) and `POST /api/feedback` (FeedbackEvent), both persisted to Neon (Postgres) via Prisma. Events: `search_surface_opened`, `job_score_rendered`, `job_opened`, `strong_match_viewed`, `pipeline_save`, `tailor_used`. Feedback events: `thumbs_up`, `thumbs_down`, `bug_report`. Non-blocking, fire-and-forget. Signal condition embedded in `sessionId` suffix: `::signal_on` / `::signal_off`. Experiment condition labels (fixture/chips/query_set) injectable via `chrome.storage.local.set({ caliberExperimentMeta: { fixture: "jen", chips: "yes", query_set: "A" } })`.
 - Two-branch release model implemented (2026-03-14): `main` = development iteration, `stable` = production deploy. Vercel production deploys from `stable` → caliber-app.com. Preview deploys from `main`. Promotion: validate on main → fast-forward merge to stable → push.
 - Dashboard and cohort analysis remain future work.
+
+## Telemetry Field Reference (as of 2026-03-25)
+
+### TelemetryEvent — key fields per event
+
+| Event | Required fields | meta fields |
+|-------|----------------|-------------|
+| `search_surface_opened` | `sessionId`, `surfaceKey`, `timestamp` | `searchQuery` |
+| `job_score_rendered` | `sessionId`, `surfaceKey`, `jobId`, `score`, `timestamp` | `searchQuery`, `positionIndex` |
+| `job_opened` | `sessionId`, `surfaceKey`, `jobUrl`, `timestamp` | `badgeScore` (pre-score from card cache if available) |
+| `strong_match_viewed` | `sessionId`, `surfaceKey`, `jobUrl`, `score`, `scoreSource`, `timestamp` | `searchQuery` |
+| `pipeline_save` | `sessionId`, `surfaceKey`, `jobUrl`, `score`, `timestamp` | `searchQuery`, `trigger` (manual_sidecard \| auto_8.5) |
+
+**`surfaceKey`**: pipe-joined composite `path|keywords|location|f_TPR|f_JT|f_E|f_WT|distance|sortBy|geoId` — one durable key per unique search surface. Normalized, lowercase.
+
+**`sessionId`** format: `{caliberSessionId}::signal_on` or `{caliberSessionId}::signal_off`. Strip `::condition` suffix to get raw session. Controlled experiment label fields (fixture, chips, query_set) are in `meta` alongside `searchQuery`.
+
+**`scoreSource`**: `"card_text_prescan"` for card badges (from batch scoring), `"sidecard_full"` for sidecard full descriptions.
+
+### FeedbackEvent — key fields
+
+| Field | Purpose |
+|-------|---------|
+| `surfaceKey` | Links feedback to `TelemetryEvent.surfaceKey` — enables surface-level scoring-error analysis |
+| `sessionId` | Links feedback to session (`::signal_on/off` tagged same as telemetry) |
+| `jobUrl` | Links feedback to specific `TelemetryEvent` record for that job |
+| `fitScore` | Score at time of feedback — use with `feedbackType = 'thumbs_down'` to find bad scores |
+| `feedbackType` | `thumbs_up` / `thumbs_down` / `bug_report` |
+| `feedbackReason` | One of: `score_wrong`, `hiring_reality_wrong`, `title_suggestion_wrong`, `explanation_not_helpful`, `other` |
+| `bugCategory` | `wrong_job_detected`, `score_failed_to_load`, `panel_not_opening`, `content_missing`, `action_not_working`, `other` |
+
+## PM Operator Guide — Telemetry Procedures
+
+### Procedure 1: Controlled Jen Surface Experiment
+
+**Goal:** Compare multiple search term sets for one fixture under fixed conditions (signal/chips state), identify which queries produce the best-fit surfaces.
+
+**Steps:**
+
+1. Open a Caliber dev session for the Jen fixture (calibrate as Jen, get `caliberSessionId`).
+2. Before each test query set, tag the run via DevTools console on LinkedIn:
+   ```javascript
+   chrome.storage.local.set({ caliberExperimentMeta: { fixture: "jen", chips: "yes", query_set: "A" } })
+   ```
+   Change `query_set` for each set (A, B, C...). `chips` = "yes" or "no" depending on state.
+3. Navigate to each LinkedIn search with the test query. Scroll to score at least 10 jobs. Open 2–3 sidecards.
+4. Repeat for each query set, updating `caliberExperimentMeta` between sets.
+5. After the run, clear the label: `chrome.storage.local.remove("caliberExperimentMeta")`
+
+**Analysis queries (Postgres / Neon SQL):**
+
+```sql
+-- Per-surface score distribution for fixture "jen", query_set "A"
+SELECT
+  surfaceKey,
+  JSON_EXTRACT(meta, '$.searchQuery') AS query,
+  COUNT(*) AS jobs_scored,
+  COUNT(*) FILTER (WHERE score >= 8.0) AS strong_8,
+  COUNT(*) FILTER (WHERE score >= 7.0) AS strong_7,
+  MAX(score) AS best_score,
+  AVG(score) FILTER (WHERE JSON_EXTRACT(meta, '$.positionIndex')::int < 10) AS avg_first_10
+FROM "TelemetryEvent"
+WHERE event = 'job_score_rendered'
+  AND meta::jsonb @> '{"fixture":"jen","query_set":"A"}'
+GROUP BY surfaceKey, JSON_EXTRACT(meta, '$.searchQuery');
+
+-- TTSM (time-to-strong-match) per surface for the same run
+SELECT
+  sso.surfaceKey,
+  MIN(smv.timestamp) - MIN(sso.timestamp) AS ttsm
+FROM "TelemetryEvent" sso
+JOIN "TelemetryEvent" smv
+  ON smv.sessionId = sso.sessionId AND smv.surfaceKey = sso.surfaceKey
+WHERE sso.event = 'search_surface_opened'
+  AND smv.event = 'strong_match_viewed'
+  AND sso.meta::jsonb @> '{"fixture":"jen","query_set":"A"}'
+GROUP BY sso.surfaceKey;
+```
+
+**Segment dimensions:**
+
+| Question | Use |
+|----------|-----|
+| Signal condition | `sessionId LIKE '%::signal_on'` vs `'%::signal_off'` |
+| Fixture / chips / query_set | `meta::jsonb @> '{"fixture":"jen","chips":"yes","query_set":"A"}'` |
+| Surface | `surfaceKey` |
+| Raw query text | `JSON_EXTRACT(meta, '$.searchQuery')` on any event |
+| Card position | `JSON_EXTRACT(meta, '$.positionIndex')` on `job_score_rendered` |
+
+---
+
+### Procedure 2: Live-User Surface Quality Review
+
+**Goal:** Identify patterns of low quality surfaces, suspicious score distributions, and likely scoring errors from real users.
+
+**Steps:**
+
+1. Run the surface distribution query across all live traffic (no experiment filter).
+2. Flag surfaces where `avg_score < 5.5` or `strong_7 / jobs_scored < 0.05` (less than 5% strong matches).
+3. Pull `FeedbackEvent` thumbs-down records for those surfaces. Check `feedbackReason` and `fitScore`.
+4. Pull `job_opened` events on the flagged surface to see if users still opened low-scoring jobs (signal of false negatives).
+5. For likely scoring errors: look for surfaceKey where `feedbackReason = 'score_wrong'` with `fitScore >= 7.0` (user said score was too low) or thumbs-down on `fitScore < 5.0` (user opened low-score job = possible false negative).
+
+**Analysis queries:**
+
+```sql
+-- Low-quality surface candidates (real users, last 30 days)
+SELECT
+  surfaceKey,
+  JSON_EXTRACT(meta, '$.searchQuery') AS query,
+  COUNT(*) AS jobs_scored,
+  AVG(score) AS avg_score,
+  COUNT(*) FILTER (WHERE score >= 7.0) AS strong_7,
+  MAX(score) AS best_score
+FROM "TelemetryEvent"
+WHERE event = 'job_score_rendered'
+  AND timestamp > NOW() - INTERVAL '30 days'
+GROUP BY surfaceKey, JSON_EXTRACT(meta, '$.searchQuery')
+HAVING AVG(score) < 5.5 OR COUNT(*) FILTER (WHERE score >= 7.0) = 0
+ORDER BY avg_score ASC;
+
+-- Thumbs-down + bug reports linked back to surface (after 2026-03-25 patch)
+SELECT
+  fe.surfaceKey,
+  fe.fitScore,
+  fe.feedbackReason,
+  fe.bugCategory,
+  fe.sessionId,
+  fe.jobUrl,
+  te.score AS telemetry_score,
+  te.jobTitle
+FROM "FeedbackEvent" fe
+LEFT JOIN "TelemetryEvent" te
+  ON te.jobUrl = fe.jobUrl AND te.event = 'strong_match_viewed'
+WHERE fe.feedbackType IN ('thumbs_down', 'bug_report')
+  AND fe.timestamp > NOW() - INTERVAL '30 days'
+ORDER BY fe.timestamp DESC;
+
+-- Jobs users opened despite low badge score (potential false negatives)
+SELECT
+  jo.surfaceKey,
+  jo.jobTitle,
+  jo.company,
+  jo.jobUrl,
+  JSON_EXTRACT(jo.meta, '$.badgeScore') AS badge_score,
+  smv.score AS sidecard_score
+FROM "TelemetryEvent" jo
+LEFT JOIN "TelemetryEvent" smv
+  ON smv.jobUrl = jo.jobUrl AND smv.event = 'strong_match_viewed'
+WHERE jo.event = 'job_opened'
+  AND JSON_EXTRACT(jo.meta, '$.badgeScore')::float < 5.0
+  AND smv.score >= 7.0
+ORDER BY jo.timestamp DESC;
+```
+
+**Scoring-error cluster detection:**
+
+- Repeated `feedbackReason = 'score_wrong'` on the same `surfaceKey` → scoring may be biased against a role family on that query
+- `bugCategory = 'wrong_job_detected'` → content extraction issue on a specific job template
+- High `avg_score` surface with zero `strong_match_viewed` events → sidecard may be failing silently on that surface
+- Badge pre-score (`meta.badgeScore` on `job_opened`) vs sidecard score divergence > 2 points → prescan extraction instability
+
+**What is still missing after this patch:**
+- No automated alerting — PM must run queries reactively. A scheduled query or Neon Notify trigger would enable proactive detection (future work).
+- No web-app event coverage for `search_surface_opened` or `job_score_rendered` — telemetry is extension-only today. Web app emits `tailor_used` only.
+- FeedbackEvent thumbs-down `feedbackReason` = `null` when user submits without selecting a chip — those records are harder to cluster. Consider making chip selection required for thumbs-down (future UX decision).
 
 **Recent completed fixes (this session):**
 - Extension feedback controls restored: SVG icons, GitHub-issue bug report (6fad8b7)

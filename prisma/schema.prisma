@@ -128,7 +128,10 @@ model FeedbackEvent {
   site                        String?
   companyName                 String?
   jobTitle                    String?
+  jobUrl                      String?  // job page URL at time of feedback — links to TelemetryEvent
   searchTitle                 String?
+  surfaceKey                  String?  // matches TelemetryEvent.surfaceKey — enables surface-level joins
+  sessionId                   String?  // matches TelemetryEvent.sessionId — enables session-level joins
   calibrationTitleDirection   String?
   fitScore                    Float?
   decisionLabel               String?
@@ -149,4 +152,6 @@ model FeedbackEvent {
   @@index([surface])
   @@index([feedbackType])
   @@index([timestamp])
+  @@index([surfaceKey])
+  @@index([sessionId])
 }

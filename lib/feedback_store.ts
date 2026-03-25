@@ -9,7 +9,10 @@ export interface FeedbackEvent {
   site: string | null;
   company_name: string | null;
   job_title: string | null;
+  job_url: string | null;
   search_title: string | null;
+  surface_key: string | null;
+  session_id: string | null;
   calibration_title_direction: string | null;
   fit_score: number | null;
   decision_label: string | null;
@@ -37,7 +40,10 @@ export async function appendFeedbackEvent(event: FeedbackEvent): Promise<void> {
       site: event.site,
       companyName: event.company_name,
       jobTitle: event.job_title,
+      jobUrl: event.job_url,
       searchTitle: event.search_title,
+      surfaceKey: event.surface_key,
+      sessionId: event.session_id,
       calibrationTitleDirection: event.calibration_title_direction,
       fitScore: event.fit_score,
       decisionLabel: event.decision_label,
