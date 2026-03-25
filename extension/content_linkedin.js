@@ -1279,10 +1279,13 @@
               console.debug("[Caliber][session][diag] persisted calibrationTitle: \"" + result.calibrationTitle + "\"");
             }
           }
-          // Track nearby roles
-          if (result.nearbyRoles && result.nearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
+          // Track nearby roles — always update from fresh API response (authoritative for current session)
+          if (result.nearbyRoles && result.nearbyRoles.length > 0) {
+            var rolesChanged = JSON.stringify(lastKnownNearbyRoles) !== JSON.stringify(result.nearbyRoles);
             lastKnownNearbyRoles = result.nearbyRoles;
-            chrome.storage.local.set({ caliberNearbyRoles: result.nearbyRoles });
+            if (rolesChanged) {
+              chrome.storage.local.set({ caliberNearbyRoles: result.nearbyRoles });
+            }
           }
           // Track recovery terms (work-mode-aware, cluster-diverse)
           if (Array.isArray(result.recoveryTerms) && result.recoveryTerms.length > 0) {
@@ -2322,11 +2325,12 @@
         sessionReady = true;
         sessionCheckAttempts = 0;
         // Hydrate calibration context from session discover response (extracted from backup)
-        if (resp.calibrationTitle && !lastKnownCalibrationTitle) {
+        // Always trust session discover — it reflects current chrome.storage.local (updated by handoff)
+        if (resp.calibrationTitle) {
           lastKnownCalibrationTitle = resp.calibrationTitle;
           console.debug("[Caliber][session][diag] hydrated calibrationTitle from discover: \"" + resp.calibrationTitle + "\"");
         }
-        if (Array.isArray(resp.nearbyRoles) && resp.nearbyRoles.length > 0 && lastKnownNearbyRoles.length === 0) {
+        if (Array.isArray(resp.nearbyRoles) && resp.nearbyRoles.length > 0) {
           lastKnownNearbyRoles = resp.nearbyRoles;
           console.debug("[Caliber][session][diag] hydrated nearbyRoles from discover: " + resp.nearbyRoles.length + " entries");
         }
@@ -4455,6 +4459,16 @@
       // Cancel any pending session retry — session is now available
       clearTimeout(sessionCheckTimer);
       sessionCheckAttempts = 0;
+      // Refresh calibration context from storage — new calibration may have shipped
+      // while this tab was open (Fabio → Jen re-calibration scenario)
+      chrome.storage.local.get(["caliberCalibrationTitle", "caliberNearbyRoles"], function (stored) {
+        if (stored.caliberCalibrationTitle) {
+          lastKnownCalibrationTitle = stored.caliberCalibrationTitle;
+        }
+        if (Array.isArray(stored.caliberNearbyRoles) && stored.caliberNearbyRoles.length > 0) {
+          lastKnownNearbyRoles = stored.caliberNearbyRoles;
+        }
+      });
       // If badge scanning hasn't started yet (was waiting for session), start it now
       if (active && isSearchResultsPage() && !badgeScrollAttached) {
         console.debug("[Caliber][session][diag] session ready — initiating badge scanning");
