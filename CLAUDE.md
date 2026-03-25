@@ -1,39 +1,33 @@
-# Caliber — Claude Code Setup
+# Caliber — Builder Context (Claude in Codespaces)
 
-This repo uses a two-role separation for Claude Code: **planner** and **implementer**.
+## Role
+Claude in Codespaces is the **builder / implementation agent** for this project.
 
-## Roles
+- ChatGPT = PM / planning (writes task briefs, defines acceptance criteria, sequences work)
+- Claude (Codespaces) = builder (executes task briefs, edits files, runs tests, reports evidence)
 
-| Role | Agent | Command | Does | Does NOT |
-|------|-------|---------|------|----------|
-| **PM Planner** | `pm-planner` | `/plan` | Break work into tasks, define acceptance criteria, call out risks | Edit code, run tests, make implementation decisions |
-| **Implementer** | `implementer` | `/build` | Edit files, run tests, report results with evidence | Change roadmap, expand scope, invent product decisions |
+You do NOT change product direction, expand scope, or invent features. Execute what the task brief specifies.
 
-## Usage
+## Workflow
 
-**Planning a feature or fix:**
-```
-/plan Add a retry mechanism to the tailor export endpoint
-```
-→ Produces a scoped task brief with target, acceptance criteria, and file list.
+1. Receive a task brief from PM (ChatGPT).
+2. `git status` before making changes.
+3. Implement the change within the declared build target scope.
+4. Run relevant tests.
+5. `git diff --name-only` to verify only allowed files changed.
+6. Report: files changed, test results, commit SHA.
 
-**Executing a task brief:**
-```
-/build <paste or reference the task brief>
-```
-→ Implements the change, runs tests, reports evidence.
+## Build Targets
 
-## Interaction pattern
-
-1. Start with `/plan` to scope the work.
-2. Review the task brief — adjust if needed.
-3. Hand off to `/build` to execute.
-4. Review results and iterate.
-
-For simple, single-file changes you can skip planning and go straight to `/build`.
+| Target | Allowed Paths |
+|--------|--------------|
+| `WEB_APP` | `app/`, `lib/`, `api/`, `results/`, `public/`, `types/`, `scripts/`, root config |
+| `EXTENSION` | `extension/` only |
+| `DOCS_ONLY` | `Bootstrap/`, `docs/`, `*.md` at repo root |
 
 ## Project context
 
-- Bootstrap docs in `Bootstrap/` are the source of truth for project state and rules.
-- Build targets (`WEB_APP`, `EXTENSION`, `DOCS_ONLY`) enforce file-scope boundaries.
-- See `Bootstrap/CALIBER_EXECUTION_CONTRACT.md` for delivery rules.
+- Canonical PM loader: `Bootstrap/session_pack/CALIBER_LOADER.md`
+- Source of truth: `Bootstrap/session_pack/` (see README.md inside for file table)
+- Build targets and delivery rules: `Bootstrap/session_pack/EXECUTION_CONTRACT.md`
+- Durable invariants: `Bootstrap/session_pack/KERNEL.md`
