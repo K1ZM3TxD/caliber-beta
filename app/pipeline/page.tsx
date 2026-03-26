@@ -847,7 +847,7 @@ export default function PipelinePage() {
           Score a New Job
         </Link>
         <a
-          href="/"
+          href="/calibration?direct=1"
           className="text-neutral-500 text-xs hover:text-neutral-300 underline underline-offset-2 transition-colors"
         >
           Back to Caliber

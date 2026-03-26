@@ -252,11 +252,13 @@ export default function CalibrationPage() {
     // Signed-in users go straight to saved jobs — no re-calibration needed
     const { data: authSession, status: authStatus } = useSession();
     const router = useRouter();
+    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const directNav = searchParams?.get("direct") === "1";
     useEffect(() => {
-      if (authStatus === "authenticated" && authSession?.user) {
+      if (!directNav && authStatus === "authenticated" && authSession?.user) {
         router.replace("/pipeline");
       }
-    }, [authStatus, authSession, router]);
+    }, [authStatus, authSession, router, directNav]);
 
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
