@@ -218,6 +218,30 @@ TELEMETRY INSTRUMENTATION (prerequisite layer — DONE 2026-03-14, UPGRADED 2026
 
 ---
 
+BREAK + UPDATE — 2026-03-26 (Tailor Specificity Fix — Score Pass-Through + Role Decomposition Prompt)
+---
+DONE:
+- Bug 1 resolved: `prep.score` was never passed to `generateTailoredResume` — `matchBand` always `WEAK` in production; STRONG-path adaptation never fired. Fixed in `app/api/tailor/generate/route.ts`.
+- Bug 2 resolved: System prompt lacked structured decomposition — no JD theme mapping, no bullet reordering mechanics, no headline adaptation instruction, no anti-single-project-dominance logic. Fixed in `lib/tailor_store.ts`.
+- PRE-WORK ROLE DECOMPOSITION added to prompt: model must identify 3–5 JD capability themes and map each to specific resume evidence before writing.
+- HEADLINE & SUMMARY ADAPTATION added: STRONG matches adapt headline to role function; summary leads with the top JD themes candidate directly supports.
+- EVIDENCE DISTRIBUTION & BULLET ORDERING added: JD-relevant bullets front-loaded within each role; single-project dominance explicitly blocked when the job needs breadth.
+- SECTION ORDERING for product/ops/strategy/consulting added: WORK EXPERIENCE before PROJECTS; cross-functional/process/market evidence before task-execution bullets.
+- Chris IEM Product Manager fixture (score 7.5, STRONG) added to `analysis/tailor_quality_validation.ts`.
+- Anti-fabrication guardrails preserved. Contamination test suite: 29/29 pass.
+- Commit: bee6e83
+
+BLOCKED:
+- None
+
+NEXT:
+- Live user validation on a real STRONG-match job with the new decomposition-driven prompt
+- Optional: decomposition depth tuning based on real output review
+- PDF/DOCX export quality (separate concern, not blocked by this fix)
+- Complete remaining beta gates validation
+
+---
+
 BREAK + UPDATE — 2026-03-17 (Durable Telemetry Storage + Experiment Tagging)
 ---
 DONE:

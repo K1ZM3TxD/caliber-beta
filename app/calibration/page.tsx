@@ -1350,11 +1350,11 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 {heroTitle ? (
                   <div className="cb-depth-layer" style={{ marginTop: 32, animation: "cb-title-enter 0.35s ease-out 0.15s both" }}>
                   <div
-                    className="cb-title-card rounded-2xl"
+                    className="cb-title-card rounded-xl"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                      border: "1.5px solid rgba(74,222,128,0.22)",
-                      boxShadow: "0 0 0 1px rgba(74,222,128,0.08), 0 2px 20px rgba(0,0,0,0.4)",
+                      backgroundColor: "rgba(255,255,255,0.07)",
+                      border: "1.5px solid rgba(255,255,255,0.14)",
+                      boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">

@@ -344,4 +344,18 @@ Do not re-sequence without new blocking evidence.
 
 ---
 
-_Last updated: 2026-03-25 (Jen rerun blocked; extension stability fix shipped; telemetry observability complete)_
+## Recently Completed — Tailor Specificity Fix (2026-03-26, bee6e83)
+
+- **Bug 1 resolved:** `prep.score` was never passed to `generateTailoredResume` → `matchBand` always `WEAK` in production → STRONG-path adaptation (headline rewrite, bullet reordering, elevated summary) never fired. Fixed in `app/api/tailor/generate/route.ts`.
+- **Bug 2 resolved:** System prompt lacked explicit decomposition mechanics. Model had no instruction to identify JD capability themes, map themes to resume evidence, reorder bullets, or prevent single-project dominance. Fixed in `lib/tailor_store.ts`.
+- Chris IEM Product Manager validation fixture added to `analysis/tailor_quality_validation.ts`.
+- Anti-fabrication guardrails preserved. All guardrail tests: 29/29 pass.
+
+**Remaining tailor work:** post-fix validation and quality review only. This is not a core specificity bug — it is validation/polish:
+- Live user testing on a real STRONG-match job
+- Optional decomposition depth tuning
+- PDF/DOCX export quality (separate concern)
+
+---
+
+_Last updated: 2026-03-26 (tailor specificity fix shipped; STRONG-path now correctly activates; role decomposition prompt active)_

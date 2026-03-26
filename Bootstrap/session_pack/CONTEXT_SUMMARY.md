@@ -656,3 +656,26 @@ These fixtures verify:
 - `GET/POST/PATCH /api/pipeline` — pipeline CRUD
 
 **Anti-bloat rationale:** The pipeline must remain intentionally minimal. The moment it gains subtasks, notes, timelines, or CRM-like features, it has failed its design goal. Caliber's pipeline is a clarity tool, not a workflow manager.
+
+## Session Decision — 2026-03-26 (Tailor Specificity Fix, bee6e83)
+
+**Problem identified:** Tailored resumes were too close to a polished default version of the user's base resume and not adapting structurally to the target role. Tested against Chris fixture for an IEM Product Manager role.
+
+**Root cause — Bug 1 (score never passed):**
+`app/api/tailor/generate/route.ts` called `generateTailoredResume(resumeText, jobTitle, company, jobText)` — missing the `score` argument. `matchBand` always evaluated to `"WEAK"` in production. The STRONG-path (assertive headline adaptation, bullet reordering, summary rewrite) never fired for any job regardless of fit score.
+
+**Root cause — Bug 2 (prompt lacked decomposition mechanics):**
+The system prompt instructed the model to "elevate relevant evidence" but provided no structured decomposition step. Without explicit theme-mapping, the model preserved the source resume's structure and only lightly rephrased bullets — no reordering, no headline adaptation, no anti-single-project-dominance logic.
+
+**Fix applied:**
+- `app/api/tailor/generate/route.ts`: pass `prep.score` to `generateTailoredResume`
+- `lib/tailor_store.ts` system prompt additions:
+  - PRE-WORK ROLE DECOMPOSITION: identify 3–5 JD capability themes, map each to specific resume evidence before writing
+  - HEADLINE & SUMMARY ADAPTATION (STRONG matches): adapt headline to role function, lead summary with top JD themes candidate actually supports
+  - EVIDENCE DISTRIBUTION & BULLET ORDERING: front-load JD-relevant bullets, prevent single-project dominance when job needs breadth
+  - SECTION ORDERING for product/ops/strategy/consulting roles
+- `analysis/tailor_quality_validation.ts`: Chris IEM PM fixture (score 7.5, STRONG) — validates presence of cross-functional/launch/stakeholder evidence and blocks industrial/energy/hardware fabrication
+
+**Anti-fabrication guardrails: preserved and unchanged.** BLOCKED field in debug trace enforces source-truth grounding. Contamination test suite: 29/29 pass.
+
+**Remaining tailor work:** live user validation on a real STRONG-match job; optional decomposition depth tuning; PDF/DOCX export quality. Core specificity bug is closed.

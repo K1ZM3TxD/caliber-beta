@@ -1596,4 +1596,38 @@ scope.doc_files:
 - The small text "✕" as the only archive control
 
 **Files touched:** app/pipeline/page.tsx, app/components/TailorPanel.tsx, app/api/tailor/generate/route.ts, lib/tailor_store.ts, Bootstrap/milestones.md, Bootstrap/CALIBER_ISSUES_LOG.md, Bootstrap/BREAK_AND_UPDATE.md
+
+### 2026-03-26 — Tailor Specificity Fix (score pass-through + role decomposition prompt)
+**What changed:**
+- Bug 1 — Score never passed to `generateTailoredResume`: In `app/api/tailor/generate/route.ts`, the `score` argument was omitted from the `generateTailoredResume` call. This meant `matchBand` always resolved to `"WEAK"` in production, and the STRONG-path (assertive headline adaptation, bullet reordering, foregrounded summary) never fired regardless of actual job fit.
+- Bug 2 — System prompt lacked decomposition mechanics: The prior prompt told the model to "elevate relevant evidence" but gave it no structured mechanism. It had no instruction to decompose the JD into capability themes, map those themes to specific resume evidence, reorder bullets within sections, adapt the headline, or prevent a single flagship project from dominating the output.
+
+**What was observed (before):**
+- Chris tailored resume for an IEM Product Manager role remained heavily framed as "PRODUCT & SYSTEMS DESIGNER".
+- Caliber project dominated the output; cross-functional coordination, roadmap, launch execution, and stakeholder communication evidence was buried.
+- Adaptation was cosmetic (minor rephrasing) rather than structural (evidence reweighting).
+
+**What changed (after):**
+- `route.ts` now passes `prep.score` — matchBand resolves correctly (STRONG fires at >= 7.0).
+- `tailor_store.ts` prompt now includes:
+  - PRE-WORK ROLE DECOMPOSITION: model identifies 3–5 JD capability themes and maps each to specific resume evidence before writing anything
+  - HEADLINE & SUMMARY ADAPTATION: STRONG matches adapt headline toward role function; summary leads with top JD themes the candidate actually supports
+  - EVIDENCE DISTRIBUTION & BULLET ORDERING: reorder bullets within roles to put JD-relevant points first; prevent single-project dominance when job needs breadth
+  - SECTION ORDERING for product/ops/strategy/consulting roles: WORK EXPERIENCE before PROJECTS, process/cross-functional/market evidence before task-execution bullets
+- `tailor_quality_validation.ts`: added Chris IEM Product Manager fixture (score 7.5, STRONG) — validates surface of cross-functional, market research, launch/go-to-market, stakeholder, feasibility evidence while blocking industrial/energy/hardware fabrication.
+
+**Anti-fabrication guardrails: preserved and unchanged.** All terms must trace to original resume. BLOCKED field in debug trace enforces this.
+
+**What is now expected:**
+- Strong-match tailoring adapts headline, summary, and bullet ordering to the specific role's demands
+- Role decomposition happens before generation — not as a loose "be relevant" suggestion
+- Chris-style product/systems builder profiles produce meaningfully different output when targeting PM vs design vs engineering roles
+
+**What is no longer expected:**
+- STRONG-match path being silently suppressed by missing score argument
+- Tailored output for PM/strategy/ops roles that looks like a polished generic base resume with minor wording changes
+
+**Remaining tailor work:** post-fix validation and quality review. The core specificity bug is closed. Remaining work is: (a) live user testing on a real STRONG-match job, (b) optional fine-tuning of decomposition depth, (c) PDF/DOCX export quality.
+
+**Files touched:** app/api/tailor/generate/route.ts, lib/tailor_store.ts, analysis/tailor_quality_validation.ts
 (See <attachments> above for file contents. You may not need to search or read the file again.)
