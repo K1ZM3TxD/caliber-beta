@@ -122,6 +122,7 @@ export async function pipelineCreate(
     data: {
       id: "pl_" + crypto.randomBytes(8).toString("hex"),
       userId: entry.userId,
+      sessionId: entry.sessionId ?? null,
       jobTitle: entry.jobTitle,
       company: entry.company,
       jobUrl: entry.jobUrl,

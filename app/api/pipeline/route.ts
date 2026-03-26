@@ -231,6 +231,7 @@ export async function POST(req: NextRequest) {
 
     const entry = await dbPipelineCreate({
       userId: session.user.id,
+      sessionId: sessionId && typeof sessionId === "string" ? String(sessionId).slice(0, 100) : undefined,
       jobTitle: String(jobTitle).slice(0, 200),
       company: String(company).slice(0, 200),
       jobUrl: String(jobUrl ?? "").slice(0, 2000),

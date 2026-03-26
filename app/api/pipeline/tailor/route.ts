@@ -2,6 +2,7 @@
 // POST: generate tailored resume from a pipeline entry
 
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { pipelineGet as filePipelineGet, pipelineUpdateStage as filePipelineUpdateStage } from "@/lib/pipeline_store";
 import { pipelineGet as dbPipelineGet, pipelineUpdateStage as dbPipelineUpdateStage, getLinkedCaliberSession } from "@/lib/pipeline_store_db";
@@ -166,8 +167,23 @@ export async function POST(req: NextRequest) {
       jobTextLen: jobText.length,
     });
 
+    // For resume lookup, prefer the browser's caliber_sessionId cookie — it is
+    // set by the calibration page itself and always reflects the user's current
+    // calibration session. This prevents cross-user contamination when the
+    // extension's caliberSessionId is stale (e.g. after a profile switch).
+    const cookieStore = await cookies();
+    const cookieSessionId = cookieStore.get("caliber_sessionId")?.value ?? null;
+    const resumeSessionId = cookieSessionId || resolvedSessionId || null;
+
+    console.debug("[Caliber][tailor][POST] resume session resolved", {
+      pipelineId,
+      cookieSessionId: cookieSessionId ? "present" : "absent",
+      resolvedSessionId: resolvedSessionId || "none",
+      resumeSessionId: resumeSessionId || "none",
+    });
+
     // Load the user's resume from calibration session
-    const calibSession = resolvedSessionId ? storeGet(resolvedSessionId) : null;
+    const calibSession = resumeSessionId ? storeGet(resumeSessionId) : null;
     if (!calibSession) {
       return NextResponse.json(
         { ok: false, error: "Calibration session not found. Recalibrate first." },
@@ -209,7 +225,7 @@ export async function POST(req: NextRequest) {
     // Save the result (store only the tailoredText)
     const result = tailorResultSave({
       prepId: prep?.id ?? entry.id,
-      sessionId: resolvedSessionId || "",
+      sessionId: resumeSessionId || "",
       ...(userId ? { userId } : {}),
       tailoredText,
     });
