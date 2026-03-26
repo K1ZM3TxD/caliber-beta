@@ -104,7 +104,7 @@ export async function pipelineFindByJob(
   // Prisma SQLite doesn't support complex URL normalization in query,
   // so we fetch user entries and filter in-memory.
   const rows = await prisma.pipelineEntry.findMany({ where: { userId } });
-  const match = rows.find((e) => normalizeJobUrl(e.jobUrl) === normalized);
+  const match = rows.find((e) => normalizeJobUrl(e.jobUrl) === normalized && e.stage !== "archived");
   return match ? toApi(match) : null;
 }
 
@@ -211,7 +211,7 @@ export async function pipelineFindByJobSession(
 ): Promise<PipelineEntry | null> {
   const normalized = normalizeJobUrl(jobUrl);
   const rows = await prisma.pipelineEntry.findMany({ where: { sessionId } });
-  const match = rows.find((e) => normalizeJobUrl(e.jobUrl) === normalized);
+  const match = rows.find((e) => normalizeJobUrl(e.jobUrl) === normalized && e.stage !== "archived");
   return match ? toApi(match) : null;
 }
 
