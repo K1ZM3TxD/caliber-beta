@@ -125,9 +125,30 @@ export async function generateTailoredResume(
 3. Do not invent metrics, percentages, headcounts, revenue figures, or performance claims.
 4. Do not upgrade a job title, role scope, or seniority beyond what the resume states.
 
+## PRE-WORK — ROLE DECOMPOSITION (do this mentally before writing anything):
+Before producing a single line of the resume:
+1. Identify 3–5 core capability themes the JD most emphasizes (e.g., roadmap ownership, cross-functional coordination, requirements gathering, launch execution, stakeholder communication, process/operations, domain expertise).
+2. For each theme, find the specific bullet(s) or section(s) in the ORIGINAL RESUME that best support it. If no evidence exists, that theme must be omitted — never fabricated.
+3. Identify which role/project provides the most breadth of coverage across the JD themes — this drives evidence distribution, not raw word count in the source.
+This mapping must drive every headline, summary, ordering, and emphasis decision.
+
 ## MATCH BAND BEHAVIOR:
-- WEAK match (score < 7.0): Use conservative language. Only reorder and lightly rephrase existing evidence. Do NOT foreground skills or domains absent from the resume. Acknowledge limited fit implicitly by staying grounded in the candidate's actual background.
-- STRONG match (score >= 7.0): Be assertive in elevating and foregrounding relevant evidence. Sharpen language, prioritize matching bullets, rewrite the summary to lead with the strongest fit — but ONLY using what's in the resume. Still blocked from fabrication.
+- WEAK match (score < 7.0): Use conservative language. Reorder and lightly rephrase existing evidence to surface the closest fit. Do NOT foreground skills or domains absent from the resume. Do not force-fit language from the JD if it lacks resume support.
+- STRONG match (score >= 7.0): Be assertive. Adapt the headline to reflect the role's function (e.g., "Product Manager" if the JD is a PM role and the resume demonstrates PM work). Rewrite the summary to lead with the top 2–3 JD themes the candidate most directly supports. Elevate the most relevant bullets to the top of each section. Still blocked from fabrication.
+
+## HEADLINE & SUMMARY ADAPTATION (STRONG matches only):
+- Adapt the headline to name the role function the JD is hiring for, if the candidate's demonstrated work directly supports it. Do not preserve the generic identity title verbatim when a more specific adaptation is traceable to the resume.
+- The summary must lead with the 2–3 themes the JD most emphasizes — frame the candidate's background through what this specific role needs, not a polished version of their base resume.
+
+## EVIDENCE DISTRIBUTION & BULLET ORDERING:
+- Within each role and project, reorder bullets to put the most JD-relevant points FIRST. Compress or omit low-relevance bullets.
+- If one project or role dominates the source resume in word count but the JD requires broad cross-functional or operational evidence, actively distribute emphasis across multiple experiences. Do NOT allow a single project to consume 60%+ of the output when the job is better served by a blended picture.
+- For product, strategy, operations, or consulting-adjacent roles: elevate cross-functional coordination, roadmap/requirements, process/workflow, stakeholder communication, and launch evidence to the top of bullet lists within each section.
+
+## SECTION ORDERING FOR PRODUCT / STRATEGY / OPS / CONSULTING ROLES:
+If the job is product management, product strategy, operations, program management, or consulting-adjacent:
+- Order: PROFESSIONAL SUMMARY → WORK EXPERIENCE → PROJECTS/SELECTED PROJECTS → SKILLS → EDUCATION
+- Lead work experience bullets with the cross-functional, process, market-facing, and stakeholder evidence before task-execution details.
 
 ## FORMATTING RULES (ATS and recruiter compliance):
 - Section headings: use ONLY these exact names in ALL CAPS — PROFESSIONAL SUMMARY, WORK EXPERIENCE, PROJECTS, SELECTED PROJECTS, SKILLS, EDUCATION, CERTIFICATIONS, ADDITIONAL

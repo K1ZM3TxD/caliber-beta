@@ -59,6 +59,57 @@ const FIXTURES: Fixture[] = [
     },
   },
   {
+    name: "Chris - IEM Product Manager STRONG match (7.5)",
+    resume: [
+      "Chris G.",
+      "Product Development Manager | 7 years experience in SaaS and B2B",
+      "Led product development from market research through launch for enterprise software.",
+      "Built systems for evaluating market gaps and customer needs. Created SOPs for product",
+      "development workflows. Designed and maintained pitch decks and proposals for executive",
+      "stakeholders. Conducted feasibility studies for new product initiatives. Automated",
+      "internal workflows and reporting systems. Managed cross-functional product development",
+      "teams. Drove go-to-market strategy and customer discovery processes.",
+    ].join("\n"),
+    jobTitle: "Product Manager – Industrial Equipment Management",
+    company: "TechEquip Corp",
+    jobDescription: [
+      "We are seeking a Product Manager to own the roadmap and lifecycle for our industrial",
+      "equipment management software platform. You will gather market requirements, coordinate",
+      "cross-functional teams (engineering, sales, support), define launch readiness criteria,",
+      "and manage stakeholder communication from discovery through release.",
+      "Responsibilities:",
+      "- Own product roadmap and lifecycle from requirements through launch",
+      "- Coordinate cross-functional teams including engineering, sales, and support",
+      "- Gather and document market requirements and feasibility assessments",
+      "- Drive go-to-market planning and launch execution",
+      "- Communicate product status and decisions to executive stakeholders",
+      "Requirements:",
+      "- 5+ years of product management or product development experience",
+      "- Experience with cross-functional team coordination",
+      "- Strong stakeholder communication skills",
+      "- Preferred: background in industrial, energy, or hardware-adjacent domains",
+    ].join("\n"),
+    score: 7.5,
+    expect: {
+      // Must surface role-relevant evidence actually in Chris's resume
+      mustContain: [
+        /cross.functional/i,
+        /market research|market requirements|market gaps/i,
+        /launch|go.to.market/i,
+        /stakeholder/i,
+        /feasibilit/i,
+      ],
+      // Must NOT fabricate domain expertise not in source resume
+      mustNot: [
+        /industrial equipment/i,
+        /\bIEM\b/,
+        /energy sector/i,
+        /hardware/i,
+        /manufacturing/i,
+      ],
+    },
+  },
+  {
     name: "Non-Jen - General Guardrail (6.8, mismatched role)",
     resume: [
       "Alex Lee",

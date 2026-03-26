@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
       resumeText,
       prep.jobTitle,
       prep.company,
-      prep.jobText
+      prep.jobText,
+      prep.score
     );
 
     // Save the result
