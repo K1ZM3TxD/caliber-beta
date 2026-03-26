@@ -82,6 +82,7 @@ function TailorPanel({
   const [tailoredText, setTailoredText] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [genStep, setGenStep] = useState(0);
   const genTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,20 +166,38 @@ function TailorPanel({
     }
   }, [tailoredText]);
 
-  const download = useCallback(() => {
-    if (!tailoredText) return;
-    const blob = new Blob([tailoredText], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resume-${entry.company.toLowerCase().replace(/\s+/g, "-")}-${entry.jobTitle.toLowerCase().replace(/\s+/g, "-")}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [tailoredText, entry.company, entry.jobTitle]);
+  const download = useCallback(async () => {
+    if (!tailoredText || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/tailor/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tailoredText,
+          jobTitle: entry.jobTitle,
+          company: entry.company,
+        }),
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const fnMatch = disposition.match(/filename="([^"]+)"/);
+      const fn = fnMatch ? fnMatch[1] : `resume-${entry.company.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fn;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* silent — user can retry */
+    } finally {
+      setDownloading(false);
+    }
+  }, [tailoredText, downloading, entry.jobTitle, entry.company]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -402,7 +421,8 @@ function TailorPanel({
               {/* Download */}
               <button
                 onClick={download}
-                className="w-full py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                disabled={downloading}
+                className="w-full py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   background: "rgba(74,222,128,0.10)",
                   color: "#4ADE80",
@@ -422,7 +442,7 @@ function TailorPanel({
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                   />
                 </svg>
-                Download Tailored Resume
+                {downloading ? "Generating PDF…" : "Download PDF"}
               </button>
             </div>
           )}
