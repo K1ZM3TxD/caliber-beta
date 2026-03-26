@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 54; // 0.75 inch — standard single-page resume margin
+    const margin = 54; // 0.75 inch
     const maxWidth = pageW - margin * 2;
     let y = margin;
 
@@ -38,86 +38,86 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Name (18pt bold, centered) ──
+    // ── Name (20pt bold, centered) ──
     if (resume.name) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(0, 0, 0);
-      ensureSpace(22);
+      doc.setFontSize(20);
+      doc.setTextColor(20, 20, 20);
+      ensureSpace(24);
       doc.text(resume.name, pageW / 2, y, { align: "center" });
-      y += 22;
+      y += 24;
     }
 
-    // ── Contact (10pt, centered, gray) ──
+    // ── Contact (9.5pt, centered, mid-gray) ──
     if (resume.contact) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(9.5);
+      doc.setTextColor(90, 90, 90);
       const contactLines = doc.splitTextToSize(
         resume.contact,
         maxWidth,
       ) as string[];
       for (const line of contactLines) {
-        ensureSpace(13);
+        ensureSpace(12);
         doc.text(line, pageW / 2, y, { align: "center" });
-        y += 13;
+        y += 12;
       }
-      doc.setTextColor(0, 0, 0);
-      y += 8;
+      doc.setTextColor(20, 20, 20);
+      y += 10; // breathing room before first section
     }
 
     // ── Sections ──
     for (const section of resume.sections) {
-      // Section heading: bold 12pt + underline rule
+      // Section heading: 11pt bold uppercase + hairline rule
       if (section.heading) {
-        y += 10;
-        ensureSpace(20);
+        y += 12; // inter-section gap
+        ensureSpace(22);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(11);
+        doc.setTextColor(20, 20, 20);
         doc.text(section.heading.toUpperCase(), margin, y);
-        y += 4;
-        doc.setDrawColor(180, 180, 180);
-        doc.setLineWidth(0.5);
+        y += 3;
+        doc.setDrawColor(205, 205, 205); // light hairline
+        doc.setLineWidth(0.3);
         doc.line(margin, y, pageW - margin, y);
-        y += 10;
+        y += 9;
       }
 
       for (const item of section.items) {
         switch (item.kind) {
           case "entry": {
-            y += 4;
+            y += 3; // slight gap before each role/degree/project title
             doc.setFont("helvetica", "bold");
-            doc.setFontSize(11);
-            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10.5);
+            doc.setTextColor(20, 20, 20);
             const entryLines = doc.splitTextToSize(
               item.text,
               maxWidth,
             ) as string[];
             for (const el of entryLines) {
-              ensureSpace(14);
+              ensureSpace(13);
               doc.text(el, margin, y);
-              y += 14;
+              y += 13;
             }
             y += 1;
             break;
           }
 
           case "bullet": {
-            const bulletIndent = 18;
+            const bulletIndent = 14; // tighter, less chunky
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(10.5);
-            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10);
+            doc.setTextColor(20, 20, 20);
             const normalizedBullet = item.text.replace(/^[\u2022\u25AA\u25BA\u25CF\u2023\u25E6\u2043*\-\u2022]+\s*/, "").trim();
             const bLines = doc.splitTextToSize(
               normalizedBullet,
               maxWidth - bulletIndent,
             ) as string[];
             for (let i = 0; i < bLines.length; i++) {
-              ensureSpace(13);
-              if (i === 0) doc.text("\u2022", margin + 4, y); // bullet character
+              ensureSpace(12.5);
+              if (i === 0) doc.text("\u2022", margin + 3, y);
               doc.text(bLines[i], margin + bulletIndent, y);
-              y += 13;
+              y += 12.5;
             }
             y += 1;
             break;
@@ -125,16 +125,16 @@ export async function POST(req: NextRequest) {
 
           case "text": {
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(10.5);
-            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10);
+            doc.setTextColor(20, 20, 20);
             const tLines = doc.splitTextToSize(
               item.text,
               maxWidth,
             ) as string[];
             for (const tl of tLines) {
-              ensureSpace(14);
+              ensureSpace(13);
               doc.text(tl, margin, y);
-              y += 14;
+              y += 13;
             }
             y += 2;
             break;
