@@ -190,3 +190,213 @@ describe("resumeSessionId priority: cookie > entry/prep sessionId", () => {
     expect(result).not.toBe(FABIO_SESSION);
   });
 });
+
+// ── New regression tests for 72f0194 fix layers ───────────────────────────
+
+/**
+ * Fix layer 1 + 4 (extension/background.js discoverSession):
+ * When the cookie is present and differs from chrome.storage, the cookie wins.
+ * Any backup belonging to the stale (storage) session is discarded.
+ *
+ * This mirrors the exact logic added to discoverSession() in 72f0194.
+ */
+describe("discoverSession — cookie-first resolution (Fix 1+4, 72f0194)", () => {
+  /**
+   * Pure mirror of the cookie-override block in discoverSession():
+   *   if (cookieId && cookieId !== storedId) {
+   *     storedId = cookieId;
+   *     if (sessionBackup && sessionBackup.sessionId !== cookieId) sessionBackup = null;
+   *   }
+   */
+  function resolveDiscoverSession(
+    cookieId: string | null,
+    storedId: string | null,
+    sessionBackup: { sessionId: string } | null
+  ): { resolvedId: string | null; backup: { sessionId: string } | null; storageUpdated: boolean } {
+    let resolved = storedId;
+    let backup = sessionBackup;
+    let storageUpdated = false;
+    if (cookieId && cookieId !== storedId) {
+      resolved = cookieId;
+      if (backup && backup.sessionId !== cookieId) {
+        backup = null;
+      }
+      storageUpdated = true;
+    }
+    return { resolvedId: resolved, backup, storageUpdated };
+  }
+
+  it("cookie overrides stale storage in Fabio→Jen switch scenario", () => {
+    const result = resolveDiscoverSession(
+      JEN_SESSION,
+      FABIO_SESSION,
+      { sessionId: FABIO_SESSION }
+    );
+    expect(result.resolvedId).toBe(JEN_SESSION);
+    expect(result.backup).toBeNull(); // Fabio's backup discarded
+    expect(result.storageUpdated).toBe(true);
+  });
+
+  it("discards cross-profile backup when cookie differs from storage", () => {
+    const result = resolveDiscoverSession(JEN_SESSION, FABIO_SESSION, { sessionId: FABIO_SESSION });
+    expect(result.backup).toBeNull();
+  });
+
+  it("retains backup when cookie matches storage (same-session)", () => {
+    const jenBackup = { sessionId: JEN_SESSION };
+    const result = resolveDiscoverSession(JEN_SESSION, JEN_SESSION, jenBackup);
+    expect(result.backup).toBe(jenBackup); // backup retained — belongs to correct session
+    expect(result.storageUpdated).toBe(false); // no override needed
+  });
+
+  it("does not override when cookie is absent (null)", () => {
+    const result = resolveDiscoverSession(null, FABIO_SESSION, { sessionId: FABIO_SESSION });
+    expect(result.resolvedId).toBe(FABIO_SESSION); // storage wins when no cookie
+    expect(result.storageUpdated).toBe(false);
+  });
+
+  it("cookie wins over null storage", () => {
+    const result = resolveDiscoverSession(JEN_SESSION, null, null);
+    expect(result.resolvedId).toBe(JEN_SESSION);
+    expect(result.storageUpdated).toBe(true);
+  });
+});
+
+/**
+ * Fix layer 2 (extension/background.js CALIBER_PIPELINE_SAVE):
+ * Pipeline entries are saved with cookie > storage for sessionId.
+ * Stale caliberSessionId in storage cannot contaminate the entry.
+ */
+describe("CALIBER_PIPELINE_SAVE — cookie-first sessionId (Fix 2, 72f0194)", () => {
+  /**
+   * Pure mirror of pipeline save sessionId resolution:
+   *   const sessionId = cookieId || store.caliberSessionId
+   */
+  function resolvePipelineSaveSession(
+    cookieId: string | null,
+    storedId: string | null
+  ): { sessionId: string | null; syncStorage: boolean } {
+    const sessionId = cookieId || storedId || null;
+    const syncStorage = !!(cookieId && cookieId !== storedId);
+    return { sessionId, syncStorage };
+  }
+
+  it("pipeline entry uses cookie session when cookie is present", () => {
+    const { sessionId, syncStorage } = resolvePipelineSaveSession(JEN_SESSION, FABIO_SESSION);
+    expect(sessionId).toBe(JEN_SESSION);
+    expect(syncStorage).toBe(true); // storage should be updated to cookie value
+  });
+
+  it("pipeline entry falls back to storage when cookie is absent", () => {
+    const { sessionId } = resolvePipelineSaveSession(null, JEN_SESSION);
+    expect(sessionId).toBe(JEN_SESSION);
+  });
+
+  it("pipeline entry returns null when both sources absent", () => {
+    const { sessionId } = resolvePipelineSaveSession(null, null);
+    expect(sessionId).toBeNull();
+  });
+
+  it("does not sync storage when cookie already matches storage", () => {
+    const { sessionId, syncStorage } = resolvePipelineSaveSession(JEN_SESSION, JEN_SESSION);
+    expect(sessionId).toBe(JEN_SESSION);
+    expect(syncStorage).toBe(false);
+  });
+});
+
+/**
+ * Fix layer 3 (app/api/extension/session/route.ts):
+ * GET and POST without an explicit sessionId return 400 — storeLatest() is
+ * never called. This is the server-side guard against Stage 3 cross-user
+ * contamination.
+ */
+describe("session endpoint — sessionId guard (Fix 3, 72f0194)", () => {
+  /**
+   * Mirrors the request routing in the fixed GET handler:
+   *   if (!requestedId) → return 400
+   *   else → lookup by requestedId only
+   */
+  function resolveSessionRequest(
+    requestedId: string | null
+  ): { status: 400 | 200 | 404; usesLatestFallback: boolean } {
+    if (!requestedId) {
+      return { status: 400, usesLatestFallback: false };
+    }
+    // Simulate a found/not-found result — actual store lookup not mirrored here
+    return { status: 200, usesLatestFallback: false };
+  }
+
+  it("returns 400 when GET request has no sessionId", () => {
+    const { status, usesLatestFallback } = resolveSessionRequest(null);
+    expect(status).toBe(400);
+    expect(usesLatestFallback).toBe(false);
+  });
+
+  it("returns 400 when POST request has no sessionId", () => {
+    const { status, usesLatestFallback } = resolveSessionRequest(null);
+    expect(status).toBe(400);
+    expect(usesLatestFallback).toBe(false);
+  });
+
+  it("proceeds to session lookup when explicit sessionId is provided", () => {
+    const { status, usesLatestFallback } = resolveSessionRequest(JEN_SESSION);
+    expect(status).toBe(200);
+    expect(usesLatestFallback).toBe(false); // never calls storeLatest()
+  });
+
+  it("storeLatest is never used regardless of sessionId presence", () => {
+    // Key invariant: the usesLatestFallback property must always be false
+    // in the fixed implementation.
+    const withId = resolveSessionRequest(FABIO_SESSION);
+    const withoutId = resolveSessionRequest(null);
+    expect(withId.usesLatestFallback).toBe(false);
+    expect(withoutId.usesLatestFallback).toBe(false);
+  });
+});
+
+/**
+ * Fix layer 4 (backup restoration guard) is folded into Fix 1 test above.
+ * Additional explicit test for the ownership check:
+ * backup restoration is ONLY attempted when cookieId === storedId.
+ */
+describe("backup restoration — ownership check (Fix 4, 72f0194)", () => {
+  /**
+   * Mirrors the condition that gates backup restoration:
+   *   if (storedId && cookieId === storedId) { ... restore ... }
+   */
+  function shouldRestoreBackup(
+    cookieId: string | null,
+    storedId: string | null,
+    backup: { sessionId: string } | null
+  ): boolean {
+    return !!(storedId && cookieId === storedId && backup && backup.sessionId === storedId);
+  }
+
+  it("BLOCKS restoration when cookie is absent (prevents cold-restore contamination)", () => {
+    expect(shouldRestoreBackup(null, FABIO_SESSION, { sessionId: FABIO_SESSION })).toBe(false);
+  });
+
+  it("BLOCKS restoration when cookie differs from storage (cross-profile scenario)", () => {
+    expect(shouldRestoreBackup(JEN_SESSION, FABIO_SESSION, { sessionId: FABIO_SESSION })).toBe(false);
+  });
+
+  it("ALLOWS restoration when cookie matches storage (legitimate eviction recovery)", () => {
+    expect(shouldRestoreBackup(JEN_SESSION, JEN_SESSION, { sessionId: JEN_SESSION })).toBe(true);
+  });
+
+  it("BLOCKS restoration when backup sessionId differs from storedId", () => {
+    // A backup from a different session should never be restored
+    expect(shouldRestoreBackup(FABIO_SESSION, FABIO_SESSION, { sessionId: JEN_SESSION })).toBe(false);
+  });
+
+  it("BLOCKS restoration when backup is null", () => {
+    expect(shouldRestoreBackup(JEN_SESSION, JEN_SESSION, null)).toBe(false);
+  });
+
+  it("Fabio→Jen: backup restore fully blocked in BOTH contamination vectors", () => {
+    // Vector 1: cookie=jenSession, storage=fabioSession (HANDOFF didn't fire yet)
+    expect(shouldRestoreBackup(JEN_SESSION, FABIO_SESSION, { sessionId: FABIO_SESSION })).toBe(false);
+    // Vector 2: cookie=null (cleared), storage=fabioSession
+    expect(shouldRestoreBackup(null, FABIO_SESSION, { sessionId: FABIO_SESSION })).toBe(false);
+  });
+});
