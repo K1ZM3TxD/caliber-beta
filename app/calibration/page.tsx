@@ -1387,15 +1387,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
-                      {/* Secondary CTA — Search on LinkedIn */}
-                      <div className="mt-3">
+                      {/* Secondary CTA — LinkedIn search */}
+                      <div className="mt-4">
                         <a
-                          href="https://www.linkedin.com/jobs/"
+                          href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-sm transition-all duration-150 hover:opacity-80"
-                          style={{ color: "#666", textDecoration: "none" }}
-                        >Score Your First Job &rarr;</a>
+                          className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
+                          style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
+                        >Search on LinkedIn</a>
                       </div>
                     </div>
                   </div>
