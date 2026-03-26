@@ -237,6 +237,18 @@ const TITLE_CLUSTERS: TitleCluster[] = [
       { title: "Brand & Content Strategist", unique: ["market", "material"], optional: ["customer", "strategy", "communication", "sale", "automate", "campaign"] },
     ],
   },
+  {
+    // StrategyOps: empirically-validated cluster for ops/strategy adjacent roles.
+    // Core anchors align with blended ops+client profiles (e.g. Jen-like) that score
+    // well on strategy, team, project, and customer but lack pure OpsProgram vocab
+    // (operations, management, process). "operations" in unique keeps the score
+    // grounded — profiles without it can't hit full required coverage.
+    name: "StrategyOps",
+    core: ["strategy", "team", "project", "customer"],
+    titles: [
+      { title: "Strategy & Operations Manager", unique: ["service", "operations"], optional: ["relationship", "management", "client", "execution", "coordination", "process"] },
+    ],
+  },
 ];
 
 const STANDALONE_SIGS: Array<{ title: string; required: string[]; optional: string[] }> = [
@@ -323,6 +335,7 @@ const DOMAIN_GROUNDING: Record<string, string[]> = {
   ProductDev: ["product", "development", "market", "launch", "technical", "system", "workflow", "process"],
   DesignSystems: ["design", "system", "workflow", "research", "users", "documentation", "brand"],
   OpsProgram: ["operations", "management", "program", "project", "tracking", "reporting", "execution", "planning"],
+  StrategyOps: ["strategy", "operations", "project", "execution", "coordination", "planning", "management"],
 };
 
 function detectPrimaryClusters(anchorMap: Map<string, number>): string[] {
@@ -352,6 +365,10 @@ function applyGroundingPenalty(candidates: EnrichedCandidate[], anchorMap: Map<s
     "ClientGrowth->CreativeOps",
     "ProductDev->DesignSystems",
     "DesignSystems->ProductDev",
+    "StrategyOps->OpsProgram",
+    "OpsProgram->StrategyOps",
+    "StrategyOps->ClientGrowth",
+    "ClientGrowth->StrategyOps",
   ]);
 
   return candidates.map((c) => {
@@ -490,6 +507,7 @@ const CLUSTER_MODE_MAP: Record<string, WorkMode> = {
   ClientGrowth: "sales_execution",
   SecurityAnalysis: "analytical_investigative",
   CreativeOps: "creative_ideation",
+  StrategyOps: "operational_execution",
 };
 
 /** Bonus applied per work-mode compatibility tier when ranking recovery terms. */
