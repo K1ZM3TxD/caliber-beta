@@ -3,6 +3,29 @@
 
 ## Current Open Issues
 
+110. Cross-user resume contamination in tailor flow — **RESOLVED** (2026-03-26)
+  - **Symptom:** On a Jen tailor run, the generated tailored resume contained Fabio Bellini's resume content — his name, cybersecurity background, and certifications — instead of Jen's content.
+  - **Classification:** Source-binding bug. Not a generation error, model hallucination, or server-wide user mixing. The system loaded the wrong resume before the LLM was ever called.
+  - **Conditions of occurrence:** User calibrated as Fabio, then recalibrated as Jen. Extension's `caliberSessionId` was not updated between recalibrations (handoff missed). Subsequent pipeline save and tailor prep write used the stale Fabio sessionId. Tailor generation then loaded Fabio's resume via `storeGet(staleId)`.
+  - **Root cause — Path A (primary — stale extension `caliberSessionId`):**
+    1. `CALIBER_SESSION_HANDOFF` fires `chrome.storage.caliberSessionId = fabio_session`
+    2. User recalibrates as Jen. Handoff only fires when `caliber:session-ready` event is received from `app/calibration/page.tsx` (dispatched at the TITLES step). If user navigates away, closes tab, or handoff times out → `caliberSessionId` stays as `fabio_session`.
+    3. Extension `CALIBER_PIPELINE_SAVE` uses `chrome.storage.caliberSessionId` directly → pipeline entry saved with `sessionId = fabio_session`.
+    4. `tailorPrepSave({ sessionId: fabio_session, jobUrl: jenJobUrl, ... })` — prep file written under Fabio's sessionId for Jen's job.
+    5. Tailor generate: `tailorPrepFindByJob(fabio_session, jenJobUrl)` finds the prep → `resolvedSessionId = fabio_session` → `storeGet(fabio_session)` → Fabio's resume.
+  - **Root cause — Path B (secondary — web-created entries missing sessionId in DB):**
+    1. Web-auth user creates pipeline entry via `POST /api/pipeline`. The `dbPipelineCreate` call in `app/api/pipeline/route.ts` was not passing `sessionId` to the DB function.
+    2. `pipelineCreate()` in `lib/pipeline_store_db.ts` did not include `sessionId` in the Prisma `create` data, so `sessionId = null` in the DB.
+    3. `resolveEntry()` in tailor route saw `entry.sessionId = ""`, fell back to `getLinkedCaliberSession(userId)` which could return a stale linked session.
+    4. `tailorPrepFindByJob(staleId, jobUrl)` finds wrong prep or no prep → `resolvedSessionId = staleId` → `storeGet(staleId)` → wrong resume.
+  - **Fix (commit `892a45a`):**
+    1. `app/api/pipeline/tailor/route.ts` — reads `caliber_sessionId` cookie as primary resume-session source: `resumeSessionId = cookieSessionId || resolvedSessionId || null`. Cookie is set by the calibration page and cannot be modified by the extension — provides a tamper-resistant trust anchor.
+    2. `app/api/pipeline/route.ts` — web-auth POST now passes `sessionId` from request body into `dbPipelineCreate`.
+    3. `lib/pipeline_store_db.ts` — `pipelineCreate` now includes `sessionId` in `prisma.pipelineEntry.create` data.
+  - **Tests:** `lib/tailor_contamination.test.ts` — 10 tests covering sessionId isolation in `tailorPrepFindByJob`, cookie priority behavior, and Fabio→Jen profile-switch contamination scenario.
+  - **Implication for validation:** Any tailor output generated before commit `892a45a` must not be used as a quality baseline. Post-fix runs are the only valid baseline for tailor quality validation. Gate 5 closure (functionality, 2026-03-24) stands; integrity validation requires post-fix runs.
+  - **Status:** RESOLVED — commit `892a45a` (2026-03-26)
+
 109. Stale extension calibration context across re-calibration in open LinkedIn tabs — **RESOLVED** (2026-03-25)
   - **Symptom:** After a Fabio → Jen re-calibration, extension Adjacent Searches in open LinkedIn tabs continued showing Fabio/security-oriented roles ("Security Analyst", "Security Operations Lead", "Technical Security Consultant") even though Jen calibration was active and the scoring API was correctly returning Jen's calibration title and adjacent roles.
   - **Conditions of occurrence:** LinkedIn tab open during or before Jen re-calibration. Extension content script had already initialized and populated in-memory context variables from Fabio's session. New calibration completed in a separate tab.

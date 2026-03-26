@@ -103,6 +103,73 @@ When the change lands, report:
 
 ---
 
+### BREAK+UPDATE — 2026-03-26 — Tailor Cross-User Resume Contamination Fix
+
+**What changed:**
+
+A high-severity tailor integrity bug was discovered and fixed. **Observed failure:** on a Jen tailor run, the generated tailored resume contained Fabio Bellini's resume content — his name, cybersecurity background, and certifications — instead of Jen's resume content. This is a beta trust/integrity blocker. The failure was **not** model hallucination; it was stale session/source binding causing the system to load the wrong user's resume before generation.
+
+**Root cause — two paths:**
+
+**Path A (primary — extension stale `caliberSessionId`):**
+1. User calibrates as Fabio → `CALIBER_SESSION_HANDOFF` fires → `chrome.storage.caliberSessionId = fabio_session`.
+2. User recalibrates as Jen. The `CALIBER_SESSION_HANDOFF` is only reliably fired when the calibration page reaches the TITLES step and the `caliber:session-ready` custom event fires from `app/calibration/page.tsx`. If the user closes the tab early, navigates away, or a timing gap prevents the event from being received, **`caliberSessionId` stays as `fabio_session`**.
+3. Extension sends `CALIBER_PIPELINE_SAVE` for a Jen job with `sessionId = fabio_session`.
+4. `tailorPrepSave({ sessionId: fabio_session, jobUrl: jenJobUrl, ... })` — Jen's job prep file is written with Fabio's sessionId.
+5. Tailor generate: `tailorPrepFindByJob(fabio_session, jenJobUrl)` finds the Jen prep (same stale sessionId), `resolvedSessionId = fabio_session`, `storeGet(fabio_session)` → Fabio's resume → contaminated output.
+
+**Path B (secondary — web-created entries missing sessionId in DB):**
+1. Authenticated user creates a pipeline entry via the web app. The `POST /api/pipeline` web path called `dbPipelineCreate()` without including `sessionId` — it was silently dropped.
+2. `pipelineCreate()` in `lib/pipeline_store_db.ts` did not include `sessionId` in the Prisma `create` call even when it was present in the input, meaning all web-created entries had `sessionId = null` in the DB.
+3. `resolveEntry()` in the tailor route saw `entry.sessionId = ""`, fell back to `getLinkedCaliberSession(userId)` which could return a stale linked session from a previous calibration.
+4. `tailorPrepFindByJob(staleId, jobUrl)` → wrong prep or wrong resume.
+
+**What is NOT the cause:**
+- This is a source-binding bug, not a generation error, hallucination, or model mixing.
+- The scoring API, session storage, and calibration pipeline were correct throughout.
+- This is not server-wide user mixing — it only occurs when a user's own extension session binding is stale after a profile switch, or when a web-created entry loses its sessionId.
+
+**Fix:**
+
+1. **`app/api/pipeline/tailor/route.ts`** — tailor POST handler now reads the `caliber_sessionId` **cookie** (set directly by the calibration page at the TITLES step, and not accessible or modifiable by the extension) as the primary source for resume session lookup:
+   ```
+   const cookieSessionId = cookieStore.get("caliber_sessionId")?.value ?? null;
+   const resumeSessionId = cookieSessionId || resolvedSessionId || null;
+   ```
+   This decouples resume binding from the extension's `caliberSessionId` chain entirely. Even if the extension has a stale sessionId, the web session cookie reflects the user's actual active calibration.
+
+2. **`app/api/pipeline/route.ts`** — web-auth POST path now threads `sessionId` from the request body into `dbPipelineCreate`, closing the upstream gap.
+
+3. **`lib/pipeline_store_db.ts`** — `pipelineCreate` now includes `sessionId` in `prisma.pipelineEntry.create` data. Previously this field was present in the interface but silently omitted from the Prisma write.
+
+**Tests added:** `lib/tailor_contamination.test.ts` — 10 tests:
+- `tailorPrepFindByJob` returns null when queried with a mismatched (stale) sessionId
+- Contaminated prep (written with stale sessionId) is not accessible via correct session
+- `resumeSessionId` priority: cookie > prep.sessionId > entry.sessionId
+- Fabio→Jen profile switch: cookie overrides stale prep/entry sessionId
+
+**Why the new behavior is safer:**
+- The `caliber_sessionId` cookie is a server-issued HttpOnly cookie set by the Next.js calibration page. It reflects the session the web app authenticated against. The extension has no mechanism to forge or replace it. This makes the cookie a trust anchor for resume lookup that cannot be contaminated by stale extension state.
+- If no cookie is present (server context, expired session), the system gracefully falls back to the prep-derived sessionId and then the entry sessionId, which are still more reliable than the stale linked session fallback.
+- If *all* sources are null, `storeGet(null)` returns null and the route returns 404 — controllable error, not silent contamination.
+
+**Beta-readiness implication:**
+- Any tailor output generated before this fix (commit `892a45a`) is potentially contaminated and must not be used as a validation baseline.
+- Post-fix runs with confirmed Jen (or any single user) calibration are the valid baseline for tailor quality validation.
+- The tailor quality gate remains OPEN — post-fix validation has not yet been run. Gate 5 closure holds for functionality; integrity validation is now unblocked.
+
+**What changed (no longer expected):**
+- Tailor generation can no longer silently use a different user's resume due to stale extension session binding.
+- Web-created pipeline entries will now carry their sessionId in the DB, enabling reliable tailor context resolution without linked-session fallback.
+
+**Smallest observable proof:**
+- Calibrate as Jen. Go directly to a saved Jen job and trigger tailor. The generated resume must reference Jen's actual resume content, not any prior calibration session's content.
+- `lib/tailor_contamination.test.ts` 10/10 pass.
+
+**Files touched:** `app/api/pipeline/tailor/route.ts`, `app/api/pipeline/route.ts`, `lib/pipeline_store_db.ts`, `lib/tailor_contamination.test.ts`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ISSUES_LOG.md`
+
+---
+
 ### BREAK+UPDATE — 2026-03-25 — Extension Calibration-Context Freshness Fix
 
 **What changed:**
