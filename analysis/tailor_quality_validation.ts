@@ -160,6 +160,50 @@ const FIXTURES: Fixture[] = [
     },
   },
   {
+    name: "Chris - Design Technology Manager stretch role (7.1) — title-shape overfitting guardrail",
+    resume: [
+      "Chris G.",
+      "Product Development Manager | 7 years experience in SaaS and B2B",
+      "Led product development from market research through launch for enterprise software.",
+      "Built systems for evaluating market gaps and customer needs. Created SOPs for product",
+      "development workflows. Designed and maintained pitch decks and proposals for executive",
+      "stakeholders. Conducted feasibility studies for new product initiatives. Automated",
+      "internal workflows and reporting systems. Managed cross-functional product development",
+      "teams. Drove go-to-market strategy and customer discovery processes.",
+    ].join("\n"),
+    jobTitle: "Design Technology Manager",
+    company: "AEC Firm",
+    jobDescription: [
+      "We are seeking a Design Technology Manager to lead BIM/CAD technology adoption",
+      "across our architecture and engineering practice. You will manage design software",
+      "infrastructure, train staff on Revit and BIM workflows, coordinate technology",
+      "implementation across project teams, and develop SOPs for design technology use.",
+      "Requirements:",
+      "- 5+ years experience in AEC design technology management",
+      "- Proficiency in Revit, BIM, AutoCAD, Navisworks",
+      "- Experience managing cross-functional implementation projects",
+      "- Strong stakeholder communication and change management skills",
+    ].join("\n"),
+    score: 7.1,
+    expect: {
+      // Should adapt toward grounded functional framing, not the exact specialized title
+      mustContain: [
+        /cross.functional|cross functional/i,
+        /systems|process|workflow/i,
+        /stakeholder/i,
+      ],
+      // Must NOT mirror the narrow specialized title or fabricate AEC/BIM domain depth
+      mustNot: [
+        /design technology manager/i,
+        /\bBIM\b/,
+        /\bRevit\b/,
+        /\bAutoCAD\b/,
+        /\bAEC\b/,
+        /architecture.*engineer|engineer.*architect/i,
+      ],
+    },
+  },
+  {
     name: "Non-Jen - General Guardrail (6.8, mismatched role)",
     resume: [
       "Alex Lee",
