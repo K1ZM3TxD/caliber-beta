@@ -119,12 +119,12 @@ export async function POST(req: NextRequest) {
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: "- " + item.text,
+                    text: "\u2022  " + item.text,
                     font: "Calibri",
                     size: 22, // 11pt
                   }),
                 ],
-                indent: { left: 360 },
+                indent: { left: 360, hanging: 180 },
                 spacing: { after: 40 },
               }),
             );
@@ -154,10 +154,10 @@ export async function POST(req: NextRequest) {
           properties: {
             page: {
               margin: {
-                top: 1440, // 1 inch in TWIPs
-                right: 1440,
-                bottom: 1440,
-                left: 1440,
+                top: 1080,  // 0.75 inch — standard resume margin
+                right: 1080,
+                bottom: 1080,
+                left: 1080,
               },
             },
           },

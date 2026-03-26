@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 72; // 1 inch
+    const margin = 54; // 0.75 inch — standard single-page resume margin
     const maxWidth = pageW - margin * 2;
     let y = margin;
 
@@ -104,20 +104,20 @@ export async function POST(req: NextRequest) {
           }
 
           case "bullet": {
-            const bulletIndent = 20;
+            const bulletIndent = 18;
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10.5);
             doc.setTextColor(0, 0, 0);
-            const normalizedBullet = item.text.replace(/^[\u2022\u25AA\u25BA\u25CF\u2023\u25E6\u2043*\-•]+\s*/, "").trim();
+            const normalizedBullet = item.text.replace(/^[\u2022\u25AA\u25BA\u25CF\u2023\u25E6\u2043*\-\u2022]+\s*/, "").trim();
             const bLines = doc.splitTextToSize(
               normalizedBullet,
               maxWidth - bulletIndent,
             ) as string[];
             for (let i = 0; i < bLines.length; i++) {
-              ensureSpace(14);
-              if (i === 0) doc.text("-", margin + 6, y);
+              ensureSpace(13);
+              if (i === 0) doc.text("\u2022", margin + 4, y); // bullet character
               doc.text(bLines[i], margin + bulletIndent, y);
-              y += 14;
+              y += 13;
             }
             y += 1;
             break;

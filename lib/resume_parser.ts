@@ -38,8 +38,10 @@ const HEADER_MAP: [RegExp, ResumeSection["type"]][] = [
   [/^QUALIFICATIONS?$/i, "skills"],
   [/^EDUCATION(\s+(&|AND)\s+\w+)?$/i, "education"],
   [/^ACADEMIC\s+BACKGROUND$/i, "education"],
+  [/^SELECTED\s+PROJECTS?$/i, "other"],
   [/^CERTIFIC/i, "other"],
   [/^LICENSES?$/i, "other"],
+  [/^HONORS?$/i, "other"],
   [/^AWARDS?$/i, "other"],
   [/^LANGUAGES?$/i, "other"],
   [/^ADDITIONAL/i, "other"],
@@ -150,7 +152,10 @@ export function parseResume(rawText: string): ParsedResume {
       continue;
     }
 
-    if (current.type === "experience" && isEntryHeader(trimmed)) {
+    // Entry headers apply to experience, education, and other sections
+    // (project title lines, degree lines, certification entries, etc.)
+    const ENTRY_TYPES: ResumeSection["type"][] = ["experience", "education", "other"];
+    if (ENTRY_TYPES.includes(current.type) && isEntryHeader(trimmed)) {
       current.items.push({ kind: "entry", text: trimmed });
       continue;
     }
