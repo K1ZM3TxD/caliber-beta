@@ -81,6 +81,28 @@ When the change lands, report:
 
 ---
 
+### 2026-03-25 — Post-Fix Jen Surface Experiment Analysis (ANALYSIS_ONLY)
+
+**Session:** `sess_fd37b355bf65c8_19d27242644::signal_on` — valid post-fix baseline run (v0.9.30, Jen fixture, signals ON, chips skipped).
+
+**Three surfaces compared:**
+
+| Surface | Badge avg | Sidecard best | ≥8.0 sidecards | Pipeline saves | TTSM |
+|---------|----------|---------------|----------------|----------------|------|
+| `partnerships manager` | 7.18 | 8.3 | 1 | 1 | **42s** |
+| `strategy and operations manager` | **7.57** | **8.8 (×3)** | **4** | **3** | 110s |
+| `gtm strategy operations` | 6.81 | 7.7 | 0 | 0 | ~instant (cached) |
+
+**Key findings:**
+- `strategy and operations manager` outperforms the generic baseline on every quality metric: badge density unchanged (all 7.0+), ceiling +0.5 (8.8 vs 8.3), 4× more 8.0+ jobs, 3× the pipeline saves.
+- `partnerships manager` remains the fastest TTSM surface (42s) — good for density but lower ceiling.
+- `gtm strategy operations` is a weaker stretch surface — 4 of 16 badge scores are <5.0 (Poor Fit), zero pipeline saves, ceiling 7.7. Viable as tertiary adjacent suggestion only.
+- **Adjacent search gap identified:** Calibration synthesis derives nearby titles (`Community & Growth Lead`, `Account Manager`) from profile signal alone, not empirical surface quality. The experiment confirms `strategy and operations manager` produces objectively better results. A follow-up adjacent-term ranking task is recommended.
+
+**Files:** `Bootstrap/session_pack/CONTEXT_SUMMARY.md` (full results), `Bootstrap/milestones.md`
+
+---
+
 ### BREAK+UPDATE — 2026-03-25 — Extension Calibration-Context Freshness Fix
 
 **What changed:**

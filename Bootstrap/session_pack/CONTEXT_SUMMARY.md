@@ -21,6 +21,58 @@
 - Beta readiness definition updated (2026-03-14) — five-gate model. See `Bootstrap/milestones.md` for gates and readiness questions.
 - Overlay scoring is post-gate parallel work. Shipped and stable but not required for beta declaration.
 - Post-beta product metrics planned. First metric: **Time-to-Strong-Match (TTSM)** — time from opening a search surface to first job scored >= 8.0. Computable as `MIN(strong_match_viewed.timestamp) - search_surface_opened.timestamp` grouped by `(sessionId, surfaceKey)`.
+- **Session decision — 2026-03-25 (Post-Fix Jen Surface Experiment — Valid Baseline Run):**
+  - **This is the post-fix rerun.** Conducted after stale calibration context fix (commit `da6e5ec`, v0.9.30). Extension loaded fresh with Jen session. Adjacent searches confirmed showing Jen-correct context. This run is the valid baseline for Jen surface comparison.
+  - **Session:** `sess_fd37b355bf65c8_19d27242644::signal_on` | Fixture: Jen | Signals: ON | Chips: skipped
+  - **Segmentation method:** surfaceKey field on TelemetryEvent, confirmed by `search_surface_opened` timestamps (23:32 UTC for surface 2, 23:38 UTC for surface 3). Run 1 inferred from session start (23:27 UTC). `job_opened` event counts (77/77/86) confirm ≈75 jobs browsed per surface as stated.
+  - **Data quality notes:** `positionIndex` and `searchQuery` meta fields are null — telemetry patch v0.9.30 was not yet loaded at time of this run (extension was loaded before push). `job_score_rendered` count (15/19/16) reflects unique sidecard first-renders only; cached reopens do not re-fire. TTSM measured from first `job_score_rendered` (badge) to first `strong_match_viewed` since `search_surface_opened` missing for run 1.
+
+  **Per-run metrics (post-fix baseline):**
+
+  | Metric | `partnerships manager` | `strategy and operations manager` | `gtm strategy operations` |
+  |--------|----------------------|-----------------------------------|--------------------------|
+  | Jobs browsed (`job_opened`) | 77 | 77 | 86 |
+  | Badge scores captured | 15 | 19 | 16 |
+  | Badge ≥7.0 | 15/15 (100%) | 19/19 (100%) | 12/16 (75%) |
+  | Badge avg | 7.18 | **7.57** | 6.81 |
+  | Badge max | 7.7 | 7.7 | 7.7 |
+  | Sidecard ≥7.0 views | 16 | 10 | 7 |
+  | Sidecard avg (≥7.0 views) | 7.51 | **7.83** | 7.49 |
+  | Sidecard best | 8.3 | **8.8** | 7.7 |
+  | Sidecard ≥8.0 count | 1 | **4** | 0 |
+  | Pipeline saves | 1 | **3** | 0 |
+  | TTSM | **42s** | 110s | \~instant (cached) |
+
+  **Badge score distribution:**
+
+  | Band | partnerships | strategy ops | gtm |
+  |------|-------------|--------------|-----|
+  | <5.0 | 0 | 0 | **4** |
+  | 5.0–6.9 | 0 | 0 | 0 |
+  | 7.0–7.9 | 15 | 19 | 12 |
+  | 8.0+ | 0 | 0 | 0 |
+
+  **Sidecard score distribution (strong_match_viewed):**
+
+  | Band | partnerships | strategy ops | gtm |
+  |------|-------------|--------------|-----|
+  | 7.0–7.9 | 15 | 6 | 7 |
+  | 8.0+ | 1 | **4** | 0 |
+
+  **Comparison summary:**
+  1. **Strongest ≥7.0 concentration:** `partnerships manager` and `strategy and operations manager` are tied for badge density (both 100%). `gtm` has 4 non-qualifying jobs (4.6 badge scores — genuinely poor fit roles).
+  2. **Best single match:** `strategy and operations manager` — sidecard ceiling 8.8 (achieved 3 times). Highest score across all surfaces.
+  3. **Fastest TTSM:** `partnerships manager` — 42 seconds to first strong match from session start.
+  4. **`strategy and operations manager` vs baseline:** Clear outperformance. Higher badge avg (+0.39), higher ceiling (+0.5 sidecard), 4× more 8.0+ jobs, 3× more pipeline saves. This surface is objectively stronger for Jen than the generic `partnerships manager` baseline query.
+  5. **`gtm strategy operations` viability:** Weaker stretch surface. 4 non-qualifying badge scores (4.6 = <5.0 = Poor Fit) indicate role dilution — the GTM framing surfaces sales/marketing roles not aligned with Jen's profile. Sidecard ceiling is 7.7 (no 8.0+ reached). Zero pipeline saves. Viable only as a tertiary Adjacent Search suggestion — not a primary surface.
+
+  **PM interpretation:**
+  - Jen's best search surface is `strategy and operations manager`. Confirmed empirically post-fix: higher badge density AND higher quality ceiling AND strongest product outcome signal (pipeline saves).
+  - `partnerships manager` is a reliable density anchor with fast TTSM — good as a starting surface but will underperform `strategy ops` in ceiling quality. The calibration page's hero title (`Partnerships Manager`) drives users to this query, but the better-performing surface is the adjacent framing.
+  - The calibration session's adjacent titles ("Community & Growth Lead, Account Manager" per calibration result page) are generated from profile synthesis, not from empirical surface quality ordering. The experiment shows `strategy and operations manager` surfaces better jobs for Jen than the synthesis-derived nearby titles. This is a meaningful product gap.
+  - **Adjacent search generation implication:** The current `nearby_roles` generation (from `titleRecommendation.adjacent_titles` in session synthesis) does not account for which search framings actually produce quality jobs on LinkedIn. A quality-aware adjacent term ranking layer could improve product outcomes — surfacing `strategy and operations manager` as the primary adjacent suggestion instead of `Community & Growth Lead`.
+  - **Follow-up product task: RECOMMENDED.** Justification: 8.8 ceiling jobs and 3 pipeline saves on the strategy-ops surface vs 8.3 ceiling and 1 pipeline save on the baseline. The gap is real, and the Adjacent Search suggestions currently presented to users point toward weaker surfaces. A task to review/revise adjacent term ordering and possibly recalibrate how `nearby_roles` are selected from the synthesis is warranted.
+
 - **Session decision — 2026-03-25 (Extension Calibration-Context Freshness Fix):**
   - **Bug discovered:** In-memory `lastKnownCalibrationTitle` / `lastKnownNearbyRoles` in `extension/content_linkedin.js` had three overly-restrictive guards (`length === 0` / `!lastKnownCalibrationTitle`) that permanently blocked refresh once populated. In a Fabio → Jen re-calibration flow with an open LinkedIn tab, Adjacent Searches continued showing Fabio/security roles even though the scoring API was already returning Jen-correct adjacent roles.
   - **Root cause:** Client-side extension memory/storage refresh bug — not server-side model confusion. `chrome.storage.local` was correctly overwritten by `background.js` on each `CALIBER_SESSION_HANDOFF`; the content script simply never re-read it. The API truth was correct throughout.
