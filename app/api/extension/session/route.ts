@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } from "@/lib/calibration_store";
+import { storeGet, storeImport, storeGetAsync } from "@/lib/calibration_store";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
@@ -18,20 +18,31 @@ function corsHeaders(req: NextRequest): Record<string, string> {
 /**
  * GET /api/extension/session?sessionId=xxx
  * Returns the active calibration session metadata for extension bootstrap.
- * If sessionId is provided, looks up that specific session.
- * Otherwise returns the most recent completed session.
+ * sessionId is REQUIRED — omitting it would return storeLatest() which is
+ * globally scoped and causes cross-user contamination.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const requestedId = searchParams.get("sessionId");
 
-  // Try sync (memory + disk) first, fall back to DB on cold Lambda
-  let session = requestedId ? storeGet(requestedId) : storeLatest();
-  if (!session) {
-    session = requestedId ? await storeGetAsync(requestedId) : await storeLatestAsync();
+  const headers = corsHeaders(req);
+
+  if (!requestedId) {
+    // Refuse to return an arbitrary latest session — callers must supply an
+    // explicit sessionId to prevent cross-profile contamination.
+    const res = NextResponse.json(
+      { ok: false, error: "session_id_required", message: "sessionId parameter is required." },
+      { status: 400 }
+    );
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+    return res;
   }
 
-  const headers = corsHeaders(req);
+  // Try sync (memory + disk) first, fall back to DB on cold Lambda
+  let session = storeGet(requestedId);
+  if (!session) {
+    session = await storeGetAsync(requestedId);
+  }
 
   if (!session) {
     const res = NextResponse.json(
@@ -80,17 +91,28 @@ export async function POST(req: NextRequest) {
 
   const requestedId = typeof body.sessionId === "string" ? body.sessionId : null;
 
-  let session = requestedId ? storeGet(requestedId) : storeLatest();
+  if (!requestedId) {
+    // Require an explicit sessionId — falling back to storeLatest() here would
+    // allow a different user's session to be imported and returned.
+    const res = NextResponse.json(
+      { ok: false, error: "session_id_required", message: "sessionId is required." },
+      { status: 400 }
+    );
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v);
+    return res;
+  }
+
+  let session = storeGet(requestedId);
 
   // Import inline backup if session not found locally
   if (!session && body.sessionBackup && typeof body.sessionBackup === "object") {
     storeImport(body.sessionBackup);
-    session = requestedId ? storeGet(requestedId) : storeLatest();
+    session = storeGet(requestedId);
   }
 
   // Fall back to DB on cold Lambda
   if (!session) {
-    session = requestedId ? await storeGetAsync(requestedId) : await storeLatestAsync();
+    session = await storeGetAsync(requestedId);
   }
 
   if (!session) {

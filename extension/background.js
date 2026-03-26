@@ -214,8 +214,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_PIPELINE_SAVE") {
     (async () => {
       try {
+        // Prefer cookie over stale storage — prevents saving pipeline entries with
+        // a cross-profile sessionId that would cause contamination at tailor time.
+        const cookieId = await readSessionCookie();
         const store = await chrome.storage.local.get(["caliberSessionId"]);
-        const sessionId = store.caliberSessionId;
+        const sessionId = cookieId || store.caliberSessionId;
+        if (cookieId && cookieId !== store.caliberSessionId) {
+          // Keep storage in sync so subsequent operations (scoring, etc.) are consistent.
+          await chrome.storage.local.set({ caliberSessionId: cookieId });
+        }
         if (!sessionId) { sendResponse({ ok: false, error: "No session" }); return; }
         const resp = await fetch(API_BASE + "/api/pipeline", {
           method: "POST",
@@ -506,11 +513,32 @@ async function trySessionEndpoint(storedId, sessionBackup) {
 
 async function discoverSession() {
   console.debug("[Caliber][bg][session] discoverSession() invoked");
+
+  // ── Step 0: Read the session cookie first ────────────────────
+  // The caliber_sessionId cookie is set directly by the calibration page at
+  // session-create time and always reflects the current user's active session.
+  // Reading it FIRST prevents stale chrome.storage from causing cross-profile
+  // contamination when a previous user's sessionId lingers in storage.
+  const cookieId = await readSessionCookie();
+
   const store = await chrome.storage.local.get(["caliberSessionId", "caliberSessionBackup"]);
   let storedId = store.caliberSessionId;
   let sessionBackup = store.caliberSessionBackup || null;
   console.debug("[Caliber][bg][session] stored sessionId: " + (storedId || "(none)") +
-    ", hasBackup: " + !!sessionBackup);
+    ", hasBackup: " + !!sessionBackup + ", cookieId: " + (cookieId || "(none)"));
+
+  // If the cookie is present and differs from storage, the cookie wins.
+  // Discard any backup that belongs to the old (potentially cross-profile) session.
+  if (cookieId && cookieId !== storedId) {
+    console.debug("[Caliber][bg][session] cookie overrides stale storage: " +
+      cookieId + " (was " + (storedId || "none") + ")");
+    storedId = cookieId;
+    if (sessionBackup && sessionBackup.sessionId !== cookieId) {
+      sessionBackup = null;
+      console.debug("[Caliber][bg][session] discarded backup from different session");
+    }
+    await chrome.storage.local.set({ caliberSessionId: cookieId });
+  }
 
   // If no stored session, probe open Caliber tabs FIRST (before server discovery).
   // This handles the fresh-install race: extension installed while Caliber tab is
@@ -556,8 +584,12 @@ async function discoverSession() {
     console.warn("[Caliber][bg][session] trySessionEndpoint returned ok=false (storedId=" + (storedId || "none") + ")");
   }
 
-  // Server doesn't have the session — try restoring from local backup
-  if (storedId) {
+  // Server doesn't have the session — try restoring from local backup.
+  // SAFETY: only restore when the cookie confirms this session belongs to the
+  // current user.  Without the cookie we cannot distinguish a stale
+  // (cross-profile) backup from a legitimately evicted session, so we skip
+  // restoration to prevent re-injecting another user's profile.
+  if (storedId && cookieId === storedId) {
     const backup = sessionBackup;
     if (backup && backup.sessionId === storedId) {
       try {
@@ -576,6 +608,8 @@ async function discoverSession() {
         }
       } catch { /* restore failed — fall through */ }
     }
+  } else if (storedId && !cookieId) {
+    console.debug("[Caliber][bg][session] skipping backup restore: no cookie to confirm session ownership");
   }
 
   // Last resort: probe Caliber tabs one more time (handles race with fresh install)
@@ -600,9 +634,8 @@ async function discoverSession() {
     return { sessionId: lateProbe.sessionId, profileComplete: true, state: "UNKNOWN" };
   }
 
-  // Final fallback: read session cookie directly (works without any open tab).
-  // Requires the "cookies" permission in manifest.json.
-  const cookieId = await readSessionCookie();
+  // Final fallback: use the session cookie read at the start of this function.
+  // (Requires the "cookies" permission in manifest.json.)
   if (cookieId) {
     await chrome.storage.local.set({ caliberSessionId: cookieId });
 
