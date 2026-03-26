@@ -4039,6 +4039,26 @@
 
   async function scoreCurrentJob(force) {
     if (scoring) return;
+
+    // ── Scroll-stability guard ───────────────────────────────────────────────
+    // Scroll events, DOM mutation callbacks, and the poll interval all call
+    // scoreCurrentJob(false) regardless of whether the active job changed.
+    // If we are already displaying complete, non-provisional results for the
+    // currently active job, there is nothing to do — bail before touching the
+    // DOM so the sidecard never flickers from scroll/observer noise.
+    if (!force) {
+      var _sid = currentJobIdFromUrl();
+      if (_sid && sidecardResultCache[_sid] && !sidecardProvisional) {
+        var _re = shadow && shadow.getElementById("cb-results");
+        if (_re && _re.style.display !== "none") {
+          console.debug("[caliber][sidecard-cycle] SCROLL_STABLE_SKIP — " +
+            "already showing complete results for jobId=" + _sid + ", ignoring noise");
+          return;
+        }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     scoring = true;
     clearSkeletonTimer();
 
