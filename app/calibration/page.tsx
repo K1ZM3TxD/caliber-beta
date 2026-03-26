@@ -834,7 +834,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          .cb-title-card:hover { border-color: rgba(74,222,128,0.30) !important; background-color: rgba(255,255,255,0.04) !important; }
+          .cb-title-card:hover { border-color: rgba(74,222,128,0.30) !important; background-color: rgba(255,255,255,0.11) !important; }
           .cb-depth-layer { position: relative; }
           .cb-depth-layer > * { position: relative; z-index: 1; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
@@ -1352,9 +1352,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                   <div
                     className="cb-title-card rounded-xl"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.07)",
-                      border: "1.5px solid rgba(255,255,255,0.14)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)",
+                      backgroundColor: "rgba(255,255,255,0.09)",
+                      border: "1.5px solid rgba(255,255,255,0.18)",
+                      boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.35)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
@@ -1388,7 +1388,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       </div>
 
                       {/* Secondary CTA — LinkedIn search */}
-                      <div className="mt-4">
+                      <div className="mt-2">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
