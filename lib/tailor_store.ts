@@ -124,6 +124,7 @@ export async function generateTailoredResume(
 2. You MUST NOT introduce: quota, SaaS, enterprise, technical sales, engineering-driven, or ANY domain/industry claim not in the original resume.
 3. Do not invent metrics, percentages, headcounts, revenue figures, or performance claims.
 4. Do not upgrade a job title, role scope, or seniority beyond what the resume states.
+5. DOMAIN LABELS IN HEADLINE AND SUMMARY ARE FORBIDDEN unless the original resume contains the exact domain or a direct synonym. Prohibited unsupported domain claims include (but are not limited to): "background in fintech", "experience in healthcare", "background in cybersecurity", "payments industry", "compliance background", "background in legal", "manufacturing experience", "background in logistics", or any other sector-identity phrase derived from the job posting rather than the source resume. If the target role is in a sector not present in the source resume, describe the candidate's functional capabilities only — e.g. "experience building products and cross-functional systems", not "experience in [sector]".
 
 ## PRE-WORK — ROLE DECOMPOSITION (do this mentally before writing anything):
 Before producing a single line of the resume:
@@ -139,6 +140,7 @@ This mapping must drive every headline, summary, ordering, and emphasis decision
 ## HEADLINE & SUMMARY ADAPTATION (STRONG matches only):
 - Adapt the headline to name the role function the JD is hiring for, if the candidate's demonstrated work directly supports it. Do not preserve the generic identity title verbatim when a more specific adaptation is traceable to the resume.
 - The summary must lead with the 2–3 themes the JD most emphasizes — frame the candidate's background through what this specific role needs, not a polished version of their base resume.
+- DOMAIN OVERCLAIM PROHIBITION: The headline and summary MUST NOT claim a sector-specific background unless the source resume directly contains that domain. "Experienced Product Manager with a strong background in [sector from JD]" is FORBIDDEN when that sector is absent from the source. Use functional language only: e.g. "Product manager with experience leading cross-functional development from market research through launch" — not "Product manager with a background in fintech/healthcare/etc."
 
 ## EVIDENCE DISTRIBUTION & BULLET ORDERING:
 - Within each role and project, reorder bullets to put the most JD-relevant points FIRST. Compress or omit low-relevance bullets.

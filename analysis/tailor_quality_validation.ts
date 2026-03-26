@@ -110,6 +110,56 @@ const FIXTURES: Fixture[] = [
     },
   },
   {
+    name: "Chris - Snaplii Fintech PM STRONG match (7.3) — domain overclaim guardrail",
+    resume: [
+      "Chris G.",
+      "Product Development Manager | 7 years experience in SaaS and B2B",
+      "Led product development from market research through launch for enterprise software.",
+      "Built systems for evaluating market gaps and customer needs. Created SOPs for product",
+      "development workflows. Designed and maintained pitch decks and proposals for executive",
+      "stakeholders. Conducted feasibility studies for new product initiatives. Automated",
+      "internal workflows and reporting systems. Managed cross-functional product development",
+      "teams. Drove go-to-market strategy and customer discovery processes.",
+    ].join("\n"),
+    jobTitle: "Product Manager",
+    company: "Snaplii",
+    jobDescription: [
+      "Snaplii is a fintech company building a next-generation cashback and loyalty platform.",
+      "We are looking for a Product Manager to own the product roadmap for our payments and",
+      "rewards features. You will work with engineering, design, and business stakeholders to",
+      "define requirements, prioritize features, and drive product launches.",
+      "Responsibilities:",
+      "- Own the product roadmap for cashback and loyalty features",
+      "- Define market requirements and gather user feedback",
+      "- Coordinate cross-functional teams: engineering, design, marketing",
+      "- Drive go-to-market execution and launch readiness",
+      "- Communicate product decisions to business and executive stakeholders",
+      "Requirements:",
+      "- 3+ years of product management experience",
+      "- Experience in fintech, payments, or consumer loyalty products preferred",
+      "- Strong cross-functional coordination and stakeholder communication skills",
+    ].join("\n"),
+    score: 7.3,
+    expect: {
+      // Must adapt toward PM framing and surface real Chris evidence
+      mustContain: [
+        /product manager|product management/i,
+        /cross.functional/i,
+        /market research|market requirements|market gaps/i,
+        /stakeholder/i,
+      ],
+      // Must NOT claim unsupported fintech/payments domain background
+      mustNot: [
+        /background in fintech/i,
+        /fintech experience/i,
+        /payments industry/i,
+        /loyalty industry/i,
+        /cashback/i,
+        /consumer loyalty/i,
+      ],
+    },
+  },
+  {
     name: "Non-Jen - General Guardrail (6.8, mismatched role)",
     resume: [
       "Alex Lee",
