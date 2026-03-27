@@ -86,6 +86,16 @@ export async function POST(req: NextRequest) {
       for (const item of section.items) {
         switch (item.kind) {
           case "entry": {
+            // Summary sections: body text is never bold — render as normal weight
+            if (section.type === "summary") {
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(10);
+              doc.setTextColor(20, 20, 20);
+              const sLines = doc.splitTextToSize(item.text, maxWidth) as string[];
+              for (const sl of sLines) { ensureSpace(13); doc.text(sl, margin, y); y += 13; }
+              y += 1.5;
+              break;
+            }
             // Hierarchy: Title (bold 11pt) on its own line, then Company | Date (9pt subdued)
             y += 5;
             const rawParts = item.text.split("|").map((p: string) => p.trim()).filter(Boolean);

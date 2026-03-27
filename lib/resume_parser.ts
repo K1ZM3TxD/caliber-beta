@@ -26,7 +26,7 @@ export function stripDebugTrace(text: string): string {
 }
 
 const HEADER_MAP: [RegExp, ResumeSection["type"]][] = [
-  [/^(PROFESSIONAL\s+|CAREER\s+)?SUMMARY$/i, "summary"],
+  [/^(PROFESSIONAL\s+|CAREER\s+|EXECUTIVE\s+)?SUMMARY$/i, "summary"],
   [/^(PROFESSIONAL\s+)?PROFILE$/i, "summary"],
   [/^ABOUT(\s+ME)?$/i, "summary"],
   [/^OBJECTIVE$/i, "summary"],
