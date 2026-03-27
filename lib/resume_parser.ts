@@ -156,7 +156,18 @@ export function parseResume(rawText: string): ParsedResume {
     // (project title lines, degree lines, certification entries, etc.)
     const ENTRY_TYPES: ResumeSection["type"][] = ["experience", "education", "other"];
     if (ENTRY_TYPES.includes(current.type) && isEntryHeader(trimmed)) {
-      current.items.push({ kind: "entry", text: trimmed });
+      // LLM often outputs role title on its own line, then "Company | Date" on the next.
+      // The parser would classify the role title as `text` and the company|date line as
+      // `entry` — inverting the visual hierarchy. Detect this pattern and merge:
+      // if the previous item is a `text` kind with no pipe (i.e. a bare role title),
+      // absorb it as the first segment of this entry → "Title | Company | Date"
+      const prev = current.items.length > 0 ? current.items[current.items.length - 1] : null;
+      if (prev && prev.kind === "text" && !prev.text.includes("|") && prev.text.length < 100) {
+        current.items.pop();
+        current.items.push({ kind: "entry", text: `${prev.text} | ${trimmed}` });
+      } else {
+        current.items.push({ kind: "entry", text: trimmed });
+      }
       continue;
     }
 
