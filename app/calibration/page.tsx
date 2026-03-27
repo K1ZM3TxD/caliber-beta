@@ -1274,7 +1274,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-8 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); router.replace("/calibration?direct=1"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#F2F2F2", border: "1px solid rgba(255,255,255,0.10)" }}
                   >
@@ -1461,7 +1461,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-4 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); router.replace("/calibration?direct=1"); }}
                     className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-normal transition-colors duration-200 focus:outline-none"
                     style={{ backgroundColor: "transparent", color: "#555", border: "none", cursor: "pointer" }}
                   >
