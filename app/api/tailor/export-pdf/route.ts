@@ -86,56 +86,42 @@ export async function POST(req: NextRequest) {
       for (const item of section.items) {
         switch (item.kind) {
           case "entry": {
-            // Split "Title | Company | Date" — title bold, details lighter
-            y += 4;
-            doc.setFontSize(10.5);
+            // Hierarchy: Title (bold 11pt) on its own line, then Company | Date (9pt subdued)
+            y += 5;
             const rawParts = item.text.split("|").map((p: string) => p.trim()).filter(Boolean);
 
             if (rawParts.length >= 2) {
               const title = rawParts[0];
-              const detail = rawParts.slice(1).join("  |  ");
-              const sep = "  |  ";
+              // Company is part[1], date is last part (could be same as company if only 2 parts)
+              const company = rawParts.length >= 3 ? rawParts[1] : "";
+              const date = rawParts[rawParts.length - 1];
+              const subLine = company ? `${company}  ·  ${date}` : date;
 
-              // Measure with correct fonts before rendering
+              // Line 1: Title — bold, 11pt, near-black
               doc.setFont("helvetica", "bold");
-              const titleW = doc.getTextWidth(title);
+              doc.setFontSize(11);
+              doc.setTextColor(20, 20, 20);
+              const tLines = doc.splitTextToSize(title, maxWidth) as string[];
+              for (const tl of tLines) { ensureSpace(14); doc.text(tl, margin, y); y += 14; }
+
+              // Line 2: Company · Date — normal, 9pt, mid-gray, left-aligned
               doc.setFont("helvetica", "normal");
-              const fitsOneLine = titleW + doc.getTextWidth(sep + detail) <= maxWidth;
-
-              ensureSpace(13);
-              if (fitsOneLine) {
-                // Title bold + details normal, lighter — all on one line
-                doc.setFont("helvetica", "bold");
-                doc.setTextColor(20, 20, 20);
-                doc.text(title, margin, y);
-                doc.setFont("helvetica", "normal");
-                doc.setTextColor(72, 72, 72);
-                doc.text(sep + detail, margin + titleW, y);
-                doc.setTextColor(20, 20, 20);
-                y += 13;
-              } else {
-                // Title on its own line, detail beneath in 9.5pt subdued
-                doc.setFont("helvetica", "bold");
-                doc.setTextColor(20, 20, 20);
-                const tLines = doc.splitTextToSize(title, maxWidth) as string[];
-                for (const tl of tLines) { ensureSpace(13); doc.text(tl, margin, y); y += 13; }
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(9.5);
-                doc.setTextColor(72, 72, 72);
-                ensureSpace(12);
-                doc.text(detail, margin, y);
-                doc.setTextColor(20, 20, 20);
-                doc.setFontSize(10.5);
-                y += 12;
-              }
+              doc.setFontSize(9);
+              doc.setTextColor(100, 100, 100);
+              ensureSpace(11);
+              doc.text(subLine, margin, y);
+              doc.setTextColor(20, 20, 20);
+              doc.setFontSize(10.5);
+              y += 11;
             } else {
-              // No pipe — single bold line
+              // No pipe — single bold title line
               doc.setFont("helvetica", "bold");
+              doc.setFontSize(11);
               doc.setTextColor(20, 20, 20);
               const eLines = doc.splitTextToSize(item.text, maxWidth) as string[];
-              for (const el of eLines) { ensureSpace(13); doc.text(el, margin, y); y += 13; }
+              for (const el of eLines) { ensureSpace(14); doc.text(el, margin, y); y += 14; }
             }
-            y += 2;
+            y += 3; // gap before bullets
             break;
           }
 
