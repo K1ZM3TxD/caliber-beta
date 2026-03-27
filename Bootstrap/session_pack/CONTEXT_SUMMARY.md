@@ -101,6 +101,14 @@
 - Two-branch release model implemented (2026-03-14): `main` = development iteration, `stable` = production deploy. Vercel production deploys from `stable` → caliber-app.com. Preview deploys from `main`. Promotion: validate on main → fast-forward merge to stable → push.
 - Dashboard and cohort analysis remain future work.
 
+- **Session decisions — 2026-03-27 (Scoring Quality Guardrails + UX Polish + Tailor Export Cluster):**
+  - **Scoring guardrail expansion:** Three guardrail additions this session: (1) domain overclaim tightened in headline/summary (`59ecd39`); (2) title-shape overfitting prevention added (`69b9ca7`); (3) `specialist_craft` ExecutionEvidenceCategory added with 5.5 cap for motion control / healthcare integration / construction estimating roles where the profile lacks hands-on craft evidence (`ad8ec41`). Scoring pipeline now has 8 layered guardrails. Total regression test count: 200+.
+  - **PDF/DOCX export readiness:** 9 commits reworking the full export pipeline (`facddfd`–`49df0f8`). Entry detection, role/date hierarchy, summary weight, parser merging, tailoredText persistence to DB, TailorPanel PDF download. Back-to-Caliber navigation fixed on both auth paths.
+  - **Sidecard jitter stabilization:** Two-layer guard (`adc45e7` + `b9e527f`) eliminates skeleton flash on reopen and scroll-induced re-fetch. Extension v0.9.32.
+  - **Executive Summary reframe:** "Bottom Line" → "Executive Summary". `generateWorkRealitySummary()` produces work-reality copy driven by roleType/jobMode/compatibility, replacing the prior fit-arithmetic recap. 350ms fade-in. Extension v0.9.32.
+  - **Recalibrate regression fix:** Recalibrate/Restart buttons now use `router.replace("/calibration?direct=1")` — bypasses auth redirect guard that was sending authenticated users to `/pipeline`. Issue #111 resolved (`5a1d9bf`).
+  - **Current beta state:** All 5 gates closed. Two items pending PM validation before beta declaration: (a) Executive Summary copy quality (live user testing on varied profiles); (b) post-fix tailor quality (STRONG-match run needed with confirmed single-user calibration). PDF export is application-quality but edge cases with unusual resume structures may need spot-checking. Issue #107 (Vercel production branch alignment) remains open — requires operator action.
+
 ## Telemetry Field Reference (as of 2026-03-25)
 
 ### TelemetryEvent — key fields per event

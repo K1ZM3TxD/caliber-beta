@@ -1630,4 +1630,120 @@ scope.doc_files:
 **Remaining tailor work:** post-fix validation and quality review. The core specificity bug is closed. Remaining work is: (a) live user testing on a real STRONG-match job, (b) optional fine-tuning of decomposition depth, (c) PDF/DOCX export quality.
 
 **Files touched:** app/api/tailor/generate/route.ts, lib/tailor_store.ts, analysis/tailor_quality_validation.ts
-(See <attachments> above for file contents. You may not need to search or read the file again.)
+
+---
+
+### 2026-03-27 — Scoring Guardrail Expansion: Domain Overclaim + Title-Shape + Specialist Craft
+**What changed:**
+- **Domain overclaim guardrail** (`59ecd39`): Tightened headline/summary generation to prevent claiming domain expertise the candidate hasn't demonstrated. Added Snaplii fintech fixture to validate correct restraint.
+- **Title-shape overfitting guardrail** (`69b9ca7`): Added guardrail preventing the calibration headline from over-fitting to unusual title shapes in the resume. Added Design Technology Manager stretch fixture. Prevents synthetic titles that look like job-posting language rather than recognized professional labels.
+- **`specialist_craft` execution evidence category** (`ad8ec41`): New `ExecutionEvidenceCategory` added to `evaluateWorkMode()` with a hard cap of 5.5. Covers roles where core value-delivery requires a specialist craft with no resume evidence (motion control engineering, healthcare integration systems, construction estimating). Three specialist job fixtures added; 7 regression tests. Cuts score inflation on roles that look keyword-aligned but require deep specialist execution the candidate has never done.
+
+**What was observed (before):**
+- Profiles with broad technical backgrounds received inflated scores on specialist roles — keyword overlap signaled fit but the hands-on craft was absent.
+- Headline generation occasionally produced novel title shapes that matched job postings rather than recognized professional roles.
+- Summary copy occasionally claimed domain familiarity the profile didn't support.
+
+**What is now expected:**
+- Specialist execution roles for motion control, healthcare integration, and construction estimating cap at 5.5 for profiles lacking direct hands-on evidence.
+- Calibration headlines use recognized role labels, not job-posting-shaped titles.
+- Summary and headline restrain domain claims to what the profile actually demonstrates.
+
+**What is no longer expected:**
+- Score inflation on specialist craft roles due to surface-level keyword overlap.
+- Title-shaped headlines that mirror job posting language rather than professional categories.
+
+**Files touched:** lib/work_mode.ts, lib/__fixtures__/work_mode_fixtures.ts, lib/work_mode_regression.test.ts, app/api/tailor/generate/route.ts, lib/tailor_store.ts
+
+---
+
+### 2026-03-27 — PDF/DOCX Export Readiness Cluster
+**What changed:**
+- **Application-ready export** (`facddfd`): Full PDF/DOCX export reworked. Entry detection fixed — parser was missing multi-line entries, merging items incorrectly, and dropping section boundaries. PDF formatting improved: proper header hierarchy, consistent spacing, correct font weights.
+- **Back to Caliber navigation** (`f6a24e5`, `85aa842`): Fixed two navigation bugs — link was routing to `/` instead of `/calibration`, and for signed-in users the auth redirect guard was sending to `/pipeline` instead of the calibration landing.
+- **TailorPanel PDF download** (`27a180d`): TailorPanel download now generates an application-quality PDF instead of a plain `.txt` file.
+- **PDF typography polish** (`bc9dbfd`, `341152c`): Role/company/date hierarchy refined. Section headings and rules normalized.
+- **Persist tailored text to DB** (`b8cadca`): `tailoredText` now persisted to DB on generation. TailorPanel restores previously generated content on revisit without re-generation.
+- **PDF role/date hierarchy** (`1a8b818`): Role title on line 1 (bold), company·date on line 2 (subdued). Prior output had them reversed or on the same line.
+- **Parser: merge split lines** (`c3d4432`): Combines role-title and company/date lines that span a line break into a single structured entry.
+- **Parser: bold other-section titles** (`7dc885c`): Project and item titles in 'other' sections render bold in PDF output.
+- **Summary normal weight** (`d6d74a1`, `49df0f8`): Professional summary text renders at normal font weight. Expanded heading coverage across common summary section labels; PDF safety net added for edge cases.
+
+**What was observed (before):**
+- PDF output was barely formatted — role/date on wrong lines, missing sections, plain text body.
+- Download button produced a `.txt` file, not a real application document.
+- On revisit TailorPanel re-generated from scratch — slow and expensive.
+- Summary section rendered bold (looked like a heading, not body copy).
+
+**What is now expected:**
+- PDF export produces an application-ready resume: structured hierarchy, correct role/company/date layout, bold project/item titles, normal-weight body copy.
+- Download button generates a PDF.
+- Revisiting TailorPanel restores previously generated output instantly.
+
+**What is no longer expected:**
+- Plain `.txt` download from TailorPanel.
+- Summary/professional summary displaying as bold.
+- PDF missing sections or merging unrelated content.
+
+**Files touched:** app/api/tailor/generate/route.ts, app/components/TailorPanel.tsx, app/pipeline/page.tsx, lib/tailor_store.ts
+
+---
+
+### 2026-03-27 — Sidecard Jitter/Reload Stabilization (Two-Layer Guard)
+**What changed:**
+- **Layer 1** (`adc45e7`): Sidecard result cache — already-scored jobs no longer trigger a skeleton flash on reopen. `sidecardResultCache` stores the last API response keyed by job ID; cache hit calls `showResults()` immediately.
+- **Layer 2** (`b9e527f`): Scroll jitter guard — sidecard no longer reloads/jitters on scroll for already-scored jobs. (1) `currentJobIdFromUrl()` now correctly parses both `/jobs/view/{id}` and `?currentJobId=` URL formats for stable job ID resolution. (2) `detailObserver` callback returns early when a cached complete result is already showing — prevents redundant skeleton+fetch cycles on DOM updates mid-scroll.
+
+**What was observed (before):**
+- Scrolling a LinkedIn search page caused the sidecard to re-enter skeleton state and re-fetch for already-scored jobs.
+- `?currentJobId=` URL format caused cache misses, compounding the jitter.
+
+**What is now expected:**
+- Sidecard remains stable while scrolling for all previously scored jobs.
+- Job ID parsing is robust across both LinkedIn URL formats.
+
+**What is no longer expected:**
+- Sidecard flashing to skeleton on scroll for already-scored jobs.
+
+**Files touched:** extension/content_linkedin.js
+
+---
+
+### 2026-03-27 — Bottom Line → Executive Summary Reframe
+**What changed:**
+- **Label rename + copy generator** (`4e6fb71`): "Bottom Line" section renamed to "Executive Summary". New `generateWorkRealitySummary(wm: WorkModeResult)` function in `lib/work_mode.ts` produces a 1–2 sentence work-reality summary driven by `roleType`, `jobMode`, `compatibility`, `executionEvidence`, and `executionIntensity`. Priority routing: `specialist_craft` → `domain_locked` → `SYSTEM_SELLER` → `SYSTEM_OPERATOR` → `SYSTEM_BUILDER` → `jobMode` fallback → final fallback. Replaces the prior 5-template fit-arithmetic recap (which duplicated HRC/Supports/Stretch content).
+- **Fade-in** (`4e6fb71`): Section content fades in with a 350ms opacity transition. `showSkeleton` resets opacity and clears transition.
+- **Extension version** bumped 0.9.31 → 0.9.32.
+
+**What was observed (before):**
+- "Bottom Line" text was a formula: "N supports, N stretches, N concerns." — duplicated information already visible in HRC/Supports/Stretch sections. No actionable insight added.
+
+**What is now expected:**
+- Executive Summary describes the nature of the work the role actually requires — not fit arithmetic.
+- For misaligned roles (e.g., SYSTEM_SELLER to a builder), summary explains the daily-work mismatch in concrete terms.
+- For strong fits, summary affirms what kind of execution the role rewards.
+
+**What is no longer expected:**
+- "N items support fit / N items are a stretch / N concerns" summary copy.
+- Bottom Line duplicating content visible in other sidecard sections.
+
+**Files touched:** lib/work_mode.ts, app/api/extension/fit/route.ts, extension/content_linkedin.js, extension/manifest.json
+
+---
+
+### 2026-03-27 — Recalibrate Button Regression Fix
+**What changed:**
+- **`app/calibration/page.tsx`** (`5a1d9bf`): Both the "Restart" button (TITLES step) and "Recalibrate" button (COMPLETE step) now call `router.replace("/calibration?direct=1")` instead of `setStep("LANDING")` + `window.history.replaceState`.
+
+**Root cause:** A `useEffect` at line ~259 redirects authenticated users to `/pipeline` unless `?direct=1` is present. The previous handlers set the step in-place without changing the URL — keeping it at `/calibration` (no param). On the next render the auth check fired and redirected to `/pipeline`, making Recalibrate effectively a redirect to the pipeline board.
+
+**What was observed (before):**
+- Clicking "Recalibrate" on the calibration results page redirected authenticated users to `/pipeline` instead of restarting the calibration flow.
+
+**What is now expected:**
+- Clicking "Recalibrate" or "Restart" navigates to `/calibration?direct=1` — the param bypasses the auth redirect guard and the page initializes fresh from LANDING.
+
+**What is no longer expected:**
+- Recalibrate sending authenticated users to the pipeline board.
+
+**Files touched:** app/calibration/page.tsx

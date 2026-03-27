@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+111. Recalibrate button redirected authenticated users to `/pipeline` — **RESOLVED** (2026-03-27)
+  - **Symptom:** Clicking "Recalibrate" on the calibration results page (COMPLETE step) or "Restart" on the TITLES step redirected authenticated users to `/pipeline` instead of the calibration landing page.
+  - **Root cause:** A `useEffect` in `app/calibration/page.tsx` (line ~259) redirects authenticated users to `/pipeline` unless the `?direct=1` URL query parameter is present. The prior button handlers called `setStep("LANDING")` + `window.history.replaceState(null, "", "/calibration")` — this kept the URL at `/calibration` (no `?direct=1` param). On the next render, the auth guard fired and redirected to `/pipeline` before the user could see the calibration landing step.
+  - **Fix (commit `5a1d9bf`):** Both buttons now call `router.replace("/calibration?direct=1")`. The `?direct=1` param is already the established bypass convention for this guard (used on the initial direct calibration load path). Clean navigation with param intact prevents the auth redirect from firing.
+  - **Files:** `app/calibration/page.tsx`
+  - **Status:** RESOLVED — commit `5a1d9bf` (2026-03-27)
+
 110. Cross-user resume contamination in tailor flow — **RESOLVED** (2026-03-26)
   - **Symptom:** On a Jen tailor run, the generated tailored resume contained Fabio Bellini's resume content — his name, cybersecurity background, and certifications — instead of Jen's content.
   - **Classification:** Source-binding bug. Not a generation error, model hallucination, or server-wide user mixing. The system loaded the wrong resume before the LLM was ever called.
