@@ -1267,12 +1267,12 @@ export function generateWorkRealitySummary(wm: WorkModeResult): string {
     }
     if (compatibility === "compatible") {
       if (executionIntensity.score >= 6) {
-        return "This is a hands-on technical role with a high-output delivery pace. The work centers on building, shipping, and iterating at speed.";
+        return "This is a hands-on technical delivery role — the operating mode at the core of your profile. The day-to-day is building, shipping, and iterating at a high-output pace: exactly the work pattern your background is built for.";
       }
-      return "This role centers on building and designing systems. The day-to-day involves meaningful architecture, product development, or technical delivery.";
+      return "This is a builder and systems role — matching the operating mode your profile centers on. The day-to-day involves product development, technical architecture, or systems design: the kind of work your experience directly prepares you for.";
     }
     if (compatibility === "adjacent") {
-      return "This is a technical or product-building role. There is functional overlap with your profile, but some domain or execution context does not map directly to your demonstrated pattern.";
+      return "This is a builder or product-development role, but the specific domain or execution context shifts meaningfully from your primary strengths. The core work is technical and systems-oriented; some of it will feel familiar, and some will require operating outside your primary range.";
     }
     return "This is a builder or product development role. The work involves system design, technical delivery, and hands-on execution.";
   }
@@ -1300,7 +1300,7 @@ export function generateWorkRealitySummary(wm: WorkModeResult): string {
   if (compatibility === "conflicting" && uMode) {
     return "The operating mode this role demands does not closely match your demonstrated work pattern. The day-to-day would require a significant shift in how you spend your time.";
   }
-  return "The day-to-day demands of this role center on work that partially overlaps with your demonstrated pattern.";
+  return "The day-to-day demands of this role span a work pattern that sits adjacent to your primary operating mode.";
 }
 
 // ─── Exports for testing ────────────────────────────────────
