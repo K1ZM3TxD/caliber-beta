@@ -1020,6 +1020,75 @@ export const CYPFER_ENGAGEMENT_SUPPORT_JOB: JobFixture = {
     "- Ability to work a 24/7/365 on-call rotation schedule.",
 };
 
+// ─── Specialist craft execution evidence traps ───────────────
+// These roles require deep domain-embedded expertise that a generalist
+// builder/systems profile has not demonstrated. Used to validate the
+// specialist_craft guardrail in detectExecutionEvidenceGap.
+
+export const QUEST_MOTION_EXPERT_JOB: JobFixture = {
+  name: "Quest Global Motion Expert",
+  expectedMode: "builder_systems", // fires as builder due to automation/C# signals
+  text:
+    "Motion Expert — Quest Global (Semiconductor Equipment)\n" +
+    "Quest Global is seeking a Motion Expert to support our semiconductor metrology customers.\n" +
+    "Responsibilities:\n" +
+    "- Develop and tune motion control algorithms for precision semiconductor equipment\n" +
+    "- Write C# software for servo axis control and step-and-settle tuning\n" +
+    "- Interface with EtherCAT-based motor drives and servo controllers\n" +
+    "- Debug PLC ladder logic and motion sequence code for equipment integration\n" +
+    "- Collaborate with mechanical and electrical engineers on motor drive specifications\n" +
+    "- Support field installations at semiconductor fabrication facilities\n" +
+    "Requirements:\n" +
+    "- 3+ years hands-on motion control engineering experience\n" +
+    "- Proficiency in C# for embedded motion control applications\n" +
+    "- Experience with servo and stepper motor drives, EtherCAT protocols\n" +
+    "- Background in semiconductor process equipment or metrology systems preferred\n" +
+    "- Knowledge of step-and-settle algorithms and vibration damping techniques",
+};
+
+export const EPIC_INTEGRATION_JOB: JobFixture = {
+  name: "Epic Integration Solutions Engineer",
+  expectedMode: "builder_systems", // fires as builder due to integration/systems signals
+  text:
+    "Epic Integration Solutions Engineer — Healthcare Technology\n" +
+    "We are seeking an Integration Solutions Engineer to build and maintain healthcare data\n" +
+    "integration pipelines for hospital and clinic customers.\n" +
+    "Responsibilities:\n" +
+    "- Design and implement HL7 v2 and FHIR R4 integration interfaces for Epic EHR systems\n" +
+    "- Build and support Epic integration engine workflows for clinical data exchange\n" +
+    "- Develop and maintain healthcare interoperability solutions between Epic and third-party systems\n" +
+    "- Write XSLT and interface engine scripts for healthcare data transformation\n" +
+    "- Support Epic implementation projects including analysis, design, and deployment\n" +
+    "- Collaborate with clinical informatics teams on EHR integration requirements\n" +
+    "Requirements:\n" +
+    "- 3+ years of hands-on Epic integration experience (Epic-certified preferred)\n" +
+    "- Deep expertise in HL7 2.x messaging and FHIR API standards\n" +
+    "- Experience building EHR integration workflows and clinical data interfaces\n" +
+    "- Knowledge of healthcare informatics and clinical data exchange protocols",
+};
+
+export const CONSTRUCTION_ESTIMATOR_JOB: JobFixture = {
+  name: "Construction Estimator",
+  expectedMode: "operational_execution", // construction/ops signals dominate
+  text:
+    "Construction Estimator — Commercial Projects\n" +
+    "We are seeking an experienced Construction Estimator to support our preconstruction team.\n" +
+    "Responsibilities:\n" +
+    "- Prepare detailed construction cost estimates for commercial and residential projects\n" +
+    "- Perform quantity takeoffs from architectural, structural, and MEP drawings\n" +
+    "- Develop bid packages and manage the bid preparation and submission process\n" +
+    "- Collaborate with subcontractors to obtain pricing for cost estimates\n" +
+    "- Use RSMeans, ProEst, and Bluebeam for construction cost estimating and takeoff\n" +
+    "- Support preconstruction services including conceptual budgeting and value engineering\n" +
+    "- Coordinate with project managers throughout the construction estimating lifecycle\n" +
+    "Requirements:\n" +
+    "- 4+ years of hands-on construction estimating experience\n" +
+    "- Proficiency in quantity takeoff and construction cost estimating software\n" +
+    "- Familiarity with RSMeans, ProEst, PlanSwift, or Bluebeam\n" +
+    "- Strong understanding of construction methods, materials, and preconstruction services\n" +
+    "- Experience with bid preparation and construction project delivery methods",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -1062,6 +1131,9 @@ export const ALL_JOBS = [
   DOD_CYBERSECURITY_LEAD_JOB,
   MAXX_INTEGRATION_CRYPTO_JOB,
   CYPFER_ENGAGEMENT_SUPPORT_JOB,
+  QUEST_MOTION_EXPERT_JOB,
+  EPIC_INTEGRATION_JOB,
+  CONSTRUCTION_ESTIMATOR_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
@@ -1070,6 +1142,9 @@ export const EXECUTION_EVIDENCE_JOBS = [
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
   MAXX_INTEGRATION_CRYPTO_JOB,
+  QUEST_MOTION_EXPERT_JOB,
+  EPIC_INTEGRATION_JOB,
+  CONSTRUCTION_ESTIMATOR_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

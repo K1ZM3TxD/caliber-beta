@@ -16,6 +16,9 @@ import {
   ZOOMINFO_PSE_JOB,
   DOD_CYBERSECURITY_LEAD_JOB,
   MAXX_INTEGRATION_CRYPTO_JOB,
+  QUEST_MOTION_EXPERT_JOB,
+  EPIC_INTEGRATION_JOB,
+  CONSTRUCTION_ESTIMATOR_JOB,
 } from "./__fixtures__/work_mode_fixtures";
 
 // Mirror the gap line builder from the fit route for testability
@@ -33,6 +36,9 @@ function buildExecutionEvidenceGapLine(
   }
   if (categories.includes("integration_platform")) {
     return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
+  }
+  if (categories.includes("specialist_craft")) {
+    return `This role requires specialist hands-on experience in ${missing}.`;
   }
   return "This role requires hands-on coding and stack-specific experience.";
 }
@@ -208,6 +214,114 @@ describe("Execution evidence gap line — sidecard payload", () => {
     expect(hrc.execution_evidence_gap).toContain("clearance");
     expect(typeof hrc.execution_evidence_gap).toBe("string");
     expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail ON: Chris × Quest Motion Expert (specialist_craft: motion control) ──
+
+  it("Chris × Quest Motion Expert → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      QUEST_MOTION_EXPERT_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("specialist_craft");
+    expect(wm.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  it("Chris × Quest Motion Expert → gap line present with specialist copy", () => {
+    const wm = evaluateWorkMode(
+      8.8,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      QUEST_MOTION_EXPERT_JOB.text,
+    );
+    const hrc = buildHrcPayload("Possible", "Some reason", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("specialist");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail ON: Chris × Epic Integration (specialist_craft: healthcare integration) ──
+
+  it("Chris × Epic Integration → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const wm = evaluateWorkMode(
+      7.5,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      EPIC_INTEGRATION_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("specialist_craft");
+    expect(wm.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  it("Chris × Epic Integration → gap line present with specialist copy", () => {
+    const wm = evaluateWorkMode(
+      7.5,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      EPIC_INTEGRATION_JOB.text,
+    );
+    const hrc = buildHrcPayload("Possible", "Some reason", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("specialist");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail ON: Chris × Construction Estimator (specialist_craft: construction estimating) ──
+
+  it("Chris × Construction Estimator → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const wm = evaluateWorkMode(
+      9.5, // raw alignment score; work mode adj (~-1.3) still leaves it above the 7.0 guardrail threshold
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      CONSTRUCTION_ESTIMATOR_JOB.text,
+    );
+
+    expect(wm.executionEvidence.triggered).toBe(true);
+    expect(wm.executionEvidence.categories).toContain("specialist_craft");
+    expect(wm.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  it("Chris × Construction Estimator → gap line present with specialist copy", () => {
+    const wm = evaluateWorkMode(
+      9.5,
+      CHRIS.resumeText,
+      CHRIS.promptAnswers,
+      CONSTRUCTION_ESTIMATOR_JOB.text,
+    );
+    const hrc = buildHrcPayload("Possible", "Some reason", wm);
+
+    expect(hrc.execution_evidence_gap).not.toBeNull();
+    expect(hrc.execution_evidence_gap).toContain("specialist");
+    expect(typeof hrc.execution_evidence_gap).toBe("string");
+    expect(hrc.execution_evidence_gap!.includes("\n")).toBe(false);
+  });
+
+  // ── Guardrail OFF: engineer with motion control evidence ──
+
+  it("Motion control engineer × Quest Motion Expert → specialist_craft does NOT trigger", () => {
+    const motionEngineerResume =
+      "Motion Control Engineer | 5 years in semiconductor equipment\n" +
+      "Designed servo and motion control systems for semiconductor metrology equipment.\n" +
+      "Wrote C# applications for EtherCAT-based motor drive control and step-and-settle tuning.\n" +
+      "Experience with PLC programming and embedded servo axis control.";
+    const wm = evaluateWorkMode(
+      9.0,
+      motionEngineerResume,
+      {},
+      QUEST_MOTION_EXPERT_JOB.text,
+    );
+
+    expect(wm.executionEvidence.categories).not.toContain("specialist_craft");
   });
 
   // ── Guardrail OFF: Marcus has Salesforce evidence ──

@@ -63,7 +63,7 @@ export type ChipSuppressionResult = {
   reason: string | null;
 };
 
-export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution" | "integration_platform" | "clearance_required";
+export type ExecutionEvidenceCategory = "domain_locked" | "stack_execution" | "integration_platform" | "clearance_required" | "specialist_craft";
 
 export type ExecutionEvidenceResult = {
   triggered: boolean;
@@ -916,6 +916,70 @@ const CLEARANCE_EVIDENCE_PATTERN =
   /\b(clearance|TS\/SCI|top\s+secret|secret\s+clearance|DoD|classified|COMSEC|EMSEC)\b/i;
 
 const EXECUTION_EVIDENCE_CAP = 7.0;
+// Lower cap for specialist craft domains: adjacent builder/systems overlap is insufficient;
+// these roles require years of domain-embedded hands-on practice.
+const SPECIALIST_CRAFT_CAP = 5.5;
+
+// ─── Specialist Craft Domain Detection ─────────────────────
+// Fires when a job explicitly requires deep specialist knowledge in a narrow
+// technical domain where being "adjacent" (builder who automates things) is
+// insufficient. Roles require years of domain-embedded hands-on training:
+//   - Motion control / manufacturing hardware (PLC, servo, semiconductor metrology)
+//   - Healthcare integration substrate (Epic, HL7, FHIR)
+//   - Construction estimating (quantity takeoff, preconstruction, RSMeans)
+// Reuses EcosystemDef shape for consistency.
+
+const SPECIALIST_CRAFT_DOMAINS: EcosystemDef[] = [
+  {
+    name: "motion control / manufacturing hardware",
+    jobPatterns: [
+      { pattern: /\bmotion\s+control\b/i, weight: 3, label: "motion control" },
+      { pattern: /\bmotion\s+expert\b/i, weight: 3, label: "motion expert" },
+      { pattern: /\bservo\b/i, weight: 3, label: "servo" },
+      { pattern: /\bPLC\b/, weight: 3, label: "PLC" },
+      { pattern: /\bsemiconductor\s+(metrology|equipment|process|manufacturing|inspection)\b/i, weight: 3, label: "semiconductor equipment" },
+      { pattern: /\bEtherCAT\b/i, weight: 3, label: "EtherCAT" },
+      { pattern: /\bstep[- ]and[- ]settle\b/i, weight: 3, label: "step-and-settle" },
+      { pattern: /\b(CNC|G-code)\b/i, weight: 2, label: "CNC/G-code" },
+      { pattern: /\bembedded\s+(motor|servo|motion|drive)\b/i, weight: 3, label: "embedded motor/drive" },
+      { pattern: /\bmotor\s+drive\b/i, weight: 2, label: "motor drive" },
+    ],
+    evidencePattern: /\b(motion\s+control|servo|PLC|EtherCAT|step[- ]and[- ]settle|CNC|G-code|motor\s+drive|semiconductor\s+(metrology|equipment|process)|embedded\s+(motor|servo|motion|drive))\b/i,
+    threshold: 4,
+  },
+  {
+    name: "healthcare integration substrate",
+    jobPatterns: [
+      { pattern: /\bEpic\b/, weight: 3, label: "Epic" },
+      { pattern: /\bHL7\b/i, weight: 3, label: "HL7" },
+      { pattern: /\bFHIR\b/i, weight: 3, label: "FHIR" },
+      { pattern: /\bEHR\s+integrat/i, weight: 3, label: "EHR integration" },
+      { pattern: /\bEMR\s+integrat/i, weight: 3, label: "EMR integration" },
+      { pattern: /\bhealthcare\s+integrat/i, weight: 2, label: "healthcare integration" },
+      { pattern: /\bCerner\b/i, weight: 3, label: "Cerner" },
+      { pattern: /\bhealthcare\s+informatics\b/i, weight: 2, label: "healthcare informatics" },
+      { pattern: /\bclinical\s+data\s+integrat/i, weight: 2, label: "clinical data integration" },
+    ],
+    evidencePattern: /\b(Epic|HL7|FHIR|EHR|EMR|Cerner|healthcare\s+integrat|clinical\s+data\s+integrat|healthcare\s+informatics)\b/i,
+    threshold: 4,
+  },
+  {
+    name: "construction estimating",
+    jobPatterns: [
+      { pattern: /\bpreconstruction\b/i, weight: 3, label: "preconstruction" },
+      { pattern: /\bquantity\s+(takeoff|survey)\b/i, weight: 3, label: "quantity takeoff" },
+      { pattern: /\btakeoff\b/i, weight: 2, label: "takeoff" },
+      { pattern: /\bRSMeans\b/i, weight: 3, label: "RSMeans" },
+      { pattern: /\bProEst\b/i, weight: 3, label: "ProEst" },
+      { pattern: /\bPlanSwift\b/i, weight: 3, label: "PlanSwift" },
+      { pattern: /\bconstruction\s+estimat(or|ing|e)\b/i, weight: 3, label: "construction estimating" },
+      { pattern: /\bcost\s+estimat(or|ing)\b/i, weight: 2, label: "cost estimating" },
+      { pattern: /\bbid\s+preparation\b/i, weight: 3, label: "bid preparation" },
+    ],
+    evidencePattern: /\b(preconstruction|quantity\s+(takeoff|survey)|takeoff|RSMeans|ProEst|PlanSwift|construction\s+estimat(or|ing|e))\b/i,
+    threshold: 4,
+  },
+];
 
 export function detectExecutionEvidenceGap(
   score: number,
@@ -1007,9 +1071,31 @@ export function detectExecutionEvidenceGap(
     }
   }
 
+  // ── Specialist craft domain check ────────────────────────
+  // Fires when a job requires deep specialist craft in a narrow domain.
+  // Adjacent builder/systems overlap is not sufficient evidence.
+  for (const domain of SPECIALIST_CRAFT_DOMAINS) {
+    let craftScore = 0;
+    const craftSignals: string[] = [];
+    for (const p of domain.jobPatterns) {
+      if (p.pattern.test(jobText)) {
+        craftScore += p.weight;
+        craftSignals.push(p.label);
+      }
+    }
+    if (craftScore >= domain.threshold) {
+      if (!domain.evidencePattern.test(userEvidenceText)) {
+        categories.push("specialist_craft");
+        allSignals.push(...craftSignals);
+        missing.push(`${domain.name} specialist experience`);
+      }
+    }
+  }
+
   if (categories.length === 0) return noTrigger;
 
-  const cap = EXECUTION_EVIDENCE_CAP;
+  // Use a lower cap for specialist craft: domain gap is fundamental, not just a tool gap.
+  const cap = categories.includes("specialist_craft") ? SPECIALIST_CRAFT_CAP : EXECUTION_EVIDENCE_CAP;
   const adjustment = round1(cap - score);
   const reason =
     `Execution evidence guardrail: categories=[${categories.join(", ")}], ` +
@@ -1135,5 +1221,7 @@ export const _testing = {
   CLEARANCE_THRESHOLD,
   CLEARANCE_EVIDENCE_PATTERN,
   EXECUTION_EVIDENCE_CAP,
+  SPECIALIST_CRAFT_CAP,
+  SPECIALIST_CRAFT_DOMAINS,
   detectExecutionEvidenceGap,
 };

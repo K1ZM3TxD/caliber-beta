@@ -45,6 +45,9 @@ function buildExecutionEvidenceGapLine(
   if (categories.includes("integration_platform")) {
     return "This role requires hands-on integration platform experience (e.g. Zapier, Workato, iPaaS).";
   }
+  if (categories.includes("specialist_craft")) {
+    return `This role requires specialist hands-on experience in ${missing}.`;
+  }
   return "This role requires hands-on coding and stack-specific experience.";
 }
 
