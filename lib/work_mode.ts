@@ -1190,6 +1190,101 @@ export function evaluateWorkMode(
   };
 }
 
+// ─── Work Reality Summary ───────────────────────────────────
+// Generates a 1–2 sentence executive summary of what the job is
+// actually about in practice — the dominant operating mode, the
+// kind of work the user would live in day-to-day, and why that
+// work reality does or does not align with their profile.
+//
+// Intentionally NOT a fit-arithmetic recap. The score, HRC,
+// Supports Fit, and Stretch Factors cover that surface.
+// This function answers: "what is the lived work of this role?"
+
+export function generateWorkRealitySummary(wm: WorkModeResult): string {
+  const { jobMode, userMode, compatibility, roleType, executionIntensity, executionEvidence } = wm;
+
+  // ── Specialist craft: narrow domain execution ─────────────
+  if (executionEvidence.triggered && executionEvidence.categories.includes("specialist_craft")) {
+    const domain = executionEvidence.missingEvidence[0]?.replace(" specialist experience", "") ?? "a specialized domain";
+    return `This is a narrow specialist execution role centered on ${domain}. The day-to-day requires deep domain-embedded hands-on expertise, not broad systems or problem-solving experience.`;
+  }
+
+  // ── Domain-locked platform role ───────────────────────────
+  if (executionEvidence.triggered && executionEvidence.categories.includes("domain_locked")) {
+    const platform = executionEvidence.missingEvidence[0]?.replace(" ecosystem", "") ?? "a specific platform";
+    return `This role is built around deep ${platform} implementation and configuration work. The day-to-day is platform-specific execution within a controlled ecosystem, not cross-domain systems design.`;
+  }
+
+  // ── Role type drives primary framing ─────────────────────
+
+  if (roleType === "SYSTEM_SELLER") {
+    if (executionIntensity.score >= 6) {
+      return "This is a high-volume commercial execution role. The day-to-day centers on outbound prospecting, dialing activity, and pipeline pressure — not building, designing, or problem-solving.";
+    }
+    if (compatibility === "conflicting") {
+      return "This is a commercially driven, pipeline-pressure role. The day-to-day centers on prospecting, objection handling, and closing — not building or designing systems.";
+    }
+    if (compatibility === "adjacent") {
+      return "This role blends relationship management with commercial accountability. Revenue targets and pipeline ownership sit at the center of the work.";
+    }
+    return "This is a direct commercial execution role. Success depends on prospecting discipline, deal velocity, and consistent closing.";
+  }
+
+  if (roleType === "SYSTEM_OPERATOR") {
+    if (compatibility === "conflicting") {
+      return "This is a coordination and process-execution role. The day-to-day is scheduling, logistics, and operational throughput — not building or designing.";
+    }
+    if (compatibility === "adjacent") {
+      return "This role demands operational discipline and structured process ownership. The work is execution-heavy with a broad coordination surface.";
+    }
+    return "This is an operational coordination role. The day-to-day is managing workflows, logistics, and cross-functional execution.";
+  }
+
+  if (roleType === "SYSTEM_BUILDER") {
+    if (executionEvidence.triggered && executionEvidence.categories.includes("stack_execution")) {
+      return "This is a hands-on software engineering role. The day-to-day is writing, reviewing, and shipping production code in a specific stack — not generalist systems thinking or product strategy.";
+    }
+    if (executionEvidence.triggered && executionEvidence.categories.includes("integration_platform")) {
+      return "This is a technical integration role with a specific iPaaS or no-code platform at its core. The day-to-day centers on building and maintaining integrations within that platform ecosystem.";
+    }
+    if (compatibility === "compatible") {
+      if (executionIntensity.score >= 6) {
+        return "This is a hands-on technical role with a high-output delivery pace. The work centers on building, shipping, and iterating at speed.";
+      }
+      return "This role centers on building and designing systems. The day-to-day involves meaningful architecture, product development, or technical delivery.";
+    }
+    if (compatibility === "adjacent") {
+      return "This is a technical or product-building role. There is functional overlap with your profile, but some domain or execution context does not map directly to your demonstrated pattern.";
+    }
+    return "This is a builder or product development role. The work involves system design, technical delivery, and hands-on execution.";
+  }
+
+  // ── Fallback: classify by job work mode ───────────────────
+  const jMode = jobMode.mode;
+  if (jMode === "sales_execution") {
+    return "This role is rooted in commercial execution. The dominant work pattern is pipeline management, outbound activity, and revenue generation.";
+  }
+  if (jMode === "operational_execution") {
+    return "This role is rooted in operational execution. The dominant work pattern is process management, coordination, and throughput consistency.";
+  }
+  if (jMode === "analytical_investigative") {
+    return "This role is rooted in analysis and investigation. The dominant work pattern is structured research, threat or data analysis, and evidence-based decision making.";
+  }
+  if (jMode === "creative_ideation") {
+    return "This role is primarily creative in nature. The dominant work pattern is concept development, brand expression, and content or design ideation.";
+  }
+  if (jMode === "builder_systems") {
+    return "This role centers on building and systems thinking. The day-to-day involves design, development, and delivering structured technical or product work.";
+  }
+
+  // Final fallback
+  const uMode = userMode.mode;
+  if (compatibility === "conflicting" && uMode) {
+    return "The operating mode this role demands does not closely match your demonstrated work pattern. The day-to-day would require a significant shift in how you spend your time.";
+  }
+  return "The day-to-day demands of this role center on work that partially overlaps with your demonstrated pattern.";
+}
+
 // ─── Exports for testing ────────────────────────────────────
 
 export const _testing = {

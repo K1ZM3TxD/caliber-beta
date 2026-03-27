@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeGet, storeLatest, storeImport, storeGetAsync, storeLatestAsync } from "@/lib/calibration_store";
 import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
-import { evaluateWorkMode } from "@/lib/work_mode";
+import { evaluateWorkMode, generateWorkRealitySummary } from "@/lib/work_mode";
 import { generateRecoveryTerms } from "@/lib/title_scoring";
 
 // Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
@@ -127,6 +127,10 @@ export async function POST(req: NextRequest) {
     const workMode = evaluateWorkMode(rawScore, resumeText, promptAnswers, jobText, session.workPreferences ?? null);
     const finalScore = workMode.postScore;
 
+    // Work reality summary — describes the actual day-to-day demands of the role,
+    // not a recap of fit arithmetic. Computed after workMode where all signals are available.
+    const workRealitySummary = generateWorkRealitySummary(workMode);
+
     // Extract calibration titles for search suggestions
     const titleRec = session.synthesis?.titleRecommendation;
     const primaryTitle = titleRec?.primary_title?.title ?? "";
@@ -147,7 +151,7 @@ export async function POST(req: NextRequest) {
       score_0_to_10: finalScore,
       supports_fit: alignment.supports_fit ?? [],
       stretch_factors: alignment.stretch_factors ?? [],
-      bottom_line_2s: alignment.bottom_line_2s ?? "",
+      bottom_line_2s: workRealitySummary,
       hiring_reality_check: {
         band: hiringCheck.band,
         reason: hiringCheck.reason,

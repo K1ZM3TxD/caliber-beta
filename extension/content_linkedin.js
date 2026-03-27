@@ -3122,6 +3122,8 @@
     if (strList) strList.innerHTML = "";
     var blEl = shadow.getElementById("cb-bottomline");
     if (blEl) blEl.textContent = "";
+    var blSectionSkel = shadow.getElementById("cb-bottomline-section");
+    if (blSectionSkel) { blSectionSkel.style.transition = ""; blSectionSkel.style.opacity = "0"; }
 
     // Pipeline row hidden (takes space via min-height + visibility:hidden)
     updatePipelineRow("hidden");
@@ -3740,17 +3742,19 @@
     var stretchSection = shadow.getElementById("cb-stretch-section");
     if (stretchSection) stretchSection.style.display = "";
 
-    // Bottom line (collapsible)
+    // Executive Summary (collapsible) — rendered after main scoring surface
     var blEl = shadow.getElementById("cb-bottomline");
     blEl.textContent = data.bottom_line_2s || "";
-    if (score < 8.5 && stretchItems.length === 0 && blEl.textContent) {
-      var limiterLine = document.createElement("span");
-      limiterLine.style.cssText = "display:block;margin-top:3px;color:#999;font-style:italic;";
-      limiterLine.textContent = "Score capped slightly by scope alignment.";
-      blEl.appendChild(limiterLine);
-    }
     var blSection = shadow.getElementById("cb-bottomline-section");
-    if (blSection) blSection.style.display = "";
+    if (blSection) {
+      blSection.style.opacity = "0";
+      blSection.style.display = "";
+      // Fade in after main scoring content has rendered — visually secondary
+      setTimeout(function () {
+        blSection.style.transition = "opacity 0.35s ease";
+        blSection.style.opacity = "1";
+      }, 350);
+    }
 
     // Pipeline action row: always available for scored jobs, check membership
     // Capture generation at callback-setup time for stale-guard
@@ -4613,7 +4617,7 @@
     '    <div class="cb-collapsible" id="cb-bottomline-section">',
     '      <button class="cb-collapse-toggle" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
-    '        <span>Bottom Line</span>',
+    '        <span>Executive Summary</span>',
     '      </button>',
     '      <div class="cb-collapse-body">',
     '        <p id="cb-bottomline" class="cb-bltext"></p>',
@@ -4843,6 +4847,7 @@
     ".cb-hrc-gap { font-size: 10px; color: #F87171; padding: 0 0 3px; margin: 0; line-height: 1.35; font-style: italic; }",
     // Bottom line text
     ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.35; padding: 1px 0 3px; }",
+    "#cb-bottomline-section { transition: opacity 0.35s ease; }",
     // BST pulse badge in header
     // Adjacent search terms section — attention highlight for weak surfaces
     "@keyframes cb-adjacent-glow {",
