@@ -171,6 +171,13 @@ export function parseResume(rawText: string): ParsedResume {
       continue;
     }
 
+    // In `other` sections (SELECTED PROJECTS, PROJECTS, CERTIFICATIONS, etc.),
+    // any non-bullet line is a project/item title — always render as entry (bold).
+    if (current.type === "other") {
+      current.items.push({ kind: "entry", text: trimmed });
+      continue;
+    }
+
     current.items.push({ kind: "text", text: trimmed });
   }
 
