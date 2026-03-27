@@ -360,10 +360,19 @@
     return text.length + ":" + head + "…" + tail;
   }
 
-  /** Extract a stable job ID from the current URL (/jobs/view/{id}). */
+  /** Extract a stable job ID from the current URL (/jobs/view/{id} or ?currentJobId=). */
   function currentJobIdFromUrl() {
+    // Direct job page: /jobs/view/{id}
     var m = location.href.match(/\/jobs\/view\/(\d+)/);
-    return m ? "job-" + m[1] : null;
+    if (m) return "job-" + m[1];
+    // Search results split-pane: ?currentJobId={id}
+    // On the search results page the active job is identified by a query param,
+    // not a path segment — this is the common case for scrolling/browsing.
+    try {
+      var cjid = new URL(location.href).searchParams.get("currentJobId");
+      if (cjid) return "job-" + cjid;
+    } catch (e) {}
+    return null;
   }
 
   // Score history (persisted via chrome.storage.local, used for analytics + fallback)
@@ -4394,6 +4403,18 @@
     }
     detailObserver = new MutationObserver(function () {
       if (!active || scoring) return;
+      // Pre-debounce identity guard: if the currently displayed sidecard result is
+      // complete (non-provisional) for the active job, ignore DOM mutation noise
+      // entirely — no debounce timer needed. This is the primary scroll-stability
+      // guard for both "scroll the results list" and "scroll within job detail" cases.
+      // currentJobIdFromUrl() now handles both /jobs/view/{id} and ?currentJobId= formats.
+      var _preJobId = currentJobIdFromUrl();
+      if (_preJobId && sidecardResultCache[_preJobId] && !sidecardProvisional) {
+        var _preResults = shadow && shadow.getElementById("cb-results");
+        if (_preResults && _preResults.style.display !== "none") {
+          return; // stable complete result — skip debounce, ignore DOM churn
+        }
+      }
       clearTimeout(detailDebounce);
       detailDebounce = setTimeout(function () {
         var text = extractJobText();
