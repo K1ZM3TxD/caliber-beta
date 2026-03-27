@@ -61,6 +61,7 @@ export interface PipelineEntry {
   createdAt: string;
   updatedAt: string;
   tailorId?: string;
+  tailoredText?: string;
   jobText?: string;
 }
 
@@ -77,6 +78,7 @@ function toApi(e: PrismaEntry): PipelineEntry {
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
     tailorId: e.tailorId ?? undefined,
+    tailoredText: e.tailoredText ?? undefined,
     jobText: e.jobText ?? undefined,
   };
 }
@@ -138,7 +140,7 @@ export async function pipelineCreate(
 export async function pipelineUpdateStage(
   id: string,
   stage: PipelineStage,
-  extra?: Partial<Pick<PipelineEntry, "tailorId">>
+  extra?: Partial<Pick<PipelineEntry, "tailorId" | "tailoredText">>
 ): Promise<PipelineEntry | null> {
   try {
     const row = await prisma.pipelineEntry.update({
@@ -146,6 +148,7 @@ export async function pipelineUpdateStage(
       data: {
         stage,
         ...(extra?.tailorId ? { tailorId: extra.tailorId } : {}),
+        ...(extra?.tailoredText !== undefined ? { tailoredText: extra.tailoredText } : {}),
       },
     });
     return toApi(row);

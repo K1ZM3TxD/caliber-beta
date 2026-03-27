@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
 
   const { entry, sessionId } = resolved;
 
-  // If already tailored, return existing result
+  // If already tailored, return existing result — file store first, DB fallback
   if (entry.tailorId) {
     const result = tailorResultGet(entry.tailorId);
     if (result) {
@@ -82,6 +82,14 @@ export async function GET(req: NextRequest) {
         tailoredText: result.tailoredText,
       });
     }
+  }
+  // DB-persisted text survives cold starts — use it if the file store missed
+  if (entry.tailoredText) {
+    return NextResponse.json({
+      ok: true,
+      status: "done",
+      tailoredText: entry.tailoredText,
+    });
   }
 
   // Check if prep context exists — file-based first, then DB entry fallback
@@ -230,9 +238,9 @@ export async function POST(req: NextRequest) {
       tailoredText,
     });
 
-    // Advance pipeline entry to tailored stage (in whichever store it lives)
+    // Advance pipeline entry to tailored stage and persist the tailored text
     if (source === "db") {
-      await dbPipelineUpdateStage(entry.id, "tailored", { tailorId: result.id });
+      await dbPipelineUpdateStage(entry.id, "tailored", { tailorId: result.id, tailoredText });
     } else {
       filePipelineUpdateStage(entry.id, "tailored", { tailorId: result.id });
     }

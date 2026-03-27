@@ -26,6 +26,7 @@ export interface PipelineEntry {
   createdAt: string; // ISO
   updatedAt: string; // ISO
   tailorId?: string; // link to tailor output if tailored
+  tailoredText?: string; // persisted tailored resume text
   jobText?: string; // job description for tailor context
 }
 
