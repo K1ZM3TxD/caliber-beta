@@ -4615,7 +4615,7 @@
     '      </div>',
     '    </div>',
     '    <div class="cb-collapsible" id="cb-bottomline-section">',
-    '      <button class="cb-collapse-toggle" type="button">',
+    '      <button class="cb-collapse-toggle cb-toggle-insight" type="button">',
     '        <span class="cb-collapse-icon">\u25b8</span>',
     '        <span>Executive Summary</span>',
     '      </button>',
@@ -4846,8 +4846,10 @@
     ".cb-hrc-reason { font-size: 10px; color: #999; padding: 1px 0 3px; line-height: 1.35; }",
     ".cb-hrc-gap { font-size: 10px; color: #F87171; padding: 0 0 3px; margin: 0; line-height: 1.35; font-style: italic; }",
     // Bottom line text
-    ".cb-bltext { font-size: 11px; color: #CFCFCF; line-height: 1.35; padding: 1px 0 3px; }",
+    ".cb-bltext { font-size: 11px; color: #DDE1E7; line-height: 1.45; padding: 1px 0 3px; }",
     "#cb-bottomline-section { transition: opacity 0.35s ease; }",
+    ".cb-toggle-insight { color: #A5B4FC; }",
+    ".cb-toggle-insight:hover { color: #C7D2FE; }",
     // BST pulse badge in header
     // Adjacent search terms section — attention highlight for weak surfaces
     "@keyframes cb-adjacent-glow {",
