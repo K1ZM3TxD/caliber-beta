@@ -9,6 +9,7 @@ import {
   evaluateWorkMode,
   classifyRoleType,
   classifyJobWorkMode,
+  generateWorkRealitySummary,
   type WorkModeResult,
 } from "./work_mode";
 
@@ -35,6 +36,7 @@ import {
   EPIC_INTEGRATION_JOB,
   CONSTRUCTION_ESTIMATOR_JOB,
   GOGUARDIAN_SE_JOB,
+  TERRITORY_SALES_MANAGER_JOB,
   type UserFixture,
   type JobFixture,
 } from "./__fixtures__/work_mode_fixtures";
@@ -709,6 +711,64 @@ describe("Regression: execution evidence guardrail", () => {
     expect(r.executionEvidence.triggered).toBe(false);
     // Existing behavior preserved: conflicting mode drags score
     expect(r.postScore).toBeLessThan(7.0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// ─── WORK-FAMILY ROUTING: Territory Sales Manager ────────────
+// Regression guard: TSM must classify as SYSTEM_SELLER and produce
+// sales-family Executive Summary language — NOT analytical language.
+// ═══════════════════════════════════════════════════════════
+
+describe("Regression: Territory Sales Manager work-family routing", () => {
+  // ── Role-type classification ──────────────────────────
+  it("TSM job mode classifies as sales_execution", () => {
+    const result = classifyJobWorkMode(TERRITORY_SALES_MANAGER_JOB.text);
+    expect(result.mode).toBe("sales_execution");
+  });
+
+  it("TSM role type classifies as SYSTEM_SELLER", () => {
+    const roleType = classifyRoleType(TERRITORY_SALES_MANAGER_JOB.text);
+    expect(roleType).toBe("SYSTEM_SELLER");
+  });
+
+  // ── Executive Summary routes to seller family ─────────
+  it("Chris × TSM (raw 7.5) → SYSTEM_SELLER, conflicting compatibility", () => {
+    const r = run(CHRIS, TERRITORY_SALES_MANAGER_JOB, 7.5, NO_CHIPS);
+    expect(r.roleType).toBe("SYSTEM_SELLER");
+    expect(r.compatibility).toBe("conflicting");
+  });
+
+  it("Chris × TSM Executive Summary is seller-family copy, not analytical", () => {
+    const r = run(CHRIS, TERRITORY_SALES_MANAGER_JOB, 7.5, NO_CHIPS);
+    const summary = generateWorkRealitySummary(r);
+    // Must describe commercial/pipeline work, not analysis or research
+    expect(summary).toMatch(/commercial|prospect|pipeline|closing|revenue/i);
+    expect(summary).not.toMatch(/analysis|research|analytical|threat|investigat/i);
+  });
+
+  // ── analytical_investigative fallback no longer uses cybersecurity language ──
+  it("analytical_investigative jMode fallback does not contain 'threat or data analysis'", () => {
+    // Fabio (analytical) × security analyst → compatible analytical role
+    // hits SYSTEM_SELLER/OPERATOR/BUILDER none → falls to jMode fallback if roleType=null
+    // We construct a scenario where jMode=analytical_investigative and roleType=null.
+    // The Fabio fixture vs security analyst gives compatible analytical mode;
+    // let's verify the fallback text is safe by checking the branch text directly.
+    const r = run(FABIO, SECURITY_ANALYST_JOB, 8.5, NO_CHIPS);
+    const summary = generateWorkRealitySummary(r);
+    // Security analyst: roleType COULD be SYSTEM_OPERATOR or null depending on JD.
+    // Either way, the summary should never contain cybersecurity-specific hardcoded copy.
+    expect(summary).not.toContain("threat or data analysis");
+  });
+
+  // ── Determinism ──────────────────────────────────────
+  it("Chris × TSM is deterministic across 5 runs", () => {
+    const scores: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const r = run(CHRIS, TERRITORY_SALES_MANAGER_JOB, 7.5, NO_CHIPS);
+      scores.push(r.postScore);
+    }
+    expect(new Set(scores).size).toBe(1);
   });
 
   // ── Determinism: execution evidence guardrail is deterministic ──

@@ -131,6 +131,16 @@ const SALES_EXECUTION_TRIGGERS: Trigger[] = [
   { pattern: /\bnew business\b/i, weight: 1, label: "new business" },
   { pattern: /\bsales (team|org|organization)\b/i, weight: 1, label: "sales org" },
   { pattern: /\b(book|booking)(s|ing)? (meeting|appointment|demo)\b/i, weight: 2, label: "booking meetings" },
+  // Territory / field / account management sales signals
+  { pattern: /\bterritory\s+(sales|management|plan|develop)\b/i, weight: 2, label: "territory sales" },
+  { pattern: /\bfield\s+sales\b/i, weight: 2, label: "field sales" },
+  { pattern: /\bregional\s+(sales|manager|director)\b/i, weight: 2, label: "regional sales" },
+  { pattern: /\baccount\s+manage(r|ment)\b/i, weight: 2, label: "account manager" },
+  { pattern: /\bsales\s+manage(r|ment)\b/i, weight: 2, label: "sales manager" },
+  { pattern: /\bbusiness\s+develop(ment|er)\b/i, weight: 1, label: "business development" },
+  { pattern: /\bchannel\s+(sales|partners?)\b/i, weight: 2, label: "channel sales" },
+  { pattern: /\bbook\s+of\s+business\b/i, weight: 2, label: "book of business" },
+  { pattern: /\bwin\s+rate\b/i, weight: 2, label: "win rate" },
 ];
 
 const OPERATIONAL_EXECUTION_TRIGGERS: Trigger[] = [
@@ -474,6 +484,17 @@ const SELLER_PATTERNS: RoleTypePattern[] = [
   { pattern: /\bprospect(s|ing)?\b/i, weight: 2, label: "prospecting" },
   { pattern: /\bsales (rep|representative)\b/i, weight: 3, label: "sales rep" },
   { pattern: /\bnew business\b/i, weight: 1, label: "new business" },
+  // Territory / field / account management sales signals
+  { pattern: /\bterritory\s+(sales|management|plan|develop)\b/i, weight: 3, label: "territory sales" },
+  { pattern: /\bfield\s+sales\b/i, weight: 3, label: "field sales" },
+  { pattern: /\bregional\s+(sales|manager|director)\b/i, weight: 2, label: "regional sales" },
+  { pattern: /\baccount\s+manage(r|ment)\b/i, weight: 3, label: "account manager" },
+  { pattern: /\bsales\s+manage(r|ment)\b/i, weight: 3, label: "sales manager" },
+  { pattern: /\bbusiness\s+develop(ment|er)\b/i, weight: 2, label: "business development" },
+  { pattern: /\bchannel\s+(sales|partners?)\b/i, weight: 2, label: "channel sales" },
+  { pattern: /\bsales\s+(director|leader(ship)?)\b/i, weight: 3, label: "sales director" },
+  { pattern: /\bbook\s+of\s+business\b/i, weight: 3, label: "book of business" },
+  { pattern: /\bwin\s+rate\b/i, weight: 2, label: "win rate" },
 ];
 
 const OPERATOR_PATTERNS: RoleTypePattern[] = [
@@ -1286,7 +1307,7 @@ export function generateWorkRealitySummary(wm: WorkModeResult): string {
     return "This role is rooted in operational execution. The dominant work pattern is process management, coordination, and throughput consistency.";
   }
   if (jMode === "analytical_investigative") {
-    return "This role is rooted in analysis and investigation. The dominant work pattern is structured research, threat or data analysis, and evidence-based decision making.";
+    return "This role is rooted in analysis and structured research. The day-to-day centers on synthesizing information, identifying patterns, and translating findings into decisions or recommendations.";
   }
   if (jMode === "creative_ideation") {
     return "This role is primarily creative in nature. The dominant work pattern is concept development, brand expression, and content or design ideation.";

@@ -434,6 +434,29 @@ export const BDR_OUTBOUND_JOB: JobFixture = {
     "- Experience with prospecting tools and CRM",
 };
 
+export const TERRITORY_SALES_MANAGER_JOB: JobFixture = {
+  name: "Territory Sales Manager",
+  expectedMode: "sales_execution",
+  text:
+    "Territory Sales Manager\n" +
+    "We are seeking a Territory Sales Manager to drive revenue growth across an assigned geographic region.\n" +
+    "Responsibilities:\n" +
+    "- Develop and execute territory sales plans to achieve and exceed revenue targets\n" +
+    "- Manage a portfolio of existing accounts and grow the account base within the assigned territory\n" +
+    "- Analyze territory performance, identify market opportunities, and develop strategies to capture market share\n" +
+    "- Build relationships with key decision-makers and provide consultative account management\n" +
+    "- Conduct market research to understand competitive landscape and customer needs\n" +
+    "- Provide quarterly business reviews with performance insights and growth recommendations\n" +
+    "- Coordinate with marketing and product teams to develop territory-specific campaigns\n" +
+    "- Track activities and opportunities in CRM; report on pipeline and sales forecasts\n" +
+    "Requirements:\n" +
+    "- 3+ years of territory sales management or field sales experience\n" +
+    "- Strong track record of territory growth and account management\n" +
+    "- Analytical mindset — ability to assess territory data and develop action plans\n" +
+    "- Willingness to travel within assigned territory\n" +
+    "- Experience with CRM systems and sales reporting",
+};
+
 // ─── operational_execution ──────────────────────────────────
 
 export const OPS_COORDINATOR_JOB: JobFixture = {
