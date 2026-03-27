@@ -1267,12 +1267,12 @@ export function generateWorkRealitySummary(wm: WorkModeResult): string {
     }
     if (compatibility === "compatible") {
       if (executionIntensity.score >= 6) {
-        return "This is a hands-on technical delivery role — the operating mode at the core of your profile. The day-to-day is building, shipping, and iterating at a high-output pace: exactly the work pattern your background is built for.";
+        return "This is a high-output technical delivery role. The day-to-day is building, shipping, and iterating quickly — a sustained execution pace that maps directly to how your career has been structured.";
       }
-      return "This is a builder and systems role — matching the operating mode your profile centers on. The day-to-day involves product development, technical architecture, or systems design: the kind of work your experience directly prepares you for.";
+      return "This is a builder and systems role. The day-to-day centers on product development, technical architecture, or systems design — work that maps directly to your professional background.";
     }
     if (compatibility === "adjacent") {
-      return "This is a builder or product-development role, but the specific domain or execution context shifts meaningfully from your primary strengths. The core work is technical and systems-oriented; some of it will feel familiar, and some will require operating outside your primary range.";
+      return "This is a builder or product-development role, but the domain or execution context shifts meaningfully from the work your career has been centered on. The core is technical and systems-oriented; some of it will feel natural, and some will require expanding into territory your resume doesn't directly cover.";
     }
     return "This is a builder or product development role. The work involves system design, technical delivery, and hands-on execution.";
   }
@@ -1295,12 +1295,11 @@ export function generateWorkRealitySummary(wm: WorkModeResult): string {
     return "This role centers on building and systems thinking. The day-to-day involves design, development, and delivering structured technical or product work.";
   }
 
-  // Final fallback
-  const uMode = userMode.mode;
-  if (compatibility === "conflicting" && uMode) {
-    return "The operating mode this role demands does not closely match your demonstrated work pattern. The day-to-day would require a significant shift in how you spend your time.";
+  // Final fallback — fires only when the job text produces no classifiable role type or job mode.
+  if (compatibility === "conflicting") {
+    return "The work this role centers on is substantially different from what your career has been built around. Taking it seriously would mean preparing for a significant shift in what you do each day.";
   }
-  return "The day-to-day demands of this role span a work pattern that sits adjacent to your primary operating mode.";
+  return "This role doesn't fall cleanly into a single dominant work pattern. The day-to-day may blend several modes — review the job description carefully before committing significant time to it.";
 }
 
 // ─── Exports for testing ────────────────────────────────────
