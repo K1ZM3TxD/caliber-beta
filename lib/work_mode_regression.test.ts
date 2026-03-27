@@ -31,6 +31,10 @@ import {
   SALESFORCE_CPQ_ARCHITECT_JOB,
   SENIOR_PYTHON_DEVELOPER_JOB,
   CYPFER_ENGAGEMENT_SUPPORT_JOB,
+  QUEST_MOTION_EXPERT_JOB,
+  EPIC_INTEGRATION_JOB,
+  CONSTRUCTION_ESTIMATOR_JOB,
+  GOGUARDIAN_SE_JOB,
   type UserFixture,
   type JobFixture,
 } from "./__fixtures__/work_mode_fixtures";
@@ -182,6 +186,41 @@ describe("Regression: Chris (builder_systems)", () => {
   it("ops coordinator + ops avoided → hard capped ≤ 4.0", () => {
     const r = run(CHRIS, OPS_COORDINATOR_JOB, 7.5, AVOID_OPS);
     expect(r.postScore).toBeLessThanOrEqual(4.0);
+  });
+
+  // ── Specialist craft guardrail: bad-high scores must be capped ──
+  // Quest Motion Expert: compatible mode → 0 WM adj → score stays high → specialist_craft fires
+  it("Quest Motion Expert (raw 8.8) → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const r = run(CHRIS, QUEST_MOTION_EXPERT_JOB, 8.8, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(true);
+    expect(r.executionEvidence.categories).toContain("specialist_craft");
+    expect(r.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  // Epic Integration SE: compatible mode → 0 WM adj → score stays high → specialist_craft fires
+  it("Epic Integration SE (raw 7.5) → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const r = run(CHRIS, EPIC_INTEGRATION_JOB, 7.5, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(true);
+    expect(r.executionEvidence.categories).toContain("specialist_craft");
+    expect(r.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  // Construction Estimator: adjacent mode + SYSTEM_OPERATOR penalty → pre-EE score ~7.0
+  // Without the fix the early-return gate (≤ 7.0) fired before specialist_craft could run,
+  // leaving the score at ~6.5 ("Viable Stretch"). Now specialist_craft fires regardless.
+  it("Construction Estimator (raw 8.3) → specialist_craft triggered, postScore ≤ 5.5", () => {
+    const r = run(CHRIS, CONSTRUCTION_ESTIMATOR_JOB, 8.3, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(true);
+    expect(r.executionEvidence.categories).toContain("specialist_craft");
+    expect(r.postScore).toBeLessThanOrEqual(5.5);
+  });
+
+  // ── Adjacent tech role NOT over-penalized ──────────────
+  // GoGuardian SE: builder_systems compatible, no specialist craft patterns → not triggered
+  it("GoGuardian SE (raw 8.5) → specialist_craft NOT triggered, postScore preserved", () => {
+    const r = run(CHRIS, GOGUARDIAN_SE_JOB, 8.5, NO_CHIPS);
+    expect(r.executionEvidence.triggered).toBe(false);
+    expect(r.postScore).toBeGreaterThan(7.0);
   });
 });
 

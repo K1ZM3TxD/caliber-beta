@@ -1089,6 +1089,26 @@ export const CONSTRUCTION_ESTIMATOR_JOB: JobFixture = {
     "- Experience with bid preparation and construction project delivery methods",
 };
 
+export const GOGUARDIAN_SE_JOB: JobFixture = {
+  name: "GoGuardian Solutions Engineer",
+  expectedMode: "builder_systems",
+  text:
+    "Solutions Engineer — GoGuardian (EdTech, K-12 Safety)\n" +
+    "We are looking for a Solutions Engineer to partner with our Enterprise sales motion and help school districts deploy GoGuardian's student safety platform.\n" +
+    "Responsibilities:\n" +
+    "- Lead technical discovery, product demos, and proof-of-concept engagements with IT administrators and district leaders\n" +
+    "- Architect integration solutions between GoGuardian and school district identity providers (Google Workspace, Azure AD, Clever)\n" +
+    "- Build automation scripts and lightweight tooling (Python, REST APIs) to streamline onboarding and integration workflows\n" +
+    "- Serve as the technical authority in pre-sales cycles, bridging product capabilities and customer requirements\n" +
+    "- Collaborate with Product and Engineering to surface field feedback and drive solution design improvements\n" +
+    "Requirements:\n" +
+    "- 3+ years of experience in a Solutions Engineering or Technical Pre-Sales role at a SaaS company\n" +
+    "- Hands-on experience with REST API integrations, OAuth/SSO protocols, and cloud SaaS platforms\n" +
+    "- Proficiency with Python or similar scripting for automation and integration workflows\n" +
+    "- Familiarity with Google Workspace, Microsoft 365, and identity federation (SAML, SCIM, Clever)\n" +
+    "- Strong presentation and communication skills; ability to lead technical conversations with enterprise IT stakeholders",
+};
+
 // ═══════════════════════════════════════════════════════════
 // ─── CONVENIENCE GROUPINGS ──────────────────────────────────
 // ═══════════════════════════════════════════════════════════
@@ -1134,6 +1154,7 @@ export const ALL_JOBS = [
   QUEST_MOTION_EXPERT_JOB,
   EPIC_INTEGRATION_JOB,
   CONSTRUCTION_ESTIMATOR_JOB,
+  GOGUARDIAN_SE_JOB,
 ] as const;
 
 export const EXECUTION_EVIDENCE_JOBS = [
@@ -1145,6 +1166,7 @@ export const EXECUTION_EVIDENCE_JOBS = [
   QUEST_MOTION_EXPERT_JOB,
   EPIC_INTEGRATION_JOB,
   CONSTRUCTION_ESTIMATOR_JOB,
+  GOGUARDIAN_SE_JOB,
 ] as const;
 
 export const FALSE_POSITIVE_TRAP_JOBS = [

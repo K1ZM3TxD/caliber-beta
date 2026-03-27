@@ -924,14 +924,14 @@ const SPECIALIST_CRAFT_CAP = 5.5;
 // Fires when a job explicitly requires deep specialist knowledge in a narrow
 // technical domain where being "adjacent" (builder who automates things) is
 // insufficient. Roles require years of domain-embedded hands-on training:
-//   - Motion control / manufacturing hardware (PLC, servo, semiconductor metrology)
+//   - Motion control / robotics / real-time systems (PLC, servo, ROS, FPGA, RTOS)
 //   - Healthcare integration substrate (Epic, HL7, FHIR)
 //   - Construction estimating (quantity takeoff, preconstruction, RSMeans)
 // Reuses EcosystemDef shape for consistency.
 
 const SPECIALIST_CRAFT_DOMAINS: EcosystemDef[] = [
   {
-    name: "motion control / manufacturing hardware",
+    name: "motion control / robotics / real-time systems",
     jobPatterns: [
       { pattern: /\bmotion\s+control\b/i, weight: 3, label: "motion control" },
       { pattern: /\bmotion\s+expert\b/i, weight: 3, label: "motion expert" },
@@ -943,8 +943,16 @@ const SPECIALIST_CRAFT_DOMAINS: EcosystemDef[] = [
       { pattern: /\b(CNC|G-code)\b/i, weight: 2, label: "CNC/G-code" },
       { pattern: /\bembedded\s+(motor|servo|motion|drive)\b/i, weight: 3, label: "embedded motor/drive" },
       { pattern: /\bmotor\s+drive\b/i, weight: 2, label: "motor drive" },
+      { pattern: /\bROS2?\b/, weight: 3, label: "ROS" },
+      { pattern: /\brobotic\s+(arm|system)\b/i, weight: 2, label: "robotic arm/system" },
+      { pattern: /\brobotics?\s+integrat/i, weight: 3, label: "robotics integration" },
+      { pattern: /\bindustrial\s+robot(ics?)?\b/i, weight: 3, label: "industrial robotics" },
+      { pattern: /\bFPGA\b/, weight: 3, label: "FPGA" },
+      { pattern: /\bRTOS\b/i, weight: 3, label: "RTOS" },
+      { pattern: /\breal[- ]time\s+(control|OS|operating\s+system|system)\b/i, weight: 2, label: "real-time system" },
+      { pattern: /\bSCADA\b/i, weight: 3, label: "SCADA" },
     ],
-    evidencePattern: /\b(motion\s+control|servo|PLC|EtherCAT|step[- ]and[- ]settle|CNC|G-code|motor\s+drive|semiconductor\s+(metrology|equipment|process)|embedded\s+(motor|servo|motion|drive))\b/i,
+    evidencePattern: /\b(motion\s+control|servo|PLC|EtherCAT|step[- ]and[- ]settle|CNC|G-code|motor\s+drive|semiconductor\s+(metrology|equipment|process)|embedded\s+(motor|servo|motion|drive)|ROS2?|robotic\s+(arm|system)|robotics?\s+integrat|industrial\s+robot|FPGA|RTOS|SCADA)\b/i,
     threshold: 4,
   },
   {
@@ -991,13 +999,20 @@ export function detectExecutionEvidenceGap(
     missingEvidence: [], cap: null, adjustment: 0, reason: null,
   };
 
-  // Score already at or below cap — no action needed
-  if (score <= EXECUTION_EVIDENCE_CAP) return noTrigger;
+  // Score is already at or below the lowest cap we'd ever apply — skip all checks.
+  if (score <= SPECIALIST_CRAFT_CAP) return noTrigger;
 
   const categories: ExecutionEvidenceCategory[] = [];
   const allSignals: string[] = [];
   const missing: string[] = [];
 
+  // domain_locked, stack_execution, integration_platform, and clearance all cap at
+  // EXECUTION_EVIDENCE_CAP (7.0). A score already ≤ 7.0 after prior pipeline
+  // adjustments cannot be further reduced by a 7.0 cap — only specialist_craft
+  // (cap 5.5) has effect in the 5.5–7.0 range.
+  const runHighCapChecks = score > EXECUTION_EVIDENCE_CAP;
+
+  if (runHighCapChecks) {
   // ── Domain-locked ecosystem check ─────────────────────
   for (const eco of DOMAIN_LOCKED_ECOSYSTEMS) {
     let ecoScore = 0;
@@ -1071,9 +1086,12 @@ export function detectExecutionEvidenceGap(
     }
   }
 
-  // ── Specialist craft domain check ────────────────────────
-  // Fires when a job requires deep specialist craft in a narrow domain.
-  // Adjacent builder/systems overlap is not sufficient evidence.
+  } // end runHighCapChecks
+
+  // ── Specialist craft domain check ─────────────────────────────────────────
+  // Runs whenever score > SPECIALIST_CRAFT_CAP (5.5), independent of the 7.0
+  // gate. Even when prior adjustments have pulled the score into the 5.5–7.0
+  // range, a profile lacking direct craft evidence must not exceed 5.5.
   for (const domain of SPECIALIST_CRAFT_DOMAINS) {
     let craftScore = 0;
     const craftSignals: string[] = [];
