@@ -26,10 +26,19 @@ export function stripDebugTrace(text: string): string {
 }
 
 const HEADER_MAP: [RegExp, ResumeSection["type"]][] = [
-  [/^(PROFESSIONAL\s+|CAREER\s+|EXECUTIVE\s+)?SUMMARY$/i, "summary"],
-  [/^(PROFESSIONAL\s+)?PROFILE$/i, "summary"],
+  // Summary / profile variants — cast wide net to prevent LLM heading drift into 'other'
+  [/^(PROFESSIONAL\s+|CAREER\s+|EXECUTIVE\s+|PERSONAL\s+)?SUMMARY$/i, "summary"],
+  [/^(PROFESSIONAL\s+|CAREER\s+|CANDIDATE\s+)?PROFILE$/i, "summary"],
+  [/^PROFESSIONAL\s+OVERVIEW$/i, "summary"],
+  [/^CAREER\s+OVERVIEW$/i, "summary"],
+  [/^(CAREER\s+)?OBJECTIVE$/i, "summary"],
   [/^ABOUT(\s+ME)?$/i, "summary"],
-  [/^OBJECTIVE$/i, "summary"],
+  [/^OVERVIEW$/i, "summary"],
+  [/^INTRODUCTION$/i, "summary"],
+  [/^BACKGROUND$/i, "summary"],
+  [/^HIGHLIGHTS?$/i, "summary"],
+  [/^SUMMARY\s+OF\s+(QUALIFICATIONS?|EXPERIENCE)$/i, "summary"],
+  [/^TARGET\s+HEADLINE$/i, "summary"],
   [/^(WORK\s+|PROFESSIONAL\s+)?EXPERIENCE$/i, "experience"],
   [/^EMPLOYMENT(\s+HISTORY)?$/i, "experience"],
   [/^(CORE\s+|TECHNICAL\s+|KEY\s+|RELEVANT\s+)?SKILLS(\s+(&|AND)\s+\w+)?$/i, "skills"],

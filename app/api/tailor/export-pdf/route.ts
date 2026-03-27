@@ -86,8 +86,13 @@ export async function POST(req: NextRequest) {
       for (const item of section.items) {
         switch (item.kind) {
           case "entry": {
-            // Summary sections: body text is never bold — render as normal weight
-            if (section.type === "summary") {
+            // Summary sections: body text is never bold — render as normal weight.
+            // Also catches: long plain-text lines (>80 chars, no pipe) that are
+            // clearly paragraph text mis-classified as entry due to heading drift.
+            const isSummaryContent =
+              section.type === "summary" ||
+              (!item.text.includes("|") && item.text.trim().length > 80);
+            if (isSummaryContent) {
               doc.setFont("helvetica", "normal");
               doc.setFontSize(10);
               doc.setTextColor(20, 20, 20);
