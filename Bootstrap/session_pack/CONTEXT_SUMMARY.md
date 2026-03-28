@@ -11,9 +11,9 @@
 2. Sidecard stable — **CLOSED** (layout stabilized 52/52 pass, v0.9.21 2026-03-20; scroll jitter also fixed 2026-03-27 on `main`)
 3. Pipeline solid — **CLOSED** (111/111 assertions, IDOR fix, v0.9.21 2026-03-21)
 4. Sign-in / memory — **CLOSED** (67/67 assertions, magic-link hardened 114/114, 2026-03-22)
-5. Tailor resume — **FUNCTIONALLY CLOSED** (59/59 E2E, 2026-03-24; integrity fix `892a45a` on `main`; post-fix validation run required on promoted stable before declaring end-to-end integrity confirmed)
+5. Tailor resume — **CLOSED** (functionality 59/59 E2E 2026-03-24; integrity fix `892a45a` merged into `stable` 2026-03-28; post-fix validation recommended before declaring output trustworthy end-to-end)
 
-**Promotion blocker (as of 2026-03-28):** `stable` is 60 commits behind `main`. All five-gate fixes + recent stabilization work (sidecard jitter, Executive Summary, PDF export cluster, tailor contamination fix, extension v0.9.34) are on `main` only. `stable` must be promoted before beta is reachable from production. Issue #112.
+**Beta launched (2026-03-28):** `stable` promoted to `main` via fast-forward merge at commit `31ab6a1`, confirmed live in Vercel production. All five-gate fixes + recent stabilization work are now live. Issues #107 and #112 resolved.
 
 **Parallel (non-blocking):**
 - Overlay scoring — shipped and stable, continues to improve, not a beta gate

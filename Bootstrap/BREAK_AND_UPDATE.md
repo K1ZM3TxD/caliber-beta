@@ -81,6 +81,22 @@ When the change lands, report:
 
 ---
 
+### 2026-03-28 — Beta Launched: stable promoted to production
+
+**What changed:** `stable` branch promoted to `main` via fast-forward merge at commit `31ab6a1`. Vercel production branch confirmed = `stable` in dashboard. Beta is live at `caliber-app.com`.
+
+**Why it changed:** All five beta gates were CLOSED on `main`. PM declared beta-ready. Operator ran `git checkout stable && git pull origin stable && git merge --ff-only main && git push origin stable`.
+
+**Behavior now expected:** `caliber-app.com` serves the `31ab6a1` build — all stabilization work (sidecard jitter fix, Executive Summary, specialist_craft guardrail, tailor contamination fix, PDF/DOCX export, TSM routing fix, extension v0.9.34) is live in production. `stable` = `main` = `31ab6a1`.
+
+**Behavior no longer expected:** Production running the 2026-03-24 `04cecd3` build. "Stable is behind main" — both branches are now identical.
+
+**Open post-launch:** Issue #108 (LinkedIn dense-surface unresponsiveness) unresolved — PM risk decision required. Post-fix tailor validation (post-`892a45a`) recommended before declaring Gate 5 end-to-end integrity confirmed.
+
+**Files:** `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/milestones.md`, `Bootstrap/BREAK_AND_UPDATE.md`
+
+---
+
 ### 2026-03-25 — Post-Fix Jen Surface Experiment Analysis (ANALYSIS_ONLY)
 
 **Session:** `sess_fd37b355bf65c8_19d27242644::signal_on` — valid post-fix baseline run (v0.9.30, Jen fixture, signals ON, chips skipped).

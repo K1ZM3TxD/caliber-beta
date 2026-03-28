@@ -3,12 +3,12 @@
 
 ## Current Open Issues
 
-112. `stable` branch not promoted — production is 60 commits behind `main` — **OPEN** (2026-03-28)
+112. `stable` branch not promoted — production is 60 commits behind `main` — **RESOLVED** (2026-03-28)
   - **Symptom:** All recent stabilization and beta-readiness fixes (sidecard jitter, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix, extension v0.9.30–v0.9.34) are on `main` only. Production (`stable`) is running the 2026-03-24 build at `04cecd3`.
   - **Impact:** Beta cannot be launched from production until `stable` is promoted. Users accessing the live site receive the pre-jitter-fix, pre-Executive-Summary, pre-PDF-export build.
   - **Required action:** Operator must fast-forward `stable` to `main` after PM declares beta-ready (see EXECUTION_CONTRACT.md → Production Branch Promotion Protocol).
   - **Blocking:** Yes — beta launch from production is blocked until resolved.
-  - **Status:** OPEN — awaiting PM beta-ready declaration + operator promotion
+  - **Status:** RESOLVED — `main` fast-forward merged to `stable` at commit `31ab6a1`, pushed to `origin/stable` 2026-03-28. Vercel production confirmed on `stable`.
 
 111. Recalibrate button redirected authenticated users to `/pipeline` — **RESOLVED** (2026-03-27)
   - **Symptom:** Clicking "Recalibrate" on the calibration results page (COMPLETE step) or "Restart" on the TITLES step redirected authenticated users to `/pipeline` instead of the calibration landing page.
@@ -62,7 +62,7 @@
   - **Status:** Fix shipped, outcome unverified. Rerun required to confirm resolution.
   - **Required action:** Re-run Jen surface experiment after confirming extension behavior is stable on a dense surface (no page unresponsive dialog) with the patched build.
 
-107. Vercel production branch alignment — **OPEN** (2026-03-25)
+107. Vercel production branch alignment — **RESOLVED** (2026-03-28)
   - **Symptom:** No `vercel.json` or `.vercel/` config in the repo. Vercel production branch setting cannot be read from the codebase — it must be verified manually in the Vercel dashboard.
   - **Current git state (verified 2026-03-25):**
     - `origin/stable` = `04cecd3` — last intentional stable push (2026-03-24 21:55 UTC) — "feat: add landing page, /score web scoring interface, wire CTAs"
@@ -76,7 +76,7 @@
        - `c7bf6e3` fix: restore calibration complete page CTA order
        - `3bdcfd3` revert: remove Score Breakdown debug panel
     4. Run: `git checkout stable && git merge --ff-only origin/main && git push origin stable`
-  - **Status:** Blocked on operator verification of Vercel dashboard. No code changes required.
+  - **Status:** RESOLVED — Vercel dashboard confirmed production branch = `stable` 2026-03-28. `stable` promoted to `main` at commit `31ab6a1`. Issue #112 resolved in same operation.
 
 106. PM reload drift from oversized repo + stale workflow docs — **RESOLVED** (2026-03-25)
   - **Symptom:** PM sessions picking up stale context: obsolete Claude-agent workflow instructions, `ENVIRONMENT_SPLIT.md` references (old build-script model), "Cloud agent policy" wording, no single canonical reload path.

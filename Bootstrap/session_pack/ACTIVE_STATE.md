@@ -5,28 +5,19 @@
 ---
 
 ## Current Phase
-**Desktop Stabilization & Beta Preparation (entered 2026-03-15).** All Signal & Surface Intelligence (SSI) subsystems are implemented. The project is now in structured validation before beta launch.
+**Beta Launched (2026-03-28).** `stable` promoted to production via fast-forward merge, confirmed live in Vercel. All five beta gates are CLOSED on the promoted build (`31ab6a1`). Production deploys from `stable`; development continues on `main`.
 
 SSI subsystems: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST), BST Loop Prevention, Pipeline Trigger (>=7), Score Labeling.
 
-Beta remains defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Desktop Stabilization must complete before beta gates are evaluated. Production deploys from `stable` branch; development on `main`.
+Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Production deploys from `stable` branch; development on `main`.
 
 **Tailor Gate Status (2026-03-26):** Gate 5 (Tailor resume works) closed for functionality (59/59 E2E assertions, 2026-03-24). A source-binding integrity bug was subsequently discovered and fixed (cross-user resume contamination, commit `892a45a`). The integrity fix is now in place. **Post-fix tailor validation has not yet been run.** Any tailor output generated before commit `892a45a` must not be treated as a valid quality baseline. Tailor quality validation must use post-fix runs only. This does not revoke the Gate 5 closure — the plumbing is correct — but post-fix validation is required before declaring tailor output trustworthy for beta.
 
-**Production Deployment Status (updated 2026-03-28):**
-- `origin/stable` = `04cecd3` (2026-03-24 21:55 UTC) — last intentional production push. Contains all beta gate work up through "feat: add landing page, /score web scoring interface, wire CTAs".
-- `origin/main` = `c4a27a7` (2026-03-28) — **60 commits ahead of `stable`.**
-- **`stable` is NOT aligned with the current validated product state.** All recent stabilization work — sidecard jitter fix, Executive Summary, specialist_craft guardrail, recalibrate button fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix (TSM), extension v0.9.30–v0.9.34 — is on `main` only.
-- **Vercel production branch must be verified manually** — no `vercel.json` in repo; dashboard setting cannot be read from code.
-- **Required before beta launch:** Operator must (1) confirm Vercel production branch = `stable` in the Vercel dashboard, (2) promote `main` → `stable` (fast-forward merge) when PM declares beta-ready. See issue #107 and issue #112 and EXECUTION_CONTRACT.md → Production Branch Promotion Protocol.
-
-**Final Beta Readiness Validation Pass (2026-03-28):**
-- Validated five beta gates — all CLOSED on `main`.
-- `stable` does NOT contain the fixes listed above. Production is running a 60-commit-old build. The reported "fixes pushed to both main and stable" was incorrect — only `main` has been updated.
-- Issue #108 (LinkedIn page unresponsiveness on dense surfaces) remains open. PM must explicitly accept or escalate this as a beta launch risk.
-- Post-fix tailor validation (post-`892a45a`) has not yet been run. Required before declaring Gate 5 fully validated end-to-end on the promoted build.
-- **Go/No-Go status:** NO-GO until `stable` is promoted to `main`. All validated fixes are unreachable from production until promotion occurs.
-- **Next PM action:** (1) Confirm Vercel dashboard production branch = `stable`. (2) Declare beta-ready. (3) Operator fast-forwards `stable` → `main`. (4) Run post-fix tailor validation on promoted build. (5) Declare beta launched.
+**Production Deployment Status (2026-03-28 — BETA LAUNCHED):**
+- `origin/stable` = `31ab6a1` (2026-03-28) — production. Fast-forward promoted from `main`. Contains all five beta gate work + all recent stabilization: sidecard jitter fix, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, TSM work-family routing fix, extension v0.9.30–v0.9.34.
+- `origin/main` = `31ab6a1` — identical to `stable`. Development continues here.
+- Vercel production branch = `stable` ✓ (confirmed 2026-03-28). Issues #107 and #112 RESOLVED.
+- **Post-launch focus:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open — PM risk decision required. Post-fix tailor validation (post-`892a45a`) recommended before declaring Gate 5 end-to-end integrity confirmed.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
