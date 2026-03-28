@@ -38,57 +38,73 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Name (20pt bold, centered) ──
-    if (resume.name) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.setTextColor(20, 20, 20);
-      ensureSpace(24);
-      doc.text(resume.name, pageW / 2, y, { align: "center" });
-      y += 24;
+    // Render paragraph text justified (all lines except last), left-align the last line
+    function renderJustifiedParagraph(lines: string[], lineH: number) {
+      for (let i = 0; i < lines.length; i++) {
+        ensureSpace(lineH);
+        const isLast = i === lines.length - 1;
+        if (isLast || lines[i].trim() === "") {
+          doc.text(lines[i], margin, y);
+        } else {
+          doc.text(lines[i], margin, y, { align: "justify", maxWidth });
+        }
+        y += lineH;
+      }
     }
 
-    // ── Contact (10pt, centered, mid-gray) ──
+    // ── Name (22pt bold, left-aligned) + full-width rule below ──
+    if (resume.name) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(20, 20, 20);
+      ensureSpace(28);
+      doc.text(resume.name, margin, y);
+      y += 5;
+      // Full-width rule under name
+      doc.setDrawColor(20, 20, 20);
+      doc.setLineWidth(0.75);
+      doc.line(margin, y, pageW - margin, y);
+      y += 10;
+    }
+
+    // ── Contact (10pt, left-aligned, near-black, pipe-separated) ──
     if (resume.contact) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.setTextColor(90, 90, 90);
-      const contactLines = doc.splitTextToSize(
-        resume.contact,
-        maxWidth,
-      ) as string[];
-      for (const line of contactLines) {
-        ensureSpace(12);
-        doc.text(line, pageW / 2, y, { align: "center" });
-        y += 12;
-      }
       doc.setTextColor(20, 20, 20);
+      const contactLines = doc.splitTextToSize(resume.contact, maxWidth) as string[];
+      for (const line of contactLines) {
+        ensureSpace(13);
+        doc.text(line, margin, y);
+        y += 13;
+      }
       y += 10; // breathing room before first section
     }
 
     // ── Sections ──
     for (const section of resume.sections) {
-      // Section heading: 11pt bold uppercase + hairline rule (ATS-standard section marker)
+      // Section heading: 13pt bold, centered, underlined — LinkedIn/ATS standard
       if (section.heading) {
-        y += 12; // inter-section breathing room
+        y += 14; // inter-section breathing room
         ensureSpace(22);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(30, 30, 30);
-        doc.text(section.heading.toUpperCase(), margin, y);
-        y += 3;
-        doc.setDrawColor(218, 218, 218); // near-invisible hairline
-        doc.setLineWidth(0.25);
-        doc.line(margin, y, pageW - margin, y);
-        y += 9;
+        doc.setFontSize(13);
+        doc.setTextColor(20, 20, 20);
+        const headingText = section.heading.toUpperCase();
+        const tw = doc.getTextWidth(headingText);
+        const hx = (pageW - tw) / 2;
+        doc.text(headingText, pageW / 2, y, { align: "center" });
+        // Underline the heading text
+        doc.setDrawColor(20, 20, 20);
+        doc.setLineWidth(0.5);
+        doc.line(hx, y + 1.5, hx + tw, y + 1.5);
+        y += 14;
       }
 
       for (const item of section.items) {
         switch (item.kind) {
           case "entry": {
-            // Summary sections: body text is never bold — render as normal weight.
-            // Also catches: long plain-text lines (>80 chars, no pipe) that are
-            // clearly paragraph text mis-classified as entry due to heading drift.
+            // Summary / long plain paragraph — render justified
             const isSummaryContent =
               section.type === "summary" ||
               (!item.text.includes("|") && item.text.trim().length > 80);
@@ -97,37 +113,37 @@ export async function POST(req: NextRequest) {
               doc.setFontSize(10);
               doc.setTextColor(20, 20, 20);
               const sLines = doc.splitTextToSize(item.text, maxWidth) as string[];
-              for (const sl of sLines) { ensureSpace(13); doc.text(sl, margin, y); y += 13; }
-              y += 1.5;
+              renderJustifiedParagraph(sLines, 13);
+              y += 2;
               break;
             }
-            // Hierarchy: Title (bold 11pt) on its own line, then Company | Date (9pt subdued)
-            y += 5;
+
+            // Entry hierarchy: Role (bold) → Company (left) + Date (right) on same line
+            y += 6;
             const rawParts = item.text.split("|").map((p: string) => p.trim()).filter(Boolean);
 
             if (rawParts.length >= 2) {
               const title = rawParts[0];
-              // Company is part[1], date is last part (could be same as company if only 2 parts)
               const company = rawParts.length >= 3 ? rawParts[1] : "";
               const date = rawParts[rawParts.length - 1];
-              const subLine = company ? `${company}  ·  ${date}` : date;
 
-              // Line 1: Title — bold, 11pt, near-black
+              // Role — bold, 11pt, left-aligned
               doc.setFont("helvetica", "bold");
               doc.setFontSize(11);
               doc.setTextColor(20, 20, 20);
               const tLines = doc.splitTextToSize(title, maxWidth) as string[];
               for (const tl of tLines) { ensureSpace(14); doc.text(tl, margin, y); y += 14; }
 
-              // Line 2: Company · Date — normal, 9pt, mid-gray, left-aligned
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(9);
-              doc.setTextColor(100, 100, 100);
-              ensureSpace(11);
-              doc.text(subLine, margin, y);
-              doc.setTextColor(20, 20, 20);
-              doc.setFontSize(10.5);
-              y += 11;
+              // Company (left) + Date (right) — normal, 10pt, near-black, same line
+              if (company || date) {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10);
+                doc.setTextColor(20, 20, 20);
+                ensureSpace(13);
+                if (company) doc.text(company, margin, y);
+                if (date) doc.text(date, pageW - margin, y, { align: "right" });
+                y += 13;
+              }
             } else {
               // No pipe — single bold title line
               doc.setFont("helvetica", "bold");
@@ -136,27 +152,24 @@ export async function POST(req: NextRequest) {
               const eLines = doc.splitTextToSize(item.text, maxWidth) as string[];
               for (const el of eLines) { ensureSpace(14); doc.text(el, margin, y); y += 14; }
             }
-            y += 3; // gap before bullets
+            y += 4; // gap before body/bullets
             break;
           }
 
           case "bullet": {
-            const bulletIndent = 14;
+            const bulletIndent = 16;
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
             doc.setTextColor(20, 20, 20);
             const normalizedBullet = item.text.replace(/^[\u2022\u25AA\u25BA\u25CF\u2023\u25E6\u2043*\-]+\s*/, "").trim();
-            const bLines = doc.splitTextToSize(
-              normalizedBullet,
-              maxWidth - bulletIndent,
-            ) as string[];
+            const bLines = doc.splitTextToSize(normalizedBullet, maxWidth - bulletIndent) as string[];
             for (let i = 0; i < bLines.length; i++) {
               ensureSpace(13);
-              if (i === 0) doc.text("\u2022", margin + 3, y);
+              if (i === 0) doc.text("\u2022", margin + 4, y);
               doc.text(bLines[i], margin + bulletIndent, y);
               y += 13;
             }
-            y += 1.5;
+            y += 2;
             break;
           }
 
@@ -164,15 +177,8 @@ export async function POST(req: NextRequest) {
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
             doc.setTextColor(20, 20, 20);
-            const tLines = doc.splitTextToSize(
-              item.text,
-              maxWidth,
-            ) as string[];
-            for (const tl of tLines) {
-              ensureSpace(13);
-              doc.text(tl, margin, y);
-              y += 13;
-            }
+            const tLines = doc.splitTextToSize(item.text, maxWidth) as string[];
+            renderJustifiedParagraph(tLines, 13);
             y += 2;
             break;
           }
