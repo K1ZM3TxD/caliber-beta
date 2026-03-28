@@ -98,21 +98,83 @@ export async function POST(req: NextRequest) {
 
       for (const item of section.items) {
         switch (item.kind) {
-          case "entry":
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: item.text,
-                    bold: true,
-                    font: "Calibri",
-                    size: 22, // 11pt
-                  }),
-                ],
-                spacing: { before: 160, after: 40 },
-              }),
-            );
+          case "entry": {
+            // Summary sections or long plain-text paragraphs: render as body text.
+            const isSummaryContent =
+              section.type === "summary" ||
+              (!item.text.includes("|") && item.text.trim().length > 80);
+            if (isSummaryContent) {
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: item.text,
+                      font: "Calibri",
+                      size: 22, // 11pt
+                    }),
+                  ],
+                  spacing: { after: 60 },
+                }),
+              );
+              break;
+            }
+            // Experience / education entries: split "Title | Company | Date" into
+            // two lines — role title (bold) then company · date (gray, smaller).
+            const rawParts = item.text
+              .split("|")
+              .map((p: string) => p.trim())
+              .filter(Boolean);
+            if (rawParts.length >= 2) {
+              const title = rawParts[0];
+              const co = rawParts.length >= 3 ? rawParts[1] : "";
+              const date = rawParts[rawParts.length - 1];
+              const subLine = co ? `${co}  ·  ${date}` : date;
+              // Line 1: Role title — bold 11pt
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: title,
+                      bold: true,
+                      font: "Calibri",
+                      size: 22, // 11pt
+                    }),
+                  ],
+                  spacing: { before: 160, after: 20 },
+                }),
+              );
+              // Line 2: Company · Date — normal 9pt gray
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: subLine,
+                      font: "Calibri",
+                      size: 18, // 9pt
+                      color: "666666",
+                    }),
+                  ],
+                  spacing: { after: 60 },
+                }),
+              );
+            } else {
+              // Single-segment entry (no pipe) — bold title line
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: item.text,
+                      bold: true,
+                      font: "Calibri",
+                      size: 22, // 11pt
+                    }),
+                  ],
+                  spacing: { before: 160, after: 40 },
+                }),
+              );
+            }
             break;
+          }
 
           case "bullet":
             children.push(

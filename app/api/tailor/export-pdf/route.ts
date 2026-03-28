@@ -48,10 +48,10 @@ export async function POST(req: NextRequest) {
       y += 24;
     }
 
-    // ── Contact (9.5pt, centered, mid-gray) ──
+    // ── Contact (10pt, centered, mid-gray) ──
     if (resume.contact) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
+      doc.setFontSize(10);
       doc.setTextColor(90, 90, 90);
       const contactLines = doc.splitTextToSize(
         resume.contact,
@@ -68,12 +68,12 @@ export async function POST(req: NextRequest) {
 
     // ── Sections ──
     for (const section of resume.sections) {
-      // Section heading: 10.5pt bold uppercase + ultra-light rule
+      // Section heading: 11pt bold uppercase + hairline rule (ATS-standard section marker)
       if (section.heading) {
         y += 12; // inter-section breathing room
         ensureSpace(22);
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(10.5);
+        doc.setFontSize(11);
         doc.setTextColor(30, 30, 30);
         doc.text(section.heading.toUpperCase(), margin, y);
         y += 3;

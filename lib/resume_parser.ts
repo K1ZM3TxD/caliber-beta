@@ -65,6 +65,17 @@ const HEADER_MAP: [RegExp, ResumeSection["type"]][] = [
   [/^LEADERSHIP$/i, "other"],
 ];
 
+// Canonical headings for standard ATS/LinkedIn section labels.
+// Parser normalizes any LLM variant (e.g. "PROFESSIONAL EXPERIENCE", "CORE SKILLS")
+// to these standard labels so the exported resume uses recruiter-familiar headings.
+const CANONICAL_HEADING: Record<ResumeSection["type"], string> = {
+  summary: "Summary",
+  experience: "Experience",
+  skills: "Skills",
+  education: "Education",
+  other: "", // preserve original for certifications, projects, etc.
+};
+
 function classifyHeader(text: string): ResumeSection["type"] | null {
   const clean = text.replace(/[\s:\-_=]+$/, "").trim();
   if (!clean || clean.length > 60) return null;
@@ -143,8 +154,10 @@ export function parseResume(rawText: string): ParsedResume {
     const htype = classifyHeader(trimmed);
     if (htype) {
       if (current) sections.push(current);
+      const rawHeading = trimmed.replace(/[\s:\-_=]+$/, "").trim();
+      const canonical = CANONICAL_HEADING[htype];
       current = {
-        heading: trimmed.replace(/[\s:\-_=]+$/, "").trim(),
+        heading: canonical || rawHeading,
         type: htype,
         items: [],
       };
