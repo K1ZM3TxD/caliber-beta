@@ -214,7 +214,10 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
       if (distances[i] === 0) {
         supports_fit.push(`${label}: strong alignment between your pattern and role demands.`)
       } else if (distances[i] === 1) {
-        if (score >= 5) {
+        // Only treat near-aligned as a support when the score is truly ceiling-approaching.
+        // Below 8.5 (the "strong-but-not-ceiling" range), surface the gap explicitly so the
+        // user can see WHY the score stopped where it did ("why is this not higher?").
+        if (score >= 8.5) {
           supports_fit.push(`${label}: near-aligned — close to role demands with minor stretch.`)
         } else {
           stretch_factors.push(buildStretchGap(label, key, evidence, 1, roleLevel, personLevel))
@@ -225,14 +228,17 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     }
 
     // Empty-supports guard: for scores ≥ 3, ensure at least one support when
-    // mild-gap dimensions exist but none qualified as supports above.
+    // all dimensions have some gap but none qualified as supports above.
+    // Promote the first distance=1 stretch item to a near-aligned support.
     if (supports_fit.length === 0 && score >= 3 && stretch_factors.length > 0) {
-      const mildIdx = stretch_factors.findIndex(s => s.includes("mild gap"))
-      if (mildIdx !== -1) {
-        const label = stretch_factors[mildIdx].split(":")[0]
-        stretch_factors.splice(mildIdx, 1)
-        supports_fit.push(`${label}: closest area of alignment — near role demands.`)
-      }
+      // Find a stretch item that came from a distance=1 gap (not distance=2 "significant gap")
+      const nearAlignedIdx = stretch_factors.findIndex(
+        s => !s.includes("significant gap") && !s.includes("exceed your demonstrated")
+      )
+      const promoteIdx = nearAlignedIdx !== -1 ? nearAlignedIdx : 0
+      const label = stretch_factors[promoteIdx].split(":")[0]
+      stretch_factors.splice(promoteIdx, 1)
+      supports_fit.push(`${label}: closest area of alignment — near role demands.`)
     }
 
     // ---- Bottom line (coherent with supports/stretch balance) ----

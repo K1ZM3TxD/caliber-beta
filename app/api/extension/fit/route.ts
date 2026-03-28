@@ -147,10 +147,34 @@ export async function POST(req: NextRequest) {
       resumeText, promptAnswersList, workMode.userMode.mode, primaryTitle,
     );
 
+    // ── Augment stretch_factors with work-mode score-cap explanations ─────────
+    // The seam builds stretch from dimension distances only. When work-mode signals
+    // (execution evidence gap, role-type mismatch) materially cap the score, those
+    // reasons must reach the user via stretch_factors so "why is this not higher?"
+    // is legible. Inject at most the most important cap reason to stay concise.
+    const stretchFactors: string[] = [...(alignment.stretch_factors ?? [])];
+    if (workMode.executionEvidence.triggered && workMode.executionEvidence.missingEvidence.length > 0) {
+      const missingName = workMode.executionEvidence.missingEvidence[0];
+      const cats = workMode.executionEvidence.categories;
+      let capLine: string;
+      if (cats.includes("specialist_craft")) {
+        capLine = `Specialist craft gap: role requires deep hands-on ${missingName} expertise — adjacent experience doesn't satisfy this requirement, capping the score.`;
+      } else if (cats.includes("domain_locked")) {
+        capLine = `Execution substrate gap: role requires hands-on ${missingName} experience not found in your profile — primary score ceiling.`;
+      } else if (cats.includes("clearance_required")) {
+        capLine = `Clearance requirement: role requires an active government security clearance not present in your profile.`;
+      } else {
+        capLine = `Execution substrate gap: role requires specific hands-on experience in ${missingName} not demonstrated in your profile.`;
+      }
+      // Avoid duplicating if a similar line already came from the dimension loop
+      const alreadyCovered = stretchFactors.some(s => s.toLowerCase().includes(missingName.toLowerCase()));
+      if (!alreadyCovered) stretchFactors.push(capLine);
+    }
+
     return jsonResponse(req, {
       score_0_to_10: finalScore,
       supports_fit: alignment.supports_fit ?? [],
-      stretch_factors: alignment.stretch_factors ?? [],
+      stretch_factors: stretchFactors,
       bottom_line_2s: workRealitySummary,
       hiring_reality_check: {
         band: hiringCheck.band,
