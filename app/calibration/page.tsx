@@ -1,8 +1,7 @@
 "use client";
 // app/calibration/page.tsx
-export const dynamic = "force-dynamic";
 
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { Suspense, useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -250,6 +249,14 @@ function truncateToSentences(text: string, n: number): string {
 }
 
 export default function CalibrationPage() {
+  return (
+    <Suspense>
+      <CalibrationPageInner />
+    </Suspense>
+  );
+}
+
+function CalibrationPageInner() {
     // Signed-in users go straight to saved jobs — no re-calibration needed
     const { data: authSession, status: authStatus } = useSession();
     const router = useRouter();
