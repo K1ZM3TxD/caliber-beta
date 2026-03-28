@@ -71,6 +71,61 @@ const DIMENSION_LABELS: Record<JobIngestDimensionKey, string> = {
   stakeholderDensity: "Stakeholder Density",
 }
 
+/**
+ * Build a specific stretch gap explanation using actual evidence phrases extracted
+ * from the job text for this dimension. Makes "why is this not higher?" legible —
+ * especially when strong broad fit is capped by missing specialist/domain substrate.
+ *
+ * Falls back to severity-aware generic text when no evidence is available.
+ */
+function buildStretchGap(
+  label: string,
+  key: JobIngestDimensionKey,
+  evidence: string[],
+  distance: number,
+  roleLevel: number,
+  personLevel: number,
+): string {
+  // Take the first evidence phrase and cap to 50 chars to stay sidecard-compact.
+  const raw = evidence.length > 0 ? evidence[0].trim() : ""
+  const snippet = raw.length > 50 ? raw.slice(0, 47) + "…" : raw
+  const roleHigher = roleLevel > personLevel
+
+  if (snippet) {
+    switch (key) {
+      case "breadthVsDepth":
+        return roleLevel === 0
+          ? `${label}: role requires specialist depth (e.g. "${snippet}") — deeper craft than your demonstrated pattern.`
+          : `${label}: role expects broad multi-domain span (e.g. "${snippet}") — wider coverage than your demonstrated pattern.`
+      case "structuralMaturity":
+        return roleHigher
+          ? `${label}: role requires a more formal/structured environment (e.g. "${snippet}") — beyond your demonstrated process maturity.`
+          : `${label}: role is less structured than your demonstrated pattern (e.g. "${snippet}") — may underutilize your operational maturity.`
+      case "authorityScope":
+        return roleHigher
+          ? `${label}: role carries broader decision authority (e.g. "${snippet}") — more leadership scope than your demonstrated pattern.`
+          : `${label}: role has narrower authority scope (e.g. "${snippet}") — may underutilize your demonstrated leadership experience.`
+      case "revenueOrientation":
+        return roleHigher
+          ? `${label}: role carries direct revenue ownership (e.g. "${snippet}") — more commercial accountability than your demonstrated pattern.`
+          : `${label}: role is less revenue-facing than your pattern (e.g. "${snippet}") — commercial skills may be underutilized.`
+      case "roleAmbiguity":
+        return roleHigher
+          ? `${label}: role involves high ambiguity (e.g. "${snippet}") — less defined structure than your demonstrated working style.`
+          : `${label}: role is more structured than your demonstrated ambiguity tolerance (e.g. "${snippet}").`
+      case "stakeholderDensity":
+        return roleHigher
+          ? `${label}: role requires complex stakeholder coordination (e.g. "${snippet}") — denser cross-functional demands than demonstrated.`
+          : `${label}: role has lighter stakeholder demands (e.g. "${snippet}") than your demonstrated pattern.`
+    }
+  }
+
+  // No evidence available — severity-aware generic fallback.
+  return distance >= 2
+    ? `${label}: significant gap — role demands in this area exceed your demonstrated level.`
+    : `${label}: mild gap — role asks for slightly more than your demonstrated level.`
+}
+
 function formatIncompleteCoverageMessage(meta: unknown, fallbackDetail: string): string {
   try {
     const missing = (meta as any)?.missingDimensions
@@ -139,8 +194,11 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     // ---- Build supports_fit / stretch_factors from dimension distances ----
     // Score-aware framing: distance=1 reads as proximity (support) when
     // the overall score is ≥ 5, and as gap (stretch) when < 5.
+    // For gaps, use actual dimension evidence from the job text so stretch
+    // factors explain the specific missing substrate (answers "why not higher?").
     const distances = alignmentResult.signals.distances
     const score = alignmentResult.score
+    const roleVec = ingestResult.roleVector
     const dimKeys: JobIngestDimensionKey[] = [
       "structuralMaturity", "authorityScope", "revenueOrientation",
       "roleAmbiguity", "breadthVsDepth", "stakeholderDensity",
@@ -148,17 +206,21 @@ export function runIntegrationSeam(input: IntegrationInput): IntegrationSeamResu
     const supports_fit: string[] = []
     const stretch_factors: string[] = []
     for (let i = 0; i < 6; i++) {
-      const label = DIMENSION_LABELS[dimKeys[i]]
+      const key = dimKeys[i]
+      const label = DIMENSION_LABELS[key]
+      const evidence = ingestResult.dimensionEvidence[key]?.evidence ?? []
+      const roleLevel = (roleVec[i] ?? 1) as number
+      const personLevel = (experienceVector[i] ?? 1) as number
       if (distances[i] === 0) {
         supports_fit.push(`${label}: strong alignment between your pattern and role demands.`)
       } else if (distances[i] === 1) {
         if (score >= 5) {
           supports_fit.push(`${label}: near-aligned — close to role demands with minor stretch.`)
         } else {
-          stretch_factors.push(`${label}: mild gap — role asks for slightly more than demonstrated.`)
+          stretch_factors.push(buildStretchGap(label, key, evidence, 1, roleLevel, personLevel))
         }
       } else {
-        stretch_factors.push(`${label}: significant gap — role demands exceed demonstrated level.`)
+        stretch_factors.push(buildStretchGap(label, key, evidence, 2, roleLevel, personLevel))
       }
     }
 
