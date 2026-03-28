@@ -1,5 +1,6 @@
 "use client";
 // app/calibration/page.tsx
+export const dynamic = "force-dynamic";
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
