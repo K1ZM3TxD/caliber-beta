@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+112. `stable` branch not promoted — production is 60 commits behind `main` — **OPEN** (2026-03-28)
+  - **Symptom:** All recent stabilization and beta-readiness fixes (sidecard jitter, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix, extension v0.9.30–v0.9.34) are on `main` only. Production (`stable`) is running the 2026-03-24 build at `04cecd3`.
+  - **Impact:** Beta cannot be launched from production until `stable` is promoted. Users accessing the live site receive the pre-jitter-fix, pre-Executive-Summary, pre-PDF-export build.
+  - **Required action:** Operator must fast-forward `stable` to `main` after PM declares beta-ready (see EXECUTION_CONTRACT.md → Production Branch Promotion Protocol).
+  - **Blocking:** Yes — beta launch from production is blocked until resolved.
+  - **Status:** OPEN — awaiting PM beta-ready declaration + operator promotion
+
 111. Recalibrate button redirected authenticated users to `/pipeline` — **RESOLVED** (2026-03-27)
   - **Symptom:** Clicking "Recalibrate" on the calibration results page (COMPLETE step) or "Restart" on the TITLES step redirected authenticated users to `/pipeline` instead of the calibration landing page.
   - **Root cause:** A `useEffect` in `app/calibration/page.tsx` (line ~259) redirects authenticated users to `/pipeline` unless the `?direct=1` URL query parameter is present. The prior button handlers called `setStep("LANDING")` + `window.history.replaceState(null, "", "/calibration")` — this kept the URL at `/calibration` (no `?direct=1` param). On the next render, the auth guard fired and redirected to `/pipeline` before the user could see the calibration landing step.
