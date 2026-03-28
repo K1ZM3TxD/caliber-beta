@@ -4,7 +4,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
 import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
@@ -252,7 +252,7 @@ export default function CalibrationPage() {
     // Signed-in users go straight to saved jobs — no re-calibration needed
     const { data: authSession, status: authStatus } = useSession();
     const router = useRouter();
-    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const searchParams = useSearchParams();
     const directNav = searchParams?.get("direct") === "1";
     useEffect(() => {
       if (!directNav && authStatus === "authenticated" && authSession?.user) {
