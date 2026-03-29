@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.30";
+  const PANEL_VERSION = "0.9.39";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -3893,9 +3893,12 @@
     // cache and inject/update the badge on the corresponding list card.
     (function backfillBadgeFromSidecard() {
       if (!isSearchResultsPage()) return;
-      // Extract job ID from current URL
-      var urlMatch = location.href.match(/\/jobs\/view\/(\d+)/);
-      var sidecardJobId = urlMatch ? "job-" + urlMatch[1] : null;
+      // Use currentJobIdFromUrl() which handles BOTH URL formats:
+      //   /jobs/view/{id}                    (direct job page)
+      //   /jobs/search/?...&currentJobId={id} (split-pane search results — the common case)
+      // The previous inline regex only matched the first format, causing
+      // backfill to silently exit on every search-results click.
+      var sidecardJobId = currentJobIdFromUrl();
       if (!sidecardJobId) {
         console.debug("[Caliber][diag][backfill] no job ID in URL, skipping backfill");
         return;
