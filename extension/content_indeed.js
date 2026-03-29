@@ -5,7 +5,7 @@
 (function () {
   var API_BASE = CALIBER_ENV.API_BASE;
   var PANEL_HOST_ID = "caliber-panel-host";
-  var PANEL_VERSION = "0.9.34";
+  var PANEL_VERSION = "0.9.40";
   console.log("[caliber][indeed] content_indeed.js v" + PANEL_VERSION + " loaded");
 
   // ─── Minimum text lengths ─────────────────────────────────
@@ -250,6 +250,8 @@
       var params = new URLSearchParams(location.search);
       if (path === "/viewjob" || path.startsWith("/viewjob")) return true;
       if (/^\/(jobs|rc\/clk|pagead\/clk)/.test(path) && (params.get("vjk") || params.get("jk"))) return true;
+      // indeed.com root path with vjk/jk param — split-pane job view on root domain
+      if ((path === "/" || path === "") && (params.get("vjk") || params.get("jk"))) return true;
     } catch (e) {}
     return false;
   }

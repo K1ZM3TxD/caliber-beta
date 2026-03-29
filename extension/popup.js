@@ -19,8 +19,8 @@
     calibrateLink.style.display = "";
   }
 
-  // Detect supported pages: LinkedIn job listings
-  var SUPPORTED_PATTERN = /linkedin\.com\/jobs/;
+  // Detect supported pages: LinkedIn job listings and Indeed job pages
+  var SUPPORTED_PATTERN = /linkedin\.com\/jobs|indeed\.com/;
 
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     var tab = tabs[0];
@@ -35,12 +35,14 @@
       if (/linkedin\.com/.test(tab.url)) {
         setStatus("Navigate to a job listing on LinkedIn to activate scoring.");
       } else {
-        setStatus("Caliber works on LinkedIn job listings. Open a job on linkedin.com/jobs to get started.");
+        setStatus("Caliber works on LinkedIn and Indeed job listings.");
       }
       return;
     }
 
-    // On a LinkedIn jobs page — check session before offering sidecard
+    var isIndeed = /indeed\.com/.test(tab.url);
+
+    // On a supported jobs page — check session before offering sidecard
     setStatus("Checking calibration…");
     chrome.runtime.sendMessage({ type: "CALIBER_SESSION_DISCOVER" }, function (response) {
       if (chrome.runtime.lastError || !response || !response.ok) {
@@ -53,9 +55,9 @@
       }
 
       // Session valid — offer sidecard
-      setStatus("LinkedIn job page detected.");
+      setStatus((isIndeed ? "Indeed" : "LinkedIn") + " job page detected.");
       toggleBtn.style.display = "";
-      initSignalToggle();
+      if (!isIndeed) initSignalToggle();
       toggleBtn.textContent = "Open Sidecard";
 
       toggleBtn.addEventListener("click", function () {
