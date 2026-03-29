@@ -615,7 +615,7 @@
   //   badge visibility. Set BADGES_VISIBLE = false to hide overlay badges
   //   while keeping the scoring pipeline and BST evaluation active.
   //
-  var BADGES_VISIBLE = false;             // render badge DOM on cards (false = silent scoring only)
+  var BADGES_VISIBLE = true;              // main testing track (2026-03-29): overlays re-enabled for PM evaluation
   var BST_STRONG_MATCH_THRESHOLD = 7.0;   // discovery: strong-match / pursue threshold
   var BST_MIN_WINDOW_SIZE = 5;            // minimum scored cards before BST can evaluate
   var BST_AMBIGUOUS_AVG_CEILING = 6.0;   // ambiguous surfaces only trigger BST if avg < this

@@ -51,6 +51,8 @@ COMPLETION CRITERIA (all must pass before declaring beta):
 - [x] `stable` branch promoted to `main` — RESOLVED (2026-03-28): Fast-forward merge at commit `31ab6a1` — `stable` = `main` = `31ab6a1`. Issue #112 resolved.
 
 IMPLEMENTATION LOG:
+
+- 2026-03-29: LinkedIn overlay re-enabled on `main` testing track (EXTENSION). `BADGES_VISIBLE = false` → `true` in `extension/content_linkedin.js` on `main` only. Score badges now visible on LinkedIn job cards for PM evaluation. `stable` (production) unchanged. PM evaluation criteria: visual stability, sidecard parity, surface coverage, go/no-go for `stable` promotion. Files: `extension/content_linkedin.js`, `public/caliber-extension-beta-v0.9.34.zip`.
 > Invariants and layout rules are defined in `kernel.md` and `LAYOUT_SYSTEM.md`. This log records what shipped and when — not the durable rules.
 
 - 2026-03-25: Vercel Production Branch Alignment Audit (DOCS_ONLY). Verified: `origin/stable` = `04cecd3` (2026-03-24 21:55 UTC); `origin/main` = `e0d0af5` (6 commits ahead — 2 code fixes + 4 docs-only). No `vercel.json` in repo; Vercel production branch cannot be read from code — requires manual dashboard verification. Issue #107 added. EXECUTION_CONTRACT.md updated with Production Branch Promotion Protocol. ACTIVE_STATE.md updated with Production Deployment Status. milestones.md completion criterion added. Required operator action: (1) verify Vercel dashboard production branch = `stable`, (2) promote stable when PM declares beta-ready. Files: `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/EXECUTION_CONTRACT.md`, `Bootstrap/milestones.md`.

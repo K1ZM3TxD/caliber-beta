@@ -3,6 +3,14 @@
 
 ## Current Open Issues
 
+115. LinkedIn overlay re-enabled for PM evaluation — **OPEN / `main` test track only** (2026-03-29)
+  - **Scope:** `extension/content_linkedin.js` on `main` only. `BADGES_VISIBLE` flipped to `true`. Score overlays are now visible on LinkedIn job cards in a `main`-based build.
+  - **Background:** Overlays were hidden at `BADGES_VISIBLE = false` since v0.9.5 due to reliability concerns (positioning, stale scores, layout jitter). Not a beta gate. PM now wants to evaluate whether overlays are reliable enough to expose permanently.
+  - **`stable` unchanged:** Production retains `BADGES_VISIBLE = false`. This is intentionally a test track only until PM evaluates and decides.
+  - **PM evaluation criteria:** (1) Visual stability and legibility across surfaces. (2) Sidecard parity: badge score matches sidecard score. (3) No surface types where overlay should remain suppressed. (4) No scroll/layout regressions.
+  - **Revert path:** One-line change back to `BADGES_VISIBLE = false` on `main` if evaluation fails.
+  - **Status:** OPEN — awaiting PM testing and go/no-go for `stable` promotion.
+
 112. `stable` branch not promoted — production is 60 commits behind `main` — **RESOLVED** (2026-03-28)
   - **Symptom:** All recent stabilization and beta-readiness fixes (sidecard jitter, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix, extension v0.9.30–v0.9.34) are on `main` only. Production (`stable`) is running the 2026-03-24 build at `04cecd3`.
   - **Impact:** Beta cannot be launched from production until `stable` is promoted. Users accessing the live site receive the pre-jitter-fix, pre-Executive-Summary, pre-PDF-export build.

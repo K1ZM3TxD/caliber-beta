@@ -7,6 +7,8 @@
 ## Current Phase
 **Beta Launched (2026-03-28).** `stable` promoted to production via fast-forward merge, confirmed live in Vercel. All five beta gates are CLOSED on the promoted build (`31ab6a1`). Production deploys from `stable`; development continues on `main`.
 
+> **LinkedIn overlay testing active on `main` (2026-03-29):** `BADGES_VISIBLE = true` on `main`. PM evaluating overlay stability and sidecard parity before deciding whether to promote to `stable`. `stable` is unchanged — production users unaffected.
+
 SSI subsystems: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST), BST Loop Prevention, Pipeline Trigger (>=7), Score Labeling.
 
 Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Production deploys from `stable` branch; development on `main`.

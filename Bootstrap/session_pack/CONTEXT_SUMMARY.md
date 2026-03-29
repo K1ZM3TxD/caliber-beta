@@ -4,6 +4,9 @@
 
 ## Project Status (2026-03-14, Beta Gate Resequenced)
 
+- **Session decision — 2026-03-29 (LinkedIn overlay re-enabled on `main` for PM evaluation):**
+  - `BADGES_VISIBLE = false` → `true` in `content_linkedin.js` on `main`. PM saw Indeed reactive badge UX and wants to evaluate LinkedIn overlays again. `stable` production unchanged. Evaluation criteria: visual stability, sidecard parity, surface coverage. One-line revert if fails.
+
 **Approaching beta readiness — five-gate model locked.** Beta is defined by five core functional gates: (1) BST working, (2) sidecard stable, (3) pipeline solid, (4) sign-in/memory operational, (5) tailor resume works. Phase-2 overlay scoring is shipped and stable but is NOT a beta gate — it continues as parallel improvement work. Extension operates as a two-layer surface: discovery badges on search result cards + decision sidecard on selected job.
 
 **Beta gates status:**

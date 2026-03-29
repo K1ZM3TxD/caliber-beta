@@ -81,6 +81,41 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — LinkedIn overlay re-enabled on `main` testing track
+
+**What changed:** `BADGES_VISIBLE` flipped from `false` to `true` in `extension/content_linkedin.js` on `main`. LinkedIn job-card score overlays are now visible during PM testing from a `main`-based build.
+
+**Why it changed:** PM reviewed the Indeed reactive badge backfill and found the direct-on-card UX compelling. Wants to evaluate whether the LinkedIn overlay layer is reliable enough to keep as an exposed feature. `BADGES_VISIBLE = false` was the only active block; scoring pipeline, BST, and all other behavior remain unchanged.
+
+**This is a `main`-only test track change.** `stable` (production) retains `BADGES_VISIBLE = false` and is **unchanged**. No production users are affected. This change is intentionally not merged to `stable` until PM completes evaluation and approves.
+
+**Behavior now expected (`main` only):**
+- LinkedIn search/results cards show visible score badges color-coded by score band.
+- Sidecard scoring, BST, pipeline save, and tailor behavior are all unchanged.
+- Overlay scores should reflect sidecard parity (same score, same scoring cycle).
+
+**Known risk / things to watch for during evaluation:**
+- Visual positioning: badges may clip on some card layouts or dense surfaces.
+- Stale scores: SPA navigation may briefly show a prior card's badge before the new score completes.
+- Layout jitter: badge injection can cause minor card height reflow on slower surfaces.
+- Scroll performance: badge DOM writes during scroll may degrade on very large result sets.
+- Trust cues: if badge score diverges visibly from sidecard score (timing gap), user trust may be affected.
+
+**PM evaluation criteria:**
+- Are overlays legible and stable on ordinary browsing? Visual fidelity question.
+- Do overlays remain coherent with sidecard scores? Trust parity question.
+- Are there surface types where overlays should remain suppressed? Coverage question.
+- Is the UX strong enough to promote to `stable`? Go / no-go question.
+
+**Branch separation:**
+- `main`: `BADGES_VISIBLE = true` — overlays visible
+- `stable`: `BADGES_VISIBLE = false` — overlays hidden (production truth unchanged)
+- Branches are currently diverged. `main` does not have the Indeed polish work from `stable` (commits `52e27cf`–`6d1dcc7`).
+
+**Files (`main` only):** `extension/content_linkedin.js`, `public/caliber-extension-beta-v0.9.34.zip`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`
+
+---
+
 ### 2026-03-28 — Beta Launched: stable promoted to production
 
 **What changed:** `stable` branch promoted to `main` via fast-forward merge at commit `31ab6a1`. Vercel production branch confirmed = `stable` in dashboard. Beta is live at `caliber-app.com`.
