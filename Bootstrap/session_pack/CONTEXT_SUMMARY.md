@@ -27,6 +27,8 @@
 
 **Release stabilization (2026-03-29):** `stable` re-promoted to include overlay/backfill convergence (v0.9.38–v0.9.45), Canonical Job Cache (`c1d201f`), cache consumption + `/jobs` page (`840468e`), and `EXTENSION_BETA_VERSION` stale-label fix. Test suite: 291/293 (2 pre-existing). Extension artifact: `caliber-extension-beta-v0.9.45.zip`, production host confirmed. Issues #115 and #118 resolved.
 
+**`/jobs` ready list improvements (2026-03-29):** Sort (Recent|Best Score), platform filter pills, tier filter (Strong only ≥7.0), stats bar, richer cards with `workModeCompat` badge and `supportsFit[0]` fit reason for strong matches. No new ingestion, no new DB queries. 25 new unit tests (sort/filter helpers). Total: 306/308 (2 pre-existing). Issue #119 resolved.
+
 **Parallel (non-blocking):**
 - Overlay scoring — shipped and stable, continues to improve, not a beta gate
 - Auto-save strong matches → post-save confirmation — enhancements, not gates

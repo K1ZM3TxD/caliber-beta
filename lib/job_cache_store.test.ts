@@ -1,6 +1,6 @@
 // lib/job_cache_store.test.ts — Unit tests for job cache store
 
-import { buildCanonicalKey, detectPlatform, buildCachedFitResponse } from "./job_cache_store";
+import { buildCanonicalKey, detectPlatform, buildCachedFitResponse, sortKnownJobs, filterKnownJobs } from "./job_cache_store";
 import type { KnownJobEntry } from "./job_cache_store";
 
 describe("detectPlatform", () => {
@@ -206,5 +206,116 @@ describe("buildCachedFitResponse", () => {
   it("handles empty supportsFit array", () => {
     const result = buildCachedFitResponse(makeKnownJobEntry({ supportsFit: [] }));
     expect(result.supports_fit).toEqual([]);
+  });
+});
+
+// ─── sortKnownJobs ────────────────────────────────────────────────────────────
+
+function makeEntry(
+  id: string,
+  score: number,
+  scoredAt: string,
+  platform: "linkedin" | "indeed" | "web" = "linkedin",
+) {
+  const base = makeKnownJobEntry({ score });
+  return {
+    ...base,
+    job: { ...base.job, id, canonicalKey: `linkedin:job:${id}`, platform },
+    scoreCache: { ...base.scoreCache, score, scoredAt },
+  };
+}
+
+describe("sortKnownJobs", () => {
+  const entries = [
+    makeEntry("a", 6.0, "2024-01-15T10:00:00.000Z"),
+    makeEntry("b", 9.0, "2024-01-13T10:00:00.000Z"),
+    makeEntry("c", 7.5, "2024-01-14T10:00:00.000Z"),
+  ];
+
+  it("sort=date returns most-recently-scored first", () => {
+    const result = sortKnownJobs(entries, "date");
+    expect(result.map((e) => e.job.id)).toEqual(["a", "c", "b"]);
+  });
+
+  it("sort=score returns highest score first", () => {
+    const result = sortKnownJobs(entries, "score");
+    expect(result.map((e) => e.job.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const original = [...entries];
+    sortKnownJobs(entries, "score");
+    expect(entries).toEqual(original);
+  });
+
+  it("handles single-element array for both sorts", () => {
+    const single = [makeEntry("x", 8.0, "2024-01-10T00:00:00.000Z")];
+    expect(sortKnownJobs(single, "date")).toHaveLength(1);
+    expect(sortKnownJobs(single, "score")).toHaveLength(1);
+  });
+
+  it("handles empty array", () => {
+    expect(sortKnownJobs([], "score")).toEqual([]);
+    expect(sortKnownJobs([], "date")).toEqual([]);
+  });
+});
+
+// ─── filterKnownJobs ──────────────────────────────────────────────────────────
+
+describe("filterKnownJobs", () => {
+  const entries = [
+    makeEntry("li-1", 8.5, "2024-01-15T10:00:00.000Z", "linkedin"),
+    makeEntry("li-2", 5.5, "2024-01-14T10:00:00.000Z", "linkedin"),
+    makeEntry("in-1", 7.2, "2024-01-13T10:00:00.000Z", "indeed"),
+    makeEntry("in-2", 4.0, "2024-01-12T10:00:00.000Z", "indeed"),
+    makeEntry("web-1", 6.8, "2024-01-11T10:00:00.000Z", "web"),
+  ];
+
+  it('platform="all" returns all entries', () => {
+    expect(filterKnownJobs(entries, "all", 0)).toHaveLength(5);
+  });
+
+  it('platform="linkedin" filters to LinkedIn only', () => {
+    const result = filterKnownJobs(entries, "linkedin", 0);
+    expect(result.map((e) => e.job.id)).toEqual(["li-1", "li-2"]);
+  });
+
+  it('platform="indeed" filters to Indeed only', () => {
+    const result = filterKnownJobs(entries, "indeed", 0);
+    expect(result.map((e) => e.job.id)).toEqual(["in-1", "in-2"]);
+  });
+
+  it('platform="web" filters to web only', () => {
+    const result = filterKnownJobs(entries, "web", 0);
+    expect(result.map((e) => e.job.id)).toEqual(["web-1"]);
+  });
+
+  it("minScore=7.0 returns only strong matches", () => {
+    const result = filterKnownJobs(entries, "all", 7.0);
+    expect(result.map((e) => e.job.id)).toEqual(["li-1", "in-1"]);
+  });
+
+  it("platform + minScore combined filter works correctly", () => {
+    const result = filterKnownJobs(entries, "linkedin", 7.0);
+    expect(result.map((e) => e.job.id)).toEqual(["li-1"]);
+  });
+
+  it("minScore=0 returns all (no score restriction)", () => {
+    expect(filterKnownJobs(entries, "all", 0)).toHaveLength(5);
+  });
+
+  it("minScore exactly at boundary includes the entry", () => {
+    const result = filterKnownJobs(entries, "all", 7.2);
+    expect(result.some((e) => e.job.id === "in-1")).toBe(true);
+  });
+
+  it("returns empty array when no entries match", () => {
+    expect(filterKnownJobs(entries, "all", 10.0)).toEqual([]);
+  });
+
+  it("does not mutate input array", () => {
+    const original = [...entries];
+    filterKnownJobs(entries, "linkedin", 7.0);
+    expect(entries).toEqual(original);
   });
 });

@@ -81,6 +81,30 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — /jobs Ready List Improvements
+
+**What changed:** `/jobs` page improved from a flat scored-jobs history list to a more useful ready list using only existing Canonical Job Cache data. Sort (Recent | Best Score), platform filter pills (All | LinkedIn | Indeed), tier filter (All | Strong only ≥7.0), stats bar, richer cards with work-mode alignment badge and first fit reason bullet for strong matches. `/api/jobs/known` now returns `workModeCompat`, `hrcReason`, `supportsFit[0..1]` from the already-stored `ScorePayload`. Pure sort/filter helpers added to `lib/job_cache_store.ts` with 25 unit tests.
+
+**Why it changed:** First iteration of `/jobs` was a flat list — useful as a history view but not as a ready list. Richer metadata was already in the cache payload and being discarded by `toApiShape`. Sort/filter add no new ingestion or DB complexity (client-side).
+
+**Behavior now expected:**
+- `/jobs` has sort/filter controls and a stats bar with strong-match count
+- Cards show work-mode alignment badge + top fit reason for strong matches
+- "No results for this filter" state with clear-filters action
+- Improved first-use empty state with extension link
+
+**Behavior explicitly no longer expected:**
+- Flat unsortable/unfiltered history list as the only view
+- `toApiShape` discarding `workModeCompat` and `supportsFit` data already in cache
+
+**Risk / fallout:** Minimal. No new DB queries, no new ingestion paths, no extension changes. UI-only improvement on top of existing cached data.
+
+**Smallest observable proof:** `/jobs` shows sort/filter pills. Clicking "Best Score" reorders jobs. "Strong only" hides jobs with score < 7.0. Strong-match cards show an italic green fit reason bullet.
+
+**Files:** `app/jobs/page.tsx`, `app/api/jobs/known/route.ts`, `lib/job_cache_store.ts`, `lib/job_cache_store.test.ts`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`
+
+---
+
 ### 2026-03-29 — Release Stabilization + stable Promotion: Cache Consumption + Overlay/Backfill Convergence
 
 **What changed:** Current `main` (v0.9.38–v0.9.45 overlay/backfill, Canonical Job Cache `c1d201f`, cache consumption + `/jobs` `840468e`) promoted to `stable` production. One pre-release fix applied: `EXTENSION_BETA_VERSION` in `lib/extension_config.ts` corrected from stale `0.9.34` to `0.9.45` to match the shipped artifact.

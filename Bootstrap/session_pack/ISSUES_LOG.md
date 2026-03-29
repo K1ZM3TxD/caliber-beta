@@ -18,6 +18,11 @@
   - **File:** `extension/content_linkedin.js` (`main` only)
   - **Status:** RESOLVED — this commit (2026-03-29)
 
+119. `/jobs` ready list improvements — **RESOLVED** (2026-03-29)
+  - **What:** `/jobs` improved from flat history list to sort/filter ready list using existing Canonical Job Cache data only. Sort (date|score), platform filter, tier filter (strong only ≥7.0), stats bar, richer cards with `workModeCompat` + `supportsFit[0]` for strong matches, no-results state, improved empty state.
+  - **Scope:** `app/jobs/page.tsx` (UI), `app/api/jobs/known/route.ts` (add 3 fields to `toApiShape`), `lib/job_cache_store.ts` (add `sortKnownJobs`/`filterKnownJobs` pure helpers), `lib/job_cache_store.test.ts` (25 new tests).
+  - **Status:** RESOLVED — this commit.
+
 118. Release Stabilization + stable Promotion — 2026-03-29 — **RESOLVED** (2026-03-29)
   - **What:** `stable` promoted to current `main` (overlay/backfill convergence + Canonical Job Cache + `/jobs` page + EXTENSION_BETA_VERSION fix). Pre-release fix applied: stale `EXTENSION_BETA_VERSION = "0.9.34"` corrected to `"0.9.45"` in `lib/extension_config.ts` to match shipped artifact.
   - **Validation:** 291/293 tests passing (2 pre-existing `signal_classification` abstraction drift — unrelated). Extension artifact `caliber-extension-beta-v0.9.45.zip` verified: correct file set, production host `https://www.caliber-app.com`. LinkedIn/Indeed overlay/backfill, sidecard, pipeline/tailor, cache flows — no test regressions.

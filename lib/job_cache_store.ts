@@ -495,3 +495,44 @@ export function buildCachedFitResponse(entry: KnownJobEntry): CachedFitResponse 
     _textSource: entry.scoreCache.textSource,
   };
 }
+
+// ─── Sort / Filter Helpers (pure, no DB dependency) ───────────
+
+export type KnownJobSort = "date" | "score";
+export type KnownJobPlatformFilter = "all" | "linkedin" | "indeed" | "web";
+
+/**
+ * Sort a KnownJobEntry list without mutating the original array.
+ *   "date"  → most recently scored first (default API order)
+ *   "score" → highest score first
+ */
+export function sortKnownJobs(entries: KnownJobEntry[], sort: KnownJobSort): KnownJobEntry[] {
+  const copy = [...entries];
+  if (sort === "score") {
+    copy.sort((a, b) => b.scoreCache.score - a.scoreCache.score);
+  } else {
+    copy.sort(
+      (a, b) =>
+        new Date(b.scoreCache.scoredAt).getTime() -
+        new Date(a.scoreCache.scoredAt).getTime(),
+    );
+  }
+  return copy;
+}
+
+/**
+ * Filter a KnownJobEntry list by platform and minimum score.
+ *   platform "all"  → no platform restriction
+ *   minScore 0      → no score restriction
+ */
+export function filterKnownJobs(
+  entries: KnownJobEntry[],
+  platform: KnownJobPlatformFilter,
+  minScore: number,
+): KnownJobEntry[] {
+  return entries.filter(
+    (e) =>
+      (platform === "all" || e.job.platform === platform) &&
+      e.scoreCache.score >= minScore,
+  );
+}
