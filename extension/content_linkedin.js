@@ -2271,7 +2271,17 @@
         scanAndBadgeVisibleCards();
       }, 300);
     });
-    badgeListObserver.observe(listEl, { childList: true, subtree: true });
+    badgeListObserver.observe(listEl, {
+      childList: true,
+      subtree: true,
+      // Also observe data-occludable-job-id attribute mutations:
+      // LinkedIn lazily sets this attribute on card <li> elements after initial
+      // render, so the first scan sees cards without it and stamps them with
+      // text hashes.  When the attribute appears, we rescan and re-stamp with
+      // the real job ID so the correct cache entry is used.
+      attributes: true,
+      attributeFilter: ["data-occludable-job-id"],
+    });
     console.debug("[Caliber][badges] list MutationObserver attached");
   }
 
@@ -3927,7 +3937,7 @@
         for (var bl = 0; bl < allLinks.length; bl++) {
           // Walk up to find the card container
           var ancestor = allLinks[bl];
-          for (var up = 0; up < 8 && ancestor; up++) {
+          for (var up = 0; up < 12 && ancestor; up++) {
             ancestor = ancestor.parentElement;
             if (!ancestor) break;
             var isCard = false;
@@ -3950,7 +3960,40 @@
         setBadgeOnCard(cardEl, "scored", score);
         console.debug("[Caliber][diag][backfill] badge injected on card " + sidecardJobId + " (score=" + score + ")");
       } else {
-        console.debug("[Caliber][diag][backfill] card DOM not found for " + sidecardJobId + " — badge cached for later restore");
+        console.debug("[Caliber][diag][backfill] card DOM not found for " + sidecardJobId + " — badge cached, scheduling retry");
+        // Retry: LinkedIn sometimes renders the card list after scoring completes.
+        // Try again at 1s and 2.5s to catch late-hydrated cards.
+        var _retryJobId = sidecardJobId;
+        var _retryScore = score;
+        function _backfillRetry() {
+          var _el = findCardById(_retryJobId);
+          if (!_el) {
+            var _num = _retryJobId.slice(4);
+            var _links = document.querySelectorAll('a[href*="/jobs/view/' + _num + '"]');
+            for (var _ri = 0; _ri < _links.length && !_el; _ri++) {
+              var _ra = _links[_ri];
+              for (var _ru = 0; _ru < 12 && _ra; _ru++) {
+                _ra = _ra.parentElement;
+                if (!_ra) break;
+                for (var _rc = 0; _rc < JOB_CARD_SELECTORS.length; _rc++) {
+                  if (_ra.matches && _ra.matches(JOB_CARD_SELECTORS[_rc])) {
+                    _ra.setAttribute(JOB_ID_ATTR, _retryJobId);
+                    _el = _ra;
+                    break;
+                  }
+                }
+                if (_el) break;
+              }
+            }
+          }
+          if (_el) {
+            ensureBadgeStyles();
+            setBadgeOnCard(_el, "scored", _retryScore);
+            console.debug("[Caliber][diag][backfill] retry succeeded for " + _retryJobId);
+          }
+        }
+        setTimeout(_backfillRetry, 1000);
+        setTimeout(_backfillRetry, 2500);
       }
       // Also mark as scored so it's not re-queued
       badgeScoredIds.add(sidecardJobId);
