@@ -4,6 +4,9 @@
 
 ## Project Status (2026-03-14, Beta Gate Resequenced)
 
+- **Session decision — 2026-03-29 (Branch policy encoded in coder handoff template):**
+  - Explicit branch/release rule added to `Bootstrap/session_pack/PM_BOOTSTRAP.md`. The BRANCH POLICY block is now a required field in every coder task handoff. Rule: builder pushes all task work to `main`; PM validates on preview / `main`; promotion to `stable` is a separate PM-controlled release action. Builders do not push directly to `stable` as part of normal task delivery. This separates implementation delivery (`main`) from production promotion (`stable`) as a durable operating contract.
+
 - **Session decision — 2026-03-29 (Product Truth Reset: Sidecard Primary, Overlays/Backfill Reactive, No Unsafe Prescore):**
   - Extension behavior confirmed through v0.9.38–v0.9.45 testing. Working model: sidecard-primary scoring with reactive/backfilled list-card overlays on both LinkedIn and Indeed.
   - Unsafe DOM-wide prescan suppressed in v0.9.42: LinkedIn card DOM contains only title/company/location (no JD). Prescan scores are title-similarity-only and structurally inflated. `card_text_prescan` results cached for BST evaluation but never rendered as user-visible badges. Indeed cards similarly show no numeric badge until sidecard backfill fires.

@@ -81,6 +81,29 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — Branch Policy Added to Coder Handoff Outline
+
+**What changed:** Explicit branch/release policy added to the canonical coder-task handoff template and Operating Rules in `Bootstrap/session_pack/PM_BOOTSTRAP.md`. The BRANCH POLICY block is now a required standard field in every coder task handoff.
+
+**Why it changed:** The release flow is intentionally separated: builders push all implementation work to `main`; PM validates on preview / `main`; promotion to `stable` is a separate PM-controlled production action. Without this encoded in the handoff template, future PMs or builders could implicitly treat `stable` as a task delivery branch, breaking the controlled release model.
+
+**What is now expected:**
+- Every coder task handoff includes a BRANCH POLICY block stating: builder pushes to `main`, PM validates, promotion to `stable` is a separate PM release step
+- Builders do not push directly to `stable` as part of normal task execution unless PM explicitly instructs it in a separate release step
+- PM controls all `main` → `stable` promotions independently, after validation
+
+**What is explicitly no longer expected:**
+- Any implicit assumption that builders may push to `stable` as part of routine task delivery
+- Coder task handoffs that omit the BRANCH POLICY block
+
+**Risk / fallout:** If this rule is not in the handoff template, future tasks may drift and reintroduce release ambiguity. The primary risk is accidental production promotion of unvalidated work.
+
+**Smallest observable proof:** A future PM loading `Bootstrap/session_pack/PM_BOOTSTRAP.md` sees the BRANCH POLICY block in the Black-Box Template and the C. Branch / Release Rule in the Workflow Lessons section.
+
+**Files:** `Bootstrap/session_pack/PM_BOOTSTRAP.md`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`
+
+---
+
 ### 2026-03-29 — Post-Cache Roadmap Reset
 
 **What changed:** Canonical product/architecture direction encoded in docs. The product has crossed the architectural threshold where overlay/backfill are stable, the Canonical Job Cache foundation is shipped, `/jobs` exists as the first known-jobs surface, and the first intentional ingestion path (user-directed URL + text paste) is live. Before the next PM session starts new implementation, the roadmap and milestone docs needed to reflect this transition explicitly.

@@ -4,6 +4,8 @@ Milestone — Post-Beta: Canonical Job Inventory Expansion (ACTIVE)
 ---
 STATUS: ACTIVE — entered 2026-03-29. Beta is live; extension surface is stable; Canonical Job Cache and first ingestion paths are shipped. Next focus: build out the job inventory layer so Caliber can surface scored jobs without requiring user-initiated sidecard clicks.
 
+PROCESS NOTE (2026-03-29): Branch policy now explicit in coder handoff template. All implementation commits land on `main` first; PM validates on preview / `main`; promotion to `stable` is a separate PM-controlled release action. See `Bootstrap/session_pack/PM_BOOTSTRAP.md` § Black-Box Template for Coder Handoff.
+
 ARCHITECTURAL FOUNDATION (settled — do not reopen):
 - Sidecard-primary scoring is the confirmed working model. Extension scores jobs from full JDs; overlays/backfill are reactive.
 - Canonical Job Cache is the strategic backend substrate. Job records and per-session score caches accumulate as users interact; `textSource` quality guard enforces trusted-write-only invariant.

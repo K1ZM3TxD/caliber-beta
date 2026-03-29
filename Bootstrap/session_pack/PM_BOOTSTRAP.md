@@ -85,6 +85,12 @@ You do **not**:
 TASK: <short title>
 TARGET: <WEB_APP | EXTENSION | DOCS_ONLY>
 
+BRANCH POLICY:
+- Builder pushes all task work to `main`
+- PM validates on preview / `main`
+- Promotion to `stable` is a separate PM-controlled release action
+- Do NOT push directly to `stable` as part of normal task execution unless PM explicitly instructs it in a separate release step
+
 CONTEXT:
 - <what coder must know, minimal>
 
@@ -100,6 +106,8 @@ NOTES / CONSTRAINTS:
 ```
 
 > **TARGET is mandatory.** See `Bootstrap/CALIBER_EXECUTION_CONTRACT.md § Build Target Declaration Rule` for allowed paths per target. Coder must reject tasks missing a TARGET line.
+
+> **BRANCH POLICY is a required block.** All implementation commits for a task must land on `main` first. PM validates on `main` / preview before any production promotion. `stable` is the PM-controlled production promotion branch — builders do not push there as part of routine task delivery.
 
 ### UX/UI Task Contract Rule (Mandatory)
 
@@ -141,6 +149,9 @@ If a proposed task does not fit this sequence, PM should explicitly state why an
 ---
 
 ## Workflow Lessons (2026-03-07)
+
+### C. Branch / Release Rule (2026-03-29)
+All implementation commits for a coder task must be pushed to `main` first. PM validates on `main` / preview before any production promotion to `stable`. Do not push implementation work directly to `stable` as part of normal task execution. Promotion from `main` → `stable` is a separate, explicit PM-controlled release action. This rule must appear as a BRANCH POLICY block in every coder task handoff.
 
 ### A. Extension Collision Rule
 Only one extension branch at a time should make major changes to `extension/content_linkedin.js` unless there is a tightly controlled integration plan. Multiple parallel extension branches have caused renderer, persistence, and packaging regressions.

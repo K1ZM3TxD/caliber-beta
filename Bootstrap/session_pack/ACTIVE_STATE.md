@@ -22,6 +22,13 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 - Extension artifact: `caliber-extension-beta-v0.9.45.zip` — production host `https://www.caliber-app.com` ✓.
 - **Carry-forward:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open. Post-fix tailor validation (post-`892a45a`) still recommended.
 
+**Branch / Release Rule (2026-03-29 — OPERATING CONTRACT):**
+- All implementation commits for a coder task must be pushed to `main` first.
+- PM validates on preview / `main` before any production promotion.
+- Promotion from `main` → `stable` is a separate, explicit PM-controlled release action.
+- Builders do NOT push directly to `stable` as part of normal task execution unless PM explicitly instructs it in a separate release step.
+- This rule is encoded in the coder handoff template in `Bootstrap/session_pack/PM_BOOTSTRAP.md` as a required BRANCH POLICY block.
+
 **Next Move (for the next PM session):**
 The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The next implementation sequence is:
 1. **Observe real usage** — see what jobs users score manually via the new ingest form; confirm /jobs has engagement. No architecture decisions before usage signal exists.
