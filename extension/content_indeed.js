@@ -5,7 +5,7 @@
 (function () {
   var API_BASE = CALIBER_ENV.API_BASE;
   var PANEL_HOST_ID = "caliber-panel-host";
-  var PANEL_VERSION = "0.9.43";
+  var PANEL_VERSION = "0.9.44";
   console.log("[caliber][indeed] content_indeed.js v" + PANEL_VERSION + " loaded");
 
   // ─── Minimum text lengths ─────────────────────────────────
@@ -706,8 +706,8 @@
       shadow.getElementById("cb-bug-btn").addEventListener("click", handleBugOpen);
     }
 
-    // Row-badge backfill omitted: overlays are non-primary / hidden per product truth.
-    // backfillBadgeFromSidecard helpers remain available for future use.
+    // Backfill score badge onto the clicked list card
+    backfillBadgeFromSidecard(data);
 
     setPanelState("cb-results");
   }
