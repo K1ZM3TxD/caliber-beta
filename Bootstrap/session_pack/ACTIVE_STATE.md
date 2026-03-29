@@ -15,12 +15,12 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 
 **Tailor Gate Status (2026-03-26):** Gate 5 (Tailor resume works) closed for functionality (59/59 E2E assertions, 2026-03-24). A source-binding integrity bug was subsequently discovered and fixed (cross-user resume contamination, commit `892a45a`). The integrity fix is now in place. **Post-fix tailor validation has not yet been run.** Any tailor output generated before commit `892a45a` must not be treated as a valid quality baseline. Tailor quality validation must use post-fix runs only. This does not revoke the Gate 5 closure — the plumbing is correct — but post-fix validation is required before declaring tailor output trustworthy for beta.
 
-**Production Deployment Status (2026-03-29 — RELEASE STABILIZATION):**
-- `origin/stable` = current release commit (2026-03-29) — production. Promoted from `main`. Contains: all five beta gate work, all stabilization through `31ab6a1`, PLUS overlay/backfill convergence (v0.9.38–v0.9.45), Canonical Job Cache + `/jobs` page (commits `c1d201f`, `840468e`), `EXTENSION_BETA_VERSION` corrected (0.9.34→0.9.45).
-- `origin/main` = identical to `stable`. Development continues here.
-- Vercel production branch = `stable` ✓ (confirmed 2026-03-28). Issues #107, #112, #115, #118 RESOLVED.
+**Production Deployment Status (2026-03-29 — RELEASE STABILIZATION + INGESTION PATH):**
+- `origin/stable` = current release commit (2026-03-29) — production. Contains: all five beta gate work, all stabilization through `31ab6a1`, PLUS overlay/backfill convergence (v0.9.38–v0.9.45), Canonical Job Cache + `/jobs` page, `/jobs` ready list improvements, user-directed job ingestion (`POST /api/jobs/ingest`), `EXTENSION_BETA_VERSION` corrected (0.9.34→0.9.45).
+- `origin/main` = one commit ahead of stable (ingestion path commit). Development continues here.
+- Vercel production branch = `stable` ✓ (confirmed 2026-03-28).
 - Extension artifact: `caliber-extension-beta-v0.9.45.zip` — production host `https://www.caliber-app.com` ✓.
-- **Carry-forward:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open — PM risk decision required. Post-fix tailor validation (post-`892a45a`) still recommended.
+- **Carry-forward:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open. Post-fix tailor validation (post-`892a45a`) still recommended.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 

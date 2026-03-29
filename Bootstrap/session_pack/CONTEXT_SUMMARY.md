@@ -29,6 +29,8 @@
 
 **`/jobs` ready list improvements (2026-03-29):** Sort (Recent|Best Score), platform filter pills, tier filter (Strong only ≥7.0), stats bar, richer cards with `workModeCompat` badge and `supportsFit[0]` fit reason for strong matches. No new ingestion, no new DB queries. 25 new unit tests (sort/filter helpers). Total: 306/308 (2 pre-existing). Issue #119 resolved.
 
+**User-directed job ingestion (2026-03-29):** First intentional ingestion path. `POST /api/jobs/ingest` accepts URL + pasted job description text, validates (SSRF guard: no private IPs; ≥200-char text gate), scores via existing pipeline, writes to Canonical Job Cache at `textSource:"sidecard_full"`. "Score a job manually" collapsible form added to `/jobs` page (URL input + textarea + character counter + inline result). LinkedIn/Indeed cannot be fetched server-side (JS-rendered SPAs); user paste is the only reliable trusted-text path. 26 new validation tests. Total: 332/334 (2 pre-existing). Issue #120 opened.
+
 **Parallel (non-blocking):**
 - Overlay scoring — shipped and stable, continues to improve, not a beta gate
 - Auto-save strong matches → post-save confirmation — enhancements, not gates

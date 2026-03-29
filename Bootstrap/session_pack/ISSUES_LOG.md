@@ -3,6 +3,11 @@
 
 ## Current Open Issues
 
+120. User-directed job ingestion — first intentional ingestion path — **OPEN** (2026-03-29)
+  - **What:** `POST /api/jobs/ingest` + "Score a job manually" form on `/jobs`. URL + pasted JD text → score + Canonical Job Cache write. SSRF guard (private IP blacklist) + ≥200-char text gate.
+  - **Carry-forward considerations:** (1) Title/company auto-extract from pasted text — currently empty unless caller provides them; could use simple regex on "Company:" / "About the company" patterns. (2) Duplicate handling — route always re-scores; `alreadyKnown: true` is returned but no special UI treatment. (3) `/jobs` "empty" state now shows the Add Job form — validate that this promotes action for first-time users without the extension.
+  - **Status:** OPEN — shipped 2026-03-29. No blockers. Carry-forward items are PM priority decisions.
+
 117. Product capability boundary — unsafe DOM prescan is not a supported product behavior — **CLOSED** (2026-03-29)
   - **What this tracks:** Whether Caliber can reliably prescore broad LinkedIn/Indeed search surfaces from card DOM alone (no sidecard click, no full job description).
   - **Answer (definitive):** No. LinkedIn card DOM contains only title/company/location at list-view time. Scoring from card snippet text produces title-similarity-only scores that are structurally inflated (e.g., 7.1 prescan vs 2.6 full-JD on the same job). `scoreSource=card_text_prescan` entries are cached for BST evaluation but explicitly never rendered as user-visible badges (v0.9.42).

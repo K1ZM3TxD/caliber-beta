@@ -81,6 +81,33 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — User-Directed Job Ingestion (First Intentional Ingestion Path)
+
+**What changed:** Added `POST /api/jobs/ingest` and a "Score a job manually" collapsible form on `/jobs`. Users can now score any job by pasting the URL and full job description text — regardless of whether they used the extension. The scored result is written to the Canonical Job Cache under `textSource: "sidecard_full"` (same trust level as the sidecard scoring path) and appears immediately in the job list.
+
+**Why it changed:** All previous cache writes were reactive (triggered by the extension sidecard). This is the first intentional web-side ingestion path, enabling users without the extension or on unsupported platforms to build their scored job inventory.
+
+**Why NOT raw URL fetch:** LinkedIn and Indeed are JavaScript-rendered SPAs. A server-side `fetch(url)` returns an empty shell — the job description text is not in the HTML. User-pasted text is the only reliable trusted-text source that produces a valid JD for scoring.
+
+**Behavior now expected:**
+- `POST /api/jobs/ingest` accepts `{ url, jobText, sessionId? }`, validates, scores, writes to cache, returns `{ ok, score, hrcBand, workModeCompat, supportsFit, canonicalKey, platform, alreadyKnown }`
+- URL validation: https/http only, no localhost/private IPs (SSRF guard), must parse as valid URL
+- Text validation: ≥200 chars (same gate as `writeTrustedScore`)
+- `/jobs` page shows "Score a job manually" toggle above the list (visible in `ready` and `empty` states)
+- Form: URL input + textarea with live character counter + Score Job button
+- On success: inline score result shown; list reloads
+
+**Behavior explicitly no longer expected:**
+- Web users can only see extension-generated scores (ingestion is now possible from the web UI)
+
+**Risk / fallout:** Minimal. No new DB schema. Reuses the existing `writeTrustedScoreSafe` / scoring pipeline. Session resolution follows the exact same 3-tier pattern as the fit route. URL validation prevents SSRF.
+
+**Smallest observable proof:** Open `/jobs`, click "Score a job manually", paste a LinkedIn/Indeed URL + job text ≥200 chars, click Score Job → inline score appears and job is added to list.
+
+**Files:** `lib/job_ingest_validation.ts`, `lib/job_ingest_validation.test.ts`, `app/api/jobs/ingest/route.ts`, `app/jobs/page.tsx`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`
+
+---
+
 ### 2026-03-29 — /jobs Ready List Improvements
 
 **What changed:** `/jobs` page improved from a flat scored-jobs history list to a more useful ready list using only existing Canonical Job Cache data. Sort (Recent | Best Score), platform filter pills (All | LinkedIn | Indeed), tier filter (All | Strong only ≥7.0), stats bar, richer cards with work-mode alignment badge and first fit reason bullet for strong matches. `/api/jobs/known` now returns `workModeCompat`, `hrcReason`, `supportsFit[0..1]` from the already-stored `ScorePayload`. Pure sort/filter helpers added to `lib/job_cache_store.ts` with 25 unit tests.

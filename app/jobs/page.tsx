@@ -136,12 +136,32 @@ function Pill({
   );
 }
 
+// ─── Add-job form state ────────────────────────────────────────
+
+type IngestStatus = "idle" | "submitting" | "success" | "error";
+
+interface IngestResult {
+  score: number;
+  hrcBand: string | null;
+  workModeCompat: string | null;
+  supportsFit: string[];
+  platform: string;
+}
+
 export default function KnownJobsPage() {
   const [jobs, setJobs] = useState<KnownJob[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
   const [sort, setSort] = useState<SortMode>("date");
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [tier, setTier] = useState<TierFilter>("all");
+
+  // Add-job form
+  const [addOpen, setAddOpen] = useState(false);
+  const [ingestUrl, setIngestUrl] = useState("");
+  const [ingestText, setIngestText] = useState("");
+  const [ingestStatus, setIngestStatus] = useState<IngestStatus>("idle");
+  const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
+  const [ingestError, setIngestError] = useState<string | null>(null);
 
   function load() {
     setStatus("loading");
@@ -161,6 +181,55 @@ export default function KnownJobsPage() {
         setStatus(data.entries?.length > 0 ? "ready" : "empty");
       })
       .catch(() => setStatus("error"));
+  }
+
+  function submitAddJob(e: React.FormEvent) {
+    e.preventDefault();
+    if (ingestStatus === "submitting") return;
+    setIngestStatus("submitting");
+    setIngestError(null);
+    setIngestResult(null);
+
+    const sessionId = getCookie("caliber_sessionId");
+    fetch("/api/jobs/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: ingestUrl.trim(),
+        jobText: ingestText.trim(),
+        ...(sessionId ? { sessionId } : {}),
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.ok) {
+          setIngestStatus("error");
+          setIngestError(data.error ?? "Something went wrong. Try again.");
+          return;
+        }
+        setIngestStatus("success");
+        setIngestResult({
+          score: data.score,
+          hrcBand: data.hrcBand,
+          workModeCompat: data.workModeCompat,
+          supportsFit: data.supportsFit ?? [],
+          platform: data.platform ?? "web",
+        });
+        // Reload the list so the new job appears
+        load();
+      })
+      .catch(() => {
+        setIngestStatus("error");
+        setIngestError("Network error — check your connection and try again.");
+      });
+  }
+
+  function resetAddForm() {
+    setIngestUrl("");
+    setIngestText("");
+    setIngestStatus("idle");
+    setIngestResult(null);
+    setIngestError(null);
   }
 
   useEffect(() => {
@@ -205,6 +274,111 @@ export default function KnownJobsPage() {
           ← Saved Jobs
         </Link>
       </div>
+
+      {/* ─── Add Job form ── */}
+      {(status === "ready" || status === "empty") && (
+        <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden">
+          <button
+            onClick={() => { setAddOpen((v) => !v); if (addOpen) resetAddForm(); }}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-neutral-400 hover:text-white transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="text-base leading-none text-neutral-600">+</span>
+              Score a job manually
+            </span>
+            <span className="text-neutral-600 text-xs">{addOpen ? "▲" : "▼"}</span>
+          </button>
+
+          {addOpen && (
+            <div className="border-t border-neutral-800 px-4 pb-4 pt-3">
+              {ingestStatus === "success" && ingestResult ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-2"
+                      style={{ background: scoreColor(ingestResult.score) + "18" }}
+                    >
+                      <span
+                        className="text-lg font-bold tabular-nums"
+                        style={{ color: scoreColor(ingestResult.score) }}
+                      >
+                        {ingestResult.score.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm text-white font-medium">{scoreLabel(ingestResult.score)}</span>
+                      {ingestResult.hrcBand && (
+                        <span className="text-xs" style={{ color: hrcColor(ingestResult.hrcBand) }}>
+                          {ingestResult.hrcBand} screen likelihood
+                        </span>
+                      )}
+                      {ingestResult.workModeCompat && compatLabel(ingestResult.workModeCompat) && (
+                        <span className="text-xs" style={{ color: compatColor(ingestResult.workModeCompat) }}>
+                          {compatLabel(ingestResult.workModeCompat)} work mode
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {ingestResult.supportsFit[0] && (
+                    <p className="text-[12px] text-green-500/80 italic">{ingestResult.supportsFit[0]}</p>
+                  )}
+                  <p className="text-xs text-neutral-500">
+                    Job scored and added to your list{ingestResult.platform !== "web" ? ` (${platformLabel(ingestResult.platform)})` : ""}.
+                  </p>
+                  <button
+                    onClick={resetAddForm}
+                    className="self-start text-xs text-neutral-500 hover:text-white transition-colors"
+                  >
+                    Score another job
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={submitAddJob} className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-neutral-500 uppercase tracking-wide">Job URL</label>
+                    <input
+                      type="url"
+                      value={ingestUrl}
+                      onChange={(e) => setIngestUrl(e.target.value)}
+                      placeholder="https://www.linkedin.com/jobs/view/..."
+                      required
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-neutral-500 uppercase tracking-wide">
+                      Job Description
+                    </label>
+                    <textarea
+                      value={ingestText}
+                      onChange={(e) => setIngestText(e.target.value)}
+                      placeholder="Paste the full job description text here (copy from the job posting page)…"
+                      rows={6}
+                      required
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors resize-y"
+                    />
+                    <p className="text-[10px] text-neutral-600">
+                      {ingestText.trim().length < 200
+                        ? `${200 - ingestText.trim().length} more characters needed`
+                        : `${ingestText.trim().length} characters — ready`}
+                    </p>
+                  </div>
+                  {ingestError && (
+                    <p className="text-xs text-red-400">{ingestError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={ingestStatus === "submitting"}
+                    className="self-start text-sm font-medium px-4 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {ingestStatus === "submitting" ? "Scoring…" : "Score Job"}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─── Controls ── */}
       {status === "ready" && jobs.length > 0 && (
@@ -424,249 +598,6 @@ export default function KnownJobsPage() {
         <p className="text-xs text-neutral-600 text-center">
           {displayJobs.length}{displayJobs.length !== jobs.length ? ` of ${jobs.length}` : ""}{" "}
           scored job{displayJobs.length !== 1 ? "s" : ""} · trusted sidecard sessions only
-        </p>
-      )}
-    </div>
-  );
-}
-
-
-interface KnownJob {
-  jobId: string;
-  canonicalKey: string;
-  platform: "linkedin" | "indeed" | "web";
-  title: string;
-  company: string;
-  location: string | null;
-  sourceUrl: string;
-  score: number;
-  hrcBand: string | null;
-  calibrationTitle: string;
-  textSource: string;
-  scoredAt: string;
-}
-
-function getCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-  return match ? decodeURIComponent(match[2]) : "";
-}
-
-function scoreColor(score: number): string {
-  if (score >= 7.0) return "#4ADE80";
-  if (score >= 5.0) return "#FBBF24";
-  return "#EF4444";
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 9.0) return "Excellent";
-  if (score >= 8.0) return "Very Strong";
-  if (score >= 7.0) return "Strong";
-  if (score >= 6.0) return "Viable";
-  if (score >= 5.0) return "Adjacent";
-  return "Poor Fit";
-}
-
-function hrcColor(band: string | null): string {
-  if (band === "High") return "#4ADE80";
-  if (band === "Possible") return "#FBBF24";
-  return "#9CA3AF";
-}
-
-function platformLabel(platform: string): string {
-  if (platform === "linkedin") return "LinkedIn";
-  if (platform === "indeed") return "Indeed";
-  return "Web";
-}
-
-function platformColor(platform: string): string {
-  if (platform === "linkedin") return "#60A5FA";
-  if (platform === "indeed") return "#FBBF24";
-  return "#9CA3AF";
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const d = Math.floor(hr / 24);
-  return `${d}d ago`;
-}
-
-export default function KnownJobsPage() {
-  const [jobs, setJobs] = useState<KnownJob[]>([]);
-  const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
-
-  useEffect(() => {
-    const sessionId = getCookie("caliber_sessionId");
-    const url = sessionId
-      ? `/api/jobs/known?sessionId=${encodeURIComponent(sessionId)}&limit=50`
-      : `/api/jobs/known?limit=50`;
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.ok) {
-          setStatus("error");
-          return;
-        }
-        setJobs(data.entries ?? []);
-        setStatus(data.entries?.length > 0 ? "ready" : "empty");
-      })
-      .catch(() => setStatus("error"));
-  }, []);
-
-  return (
-    <div className="flex flex-col gap-6 pt-6 pb-16">
-      <CaliberHeader />
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Recently Scored Jobs</h1>
-          <p className="text-sm text-neutral-400 mt-0.5">
-            Jobs Caliber has evaluated from your sidecard sessions
-          </p>
-        </div>
-        <Link
-          href="/pipeline"
-          className="text-sm text-neutral-400 hover:text-white transition-colors"
-        >
-          ← Saved Jobs
-        </Link>
-      </div>
-
-      {status === "loading" && (
-        <div className="flex flex-col gap-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 animate-pulse">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 flex flex-col gap-2">
-                  <div className="h-4 bg-neutral-700 rounded w-2/3" />
-                  <div className="h-3 bg-neutral-800 rounded w-1/3" />
-                </div>
-                <div className="h-8 w-8 bg-neutral-800 rounded-lg" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {status === "empty" && (
-        <div className="rounded-xl bg-neutral-900 border border-neutral-800 px-6 py-10 flex flex-col items-center gap-3 text-center">
-          <p className="text-neutral-300 font-medium">No scored jobs yet</p>
-          <p className="text-sm text-neutral-500 max-w-sm">
-            Jobs appear here after you score them through the Caliber extension sidecard on LinkedIn or Indeed.
-          </p>
-          <Link
-            href="/calibration"
-            className="mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-          >
-            Start calibration →
-          </Link>
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="rounded-xl bg-neutral-900 border border-neutral-800 px-6 py-8 flex flex-col items-center gap-2 text-center">
-          <p className="text-neutral-400 text-sm">Could not load scored jobs.</p>
-          <button
-            className="text-sm text-green-400 hover:text-green-300 transition-colors"
-            onClick={() => {
-              setStatus("loading");
-              const sessionId = getCookie("caliber_sessionId");
-              const url = sessionId
-                ? `/api/jobs/known?sessionId=${encodeURIComponent(sessionId)}&limit=50`
-                : `/api/jobs/known?limit=50`;
-              fetch(url).then(r => r.json()).then(data => {
-                if (!data.ok) { setStatus("error"); return; }
-                setJobs(data.entries ?? []);
-                setStatus(data.entries?.length > 0 ? "ready" : "empty");
-              }).catch(() => setStatus("error"));
-            }}
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {status === "ready" && (
-        <div className="flex flex-col gap-2">
-          {jobs.map((job) => (
-            <a
-              key={job.jobId}
-              href={job.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-xl bg-neutral-900 border border-neutral-800 px-4 py-3 hover:border-neutral-600 transition-colors group"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-white group-hover:text-green-300 transition-colors truncate">
-                      {job.title}
-                    </span>
-                    <span
-                      className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                      style={{
-                        background: platformColor(job.platform) + "22",
-                        color: platformColor(job.platform),
-                      }}
-                    >
-                      {platformLabel(job.platform)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-xs text-neutral-400">{job.company}</span>
-                    {job.location && (
-                      <>
-                        <span className="text-neutral-600 text-xs">·</span>
-                        <span className="text-xs text-neutral-500">{job.location}</span>
-                      </>
-                    )}
-                    <span className="text-neutral-600 text-xs">·</span>
-                    <span className="text-xs text-neutral-500">{timeAgo(job.scoredAt)}</span>
-                  </div>
-                  {job.calibrationTitle && (
-                    <div className="mt-1 text-[11px] text-neutral-600">
-                      calibrated as <span className="text-neutral-500">{job.calibrationTitle}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <div
-                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
-                    style={{ background: scoreColor(job.score) + "18" }}
-                  >
-                    <span
-                      className="text-base font-bold tabular-nums"
-                      style={{ color: scoreColor(job.score) }}
-                    >
-                      {job.score.toFixed(1)}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-neutral-600">{scoreLabel(job.score)}</span>
-                  {job.hrcBand && (
-                    <span
-                      className="text-[10px]"
-                      style={{ color: hrcColor(job.hrcBand) }}
-                    >
-                      {job.hrcBand} screen
-                    </span>
-                  )}
-                </div>
-              </div>
-            </a>
-          ))}
-        </div>
-      )}
-
-      {status === "ready" && jobs.length > 0 && (
-        <p className="text-xs text-neutral-600 text-center">
-          {jobs.length} scored job{jobs.length !== 1 ? "s" : ""} · from trusted sidecard sessions only
         </p>
       )}
     </div>
