@@ -840,13 +840,6 @@ export default function PipelinePage() {
 
       <div className="text-center mt-8 flex flex-col items-center gap-3">
         <Link
-          href="/score"
-          className="text-xs font-medium transition-colors"
-          style={{ color: "rgba(74,222,128,0.65)", textDecoration: "none", borderBottom: "1px solid rgba(74,222,128,0.25)" }}
-        >
-          Score a New Job
-        </Link>
-        <Link
           href="/jobs"
           className="text-xs font-medium transition-colors"
           style={{ color: "rgba(148,163,184,0.75)", textDecoration: "none", borderBottom: "1px solid rgba(148,163,184,0.2)" }}
