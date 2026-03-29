@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.41";
+  const PANEL_VERSION = "0.9.42";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1164,10 +1164,14 @@
         if (seen.has(els[i])) continue;
         seen.add(els[i]);
         var id = stampCard(els[i]);
-        // If this card has a cached score but lost its badge, restore it
+        // If this card has a cached score but lost its badge, restore it.
+        // Only restore sidecard-sourced scores — prescan scores are title-only
+        // and should not be rendered as numeric badges.
         if (badgeScoreCache[id] && !els[i].querySelector("[" + BADGE_ATTR + "]")) {
-          setBadgeOnCard(els[i], "scored", badgeScoreCache[id].score);
-          restored++;
+          if (badgeScoreCache[id].scoreSource !== "card_text_prescan") {
+            setBadgeOnCard(els[i], "scored", badgeScoreCache[id].score);
+            restored++;
+          }
         }
       }
     }
@@ -1357,7 +1361,10 @@
           // Skip badge update when sidecard score is authoritative — the sidecard
           // already injected the correct score; overwriting with a prescan score
           // here would downgrade the displayed badge.
-          var cardEl = (!sidecardAuthoritative && entry.id) ? findCardById(entry.id) : null;
+          // Also skip rendering prescan scores entirely — card text contains no JD,
+          // so the score is title-similarity only and consistently inflated.
+          // The loading badge stays visible until sidecard backfill fires.
+          var cardEl = null; // prescan results intentionally not rendered to DOM
           if (cardEl) {
             setBadgeOnCard(cardEl, "scored", badgeScore);
           }
@@ -1472,10 +1479,15 @@
       // Already has a badge → skip
       if (card.querySelector("[" + BADGE_ATTR + "]")) continue;
 
-      // Cache hit → inject badge immediately, no API call
+      // Cache hit → inject badge immediately if score is from sidecard.
+      // Prescan (card_text_prescan) scores are cached for BST evaluation only —
+      // card text contains no job description so the number is unreliable.
+      // Keep the loading badge visible until a sidecard backfill provides a real score.
       if (badgeScoreCache[id]) {
-        setBadgeOnCard(card, "scored", badgeScoreCache[id].score);
-        cacheHits++;
+        if (badgeScoreCache[id].scoreSource !== "card_text_prescan") {
+          setBadgeOnCard(card, "scored", badgeScoreCache[id].score);
+          cacheHits++;
+        }
         continue;
       }
 
@@ -1534,6 +1546,7 @@
     for (var _ci = 0; _ci < _cacheIds.length; _ci++) {
       var _cacheId = _cacheIds[_ci];
       if (_cacheId.indexOf("job-") !== 0) continue;   // skip text-hash cache entries
+      if (badgeScoreCache[_cacheId].scoreSource === "card_text_prescan") continue; // only render sidecard scores
       if (findCardById(_cacheId)) continue;            // already stamped — handled above
       var _numId = _cacheId.slice(4);                 // "123" from "job-123"
       var _listRoot3 = document.querySelector(".jobs-search-results-list, .scaffold-layout__list-container, [class*='scaffold-layout__list']") || document;
