@@ -81,6 +81,19 @@ calibration → extension → real job fit evaluation
 
 The strongest insight happens when the calibration pattern is applied against a real job. Calibration alone is not the full experience. Title suggestions on the calibration page are not job-fit grades — they are directional starting points.
 
+### Extension Surface Mode: Sidecard-Primary, Overlays Reactive (2026-03-29)
+
+The extension operates in **sidecard-primary mode**. Card-level overlays (score badges on list cards) are **reactive** — they appear only after a trusted sidecard score exists for that job.
+
+**Confirmed working model (v0.9.45+, LinkedIn and Indeed):**
+- User clicks a job card → sidecard opens and scores from the full job description → trusted score produced.
+- Trusted score triggers a backfill badge on the corresponding list card.
+- Cards with no sidecard score show no numeric badge.
+
+**What is not supported:**
+- Zero-click broad overlay coverage (badges on all visible cards before any click). LinkedIn and Indeed card DOM contains only title/company/location at list-view time — no job description is present. Prescan from card text produces structurally inflated scores and is explicitly suppressed.
+- Future zero-click broad overlay coverage requires backend job inventory + score cache infrastructure, not additional DOM probing.
+
 ---
 
 ## Calibration Results Page Role

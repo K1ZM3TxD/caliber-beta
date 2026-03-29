@@ -4,6 +4,13 @@
 
 ## Project Status (2026-03-14, Beta Gate Resequenced)
 
+- **Session decision — 2026-03-29 (Product Truth Reset: Sidecard Primary, Overlays/Backfill Reactive, No Unsafe Prescore):**
+  - Extension behavior confirmed through v0.9.38–v0.9.45 testing. Working model: sidecard-primary scoring with reactive/backfilled list-card overlays on both LinkedIn and Indeed.
+  - Unsafe DOM-wide prescan suppressed in v0.9.42: LinkedIn card DOM contains only title/company/location (no JD). Prescan scores are title-similarity-only and structurally inflated. `card_text_prescan` results cached for BST evaluation but never rendered as user-visible badges. Indeed cards similarly show no numeric badge until sidecard backfill fires.
+  - Backfill confirmed on both platforms: after sidecard produces a trusted score, the corresponding list card immediately receives a color-coded inline badge.
+  - Next architectural boundary: zero-click broad overlay coverage requires backend job inventory + score cache, not more DOM probing. Post-current scope.
+  - Canonical docs updated. See BREAK+UPDATE 2026-03-29.
+
 - **Session decision — 2026-03-29 (LinkedIn overlay re-enabled on `main` for PM evaluation):**
   - `BADGES_VISIBLE = false` → `true` in `content_linkedin.js` on `main`. PM saw Indeed reactive badge UX and wants to evaluate LinkedIn overlays again. `stable` production unchanged. Evaluation criteria: visual stability, sidecard parity, surface coverage. One-line revert if fails.
 

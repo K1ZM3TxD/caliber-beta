@@ -81,6 +81,31 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — Product Truth Reset: Sidecard Primary, Overlays/Backfill Reactive, No Unsafe Prescore
+
+**What changed:** Testing from v0.9.38–v0.9.45 confirmed the working extension model: sidecard-primary scoring with reactive/backfilled overlays on both LinkedIn and Indeed. Unsafe DOM-wide prescore (scoring from search-card snippets before any click) was explicitly suppressed in v0.9.42 — LinkedIn card DOM contains only title/company/location, making prescan scores structurally inflated and unreliable. This BREAK+UPDATE makes the working truth explicit in canonical docs.
+
+**Why it changed:** PM testing across multiple sessions revealed: (1) prescan badge scores were structurally wrong — `scoreSource=card_text_prescan` entries cached but suppressed from display (v0.9.42); (2) backfill works reliably on both LinkedIn and Indeed when triggered by a trusted sidecard score (v0.9.38–v0.9.45); (3) there is no safe path to zero-click broad overlay scoring via DOM probing alone — the card DOM never contains a job description on either platform.
+
+**Behavior now expected:**
+- The sidecard is the primary extension interaction surface. Click a job card → sidecard scores from the full job description → trusted score produced.
+- After a sidecard score exists, the corresponding list card receives a backfill badge (reactive overlay).
+- LinkedIn and Indeed both support reactive/backfill overlays.
+- Card badges show no numeric score until a sidecard score exists for that job.
+
+**Behavior explicitly no longer expected:**
+- Broad zero-click overlay coverage from scanning card DOM snippets is not a supported or reliable product behavior.
+- `scoreSource=card_text_prescan` scores are cached internally (BST evaluation) but never rendered as user-visible badges.
+- No doc should claim Caliber can safely prescore a search surface from card DOM alone.
+
+**Risk / fallout:** Older in-session planning may still reference "prescan badges" or "discovery overlays" as broad proactive behavior. Those must be corrected. Future requests for "zero-click badges on all cards" must be routed through backend job inventory + score cache design, not additional DOM probing.
+
+**Smallest observable proof:** LinkedIn and Indeed list cards show no numeric badge until the user clicks the job and the sidecard produces a score. Sidecard-produced scores appear on the card immediately after scoring completes. Consistent and stable on v0.9.45.
+
+**Files:** `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/PROJECT_OVERVIEW.md`, `Bootstrap/session_pack/KERNEL.md`
+
+---
+
 ### 2026-03-29 — LinkedIn overlay re-enabled on `main` testing track
 
 **What changed:** `BADGES_VISIBLE` flipped from `false` to `true` in `extension/content_linkedin.js` on `main`. LinkedIn job-card score overlays are now visible during PM testing from a `main`-based build.

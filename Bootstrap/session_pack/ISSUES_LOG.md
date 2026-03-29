@@ -3,6 +3,13 @@
 
 ## Current Open Issues
 
+117. Product capability boundary — unsafe DOM prescan is not a supported product behavior — **CLOSED** (2026-03-29)
+  - **What this tracks:** Whether Caliber can reliably prescore broad LinkedIn/Indeed search surfaces from card DOM alone (no sidecard click, no full job description).
+  - **Answer (definitive):** No. LinkedIn card DOM contains only title/company/location at list-view time. Scoring from card snippet text produces title-similarity-only scores that are structurally inflated (e.g., 7.1 prescan vs 2.6 full-JD on the same job). `scoreSource=card_text_prescan` entries are cached for BST evaluation but explicitly never rendered as user-visible badges (v0.9.42).
+  - **Product truth:** Zero-click broad overlay coverage requires backend job inventory + score cache infrastructure, not more DOM probing. This capability is not currently built.
+  - **Working model confirmed:** Sidecard-primary. Click a job → sidecard scores from full JD → trusted score written to cache → list card receives backfill badge. Stable on both LinkedIn and Indeed (v0.9.38–v0.9.45).
+  - **Status:** CLOSED — capability boundary documented. Prescan suppression already in place since v0.9.42. No code change needed.
+
 116. LinkedIn card badge backfill — href-walk second pass — **RESOLVED** (2026-03-29)
   - **Symptom:** Job cards with trusted cached scores (sidecard_full or prescan) did not always receive a badge when they reappeared after LinkedIn virtual-scroll recycled their DOM node. The badge was deferred to the next API scoring round instead of restored from cache instantly.
   - **Root cause:** `scanAndBadgeVisibleCards` calls `stampCard(card)` which calls `cardJobId(card)` to get the job ID. `cardJobId` prefers `data-occludable-job-id`, then the inner `<a href>`. If neither is populated yet (LinkedIn lazy-hydrates card content after the container appears), `cardJobId` falls back to a text hash: `"hash-{x}"`. The main scan loop's cache-hit path checks `badgeScoreCache["hash-{x}"]` — no match — so the card is queued for fresh scoring even though `badgeScoreCache["job-{id}"]` already holds a trusted score.
@@ -17,7 +24,8 @@
   - **`stable` unchanged:** Production retains `BADGES_VISIBLE = false`. This is intentionally a test track only until PM evaluates and decides.
   - **PM evaluation criteria:** (1) Visual stability and legibility across surfaces. (2) Sidecard parity: badge score matches sidecard score. (3) No surface types where overlay should remain suppressed. (4) No scroll/layout regressions.
   - **Revert path:** One-line change back to `BADGES_VISIBLE = false` on `main` if evaluation fails.
-  - **Status:** OPEN — awaiting PM testing and go/no-go for `stable` promotion.
+  - **Resolution:** PM testing (v0.9.38–v0.9.45) confirmed that the reactive/backfill overlay model is stable on both LinkedIn and Indeed. Sidecard-primary with reactive backfill on click is the confirmed product truth. Unsafe DOM-wide prescan (card_text_prescan) was explicitly suppressed in v0.9.42 — not a reliable scoring path. See BREAK+UPDATE 2026-03-29.
+  - **Status:** RESOLVED as product-truth question — working model confirmed. `stable` promotion decision outstanding (requires explicit PM go/no-go).
 
 112. `stable` branch not promoted — production is 60 commits behind `main` — **RESOLVED** (2026-03-28)
   - **Symptom:** All recent stabilization and beta-readiness fixes (sidecard jitter, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix, extension v0.9.30–v0.9.34) are on `main` only. Production (`stable`) is running the 2026-03-24 build at `04cecd3`.

@@ -180,6 +180,16 @@ Extension is the primary job-evaluation surface.
 - The browser extension is the primary scoring surface for real-role evaluation.
 - Calibration output is directional guidance; real job-fit analysis lives in the extension.
 
+## Extension Overlay Architecture Invariant (2026-03-29)
+
+The extension operates in **sidecard-primary mode**. This is the durable product architecture.
+
+- **Sidecard is the primary interaction surface.** All trusted score data flows from sidecard evaluation against a full job description.
+- **Search-card overlays (badges) are reactive/backfilled.** They appear only after a trusted sidecard score exists for that job. They do not appear from prescan.
+- **Unsafe DOM-wide prescan is explicitly not a product dependency.** LinkedIn and Indeed card DOM at list-view time contains only title/company/location — no job description. Scoring from card text alone produces structurally inflated, unreliable scores. `scoreSource=card_text_prescan` results may be cached internally (BST evaluation) but must never be rendered as user-visible numeric badges.
+- **Describing DOM-wide prescan as reliable product behavior is a documentation error.** Correct it immediately.
+- **Future zero-click broad overlay coverage** (badges on cards without clicking) requires backend job inventory + score cache infrastructure. It is not achievable by additional DOM probing.
+
 ## Calibration Page Invariant
 
 - `/calibration` is a direction-setting launchpad, not a job-scoring surface.
