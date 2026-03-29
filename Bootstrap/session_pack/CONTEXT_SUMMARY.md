@@ -25,6 +25,8 @@
 
 **Beta launched (2026-03-28):** `stable` promoted to `main` via fast-forward merge at commit `31ab6a1`, confirmed live in Vercel production. All five-gate fixes + recent stabilization work are now live. Issues #107 and #112 resolved.
 
+**Release stabilization (2026-03-29):** `stable` re-promoted to include overlay/backfill convergence (v0.9.38–v0.9.45), Canonical Job Cache (`c1d201f`), cache consumption + `/jobs` page (`840468e`), and `EXTENSION_BETA_VERSION` stale-label fix. Test suite: 291/293 (2 pre-existing). Extension artifact: `caliber-extension-beta-v0.9.45.zip`, production host confirmed. Issues #115 and #118 resolved.
+
 **Parallel (non-blocking):**
 - Overlay scoring — shipped and stable, continues to improve, not a beta gate
 - Auto-save strong matches → post-save confirmation — enhancements, not gates

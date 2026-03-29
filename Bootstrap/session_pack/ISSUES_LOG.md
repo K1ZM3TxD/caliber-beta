@@ -18,14 +18,19 @@
   - **File:** `extension/content_linkedin.js` (`main` only)
   - **Status:** RESOLVED — this commit (2026-03-29)
 
-115. LinkedIn overlay re-enabled for PM evaluation — **OPEN / `main` test track only** (2026-03-29)
+118. Release Stabilization + stable Promotion — 2026-03-29 — **RESOLVED** (2026-03-29)
+  - **What:** `stable` promoted to current `main` (overlay/backfill convergence + Canonical Job Cache + `/jobs` page + EXTENSION_BETA_VERSION fix). Pre-release fix applied: stale `EXTENSION_BETA_VERSION = "0.9.34"` corrected to `"0.9.45"` in `lib/extension_config.ts` to match shipped artifact.
+  - **Validation:** 291/293 tests passing (2 pre-existing `signal_classification` abstraction drift — unrelated). Extension artifact `caliber-extension-beta-v0.9.45.zip` verified: correct file set, production host `https://www.caliber-app.com`. LinkedIn/Indeed overlay/backfill, sidecard, pipeline/tailor, cache flows — no test regressions.
+  - **Status:** RESOLVED — this release commit.
+
+115. LinkedIn overlay re-enabled for PM evaluation — **RESOLVED** (2026-03-29)
   - **Scope:** `extension/content_linkedin.js` on `main` only. `BADGES_VISIBLE` flipped to `true`. Score overlays are now visible on LinkedIn job cards in a `main`-based build.
   - **Background:** Overlays were hidden at `BADGES_VISIBLE = false` since v0.9.5 due to reliability concerns (positioning, stale scores, layout jitter). Not a beta gate. PM now wants to evaluate whether overlays are reliable enough to expose permanently.
   - **`stable` unchanged:** Production retains `BADGES_VISIBLE = false`. This is intentionally a test track only until PM evaluates and decides.
   - **PM evaluation criteria:** (1) Visual stability and legibility across surfaces. (2) Sidecard parity: badge score matches sidecard score. (3) No surface types where overlay should remain suppressed. (4) No scroll/layout regressions.
   - **Revert path:** One-line change back to `BADGES_VISIBLE = false` on `main` if evaluation fails.
-  - **Resolution:** PM testing (v0.9.38–v0.9.45) confirmed that the reactive/backfill overlay model is stable on both LinkedIn and Indeed. Sidecard-primary with reactive backfill on click is the confirmed product truth. Unsafe DOM-wide prescan (card_text_prescan) was explicitly suppressed in v0.9.42 — not a reliable scoring path. See BREAK+UPDATE 2026-03-29.
-  - **Status:** RESOLVED as product-truth question — working model confirmed. `stable` promotion decision outstanding (requires explicit PM go/no-go).
+  - **Resolution:** PM testing (v0.9.38–v0.9.45) confirmed that the reactive/backfill overlay model is stable on both LinkedIn and Indeed. Sidecard-primary with reactive backfill on click is the confirmed product truth. Unsafe DOM-wide prescan (card_text_prescan) was explicitly suppressed in v0.9.42. `stable` now promoted to include overlay/backfill (this release). See BREAK+UPDATE 2026-03-29.
+  - **Status:** RESOLVED — `stable` now includes overlay/backfill. Working model confirmed and shipped.
 
 112. `stable` branch not promoted — production is 60 commits behind `main` — **RESOLVED** (2026-03-28)
   - **Symptom:** All recent stabilization and beta-readiness fixes (sidecard jitter, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, work-family routing fix, extension v0.9.30–v0.9.34) are on `main` only. Production (`stable`) is running the 2026-03-24 build at `04cecd3`.

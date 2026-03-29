@@ -81,6 +81,31 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — Release Stabilization + stable Promotion: Cache Consumption + Overlay/Backfill Convergence
+
+**What changed:** Current `main` (v0.9.38–v0.9.45 overlay/backfill, Canonical Job Cache `c1d201f`, cache consumption + `/jobs` `840468e`) promoted to `stable` production. One pre-release fix applied: `EXTENSION_BETA_VERSION` in `lib/extension_config.ts` corrected from stale `0.9.34` to `0.9.45` to match the shipped artifact.
+
+**Why it changed:** The product reached a coherent stable state: sidecard-primary extension model confirmed on both LinkedIn and Indeed, overlays/backfill reliable, Canonical Job Cache with trusted write path shipped, `/jobs` page rendering from cache, no unsafe DOM prescan dependency. PM declared release-ready after overlay/backfill convergence.
+
+**Behavior now expected in production:**
+- Extension v0.9.45 artifact served at `/caliber-extension-beta-v0.9.45.zip` from `https://www.caliber-app.com`
+- LinkedIn and Indeed overlays (reactive/backfill after sidecard click) function correctly
+- Sidecard, save/pipeline, and tailor flows work without regression
+- Canonical Job Cache writes on trusted sidecard scores + pipeline saves; `/jobs` page renders cache contents
+- `stable` = production; `main` = development
+
+**Behavior explicitly no longer expected:**
+- `stable` pointing to the pre-cache, pre-overlay build (`31ab6a1`)
+- `EXTENSION_BETA_VERSION = "0.9.34"` (stale label) shown to users
+
+**Risk / fallout:** Low. Core flows validated. Test suite 291/293 (2 known pre-existing abstraction drift failures, unrelated). Issue #108 (LinkedIn dense-surface unresponsiveness) carries as open PM risk item — not a blocker for this release.
+
+**Smallest observable proof:** `origin/stable` points to this release commit. Website serves `caliber-extension-beta-v0.9.45.zip` with production host confirmed. Extension installs, sidecard scores, backfill badge appears on list card.
+
+**Files:** `lib/extension_config.ts`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`
+
+---
+
 ### 2026-03-29 — Product Truth Reset: Sidecard Primary, Overlays/Backfill Reactive, No Unsafe Prescore
 
 **What changed:** Testing from v0.9.38–v0.9.45 confirmed the working extension model: sidecard-primary scoring with reactive/backfilled overlays on both LinkedIn and Indeed. Unsafe DOM-wide prescore (scoring from search-card snippets before any click) was explicitly suppressed in v0.9.42 — LinkedIn card DOM contains only title/company/location, making prescan scores structurally inflated and unreliable. This BREAK+UPDATE makes the working truth explicit in canonical docs.

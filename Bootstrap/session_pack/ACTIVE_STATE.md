@@ -7,7 +7,7 @@
 ## Current Phase
 **Beta Launched (2026-03-28).** `stable` promoted to production via fast-forward merge, confirmed live in Vercel. All five beta gates are CLOSED on the promoted build (`31ab6a1`). Production deploys from `stable`; development continues on `main`.
 
-> **Extension overlay/backfill model confirmed (`main`, v0.9.45, 2026-03-29):** Sidecard-primary with reactive/backfill is the confirmed working model on both LinkedIn and Indeed. `BADGES_VISIBLE = true` on `main`. Card badges appear only after a sidecard score exists — no unsafe DOM prescan rendered as badges. `stable` unchanged — production users unaffected. PM decision on `stable` promotion outstanding.
+> **Extension overlay/backfill model confirmed + `stable` promoted (2026-03-29):** Sidecard-primary with reactive/backfill is the confirmed working model on both LinkedIn and Indeed. `BADGES_VISIBLE = true` on `main` and `stable`. Card badges appear only after a sidecard score exists — no unsafe DOM prescan rendered as badges. Canonical Job Cache and `/jobs` page also live. `stable` promoted to this release.
 
 SSI subsystems: Signal Gap Detection (SGD), Surface Quality Banner, Better Search Trigger (BST), BST Loop Prevention, Pipeline Trigger (>=7), Score Labeling.
 
@@ -15,11 +15,12 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 
 **Tailor Gate Status (2026-03-26):** Gate 5 (Tailor resume works) closed for functionality (59/59 E2E assertions, 2026-03-24). A source-binding integrity bug was subsequently discovered and fixed (cross-user resume contamination, commit `892a45a`). The integrity fix is now in place. **Post-fix tailor validation has not yet been run.** Any tailor output generated before commit `892a45a` must not be treated as a valid quality baseline. Tailor quality validation must use post-fix runs only. This does not revoke the Gate 5 closure — the plumbing is correct — but post-fix validation is required before declaring tailor output trustworthy for beta.
 
-**Production Deployment Status (2026-03-28 — BETA LAUNCHED):**
-- `origin/stable` = `31ab6a1` (2026-03-28) — production. Fast-forward promoted from `main`. Contains all five beta gate work + all recent stabilization: sidecard jitter fix, Executive Summary, specialist_craft guardrail, recalibrate fix, PDF/DOCX export cluster, tailor contamination fix, extension context freshness fix, TSM work-family routing fix, extension v0.9.30–v0.9.34.
-- `origin/main` = `31ab6a1` — identical to `stable`. Development continues here.
-- Vercel production branch = `stable` ✓ (confirmed 2026-03-28). Issues #107 and #112 RESOLVED.
-- **Post-launch focus:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open — PM risk decision required. Post-fix tailor validation (post-`892a45a`) recommended before declaring Gate 5 end-to-end integrity confirmed.
+**Production Deployment Status (2026-03-29 — RELEASE STABILIZATION):**
+- `origin/stable` = current release commit (2026-03-29) — production. Promoted from `main`. Contains: all five beta gate work, all stabilization through `31ab6a1`, PLUS overlay/backfill convergence (v0.9.38–v0.9.45), Canonical Job Cache + `/jobs` page (commits `c1d201f`, `840468e`), `EXTENSION_BETA_VERSION` corrected (0.9.34→0.9.45).
+- `origin/main` = identical to `stable`. Development continues here.
+- Vercel production branch = `stable` ✓ (confirmed 2026-03-28). Issues #107, #112, #115, #118 RESOLVED.
+- Extension artifact: `caliber-extension-beta-v0.9.45.zip` — production host `https://www.caliber-app.com` ✓.
+- **Carry-forward:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open — PM risk decision required. Post-fix tailor validation (post-`892a45a`) still recommended.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 
