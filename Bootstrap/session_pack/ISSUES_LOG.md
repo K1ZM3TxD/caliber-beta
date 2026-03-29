@@ -1057,3 +1057,18 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - **Validation:** Chris IEM Product Manager fixture (score 7.5, STRONG) added to `analysis/tailor_quality_validation.ts`. Anti-fabrication guardrails unchanged; 29/29 contamination tests pass.
   - **Source-truth grounding preserved:** BLOCKED field in debug trace enforces that no JD term lacking resume evidence appears in output. Fabrication guardrail not modified.
   - Files: `app/api/tailor/generate/route.ts`, `lib/tailor_store.ts`, `analysis/tailor_quality_validation.ts`.
+---
+
+## 2026-03-29 — Canonical Job Cache Consumer Surfaces
+
+**Status: CLOSED**
+
+**Deliverable A — Cache-first hydration in extension sidecard:** DONE
+- `lookupJobCacheForSession` added; cache-first guard in `callFitAPI`; non-fatal fallback
+- Session binding: same `sessionId` only — cross-session reuse blocked
+
+**Deliverable B — Known-jobs landing view:** DONE
+- `GET /api/jobs/known` endpoint + `app/jobs/page.tsx`
+- Pipeline page links to `/jobs`
+
+**No regressions:** prescan excluded, existing scoring path unchanged, TypeScript clean, 25 tests pass.

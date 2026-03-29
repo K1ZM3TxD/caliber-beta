@@ -699,6 +699,45 @@ async function tryRestoreSession(sessionId) {
   } catch { return false; }
 }
 
+/**
+ * Look up a job in the Canonical Job Cache for the given session.
+ * Returns null on miss or any error. Never throws.
+ * Maps the cache payload to the same shape as the fit API response so
+ * content scripts can use it directly without branching.
+ */
+async function lookupJobCacheForSession(sourceUrl, sessionId) {
+  const url = API_BASE + "/api/jobs/cache"
+    + "?url=" + encodeURIComponent(sourceUrl)
+    + "&sessionId=" + encodeURIComponent(sessionId);
+  const resp = await fetch(url, { method: "GET", signal: AbortSignal.timeout(3000) });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  if (!data.ok || !data.score) return null;
+
+  const p = data.score.payload || {};
+  return {
+    score_0_to_10: data.score.score,
+    supports_fit: Array.isArray(p.supportsFit) ? p.supportsFit : [],
+    stretch_factors: Array.isArray(p.stretchFactors) ? p.stretchFactors : [],
+    bottom_line_2s: "",
+    hiring_reality_check: {
+      band: p.hrcBand || null,
+      reason: p.hrcReason || null,
+      execution_evidence_gap: null,
+    },
+    calibration_title: p.calibrationTitle || "",
+    nearby_roles: [],
+    recovery_terms: [],
+    signal_preference: null,
+    debug_signals: null,
+    debug_work_mode: null,
+    debug_recovery_terms: null,
+    _fromCache: true,
+    _cachedAt: data.score.scoredAt,
+    _textSource: data.score.textSource,
+  };
+}
+
 async function callFitAPI(jobText, sessionId, options) {
   const isPrescan = !!(options && options.prescan);
   const body = { jobText };
@@ -707,6 +746,29 @@ async function callFitAPI(jobText, sessionId, options) {
   if (options && options.sourceUrl) body.sourceUrl = String(options.sourceUrl).slice(0, 2000);
   if (options && options.title) body.title = String(options.title).slice(0, 300);
   if (options && options.company) body.company = String(options.company).slice(0, 200);
+
+  // ── Cache-first: instant hydration for already-known jobs (sidecard only) ──
+  // Attempt a fast lookup against the Canonical Job Cache before calling the
+  // fit API. If the current session already scored this job, return the cached
+  // result immediately. Falls through to full scoring on miss, error, or prescan.
+  //
+  // Safety invariants:
+  //   - Only for non-prescan sidecard calls (isPrescan=false)
+  //   - Only when sourceUrl is present (needed for canonical key lookup)
+  //   - Only reuses score for the *same* sessionId (never cross-session)
+  //   - Failure of the cache lookup never blocks fresh scoring
+  if (!isPrescan && sessionId && options && options.sourceUrl) {
+    try {
+      const cacheHit = await lookupJobCacheForSession(options.sourceUrl, sessionId);
+      if (cacheHit) {
+        console.debug("[Caliber][bg][cache] HIT — returning cached score " + cacheHit.score_0_to_10.toFixed(1) + " for " + options.sourceUrl);
+        return cacheHit;
+      }
+    } catch (cacheErr) {
+      // Non-fatal — proceed with fresh scoring
+      console.debug("[Caliber][bg][cache] lookup skipped (non-fatal):", cacheErr.message);
+    }
+  }
 
   // Include session backup for serverless resilience. Sidecard calls always
   // include it. Prescan calls include it too (avoids 401 → restore → retry

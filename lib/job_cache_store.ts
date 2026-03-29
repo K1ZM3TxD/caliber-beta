@@ -359,3 +359,139 @@ export async function writeTrustedScoreSafe(input: TrustedScoreInput): Promise<v
     console.warn("[caliber][job_cache] write failed (non-fatal):", err?.message ?? err);
   }
 }
+
+// ─── List / Inventory ─────────────────────────────────────────
+
+export interface KnownJobEntry {
+  job: CanonicalJobRecord;
+  scoreCache: JobScoreCacheEntry;
+}
+
+function mapCacheRowToEntry(row: any): KnownJobEntry {
+  return {
+    job: {
+      id: row.job.id,
+      canonicalKey: row.job.canonicalKey,
+      platform: row.job.platform as JobPlatform,
+      sourceUrl: row.job.sourceUrl,
+      title: row.job.title,
+      company: row.job.company,
+      location: row.job.location ?? undefined,
+      textWordCount: row.job.textWordCount ?? undefined,
+      textSource: row.job.textSource ?? undefined,
+      createdAt: row.job.createdAt.toISOString(),
+      updatedAt: row.job.updatedAt.toISOString(),
+    },
+    scoreCache: {
+      id: row.id,
+      jobId: row.jobId,
+      userId: row.userId ?? undefined,
+      sessionId: row.sessionId,
+      score: row.score,
+      scorePayload: JSON.parse(row.scorePayload) as ScorePayload,
+      scoringModel: row.scoringModel,
+      textSource: row.textSource,
+      scoredAt: row.scoredAt.toISOString(),
+    },
+  };
+}
+
+/**
+ * List recently scored jobs for a calibration session, newest first.
+ * Used by the extension overlay and basic known-jobs landing view.
+ */
+export async function listJobsForSession(
+  sessionId: string,
+  limit: number = 50,
+): Promise<KnownJobEntry[]> {
+  const rows = await prisma.jobScoreCache.findMany({
+    where: { sessionId },
+    orderBy: { scoredAt: "desc" },
+    take: Math.min(limit, 200),
+    include: { job: true },
+  });
+  return rows.map(mapCacheRowToEntry);
+}
+
+/**
+ * List recently scored jobs for an authenticated user, newest first.
+ * Deduplicated: if a job appears in multiple sessions, only the most
+ * recent score entry is returned (handled by orderBy + userId filter).
+ */
+export async function listJobsForUser(
+  userId: string,
+  limit: number = 50,
+): Promise<KnownJobEntry[]> {
+  const rows = await prisma.jobScoreCache.findMany({
+    where: { userId },
+    orderBy: { scoredAt: "desc" },
+    take: Math.min(limit, 200),
+    include: { job: true },
+  });
+  // Deduplicate by canonicalKey — keep most recent score per job
+  const seen = new Set<string>();
+  const deduped: typeof rows = [];
+  for (const row of rows) {
+    const key = row.job.canonicalKey;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(row);
+    }
+  }
+  return deduped.map(mapCacheRowToEntry);
+}
+
+// ─── Fit API Response Mapping ─────────────────────────────────
+
+/**
+ * Map a cache hit to the shape the extension expects from /api/extension/fit.
+ * Called by the extension background worker for cache-first hydration.
+ * Missing fields (bottom_line_2s, nearby_roles, recovery_terms) are empty —
+ * the sidecard handles these gracefully.
+ */
+export interface CachedFitResponse {
+  score_0_to_10: number;
+  supports_fit: string[];
+  stretch_factors: string[];
+  bottom_line_2s: string;
+  hiring_reality_check: {
+    band: string | null;
+    reason: string | null;
+    execution_evidence_gap: null;
+  };
+  calibration_title: string;
+  nearby_roles: unknown[];
+  recovery_terms: unknown[];
+  signal_preference: null;
+  debug_signals: null;
+  debug_work_mode: null;
+  debug_recovery_terms: null;
+  _fromCache: true;
+  _cachedAt: string;
+  _textSource: string;
+}
+
+export function buildCachedFitResponse(entry: KnownJobEntry): CachedFitResponse {
+  const p = entry.scoreCache.scorePayload;
+  return {
+    score_0_to_10: entry.scoreCache.score,
+    supports_fit: p.supportsFit ?? [],
+    stretch_factors: p.stretchFactors ?? [],
+    bottom_line_2s: "",
+    hiring_reality_check: {
+      band: p.hrcBand ?? null,
+      reason: p.hrcReason ?? null,
+      execution_evidence_gap: null,
+    },
+    calibration_title: p.calibrationTitle ?? "",
+    nearby_roles: [],
+    recovery_terms: [],
+    signal_preference: null,
+    debug_signals: null,
+    debug_work_mode: null,
+    debug_recovery_terms: null,
+    _fromCache: true,
+    _cachedAt: entry.scoreCache.scoredAt,
+    _textSource: entry.scoreCache.textSource,
+  };
+}

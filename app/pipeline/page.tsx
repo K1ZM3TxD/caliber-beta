@@ -846,6 +846,13 @@ export default function PipelinePage() {
         >
           Score a New Job
         </Link>
+        <Link
+          href="/jobs"
+          className="text-xs font-medium transition-colors"
+          style={{ color: "rgba(148,163,184,0.75)", textDecoration: "none", borderBottom: "1px solid rgba(148,163,184,0.2)" }}
+        >
+          Scored Jobs History →
+        </Link>
         <a
           href="/calibration?direct=1"
           className="text-neutral-500 text-xs hover:text-neutral-300 underline underline-offset-2 transition-colors"

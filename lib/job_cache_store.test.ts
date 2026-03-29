@@ -1,6 +1,7 @@
 // lib/job_cache_store.test.ts — Unit tests for job cache store
 
-import { buildCanonicalKey, detectPlatform } from "./job_cache_store";
+import { buildCanonicalKey, detectPlatform, buildCachedFitResponse } from "./job_cache_store";
+import type { KnownJobEntry } from "./job_cache_store";
 
 describe("detectPlatform", () => {
   it("detects linkedin", () => {
@@ -109,5 +110,101 @@ describe("buildCanonicalKey", () => {
       const key = buildCanonicalKey("https://jobs.ashbyhq.com/company/role-id");
       expect(key).toMatch(/^url:/);
     });
+  });
+});
+
+// ─── buildCachedFitResponse ───────────────────────────────────────────────────
+
+function makeKnownJobEntry(overrides: Partial<KnownJobEntry["scoreCache"]["scorePayload"]> = {}): KnownJobEntry {
+  return {
+    job: {
+      id: "job-1",
+      canonicalKey: "linkedin:job:1234567890",
+      platform: "linkedin",
+      sourceUrl: "https://www.linkedin.com/jobs/view/1234567890/",
+      title: "Staff Engineer",
+      company: "Acme Corp",
+      location: "Remote",
+      textWordCount: 400,
+      textSource: "sidecard_full",
+      createdAt: "2024-01-15T10:00:00.000Z",
+      updatedAt: "2024-01-15T10:00:00.000Z",
+    },
+    scoreCache: {
+      id: "cache-1",
+      jobId: "job-1",
+      sessionId: "sess-abc",
+      score: 7.5,
+      scorePayload: {
+        score: 7.5,
+        supportsFit: ["Backend ownership", "Distributed systems exp"],
+        stretchFactors: ["Needs staff-level scope examples"],
+        hrcBand: "High",
+        hrcReason: "Strong technical match, limited scope signals",
+        workModeCompat: "compatible",
+        roleType: "IC",
+        calibrationTitle: "Staff Engineer @ Series B",
+        ...overrides,
+      },
+      scoringModel: "gpt-4o",
+      textSource: "sidecard_full",
+      scoredAt: "2024-01-15T10:05:00.000Z",
+    },
+  };
+}
+
+describe("buildCachedFitResponse", () => {
+  it("maps score correctly", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.score_0_to_10).toBe(7.5);
+  });
+
+  it("maps supportsFit → supports_fit and stretchFactors → stretch_factors", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.supports_fit).toEqual(["Backend ownership", "Distributed systems exp"]);
+    expect(result.stretch_factors).toEqual(["Needs staff-level scope examples"]);
+  });
+
+  it("maps HRC band and reason", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.hiring_reality_check.band).toBe("High");
+    expect(result.hiring_reality_check.reason).toBe("Strong technical match, limited scope signals");
+    expect(result.hiring_reality_check.execution_evidence_gap).toBeNull();
+  });
+
+  it("maps calibration_title", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.calibration_title).toBe("Staff Engineer @ Series B");
+  });
+
+  it("always sets _fromCache: true", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result._fromCache).toBe(true);
+  });
+
+  it("sets _cachedAt from scoreCache.scoredAt", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result._cachedAt).toBe("2024-01-15T10:05:00.000Z");
+  });
+
+  it("returns empty arrays for nearby_roles and recovery_terms", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.nearby_roles).toEqual([]);
+    expect(result.recovery_terms).toEqual([]);
+  });
+
+  it("returns empty string for bottom_line_2s", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry());
+    expect(result.bottom_line_2s).toBe("");
+  });
+
+  it("handles null hrcBand gracefully", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry({ hrcBand: null }));
+    expect(result.hiring_reality_check.band).toBeNull();
+  });
+
+  it("handles empty supportsFit array", () => {
+    const result = buildCachedFitResponse(makeKnownJobEntry({ supportsFit: [] }));
+    expect(result.supports_fit).toEqual([]);
   });
 });

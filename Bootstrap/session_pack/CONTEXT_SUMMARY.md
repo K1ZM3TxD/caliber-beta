@@ -699,3 +699,21 @@ The system prompt instructed the model to "elevate relevant evidence" but provid
 **Anti-fabrication guardrails: preserved and unchanged.** BLOCKED field in debug trace enforces source-truth grounding. Contamination test suite: 29/29 pass.
 
 **Remaining tailor work:** live user validation on a real STRONG-match job; optional decomposition depth tuning; PDF/DOCX export quality. Core specificity bug is closed.
+
+---
+
+## 2026-03-29 — Canonical Job Cache: Consumer Surfaces
+
+**Deliverable A — Extension cache-first hydration:**
+- `lookupJobCacheForSession(sourceUrl, sessionId)` in `extension/background.js` fetches `/api/jobs/cache?url=...&sessionId=...` (3s timeout, null on miss)
+- Cache-first guard in `callFitAPI`: fires only when `!isPrescan && sessionId && options.sourceUrl`; on hit logs score and returns `buildCachedFitResponse`-shaped object; on miss/error falls through silently
+- `_fromCache: true` flag on all cache-served responses (internal, not user-visible)
+
+**Deliverable B — Known-jobs landing page:**
+- `GET /api/jobs/known`: extension (sessionId param), auth'd web (userId via `auth()`), or unauthenticated web (sessionId param)
+- `app/jobs/page.tsx`: client component at `/jobs` — fetches known jobs, renders score badge, HRC band, platform tag, time-ago
+- Pipeline page now has "Scored Jobs History →" link to `/jobs`
+
+**lib additions:** `KnownJobEntry`, `CachedFitResponse`, `listJobsForSession`, `listJobsForUser`, `buildCachedFitResponse`
+
+**Test coverage:** 10 new `buildCachedFitResponse` tests; 25 total passing.

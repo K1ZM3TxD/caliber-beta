@@ -1537,3 +1537,16 @@ A milestone is complete only when:
 
 “Feels better” without anchor overlap metrics is not completion.
 
+
+---
+
+## 2026-03-29 — Canonical Job Cache: First Consumer Surfaces
+
+**Milestone:** Cache-first hydration in extension + known-jobs landing view delivered.
+
+- Extension now checks `/api/jobs/cache` before calling `/api/extension/fit` — cache hits return immediately using `buildCachedFitResponse` (same session only)
+- New web page `/jobs` lists jobs scored during the current session with score, HRC band, platform, and time-ago
+- Pipeline page now links to `/jobs` ("Scored Jobs History →")
+- 25 tests passing; TypeScript clean
+
+**What this unlocks:** Users re-encountering a scored job see instant sidecard hydration instead of a fresh scoring round-trip.

@@ -376,3 +376,19 @@ Do not re-sequence without new blocking evidence.
 ---
 
 _Last updated: 2026-03-26 (tailor specificity fix shipped; STRONG-path now correctly activates; role decomposition prompt active)_
+
+---
+
+## 2026-03-29 — Canonical Job Cache: Consumer Surfaces Shipped
+
+**Completed this session:**
+- Extension cache-first path: `lookupJobCacheForSession` + cache-first guard in `callFitAPI` (prescan excluded, non-fatal fallback)
+- `listJobsForSession`, `listJobsForUser`, `buildCachedFitResponse` in `lib/job_cache_store.ts`
+- `GET /api/jobs/known` endpoint (session + user-based)
+- `/jobs` page: known-jobs landing view (client component, session-bound)
+- Pipeline page link to `/jobs`
+- 25 tests, TypeScript clean
+
+**Session safety invariant:** Cache hits served only for matching `sessionId`. Cross-session reuse prohibited.
+
+_Last updated: 2026-03-29 (cache consumer surfaces delivered)_

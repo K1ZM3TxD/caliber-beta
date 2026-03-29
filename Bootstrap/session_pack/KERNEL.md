@@ -207,6 +207,15 @@ The extension operates in **sidecard-primary mode**. This is the durable product
 
 **Payload quality ordering:** `sidecard_full` data MUST NOT be overwritten by `pipeline_save` data. If both write to the same `(jobId, sessionId)` cache slot, the sidecard_full payload is preserved (it is always richer).
 
+## Canonical Job Cache — Trusted Read Path Invariant (2026-03-29)
+
+Cache hits may only be served to the **same `sessionId`** used to write them.
+
+- Cross-session score reuse is **prohibited** — a different calibration session may represent a different user context, and the score may be directionally wrong.
+- Cache-first lookups are **non-fatal**: any lookup failure (network error, timeout, miss) silently falls through to fresh API scoring. The read path must never block the normal scoring flow.
+- The `_fromCache: true` flag on cache-served responses is **internal only** — it must not drive UI differentiation visible to the user unless explicitly designed for that purpose.
+- **Prescan calls are excluded** from cache-first logic (`isPrescan === true` guard). The cache is only consulted for full sidecard scoring flows.
+
 
 
 - `/calibration` is a direction-setting launchpad, not a job-scoring surface.

@@ -1859,3 +1859,27 @@ scope.doc_files:
 - Treating current production as containing the sidecard jitter fix, Executive Summary, PDF export, or any stabilization work committed after 2026-03-24.
 
 **Files touched:** Bootstrap/session_pack/ACTIVE_STATE.md, Bootstrap/session_pack/CONTEXT_SUMMARY.md, Bootstrap/session_pack/ISSUES_LOG.md, Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md
+
+---
+
+### 2026-03-29 — Canonical Job Cache: Consumer Surfaces (Cache-First + Known-Jobs View)
+
+**Build target:** WEB_APP + EXTENSION
+**Type:** Additive — no existing flows broken, no interfaces changed
+
+**What changed:**
+- `lib/job_cache_store.ts`: Added `listJobsForSession`, `listJobsForUser`, `buildCachedFitResponse`, `KnownJobEntry`, `CachedFitResponse`
+- `app/api/jobs/known/route.ts`: New GET endpoint listing recently scored jobs by session or userId
+- `extension/background.js`: `lookupJobCacheForSession` + cache-first guard in `callFitAPI` (skipped for prescan; non-fatal fallback to fresh scoring)
+- `app/jobs/page.tsx`: New `/jobs` page — basic known-jobs landing view
+- `app/pipeline/page.tsx`: Added "Scored Jobs History →" link to `/jobs`
+
+**Session safety invariant enforced:**
+Cache hits are only served for the same `sessionId` used to write them. Cross-session reuse is prohibited. `_fromCache: true` flag marks cache-served responses internally.
+
+**No-regression guarantee:**
+- Cache lookup is non-fatal: any failure falls through to fresh API scoring
+- Prescan path is explicitly excluded from cache-first logic (`!isPrescan` guard)
+- Missing fields (`bottom_line_2s`, `nearby_roles`, `recovery_terms`) degrade to empty — sidecard handles gracefully
+
+**Files touched:** lib/job_cache_store.ts, lib/job_cache_store.test.ts, app/api/jobs/known/route.ts, extension/background.js, app/jobs/page.tsx, app/pipeline/page.tsx, Bootstrap/BREAK_AND_UPDATE.md, Bootstrap/milestones.md, Bootstrap/session_pack/ACTIVE_STATE.md, Bootstrap/session_pack/CONTEXT_SUMMARY.md, Bootstrap/session_pack/ISSUES_LOG.md, Bootstrap/session_pack/KERNEL.md
