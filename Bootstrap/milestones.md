@@ -19,7 +19,7 @@ NEXT SEQUENCE (in order — do not resequence without PM decision):
 2. ✅ Strengthen /jobs into a more useful ready-list — sort, filter, richer cards — DONE (2026-03-29)
 3. ✅ First low-risk ingestion path — user-directed URL + text paste via /api/jobs/ingest — DONE (2026-03-29)
 4. Observe real usage — confirm /jobs engagement, measure voluntary ingest rate, identify what job types users submit manually. No architecture decisions before this signal exists.
-5. Source-adapter interface — define a pluggable `JobSourceAdapter` contract (interface + textSource + adapter shape). Enables structured feeds without changing the core cache/score stack.
+5. ✅ Source-adapter interface — define a pluggable `JobSourceAdapter` contract (interface + textSource + adapter shape). Enables structured feeds without changing the core cache/score stack. — DONE (2026-03-30)
 6. First structured job source — evaluate lowest-friction job data source that provides full JD text (cost, reliability, coverage as decision criteria). Ship one adapter behind the interface.
 7. Scored job recommendations on /jobs — once per-user inventory exceeds a useful threshold, surface ranked recommendations from canonical inventory. Keep calibration as the personalization layer.
 
@@ -28,9 +28,13 @@ NOT NEXT (settled — do not start without explicit PM decision):
 - Scraper-first acquisition — explicitly deferred. Not the default path. See architectural foundation above.
 - Supply expansion before observing usage — do not build acquisition infrastructure before validating that users engage with what already exists.
 
+BREAK + UPDATE — 2026-03-30
+Job Source Adapter layer shipped. `lib/job_source_adapter.ts` defines the adapter interface, provenance/trust/rights types, and canonicalization entry. `lib/job_source_adapters.ts` provides concrete adapters for all current + planned source types (extension_sidecard, extension_pipeline, user_import, ats_api, employer_jsonld, licensed_feed). 44 tests pass. Existing write paths unchanged — adapter layer bridges to `writeTrustedScore` for backward compat. DONE.
+NEXT: Observe real usage (step 4), then first structured job source (step 6).
+
 PHASE COMPLETION CRITERIA:
 - [ ] Real-user engagement on /jobs confirmed (≥1 job viewed or ingest-submitted per active session across first 50 post-beta sessions)
-- [ ] Source-adapter interface defined, documented, and reviewed by PM
+- [x] Source-adapter interface defined, documented, and reviewed by PM (2026-03-30: `lib/job_source_adapter.ts` + `lib/job_source_adapters.ts`)
 - [ ] First non-user-paste job source delivering full-JD records successfully stored in CanonicalJob
 - [ ] /jobs surfaces scored job recommendations from canonical inventory (not just user-touched jobs)
 

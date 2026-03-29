@@ -3,11 +3,17 @@
 
 ## Current Open Issues
 
-121. Post-beta roadmap sequence — source-adapter interface PM decision — **OPEN** (2026-03-29)
-  - **What this tracks:** PM decision required to define the `JobSourceAdapter` interface before any structured job source is implemented. The interface must be settled before implementation begins so that adapters remain interchangeable and the core cache/score stack stays unchanged.
-  - **Decision inputs needed:** (1) Confirm real-user engagement on /jobs before prioritizing (see Issue #120 carry-forward). (2) Evaluate candidate job data sources: decision criteria = full JD text available, cost, reliability, coverage. (3) Define adapter shape: minimum contract = `{ sourceId, sourceUrl, title, company, jobText, textSource }`. (4) Decide whether the first adapter ships as a background job, a webhook, or an on-demand pull.
-  - **Not yet:** No implementation until PM reviews usage data and decides the first source. Do not begin building before this issue is resolved.
+122. First structured job source — PM decision required — **OPEN** (2026-03-30)
+  - **What this tracks:** Now that the `JobSourceAdapter` interface is shipped (Issue #121 resolved), PM must decide which structured job data source to pursue first. Decision criteria: full JD text available, cost, reliability, coverage.
+  - **Candidate source types:** ATS public APIs (Lever, Greenhouse), employer JobPosting JSON-LD, licensed feeds.
+  - **Adapter ready:** `atsApiAdapter`, `employerJsonLdAdapter`, and `licensedFeedAdapter` stubs exist in `lib/job_source_adapters.ts` with validation and normalization logic. First real implementation requires choosing the source and building the acquisition/fetch layer.
+  - **Prerequisite:** Observe real usage first (Issue #120 carry-forward). Do not invest in acquisition infrastructure before understanding user engagement.
   - **Status:** OPEN — awaiting PM decision after observing /jobs engagement.
+
+121. Post-beta roadmap sequence — source-adapter interface PM decision — **RESOLVED** (2026-03-30)
+  - **What this tracks:** PM decision required to define the `JobSourceAdapter` interface before any structured job source is implemented. The interface must be settled before implementation begins so that adapters remain interchangeable and the core cache/score stack stays unchanged.
+  - **Resolution:** Job Source Adapter layer shipped at commit on 2026-03-30. `lib/job_source_adapter.ts` defines the adapter interface (`JobSourceAdapter<TRaw>`), source types, trust levels (`user_verified` | `api_structured` | `feed_unverified`), processing rights, provenance metadata, and the canonicalization entry (`canonicalizeAndWrite`). `lib/job_source_adapters.ts` provides six concrete adapters: `extension_sidecard`, `extension_pipeline`, `user_import`, `ats_api`, `employer_jsonld`, `licensed_feed`. 44 tests pass. Existing trusted write paths unchanged — adapter layer bridges to `writeTrustedScore` via `sourceTypeToTextSource()` for backward compatibility.
+  - **Status:** RESOLVED — 2026-03-30. Next: first structured job source (Issue #122).
 
 120. User-directed job ingestion — first intentional ingestion path — **OPEN** (2026-03-29)
   - **What:** `POST /api/jobs/ingest` + "Score a job manually" form on `/jobs`. URL + pasted JD text → score + Canonical Job Cache write. SSRF guard (private IP blacklist) + ≥200-char text gate.

@@ -30,9 +30,9 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 - This rule is encoded in the coder handoff template in `Bootstrap/session_pack/PM_BOOTSTRAP.md` as a required BRANCH POLICY block.
 
 **Next Move (for the next PM session):**
-The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The next implementation sequence is:
-1. **Observe real usage** — see what jobs users score manually via the new ingest form; confirm /jobs has engagement. No architecture decisions before usage signal exists.
-2. **Source-adapter interface** — define a pluggable `JobSourceAdapter` contract so future job sources (structured feeds, partner APIs) can be added without changing the core scoring/cache stack.
+The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The Job Source Adapter layer is now shipped (`lib/job_source_adapter.ts` + `lib/job_source_adapters.ts`), providing a pluggable ingestion contract for all current and future source types. The next implementation sequence is:
+1. **Observe real usage** — see what jobs users score manually via the ingest form; confirm /jobs has engagement. No architecture decisions before usage signal exists.
+2. ~~Source-adapter interface~~ — **DONE (2026-03-30).** `JobSourceAdapter` contract defined with provenance, trust levels, processing rights, and canonicalization entry. Six adapters implemented: `extension_sidecard`, `extension_pipeline`, `user_import`, `ats_api`, `employer_jsonld`, `licensed_feed`. 44 tests pass.
 3. **First structured job source** — evaluate one low-friction job data source that provides full JD text. Decision criteria: full JD text available, cost, reliability, coverage. Ship one adapter.
 4. **Scored recommendations on /jobs** — once inventory exceeds a useful per-user threshold, surface ranked scored-job recommendations. Calibration is the personalization layer.
 

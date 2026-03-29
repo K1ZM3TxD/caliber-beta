@@ -207,6 +207,25 @@ The extension operates in **sidecard-primary mode**. This is the durable product
 
 **Payload quality ordering:** `sidecard_full` data MUST NOT be overwritten by `pipeline_save` data. If both write to the same `(jobId, sessionId)` cache slot, the sidecard_full payload is preserved (it is always richer).
 
+## Canonical Job Cache — Source Adapter Invariant (2026-03-30)
+
+All job ingestion into the Canonical Job Cache MUST flow through the Job Source Adapter layer (`lib/job_source_adapter.ts`).
+
+**Adapter contract:**
+- Every ingestion source implements `JobSourceAdapter<TRaw>` with `validate()` and `normalize()` methods.
+- `normalize()` produces a `NormalizedJobPayload` with attached `JobProvenance` (sourceType, sourceName, trustLevel, rights, acquiredAt).
+- The single canonicalization entry (`canonicalizeAndWrite`) bridges adapter output to `writeTrustedScore`, enforcing rights checks and text quality gates.
+
+**Source types:** `extension_sidecard` | `extension_pipeline` | `user_import` | `ats_api` | `employer_jsonld` | `licensed_feed`.
+
+**Trust levels:** `user_verified` (user-initiated, full JD provided) | `api_structured` (machine-extracted from structured source) | `feed_unverified` (raw feed data, needs quality gate).
+
+**Processing rights:** Every adapter declares `ProcessingRights` (`canScore`, `canStore`, `canDisplay`, `canTailor`). The canonicalization entry rejects writes when `canStore` or `canScore` is false.
+
+**Backward compatibility:** `sourceTypeToTextSource()` maps new source types to existing `textSource` values (`sidecard_full` | `pipeline_save`) so existing cache/read/write paths are unaffected.
+
+**Why:** Job acquisition and job intelligence must remain separate concerns. The adapter layer standardizes ingestion across all source types without coupling the scoring/cache stack to any single acquisition method.
+
 ## Canonical Job Cache — Trusted Read Path Invariant (2026-03-29)
 
 Cache hits may only be served to the **same `sessionId`** used to write them.
