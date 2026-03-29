@@ -19,7 +19,7 @@ import { storeGet, storeGetAsync, storeLatest, storeLatestAsync } from "@/lib/ca
 import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 import { evaluateWorkMode, generateWorkRealitySummary } from "@/lib/work_mode";
-import { writeTrustedScoreSafe, detectPlatform, buildCanonicalKey, lookupByKey } from "@/lib/job_cache_store";
+import { writeTrustedScoreSafe, detectPlatform, buildCanonicalKey } from "@/lib/job_cache_store";
 import { validateIngestInput } from "@/lib/job_ingest_validation";
 
 export const maxDuration = 30;
@@ -94,16 +94,11 @@ export async function POST(req: NextRequest) {
     return json({ ok: false, error: "Profile incomplete. Finish the calibration prompts on Caliber first." }, 400);
   }
 
-  // ── Check if already scored for this session ────────────────────────────
+  // ── Canonicalize URL ──────────────────────────────────────────────────────
   const canonicalKey = buildCanonicalKey(normalizedUrl);
   const platform = detectPlatform(normalizedUrl);
-  let alreadyKnown = false;
-  try {
-    const existing = await lookupByKey(canonicalKey, sessionId);
-    if (existing) alreadyKnown = true;
-  } catch {
-    // Non-fatal: proceed to score even if cache check fails
-  }
+  // writeTrustedScoreSafe upserts on canonicalKey — dedup is handled there,
+  // no read needed on the scoring critical path.
 
   // ── Score ────────────────────────────────────────────────────────────────
   const personVector = session.personVector.values as number[];
@@ -169,6 +164,5 @@ export async function POST(req: NextRequest) {
     bottomLine: workRealitySummary,
     canonicalKey,
     platform,
-    alreadyKnown,
   });
 }
