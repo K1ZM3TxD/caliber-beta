@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.39";
+  const PANEL_VERSION = "0.9.41";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -464,6 +464,7 @@
 
   // ─── Session Readiness State ──────────────────────────────
   var sessionReady = false;          // has a valid session been confirmed?
+  var cachedSessionId = null;        // session ID cached after first successful discover — skips network on subsequent clicks
   var sessionCheckAttempts = 0;      // retry counter for session pre-check
   var sessionCheckMax = 8;           // max retries (8 × escalating delay ≈ 40s)
   var sessionCheckTimer = null;      // timer for session retry
@@ -1261,6 +1262,7 @@
           "— releasing " + chunk.length + " cards for retry (badges kept)");
         if (isNoSession) {
           sessionReady = false;
+          cachedSessionId = null;  // invalidate cache so next click re-discovers
           console.warn("[Caliber][session][diag] session lost during scoring — marking sessionReady=false");
         }
         for (var g = 0; g < chunk.length; g++) {
@@ -2392,6 +2394,7 @@
       }
       if (resp && resp.ok && resp.sessionId && resp.profileComplete) {
         sessionReady = true;
+        cachedSessionId = resp.sessionId;  // cache for sidecard scoring — skip discover on clicks
         sessionCheckAttempts = 0;
         // Hydrate calibration context from session discover response (extracted from backup)
         // Always trust session discover — it reflects current chrome.storage.local (updated by handoff)
@@ -4225,21 +4228,35 @@
         }, 2500);
       }
 
-      // Discover/verify session before attempting to score
-      const sessionInfo = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          { type: "CALIBER_SESSION_DISCOVER" },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!response || !response.ok) {
-              reject(new Error((response && response.error) || "No active Caliber session found."));
-            } else {
-              resolve(response);
+      // Discover/verify session before attempting to score.
+      // Fast path: reuse cached session ID when the session is confirmed ready.
+      // This skips the trySessionEndpoint network round-trip (500ms–2s per click).
+      // cachedSessionId is invalidated when sessionReady=false (e.g. 401 error).
+      let sessionInfo;
+      if (sessionReady && cachedSessionId) {
+        sessionInfo = { sessionId: cachedSessionId, profileComplete: true };
+        console.debug("[caliber][sidecard-cycle] SESSION_CACHE_HIT — skipping discover, using cached sessionId");
+      } else {
+        sessionInfo = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            { type: "CALIBER_SESSION_DISCOVER" },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else if (!response || !response.ok) {
+                reject(new Error((response && response.error) || "No active Caliber session found."));
+              } else {
+                resolve(response);
+              }
             }
-          }
-        );
-      });
+          );
+        });
+        // Cache for subsequent clicks
+        if (sessionInfo && sessionInfo.sessionId) {
+          cachedSessionId = sessionInfo.sessionId;
+          sessionReady = true;
+        }
+      }
 
       if (!sessionInfo.profileComplete) {
         showError("Calibration incomplete. Finish the calibration prompts on Caliber first.");
@@ -4422,6 +4439,11 @@
         };
       }
     } catch (err) {
+      // Invalidate session cache on auth/session errors so next click re-discovers
+      if (/calibration|session|No active/i.test(err.message)) {
+        cachedSessionId = null;
+        sessionReady = false;
+      }
       showError(err.message || "Something went wrong.");
     } finally {
       scoring = false;
@@ -4604,9 +4626,9 @@
       // Cancel any pending session retry — session is now available
       clearTimeout(sessionCheckTimer);
       sessionCheckAttempts = 0;
-      // Refresh calibration context from storage — new calibration may have shipped
-      // while this tab was open (Fabio → Jen re-calibration scenario)
-      chrome.storage.local.get(["caliberCalibrationTitle", "caliberNearbyRoles"], function (stored) {
+      // Cache session ID from storage for click-time scoring
+      chrome.storage.local.get(["caliberSessionId", "caliberCalibrationTitle", "caliberNearbyRoles"], function (stored) {
+        if (stored.caliberSessionId) cachedSessionId = stored.caliberSessionId;
         if (stored.caliberCalibrationTitle) {
           lastKnownCalibrationTitle = stored.caliberCalibrationTitle;
         }
