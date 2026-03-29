@@ -3,6 +3,14 @@
 
 ## Current Open Issues
 
+116. LinkedIn card badge backfill — href-walk second pass — **RESOLVED** (2026-03-29)
+  - **Symptom:** Job cards with trusted cached scores (sidecard_full or prescan) did not always receive a badge when they reappeared after LinkedIn virtual-scroll recycled their DOM node. The badge was deferred to the next API scoring round instead of restored from cache instantly.
+  - **Root cause:** `scanAndBadgeVisibleCards` calls `stampCard(card)` which calls `cardJobId(card)` to get the job ID. `cardJobId` prefers `data-occludable-job-id`, then the inner `<a href>`. If neither is populated yet (LinkedIn lazy-hydrates card content after the container appears), `cardJobId` falls back to a text hash: `"hash-{x}"`. The main scan loop's cache-hit path checks `badgeScoreCache["hash-{x}"]` — no match — so the card is queued for fresh scoring even though `badgeScoreCache["job-{id}"]` already holds a trusted score.
+  - **Fix (this commit):** Added a second pass at the end of `scanAndBadgeVisibleCards`, after the main DOM→cache loop. The second pass iterates all `badgeScoreCache` entries whose keys start with `"job-"` (numeric IDs, not text hashes). For each entry not yet stamped in the DOM (`findCardById` returns null), it queries `a[href*="/jobs/view/{numericId}"]` and walks up ≤8 ancestor levels to find the card container — identical logic to the existing `backfillBadgeFromSidecard` IIFE. On match: stamps the element, calls `setBadgeOnCard(el, "scored", score)`. `setBadgeOnCard` handles all badge states: creates a new scored badge, or upgrades a loading badge (written by the same scan cycle) to scored.
+  - **Invariants:** Only `job-{id}` cache entries are processed — no text-hash or speculative matches. `setBadgeOnCard` is guarded by `!BADGES_VISIBLE`, so `stable` (where `BADGES_VISIBLE = false`) is unaffected. No new API calls, no new scoring — purely cache restoration.
+  - **File:** `extension/content_linkedin.js` (`main` only)
+  - **Status:** RESOLVED — this commit (2026-03-29)
+
 115. LinkedIn overlay re-enabled for PM evaluation — **OPEN / `main` test track only** (2026-03-29)
   - **Scope:** `extension/content_linkedin.js` on `main` only. `BADGES_VISIBLE` flipped to `true`. Score overlays are now visible on LinkedIn job cards in a `main`-based build.
   - **Background:** Overlays were hidden at `BADGES_VISIBLE = false` since v0.9.5 due to reliability concerns (positioning, stale scores, layout jitter). Not a beta gate. PM now wants to evaluate whether overlays are reliable enough to expose permanently.

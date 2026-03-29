@@ -1510,6 +1510,44 @@
       console.debug("[Caliber][badges] restored " + cacheHits + " badges from cache (no API call)");
     }
 
+    // ─── Trusted-score href-backfill pass ─────────────────────────────────────
+    // Covers cards whose stampCard() returned a text-hash because the card's
+    // data-occludable-job-id was not yet set and the inner <a href> was not yet
+    // loaded (LinkedIn virtual-scroll lazy hydration).  In that case the main
+    // loop above matched "hash-{x}" which doesn't hit the "job-{id}" cache key.
+    // Walk from known cache IDs outward via href to find and stamp those cards.
+    var hrefBackfilled = 0;
+    var _cacheIds = Object.keys(badgeScoreCache);
+    for (var _ci = 0; _ci < _cacheIds.length; _ci++) {
+      var _cacheId = _cacheIds[_ci];
+      if (_cacheId.indexOf("job-") !== 0) continue;   // skip text-hash cache entries
+      if (findCardById(_cacheId)) continue;            // already stamped — handled above
+      var _numId = _cacheId.slice(4);                 // "123" from "job-123"
+      var _links = document.querySelectorAll('a[href*="/jobs/view/' + _numId + '"]');
+      var _found = false;
+      for (var _ll = 0; _ll < _links.length && !_found; _ll++) {
+        var _anc = _links[_ll];
+        for (var _up = 0; _up < 8 && _anc; _up++) {
+          _anc = _anc.parentElement;
+          if (!_anc) break;
+          for (var _cs = 0; _cs < JOB_CARD_SELECTORS.length; _cs++) {
+            if (_anc.matches && _anc.matches(JOB_CARD_SELECTORS[_cs])) {
+              _anc.setAttribute(JOB_ID_ATTR, _cacheId);
+              setBadgeOnCard(_anc, "scored", badgeScoreCache[_cacheId].score);
+              hrefBackfilled++;
+              _found = true;
+              break;
+            }
+          }
+          if (_found) break;
+        }
+      }
+    }
+    if (hrefBackfilled > 0) {
+      console.debug("[Caliber][badges] trusted-score href-backfill: applied " + hrefBackfilled + " badges");
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     if (toQueue.length === 0) {
       console.debug("[Caliber][diag][detect] scan complete — 0 new cards" +
         " (DOM: " + allCards.length + ", cached: " + cacheHits +
