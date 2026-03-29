@@ -1109,6 +1109,10 @@
     badgeInjecting = true;
     try {
       var existing = cardEl.querySelector("[" + BADGE_ATTR + "]");
+      // Guard: element may have been detached from DOM by LinkedIn re-render
+      // (outerHTML on a detached element is a no-op in browsers). Re-query when
+      // parentNode is null so a fresh injection point is always found.
+      if (existing && !existing.parentNode) existing = null;
       if (existing) {
         if (state !== "loading") {
           existing.outerHTML = badgeHTML(state, score);
@@ -1476,9 +1480,6 @@
       // Already in-flight → skip
       if (badgeScoredIds.has(id)) continue;
 
-      // New card — mark as in-flight and queue
-      badgeScoredIds.add(id);
-
       var cardText = (card.innerText || "").trim().replace(/\s+/g, " ");
       var rawTitleText = "";
       for (var t = 0; t < JOB_CARD_TITLE_SELECTORS.length; t++) {
@@ -1492,9 +1493,14 @@
       cardText = cleanCardText(cardText, rawTitleText, titleText);
 
       if (cardText.length < 80) {
-        console.debug("[Caliber][badges] card too short (" + cardText.length + " chars), skipping: " + titleText);
+        // Card text too short — LinkedIn may not have fully rendered it yet.
+        // Do NOT add to badgeScoredIds so the next scan retries when text is ready.
+        console.debug("[Caliber][badges] card too short (" + cardText.length + " chars), skipping (will retry): " + titleText);
         continue;
       }
+
+      // Mark as in-flight only after confirming scorable text exists
+      badgeScoredIds.add(id);
 
       // Inject loading placeholder immediately
       setBadgeOnCard(card, "loading", 0);
@@ -1528,11 +1534,12 @@
       if (_cacheId.indexOf("job-") !== 0) continue;   // skip text-hash cache entries
       if (findCardById(_cacheId)) continue;            // already stamped — handled above
       var _numId = _cacheId.slice(4);                 // "123" from "job-123"
-      var _links = document.querySelectorAll('a[href*="/jobs/view/' + _numId + '"]');
+      var _listRoot3 = document.querySelector(".jobs-search-results-list, .scaffold-layout__list-container, [class*='scaffold-layout__list']") || document;
+      var _links = _listRoot3.querySelectorAll('a[href*="/jobs/view/' + _numId + '"]');
       var _found = false;
       for (var _ll = 0; _ll < _links.length && !_found; _ll++) {
         var _anc = _links[_ll];
-        for (var _up = 0; _up < 8 && _anc; _up++) {
+        for (var _up = 0; _up < 12 && _anc; _up++) {
           _anc = _anc.parentElement;
           if (!_anc) break;
           for (var _cs = 0; _cs < JOB_CARD_SELECTORS.length; _cs++) {
@@ -3930,10 +3937,13 @@
       };
       // Find the card in the list — first try data-attribute lookup (O(1))
       var cardEl = findCardById(sidecardJobId);
-      // Fallback: search by href if card wasn't previously stamped
+      // Fallback: search by href if card wasn't previously stamped.
+      // Scope query to the list container to avoid matching links in the detail pane
+      // (which also contains /jobs/view/{id} links and would cause a false ancestor walk).
       if (!cardEl) {
         var numericId = sidecardJobId.replace("job-", "");
-        var allLinks = document.querySelectorAll('a[href*="/jobs/view/' + numericId + '"]');
+        var _listRoot = document.querySelector(".jobs-search-results-list, .scaffold-layout__list-container, [class*='scaffold-layout__list']") || document;
+        var allLinks = _listRoot.querySelectorAll('a[href*="/jobs/view/' + numericId + '"]');
         for (var bl = 0; bl < allLinks.length; bl++) {
           // Walk up to find the card container
           var ancestor = allLinks[bl];
@@ -3969,7 +3979,8 @@
           var _el = findCardById(_retryJobId);
           if (!_el) {
             var _num = _retryJobId.slice(4);
-            var _links = document.querySelectorAll('a[href*="/jobs/view/' + _num + '"]');
+            var _listRoot2 = document.querySelector(".jobs-search-results-list, .scaffold-layout__list-container, [class*='scaffold-layout__list']") || document;
+            var _links = _listRoot2.querySelectorAll('a[href*="/jobs/view/' + _num + '"]');
             for (var _ri = 0; _ri < _links.length && !_el; _ri++) {
               var _ra = _links[_ri];
               for (var _ru = 0; _ru < 12 && _ra; _ru++) {
