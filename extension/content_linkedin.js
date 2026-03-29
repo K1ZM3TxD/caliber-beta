@@ -1329,9 +1329,11 @@
           // Guard: never overwrite a sidecard-scored entry — the sidecard uses
           // the full job description and is always the authoritative score.
           // Late-arriving badge responses must not downgrade a sidecard score.
+          var sidecardAuthoritative = false;
           if (entry.id) {
             var existingEntry = badgeScoreCache[entry.id];
             if (existingEntry && existingEntry.sidecard) {
+              sidecardAuthoritative = true;
               console.debug("[Caliber][diag][score] skipping cache write for " + entry.id +
                 " — sidecard-authoritative entry exists (sidecard=" + existingEntry.score +
                 ", badge=" + badgeScore + ")");
@@ -1345,8 +1347,11 @@
               };
             }
           }
-          // Re-find the card by job ID (O(1) via data attribute, survives DOM mutation)
-          var cardEl = entry.id ? findCardById(entry.id) : null;
+          // Re-find the card by job ID (O(1) via data attribute, survives DOM mutation).
+          // Skip badge update when sidecard score is authoritative — the sidecard
+          // already injected the correct score; overwriting with a prescan score
+          // here would downgrade the displayed badge.
+          var cardEl = (!sidecardAuthoritative && entry.id) ? findCardById(entry.id) : null;
           if (cardEl) {
             setBadgeOnCard(cardEl, "scored", badgeScore);
           }
