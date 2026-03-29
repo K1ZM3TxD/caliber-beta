@@ -1398,7 +1398,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       </div>
 
                       {/* Secondary CTAs — job search */}
-                      <div className="mt-2 flex flex-col items-center gap-2">
+                      <div className="mt-2 flex flex-row items-center justify-center gap-3">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
