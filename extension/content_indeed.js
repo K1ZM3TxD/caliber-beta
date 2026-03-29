@@ -5,7 +5,7 @@
 (function () {
   var API_BASE = CALIBER_ENV.API_BASE;
   var PANEL_HOST_ID = "caliber-panel-host";
-  var PANEL_VERSION = "0.9.44";
+  var PANEL_VERSION = "0.9.45";
   console.log("[caliber][indeed] content_indeed.js v" + PANEL_VERSION + " loaded");
 
   // ─── Minimum text lengths ─────────────────────────────────
@@ -821,7 +821,15 @@
     if (!jk) return null;
     try {
       var escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(jk) : jk.replace(/["\\]/g, "");
-      return document.querySelector('[data-jk="' + escaped + '"]');
+      var el = document.querySelector('[data-jk="' + escaped + '"]');
+      if (!el) return null;
+      // data-jk is often on the <a> title link — walk up to the <li> card container
+      var node = el;
+      while (node && node !== document.body) {
+        if (node.tagName === "LI") return node;
+        node = node.parentElement;
+      }
+      return el; // fallback: return original element
     } catch (e) { return null; }
   }
 

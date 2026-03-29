@@ -4,7 +4,7 @@
 (function () {
   const API_BASE = CALIBER_ENV.API_BASE;
   const PANEL_HOST_ID = "caliber-panel-host";
-  const PANEL_VERSION = "0.9.42";
+  const PANEL_VERSION = "0.9.45";
   console.log("[caliber] content_linkedin.js v" + PANEL_VERSION + " loaded");
 
   // ─── Job Text Extraction ──────────────────────────────────
@@ -1023,7 +1023,7 @@
     }
     var rounded = Math.round(score * 10) / 10;
     var band = "red";
-    if (rounded >= 8.0) band = "green";
+    if (rounded >= 7.0) band = "green";
     else if (rounded >= 6.0) band = "yellow";
     return '<span class="caliber-badge caliber-badge--' + band + '" ' + BADGE_ATTR + '>' + rounded.toFixed(1) + "</span>";
   }
