@@ -5,7 +5,7 @@
 (function () {
   var API_BASE = CALIBER_ENV.API_BASE;
   var PANEL_HOST_ID = "caliber-panel-host";
-  var PANEL_VERSION = "0.9.40";
+  var PANEL_VERSION = "0.9.43";
   console.log("[caliber][indeed] content_indeed.js v" + PANEL_VERSION + " loaded");
 
   // ─── Minimum text lengths ─────────────────────────────────
@@ -793,10 +793,28 @@
     var s = document.createElement("style");
     s.id = "caliber-badge-styles";
     s.textContent = [
-      ".caliber-row-badge-wrap { position:absolute; top:6px; right:6px; z-index:9; pointer-events:none; }",
+      // Inline badge — sits on its own line below the job title
+      ".caliber-row-badge-wrap { display:block; margin:3px 0 0 0; }",
       ".caliber-row-badge { display:inline-block; font-size:10px; font-weight:700; line-height:1; padding:2px 6px; border-radius:4px; border-width:1px; border-style:solid; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }",
     ].join("\n");
     (document.head || document.documentElement).appendChild(s);
+  }
+
+  // Selectors for the title container inside an Indeed card — badge inserts after this
+  var INDEED_TITLE_SELECTORS = [
+    ".jobTitle",
+    "h2.jobTitle",
+    "[class*='jobTitle']",
+    "h2 a[data-jk]",
+    "h2",
+  ];
+
+  function findIndeedBadgeTarget(cardEl) {
+    for (var i = 0; i < INDEED_TITLE_SELECTORS.length; i++) {
+      var el = cardEl.querySelector(INDEED_TITLE_SELECTORS[i]);
+      if (el) return el;
+    }
+    return null;
   }
 
   function findCardByJobKey(jk) {
@@ -815,14 +833,15 @@
     var bg    = ds >= 7 ? "rgba(74,222,128,0.12)" : ds >= 6 ? "rgba(251,191,36,0.13)" : "rgba(239,68,68,0.12)";
     var bdr   = ds >= 7 ? "rgba(74,222,128,0.30)" : ds >= 6 ? "rgba(251,191,36,0.30)" : "rgba(239,68,68,0.30)";
     var inlineStyle = "color:" + color + ";background:" + bg + ";border-color:" + bdr + ";";
+    // Update existing badge in-place
     var existing = cardEl.querySelector(".caliber-row-badge");
     if (existing) {
       existing.textContent = ds.toFixed(1);
       existing.style.cssText = inlineStyle;
       return;
     }
-    var pos = window.getComputedStyle(cardEl).position;
-    if (pos === "static") cardEl.style.position = "relative";
+    // Build inline badge wrapper — inserted after the title element so it
+    // appears on its own line below the job title, never overlapping text.
     var wrap  = document.createElement("div");
     wrap.className = "caliber-row-badge-wrap";
     var badge = document.createElement("span");
@@ -830,7 +849,13 @@
     badge.textContent = ds.toFixed(1);
     badge.style.cssText = inlineStyle;
     wrap.appendChild(badge);
-    cardEl.appendChild(wrap);
+    // Find the title element and insert after it; fall back to card append
+    var titleEl = findIndeedBadgeTarget(cardEl);
+    if (titleEl && titleEl.parentNode) {
+      titleEl.parentNode.insertBefore(wrap, titleEl.nextSibling);
+    } else {
+      cardEl.appendChild(wrap);
+    }
   }
 
   function backfillBadgeFromSidecard(data) {
