@@ -986,7 +986,7 @@
       lastScoredText = text;
 
       var data = await new Promise(function (resolve, reject) {
-        chrome.runtime.sendMessage({ type: "CALIBER_FIT_API", jobText: text, sessionId: sessionInfo.sessionId || undefined }, function (response) {
+        chrome.runtime.sendMessage({ type: "CALIBER_FIT_API", jobText: text, sessionId: sessionInfo.sessionId || undefined, sourceUrl: window.location.href, title: lastJobMeta.title || undefined, company: lastJobMeta.company || undefined }, function (response) {
           if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
           if (!response || !response.ok) {
             var raw = (response && response.error) || "API error";

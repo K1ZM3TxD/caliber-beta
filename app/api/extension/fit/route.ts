@@ -4,6 +4,7 @@ import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 import { evaluateWorkMode, generateWorkRealitySummary } from "@/lib/work_mode";
 import { generateRecoveryTerms } from "@/lib/title_scoring";
+import { writeTrustedScoreSafe } from "@/lib/job_cache_store";
 
 // Request more execution time from Vercel (hobby: 10s default → 60s on Pro)
 export const maxDuration = 30;
@@ -169,6 +170,29 @@ export async function POST(req: NextRequest) {
       // Avoid duplicating if a similar line already came from the dimension loop
       const alreadyCovered = stretchFactors.some(s => s.toLowerCase().includes(missingName.toLowerCase()));
       if (!alreadyCovered) stretchFactors.push(capLine);
+    }
+
+    // Fire-and-forget: write canonical job + score cache entry (trusted sidecard path only)
+    if (!isPrescan && typeof body.sourceUrl === "string" && body.sourceUrl.length > 0 && finalScore > 0) {
+      writeTrustedScoreSafe({
+        sourceUrl: body.sourceUrl,
+        title: typeof body.title === "string" ? body.title : "",
+        company: typeof body.company === "string" ? body.company : "",
+        jobText,
+        sessionId: sessionId as string,
+        score: finalScore,
+        payload: {
+          score: finalScore,
+          supportsFit: (alignment.supports_fit ?? []).slice(0, 3),
+          stretchFactors: stretchFactors.slice(0, 3),
+          hrcBand: hiringCheck.band ?? null,
+          hrcReason: hiringCheck.reason ?? null,
+          workModeCompat: workMode.compatibility ?? null,
+          roleType: workMode.roleType ?? null,
+          calibrationTitle: primaryTitle,
+        },
+        textSource: "sidecard_full",
+      });
     }
 
     return jsonResponse(req, {

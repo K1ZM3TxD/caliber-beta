@@ -109,10 +109,13 @@ async function probeCaliberTabsForSession() {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "CALIBER_FIT_API") {
     const sessionId = msg.sessionId || null;
+    const fitOptions = msg.sourceUrl
+      ? { sourceUrl: msg.sourceUrl, title: msg.title || undefined, company: msg.company || undefined }
+      : {};
     console.debug("[Caliber][bg] CALIBER_FIT_API received (" + (msg.jobText || "").length + " chars, session=" + (sessionId || "discover") + ")");
     const fitFn = sessionId
-      ? callFitAPI(msg.jobText, sessionId)
-      : ensureSessionThenFit(msg.jobText);
+      ? callFitAPI(msg.jobText, sessionId, fitOptions)
+      : ensureSessionThenFit(msg.jobText, fitOptions);
     fitFn
       .then((data) => {
         console.debug("[Caliber][bg] sidecard score complete: " + (data.score_0_to_10 || "?"));
@@ -662,7 +665,7 @@ async function discoverSession() {
 /**
  * Ensure we have a valid session, then call the fit API.
  */
-async function ensureSessionThenFit(jobText) {
+async function ensureSessionThenFit(jobText, fitOptions) {
   // Try to discover/verify session first
   let sessionId;
   try {
@@ -675,7 +678,7 @@ async function ensureSessionThenFit(jobText) {
     throw new Error(err.message || "No active Caliber session. Complete your profile on Caliber first.");
   }
 
-  return callFitAPI(jobText, sessionId);
+  return callFitAPI(jobText, sessionId, fitOptions);
 }
 
 /**
@@ -701,6 +704,9 @@ async function callFitAPI(jobText, sessionId, options) {
   const body = { jobText };
   if (sessionId) body.sessionId = sessionId;
   if (isPrescan) body.prescan = true;
+  if (options && options.sourceUrl) body.sourceUrl = String(options.sourceUrl).slice(0, 2000);
+  if (options && options.title) body.title = String(options.title).slice(0, 300);
+  if (options && options.company) body.company = String(options.company).slice(0, 200);
 
   // Include session backup for serverless resilience. Sidecard calls always
   // include it. Prescan calls include it too (avoids 401 → restore → retry

@@ -190,7 +190,24 @@ The extension operates in **sidecard-primary mode**. This is the durable product
 - **Describing DOM-wide prescan as reliable product behavior is a documentation error.** Correct it immediately.
 - **Future zero-click broad overlay coverage** (badges on cards without clicking) requires backend job inventory + score cache infrastructure. It is not achievable by additional DOM probing.
 
-## Calibration Page Invariant
+## Canonical Job Cache — Trusted Write Path Invariant (2026-03-29)
+
+`CanonicalJob` and `JobScoreCache` records MUST only be written from trusted scoring flows.
+
+**Permitted write sources:**
+- `sidecard_full` — `/api/extension/fit` POST after successful sidecard score (non-prescan, jobText ≥ 200 chars)
+- `pipeline_save` — `/api/pipeline` POST when extension saves a job with full jobText
+
+**Prohibited write sources:**
+- `card_text_prescan` — DOM prescan from LinkedIn/Indeed card text; structurally inflated, unreliable
+- Any scoring path where `isPrescan === true`
+- Any ingest where `sourceUrl` is null/empty or `jobText` is shorter than 200 characters
+
+**Why:** The canonical job record is the foundation for future zero-click overlay and homepage job inventory. Contaminating it with unscorable prescan data would corrupt the relevance baseline and cause badge scores to diverge from sidecard scores.
+
+**Payload quality ordering:** `sidecard_full` data MUST NOT be overwritten by `pipeline_save` data. If both write to the same `(jobId, sessionId)` cache slot, the sidecard_full payload is preserved (it is always richer).
+
+
 
 - `/calibration` is a direction-setting launchpad, not a job-scoring surface.
 - Layout order: "Calibration Complete" → Extension install CTA → hero title direction → "How we score this".

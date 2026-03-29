@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { tailorPrepSave } from "@/lib/tailor_store";
+import { writeTrustedScoreSafe } from "@/lib/job_cache_store";
 
 // File-based store (legacy migration only)
 import {
@@ -198,6 +199,29 @@ export async function POST(req: NextRequest) {
         hasJobText: !!entry.jobText,
         jobUrl,
       });
+
+      // Fire-and-forget: cache canonical job + score (pipeline_save is secondary to sidecard_full)
+      if (safeJobText && jobUrl && typeof score === "number" && score > 0) {
+        writeTrustedScoreSafe({
+          sourceUrl: String(jobUrl).slice(0, 2000),
+          title: String(jobTitle).slice(0, 200),
+          company: String(company).slice(0, 200),
+          jobText: safeJobText,
+          sessionId: String(sessionId),
+          score,
+          payload: {
+            score,
+            supportsFit: [],
+            stretchFactors: [],
+            hrcBand: null,
+            hrcReason: null,
+            workModeCompat: null,
+            roleType: null,
+            calibrationTitle: "",
+          },
+          textSource: "pipeline_save",
+        });
+      }
 
       // Also persist as TailorPrep file (secondary, for backward compat)
       if (safeJobText) {

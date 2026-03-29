@@ -119,6 +119,51 @@ model TelemetryEvent {
   @@index([sessionId, event])
 }
 
+// ─── Canonical Job Record + Score Cache ───────────────────────
+// Stores trusted job records and per-user/session score cache entries
+// populated from current trusted scoring flows (sidecard, pipeline save).
+// This is the foundation for future zero-click overlay lookup and homepage
+// inventory. External acquisition paths are NOT implemented here.
+
+model CanonicalJob {
+  id            String   @id              // "cj_{hex16}"
+  canonicalKey  String   @unique          // stable dedupe key: "linkedin:job:{id}" | "indeed:job:{jk}" | "url:{normalizedUrl}"
+  platform      String                    // "linkedin" | "indeed" | "web"
+  sourceUrl     String                    // original URL as first encountered
+  title         String
+  company       String
+  location      String?
+  jobText       String?                   // trusted full JD text (null until a full-text scoring event writes it)
+  textWordCount Int?                      // word count of stored jobText (freshness/completeness signal)
+  textSource    String?                   // "sidecard_full" | "pipeline_save" — provenance of stored text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  scoreCaches   JobScoreCache[]
+
+  @@index([platform])
+  @@index([sourceUrl])
+}
+
+model JobScoreCache {
+  id           String   @id              // "jsc_{hex16}"
+  jobId        String                    // → CanonicalJob.id
+  userId       String?                   // → User.id (null for unauthenticated session-only users)
+  sessionId    String                    // caliber sessionId that produced the score
+  score        Float                     // cached score_0_to_10
+  scorePayload String                    // JSON: {supports_fit, stretch_factors, hrcBand, hrcReason, workModeCompat, roleType, calibrationTitle}
+  scoringModel String   @default("v1")   // versioning hook — bump when scoring algorithm changes materially
+  textSource   String                    // "sidecard_full" — provenance of the job text used for this score
+  scoredAt     DateTime @default(now())
+
+  job          CanonicalJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, sessionId])           // one latest cache per job+calibration session
+  @@index([jobId])
+  @@index([userId])
+  @@index([sessionId])
+}
+
 // ─── Feedback events (durable) ────────────────────────────────
 
 model FeedbackEvent {

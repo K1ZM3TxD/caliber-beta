@@ -4384,7 +4384,7 @@
 
       const data = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
-          { type: "CALIBER_FIT_API", jobText: text, sessionId: sessionInfo.sessionId || undefined },
+          { type: "CALIBER_FIT_API", jobText: text, sessionId: sessionInfo.sessionId || undefined, sourceUrl: window.location.href, title: lastJobMeta.title || undefined, company: lastJobMeta.company || undefined },
           (response) => {
             if (chrome.runtime.lastError) {
               reject(new Error(chrome.runtime.lastError.message));
