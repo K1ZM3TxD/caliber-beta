@@ -248,7 +248,7 @@ export default function KnownJobsPage() {
   const indeedCount = jobs.filter((j) => j.platform === "indeed").length;
 
   return (
-    <div className="flex flex-col gap-6 pt-6 pb-16">
+    <div className="flex flex-col gap-6 pt-12 pb-16">
       <CaliberHeader />
 
       <div className="flex items-center justify-between">
