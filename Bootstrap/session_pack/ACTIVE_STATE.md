@@ -5,7 +5,7 @@
 ---
 
 ## Current Phase
-**Beta Launched (2026-03-28).** `stable` promoted to production via fast-forward merge, confirmed live in Vercel. All five beta gates are CLOSED on the promoted build (`31ab6a1`). Production deploys from `stable`; development continues on `main`.
+**Beta Launched + Inventory Foundation Active (2026-03-29).** All five beta gates are CLOSED in production. Extension v0.9.45 live. Canonical Job Cache shipped. `/jobs` ready-list page live. First user-directed ingestion path shipped (`POST /api/jobs/ingest`). Phase transition: Desktop Stabilization→ COMPLETE. Next milestone: Post-Beta Canonical Job Inventory Expansion (ACTIVE).
 
 > **Extension overlay/backfill model confirmed + `stable` promoted (2026-03-29):** Sidecard-primary with reactive/backfill is the confirmed working model on both LinkedIn and Indeed. `BADGES_VISIBLE = true` on `main` and `stable`. Card badges appear only after a sidecard score exists — no unsafe DOM prescan rendered as badges. Canonical Job Cache and `/jobs` page also live. `stable` promoted to this release.
 
@@ -21,6 +21,17 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 - Vercel production branch = `stable` ✓ (confirmed 2026-03-28).
 - Extension artifact: `caliber-extension-beta-v0.9.45.zip` — production host `https://www.caliber-app.com` ✓.
 - **Carry-forward:** Issue #108 (LinkedIn dense-surface unresponsiveness) remains open. Post-fix tailor validation (post-`892a45a`) still recommended.
+
+**Next Move (for the next PM session):**
+The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The next implementation sequence is:
+1. **Observe real usage** — see what jobs users score manually via the new ingest form; confirm /jobs has engagement. No architecture decisions before usage signal exists.
+2. **Source-adapter interface** — define a pluggable `JobSourceAdapter` contract so future job sources (structured feeds, partner APIs) can be added without changing the core scoring/cache stack.
+3. **First structured job source** — evaluate one low-friction job data source that provides full JD text. Decision criteria: full JD text available, cost, reliability, coverage. Ship one adapter.
+4. **Scored recommendations on /jobs** — once inventory exceeds a useful per-user threshold, surface ranked scored-job recommendations. Calibration is the personalization layer.
+
+**What is not next:** Scraper-first acquisition (fragile, legal risk), zero-click broad DOM overlay (requires inventory layer first, not more DOM probing), supply expansion before observing engagement.
+
+See `Bootstrap/milestones.md` → Post-Beta: Canonical Job Inventory Expansion milestone for the full sequence and rationale.
 
 **Scope freeze note (2026-03-13):** No new feature scope before beta ships. Alternate career-signal uploads (personality assessments, strengths reports, skills profiles) have been reviewed and explicitly deferred to post-beta. Resume-first flow is the only active upload path.
 

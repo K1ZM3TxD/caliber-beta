@@ -81,6 +81,32 @@ When the change lands, report:
 
 ---
 
+### 2026-03-29 — Post-Cache Roadmap Reset
+
+**What changed:** Canonical product/architecture direction encoded in docs. The product has crossed the architectural threshold where overlay/backfill are stable, the Canonical Job Cache foundation is shipped, `/jobs` exists as the first known-jobs surface, and the first intentional ingestion path (user-directed URL + text paste) is live. Before the next PM session starts new implementation, the roadmap and milestone docs needed to reflect this transition explicitly.
+
+**Why it changed:** Without a documented next-step sequence, future PM sessions face architectural ambiguity — whether to pursue scraping, DOM prescan, or structured feeds as the default job acquisition strategy. All three have been evaluated; only structured feeds are the intended direction. DOM prescan was definitively ruled out (card DOM contains no JD text). Scraping is explicitly deferred as fragile and legally risky. This reset closes that ambiguity for all future sessions.
+
+**What is now expected:**
+- Future PM sessions anchor to the roadmap next-sequence in `Bootstrap/milestones.md` (Post-Beta: Canonical Job Inventory Expansion milestone)
+- Canonical job inventory is the strategic backend substrate — it is what all future job acquisition, scoring, and recommendation features build on
+- Job acquisition and job intelligence are treated as separate concerns; the scoring engine does not depend on how jobs arrive
+- First non-user-paste ingestion should be low-risk and user-directed; broader market coverage is a later sourcing problem
+- Next implementation sequence is: observe usage → source-adapter interface → first structured job source → scored recommendations on /jobs
+
+**What is explicitly no longer expected:**
+- Any roadmap language implying scraper-first acquisition as the default or primary long-term path
+- Re-opening the DOM prescan capability debate — definitively resolved (prescan suppressed since v0.9.42, card DOM has no JD text, structurally inflated scores documented in Issue #117)
+- Starting broader supply expansion before observing real user engagement with existing `/jobs` + manual ingest
+
+**Risk / fallout:** Without this update, future PM sessions may revert to stale mental models, restart settled debates, or begin the wrong next implementation task. Canonical docs are the primary protection against convergence drift across disconnected PM sessions.
+
+**Smallest observable proof:** A future PM loading `Bootstrap/milestones.md` and `Bootstrap/session_pack/ACTIVE_STATE.md` cold can immediately identify: (1) what is already shipped, (2) the next actionable steps in order with their rationale, (3) what is explicitly deferred and why — without needing to rediscover the architecture from code.
+
+**Files:** `Bootstrap/milestones.md`, `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/PROJECT_OVERVIEW.md`, `Bootstrap/session_pack/PM_BOOTSTRAP.md`
+
+---
+
 ### 2026-03-29 — User-Directed Job Ingestion (First Intentional Ingestion Path)
 
 **What changed:** Added `POST /api/jobs/ingest` and a "Score a job manually" collapsible form on `/jobs`. Users can now score any job by pasting the URL and full job description text — regardless of whether they used the extension. The scored result is written to the Canonical Job Cache under `textSource: "sidecard_full"` (same trust level as the sidecard scoring path) and appears immediately in the job list.

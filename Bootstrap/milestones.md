@@ -1,8 +1,42 @@
 ---
 
-Milestone — Desktop Stabilization & Beta Readiness (ACTIVE)
+Milestone — Post-Beta: Canonical Job Inventory Expansion (ACTIVE)
 ---
-STATUS: ACTIVE — entered 2026-03-15. Core SSI features implemented; validating before beta launch.
+STATUS: ACTIVE — entered 2026-03-29. Beta is live; extension surface is stable; Canonical Job Cache and first ingestion paths are shipped. Next focus: build out the job inventory layer so Caliber can surface scored jobs without requiring user-initiated sidecard clicks.
+
+ARCHITECTURAL FOUNDATION (settled — do not reopen):
+- Sidecard-primary scoring is the confirmed working model. Extension scores jobs from full JDs; overlays/backfill are reactive.
+- Canonical Job Cache is the strategic backend substrate. Job records and per-session score caches accumulate as users interact; `textSource` quality guard enforces trusted-write-only invariant.
+- Unsafe DOM prescan is not the long-term acquisition path. Card DOM contains only title/company/location — no JD is available. Prescan produces structurally inflated, unreliable scores (7.1 prescan vs 2.6 full-JD on the same job). Suppressed since v0.9.42.
+- Job acquisition and job intelligence are separate concerns. The scoring/fit engine does not depend on how jobs arrive into the cache.
+- Inventory sources should be pluggable. No source type (sidecard click, user paste, structured feed, partner API) is privileged in the schema. The `textSource` field distinguishes trust levels.
+- Scraper-first is not the default acquisition strategy. Scrapers are brittle, legally risky, and produce unreliable JD text. Structured feeds or partner APIs are the intended path for non-user-initiated supply.
+
+NEXT SEQUENCE (in order — do not resequence without PM decision):
+1. ✅ Release stabilization + stable promotion — DONE (2026-03-29)
+2. ✅ Strengthen /jobs into a more useful ready-list — sort, filter, richer cards — DONE (2026-03-29)
+3. ✅ First low-risk ingestion path — user-directed URL + text paste via /api/jobs/ingest — DONE (2026-03-29)
+4. Observe real usage — confirm /jobs engagement, measure voluntary ingest rate, identify what job types users submit manually. No architecture decisions before this signal exists.
+5. Source-adapter interface — define a pluggable `JobSourceAdapter` contract (interface + textSource + adapter shape). Enables structured feeds without changing the core cache/score stack.
+6. First structured job source — evaluate lowest-friction job data source that provides full JD text (cost, reliability, coverage as decision criteria). Ship one adapter behind the interface.
+7. Scored job recommendations on /jobs — once per-user inventory exceeds a useful threshold, surface ranked recommendations from canonical inventory. Keep calibration as the personalization layer.
+
+NOT NEXT (settled — do not start without explicit PM decision):
+- Broad DOM-based acquisition — resolved not viable. Requires backend inventory layer (step 6+) that does not yet exist. Zero-click broad overlay is a display-layer feature that depends on inventory, not the other way around.
+- Scraper-first acquisition — explicitly deferred. Not the default path. See architectural foundation above.
+- Supply expansion before observing usage — do not build acquisition infrastructure before validating that users engage with what already exists.
+
+PHASE COMPLETION CRITERIA:
+- [ ] Real-user engagement on /jobs confirmed (≥1 job viewed or ingest-submitted per active session across first 50 post-beta sessions)
+- [ ] Source-adapter interface defined, documented, and reviewed by PM
+- [ ] First non-user-paste job source delivering full-JD records successfully stored in CanonicalJob
+- [ ] /jobs surfaces scored job recommendations from canonical inventory (not just user-touched jobs)
+
+---
+
+Milestone — Desktop Stabilization & Beta Readiness (COMPLETE)
+---
+STATUS: COMPLETE — entered 2026-03-15, closed 2026-03-29 at commit `de42c02`. All five beta gates CLOSED on production (`stable` = `main` = `de42c02`). Extension v0.9.45 live, Canonical Job Cache shipped, /jobs page live, user-directed ingestion live.
 
 PHASE DEFINITION:
 - "Desktop Stabilization" means all Signal & Surface Intelligence (SSI) subsystems are implemented and under structured validation.

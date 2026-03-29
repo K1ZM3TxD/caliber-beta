@@ -136,3 +136,42 @@ Beneath the hero card, a scoring philosophy section explains Caliber's approach 
 - No title scores are shown on this page.
 - No manual job paste or inline fit results appear on this page.
 - The extension CTA appears above the title card — it is the primary next action.
+
+---
+
+## Canonical Job Inventory (Post-Beta Architecture Direction)
+
+### Strategic Role
+
+The **Canonical Job Cache** (`CanonicalJob` + `JobScoreCache` Prisma models) is the strategic backend substrate for all future job-inventory, recommendation, and scoring-history features.
+
+- Every trusted score write (sidecard click, user-directed paste, future structured feeds) lands in this schema.
+- `textSource` distinguishes trust levels: `sidecard_full` > `pipeline_save`. Prescan sources (`card_text_prescan`) never write canonical records.
+- Per-job, per-session score caches mean the same job can be re-evaluated against different calibration sessions without re-scoring.
+
+### Separation of Concerns
+
+**Job acquisition** and **job intelligence** are intentionally separate:
+
+| Layer | Responsibility | Examples |
+|-------|----------------|---------|
+| Acquisition | Get full-JD job records into the CanonicalJob table | Sidecard click, user paste via `/api/jobs/ingest`, future structured feed adapters |
+| Intelligence | Score, rank, explain, and surface jobs given a calibration context | `runIntegrationSeam`, `computeHiringRealityCheck`, `evaluateWorkMode`, `/jobs` page |
+
+The intelligence layer does not care how jobs arrived. A job scored via sidecard click and a job submitted via the ingest form are identical to the scoring engine.
+
+### Source Adapter Model (Intended, Not Yet Built)
+
+Future non-user-initiated job sources will be added via a **pluggable source adapter** pattern — not by changing the core cache or score stack. Each adapter delivers `{ sourceUrl, title, company, jobText, textSource }` to `writeTrustedScoreSafe`. The schema and scoring pipeline remain unchanged.
+
+**Adapter evaluation criteria** (in priority order): full JD text available → legal/terms compliance → data freshness/reliability → cost → coverage breadth.
+
+**What is not a valid acquisition strategy:**
+- Scraping LinkedIn or Indeed — both explicitly prohibit it in their ToS; card DOM contains no JD text anyway.
+- DOM prescan — card DOM has no JD; produces structurally inflated, unreliable scores (Issue #117, suppressed since v0.9.42).
+- Raw URL fetch for user-submitted jobs — LinkedIn/Indeed are JS-rendered SPAs; server-side fetch returns an empty shell.
+
+### /jobs as the Inventory Surface
+
+`/jobs` is the primary web surface for a user's scored job inventory. It renders from `GET /api/jobs/known` (CanonicalJob + JobScoreCache joins, ordered by recency or score). It is intentionally not a job-board — it shows only jobs that have been scored against the user's calibration. Future recommendation features build on top of this surface once per-user inventory is large enough to be useful.
+

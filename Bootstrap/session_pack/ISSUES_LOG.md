@@ -3,9 +3,16 @@
 
 ## Current Open Issues
 
+121. Post-beta roadmap sequence — source-adapter interface PM decision — **OPEN** (2026-03-29)
+  - **What this tracks:** PM decision required to define the `JobSourceAdapter` interface before any structured job source is implemented. The interface must be settled before implementation begins so that adapters remain interchangeable and the core cache/score stack stays unchanged.
+  - **Decision inputs needed:** (1) Confirm real-user engagement on /jobs before prioritizing (see Issue #120 carry-forward). (2) Evaluate candidate job data sources: decision criteria = full JD text available, cost, reliability, coverage. (3) Define adapter shape: minimum contract = `{ sourceId, sourceUrl, title, company, jobText, textSource }`. (4) Decide whether the first adapter ships as a background job, a webhook, or an on-demand pull.
+  - **Not yet:** No implementation until PM reviews usage data and decides the first source. Do not begin building before this issue is resolved.
+  - **Status:** OPEN — awaiting PM decision after observing /jobs engagement.
+
 120. User-directed job ingestion — first intentional ingestion path — **OPEN** (2026-03-29)
   - **What:** `POST /api/jobs/ingest` + "Score a job manually" form on `/jobs`. URL + pasted JD text → score + Canonical Job Cache write. SSRF guard (private IP blacklist) + ≥200-char text gate.
   - **Carry-forward considerations:** (1) Title/company auto-extract from pasted text — currently empty unless caller provides them; could use simple regex on "Company:" / "About the company" patterns. (2) Duplicate handling — route always re-scores; `alreadyKnown: true` is returned but no special UI treatment. (3) `/jobs` "empty" state now shows the Add Job form — validate that this promotes action for first-time users without the extension.
+  - **Observe before expanding:** Measure whether users engage with the manual ingest form. If engagement is low, do not invest in more acquisition infrastructure before understanding why. If engagement is high, prioritize the source-adapter interface (Issue #121).
   - **Status:** OPEN — shipped 2026-03-29. No blockers. Carry-forward items are PM priority decisions.
 
 117. Product capability boundary — unsafe DOM prescan is not a supported product behavior — **CLOSED** (2026-03-29)

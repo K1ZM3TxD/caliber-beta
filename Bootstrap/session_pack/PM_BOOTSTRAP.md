@@ -121,6 +121,25 @@ Any coder task that touches UX or UI must include explicit references to the gov
 
 ---
 
+## Roadmap Sequencing Guard (Post-Beta, 2026-03-29)
+
+**Before proposing a new implementation task**, check `Bootstrap/milestones.md` → Post-Beta: Canonical Job Inventory Expansion — NEXT SEQUENCE section. That section is the authoritative ordered list of next steps.
+
+The following architecture questions are **settled — do not reopen:**
+- DOM prescan as an acquisition strategy — ruled out. Card DOM has no JD text; scores are structurally inflated; suppressed since v0.9.42.
+- Scraper-first job acquisition — explicitly deferred. Fragile, legally risky, not the intended path.
+- Broad overlay coverage without backend inventory — a display-layer feature that depends on the inventory layer, not the other way around.
+
+The following are **the correct next implementation steps in order:**
+1. Observe real usage on `/jobs` and manual ingest form before expanding acquisition infrastructure.
+2. Source-adapter interface definition (PM decision → Issue #121).
+3. First structured job source (one adapter, evaluate candidates per criteria in `PROJECT_OVERVIEW.md`).
+4. Scored job recommendations on `/jobs` once per-user inventory is above a useful threshold.
+
+If a proposed task does not fit this sequence, PM should explicitly state why and whether this qualifies as a BREAK+UPDATE event.
+
+---
+
 ## Workflow Lessons (2026-03-07)
 
 ### A. Extension Collision Rule
