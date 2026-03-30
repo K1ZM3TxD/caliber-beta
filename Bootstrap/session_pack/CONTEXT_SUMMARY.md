@@ -4,6 +4,17 @@
 
 ## Project Status (2026-03-14, Beta Gate Resequenced)
 
+- **Session decision — 2026-03-30 (Post-Cache Decision Consolidation + UX Artifact Removal):**
+  - Seven categories of post-cache product/architecture decisions encoded across canonical session-pack docs. These decisions existed only in PM chat history and lacked durable documentation:
+  - **(1) Score-speed-first priority:** Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring. Detached writes only. Cosmetic fields must not justify blocking DB reads on the scoring path. Encoded in EXECUTION_CONTRACT.md and KERNEL.md.
+  - **(2) Canonical jobs global, fit per-user:** Canonical jobs are global; fit judgments are per user. Shared job knowledge (JD text, company, metadata) can be reused; user-specific fit scores must not be blindly reused across different users. Encoded in KERNEL.md and PROJECT_OVERVIEW.md.
+  - **(3) Cross-surface platform truth:** Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer. Extension is one acquisition/interaction surface, not the only surface. Do not overstate mobile — it is a future possibility, not a current capability.
+  - **(4) Acquisition strategy:** Job acquisition and job intelligence are separate concerns. No scraper-first. Preferred expansion path is provider-aware, low-risk, user-directed. Safer sources: ATS/public APIs, employer JSON-LD, user imports.
+  - **(5) UX background treatment:** Shared radial-gradient green glow artifact removed from all 6 web app pages (commit `89141f2`). Simpler near-black background preferred. Future intentional redesign may revisit, but conspicuous glow is not the default.
+  - **(6) Branch/release policy:** Builder pushes to `main`; PM validates; promotion to `stable` is separate. (Previously documented 2026-03-29.)
+  - **(7) Product truth (sidecard-primary, overlay/backfill reactive):** (Previously documented 2026-03-29.)
+  - See BREAK+UPDATE 2026-03-30 for full log entry.
+
 - **Session decision — 2026-03-29 (Branch policy encoded in coder handoff template):**
   - Explicit branch/release rule added to `Bootstrap/session_pack/PM_BOOTSTRAP.md`. The BRANCH POLICY block is now a required field in every coder task handoff. Rule: builder pushes all task work to `main`; PM validates on preview / `main`; promotion to `stable` is a separate PM-controlled release action. Builders do not push directly to `stable` as part of normal task delivery. This separates implementation delivery (`main`) from production promotion (`stable`) as a durable operating contract.
 

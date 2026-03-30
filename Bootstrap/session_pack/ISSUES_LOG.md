@@ -4,6 +4,19 @@
 ## Current Open Issues
 
 122. First structured job source — PM decision required — **OPEN** (2026-03-30)
+
+123. Shared radial-gradient green glow artifact on all pages — **RESOLVED** (2026-03-30)
+  - **Symptom:** All major web app pages (signin, calibration, pipeline, score, tailor, IngestLayout) had a conspicuous shared radial-gradient green glow overlay (`radial-gradient(ellipse ... rgba(74,222,128,...))`) that was not an intentional design choice — copy-pasted from early shell explorations.
+  - **Fix:** Removed the gradient overlay `<div>` from all 6 affected page files. Simpler near-black background retained. Commit `89141f2`.
+  - **UX direction:** Near-black background (`#050505`) is the default. Future intentional redesign may revisit background treatment, but conspicuous glow is not the default.
+  - **Files:** `app/signin/page.tsx`, `app/calibration/page.tsx`, `app/pipeline/page.tsx`, `app/score/ScoreClient.tsx`, `app/tailor/page.tsx`, `app/components/IngestLayout.tsx`.
+  - **Status:** RESOLVED — 2026-03-30.
+
+124. Post-cache decision consolidation — documentation catch-up — **RESOLVED** (2026-03-30)
+  - **What:** Seven categories of post-cache product/architecture decisions existed only in PM chat history and were not encoded in canonical docs. This task encodes them across the session-pack.
+  - **Categories:** (1) Product truth (sidecard-primary, overlay/backfill), (2) Score-speed-first, (3) Canonical jobs global / fit per-user, (4) Acquisition strategy (no scraper-first), (5) Cross-surface platform truth, (6) Branch/release policy, (7) UX background treatment.
+  - **Key phrases now canonical:** "Canonical jobs are global; fit judgments are per user." / "Job acquisition and job intelligence are separate concerns." / "Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring." / "Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer."
+  - **Status:** RESOLVED — 2026-03-30. See BREAK_AND_UPDATE.md entry for the same date.
   - **What this tracks:** Now that the `JobSourceAdapter` interface is shipped (Issue #121 resolved), PM must decide which structured job data source to pursue first. Decision criteria: full JD text available, cost, reliability, coverage.
   - **Candidate source types:** ATS public APIs (Lever, Greenhouse), employer JobPosting JSON-LD, licensed feeds.
   - **Adapter ready:** `atsApiAdapter`, `employerJsonLdAdapter`, and `licensedFeedAdapter` stubs exist in `lib/job_source_adapters.ts` with validation and normalization logic. First real implementation requires choosing the source and building the acquisition/fetch layer.
@@ -994,6 +1007,7 @@ curl http://localhost:3000/api/calibration/result?calibrationId=<SESSION_ID> | j
   - Visual baseline restored to commit a211182 (7b03a18): lowered header + lowered ambient gradient across all pages. This is the current stable visual baseline.
   - Broader shared-shell framework (single owner for gradient, hero offset, content width) is NOT yet locked. Pages use page-local shell ownership.
   - Approved primitives still apply: wide ambient gradient over #050505, outlined green buttons, no sharp centered line, calm dark premium feel.
+  - **Update (2026-03-30):** Shared radial-gradient green glow artifact removed from all pages (Issue #123). Near-black background is the approved default. Conspicuous glow is not part of the visual baseline.
   - "Match the pipeline page" is NO LONGER a valid design instruction — must reference approved visual primitives and a211182 baseline values.
   - **Remaining:** Shared shell framework decision (see #47).
 

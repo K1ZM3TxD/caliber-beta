@@ -235,6 +235,35 @@ Cache hits may only be served to the **same `sessionId`** used to write them.
 - The `_fromCache: true` flag on cache-served responses is **internal only** — it must not drive UI differentiation visible to the user unless explicitly designed for that purpose.
 - **Prescan calls are excluded** from cache-first logic (`isPrescan === true` guard). The cache is only consulted for full sidecard scoring flows.
 
+## Canonical Jobs Global, Fit Per-User Invariant (2026-03-30)
+
+**Canonical jobs are global; fit judgments are per user.**
+
+- A `CanonicalJob` record (JD text, company, metadata, canonical key) is shared knowledge. The same job exists once in the table regardless of which user scored it or how it arrived.
+- `JobScoreCache` entries are user/session-specific. A fit score reflects a specific calibration context and must not be blindly reused across different users.
+- Features that display, rank, or recommend jobs must join `CanonicalJob` (global) with `JobScoreCache` (per-session/user) at query time.
+- Cross-user fit reuse (e.g., "users like you scored this job X") is a separate product decision requiring explicit PM approval. The default is: do not reuse.
+
+## Score-Speed-First Critical-Path Invariant (2026-03-30)
+
+**Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring.**
+
+- The primary fit response (`/api/extension/fit` POST → sidecard render) must remain sub-second. This is a non-negotiable user-experience constraint.
+- Cache writes (`writeTrustedScore`, `writeTrustedScoreSafe`) are **detached** — fire-and-forget, never awaited in the response path.
+- Telemetry writes (`appendTelemetryEvent`) are **detached** — never awaited in the response path.
+- Cosmetic or enrichment fields (company logo, location normalization, salary data) must not add blocking DB reads to the scoring path. If enrichment is needed, it runs as a post-response background task.
+- Any code change that introduces a blocking I/O call on the scoring critical path is a regression and must be reverted or refactored to detached execution.
+- See `EXECUTION_CONTRACT.md` § Scoring Performance Priority Rule for coder-facing enforcement.
+
+## Visual Background Treatment Invariant (2026-03-30)
+
+The web app uses a simple **near-black background** (`#050505`). Conspicuous shared glow effects are not the default.
+
+- The shared radial-gradient green glow overlay that was present on all pages has been intentionally removed (commit `89141f2`).
+- Future intentional background redesign may introduce new visual treatments, but only as an explicit PM-directed design decision — not as copy-pasted artifacts.
+- Approved visual primitives are defined in `docs/ui-constitution.md`. Background changes must be documented there.
+- Adding conspicuous glow or gradient overlay effects to pages without PM approval and UI Constitution update is a UX regression.
+
 
 
 - `/calibration` is a direction-setting launchpad, not a job-scoring surface.

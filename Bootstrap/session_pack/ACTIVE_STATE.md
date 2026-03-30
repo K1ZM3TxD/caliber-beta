@@ -29,12 +29,22 @@ Beta gates (all CLOSED on `31ab6a1`): (1) BST working, (2) sidecard stable, (3) 
 - Builders do NOT push directly to `stable` as part of normal task execution unless PM explicitly instructs it in a separate release step.
 - This rule is encoded in the coder handoff template in `Bootstrap/session_pack/PM_BOOTSTRAP.md` as a required BRANCH POLICY block.
 
+**Post-Cache Architecture Doctrine (2026-03-30):**
+- **Score speed first:** Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring. Detached writes only for cache persistence and telemetry. Cosmetic fields must not justify blocking DB reads on the scoring path.
+- **Canonical jobs global, fit per-user:** Canonical jobs are global; fit judgments are per user. Shared job knowledge (JD text, company, metadata) can be reused. User-specific fit scores must not be blindly reused across different users.
+- **Cross-surface platform:** Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer. Extension is one acquisition/interaction surface, not the only surface.
+- **Job acquisition ≠ job intelligence:** Job acquisition and job intelligence are separate concerns. The scoring engine does not depend on how jobs arrive. Source-adapter architecture is the intended backend direction.
+- **UX: near-black background preferred.** Shared radial-gradient green glow artifact removed from all pages (commit `89141f2`). Simpler background is the default.
+
+See `Bootstrap/session_pack/KERNEL.md` for durable invariants; `Bootstrap/session_pack/EXECUTION_CONTRACT.md` for scoring-path performance constraints.
+
 **Next Move (for the next PM session):**
-The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The Job Source Adapter layer is now shipped (`lib/job_source_adapter.ts` + `lib/job_source_adapters.ts`), providing a pluggable ingestion contract for all current and future source types. The next implementation sequence is:
-1. **Observe real usage** — see what jobs users score manually via the ingest form; confirm /jobs has engagement. No architecture decisions before usage signal exists.
-2. ~~Source-adapter interface~~ — **DONE (2026-03-30).** `JobSourceAdapter` contract defined with provenance, trust levels, processing rights, and canonicalization entry. Six adapters implemented: `extension_sidecard`, `extension_pipeline`, `user_import`, `ats_api`, `employer_jsonld`, `licensed_feed`. 44 tests pass.
-3. **First structured job source** — evaluate one low-friction job data source that provides full JD text. Decision criteria: full JD text available, cost, reliability, coverage. Ship one adapter.
-4. **Scored recommendations on /jobs** — once inventory exceeds a useful per-user threshold, surface ranked scored-job recommendations. Calibration is the personalization layer.
+The product is post-beta. The Canonical Job Cache is the foundation for all future job-inventory work. The Job Source Adapter layer is shipped (`lib/job_source_adapter.ts` + `lib/job_source_adapters.ts`), providing a pluggable ingestion contract. Provider-aware URL ingestion is shipped — users can now submit a bare job URL and Caliber will classify the provider and fetch job data server-side. The next implementation sequence is:
+1. **Observe real usage** — see what jobs users score manually via the ingest form (both paste and URL-only modes); confirm /jobs has engagement. No architecture decisions before usage signal exists.
+2. ~~Source-adapter interface~~ — **DONE (2026-03-30).** `JobSourceAdapter` contract defined with provenance, trust levels, processing rights, and canonicalization entry. Six adapters implemented.
+3. ~~Provider-aware URL ingestion~~ — **DONE (2026-03-30).** `POST /api/jobs/ingest` Mode 2: URL-only with provider classification. Supported ATS: Greenhouse, Lever, Ashby, SmartRecruiters (public APIs). Employer pages: JSON-LD extraction. Restricted: LinkedIn/Indeed fail immediately with guidance. 40 tests pass.
+4. **First structured job source** — evaluate one low-friction job data source that provides full JD text. Decision criteria: full JD text available, cost, reliability, coverage. Ship one adapter.
+5. **Scored recommendations on /jobs** — once inventory exceeds a useful per-user threshold, surface ranked scored-job recommendations. Calibration is the personalization layer.
 
 **What is not next:** Scraper-first acquisition (fragile, legal risk), zero-click broad DOM overlay (requires inventory layer first, not more DOM probing), supply expansion before observing engagement.
 
@@ -411,4 +421,4 @@ _Last updated: 2026-03-26 (tailor specificity fix shipped; STRONG-path now corre
 
 **Session safety invariant:** Cache hits served only for matching `sessionId`. Cross-session reuse prohibited.
 
-_Last updated: 2026-03-29 (cache consumer surfaces delivered)_
+_Last updated: 2026-03-30 (post-cache decision consolidation encoded across session-pack; halo artifact removed from all pages)_

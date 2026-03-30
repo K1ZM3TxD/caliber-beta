@@ -149,6 +149,12 @@ The **Canonical Job Cache** (`CanonicalJob` + `JobScoreCache` Prisma models) is 
 - `textSource` distinguishes trust levels: `sidecard_full` > `pipeline_save`. Prescan sources (`card_text_prescan`) never write canonical records.
 - Per-job, per-session score caches mean the same job can be re-evaluated against different calibration sessions without re-scoring.
 
+**Canonical jobs are global; fit judgments are per user.** A `CanonicalJob` record (JD text, company, metadata) is shared knowledge — the same job exists once regardless of who scored it. `JobScoreCache` entries are user/session-specific — fit scores must not be blindly reused across different users.
+
+### Cross-Surface Platform
+
+Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer. The extension is one acquisition/interaction surface, not the only surface. The `/jobs` web page already consumes the same canonical inventory. Future surfaces (mobile, email digest, API) would consume the same layer without changes to the intelligence stack.
+
 ### Separation of Concerns
 
 **Job acquisition** and **job intelligence** are intentionally separate:
@@ -160,9 +166,11 @@ The **Canonical Job Cache** (`CanonicalJob` + `JobScoreCache` Prisma models) is 
 
 The intelligence layer does not care how jobs arrived. A job scored via sidecard click and a job submitted via the ingest form are identical to the scoring engine.
 
-### Source Adapter Model (Intended, Not Yet Built)
+### Source Adapter Model (Shipped 2026-03-30)
 
-Future non-user-initiated job sources will be added via a **pluggable source adapter** pattern — not by changing the core cache or score stack. Each adapter delivers `{ sourceUrl, title, company, jobText, textSource }` to `writeTrustedScoreSafe`. The schema and scoring pipeline remain unchanged.
+Job acquisition uses a **pluggable source adapter** pattern — the core cache and score stack are unchanged regardless of how jobs arrive. `lib/job_source_adapter.ts` defines the `JobSourceAdapter<TRaw>` interface with provenance, trust levels (`user_verified` | `api_structured` | `feed_unverified`), processing rights, and `canonicalizeAndWrite()` entry. Six concrete adapters shipped in `lib/job_source_adapters.ts`: `extension_sidecard`, `extension_pipeline`, `user_import`, `ats_api`, `employer_jsonld`, `licensed_feed`. 44 tests pass.
+
+Job acquisition and job intelligence are separate concerns. The scoring engine does not depend on how jobs arrive.
 
 **Adapter evaluation criteria** (in priority order): full JD text available → legal/terms compliance → data freshness/reliability → cost → coverage breadth.
 

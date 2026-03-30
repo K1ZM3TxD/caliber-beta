@@ -6,6 +6,16 @@ STATUS: ACTIVE — entered 2026-03-29. Beta is live; extension surface is stable
 
 PROCESS NOTE (2026-03-29): Branch policy now explicit in coder handoff template. All implementation commits land on `main` first; PM validates on preview / `main`; promotion to `stable` is a separate PM-controlled release action. See `Bootstrap/session_pack/PM_BOOTSTRAP.md` § Black-Box Template for Coder Handoff.
 
+PROCESS NOTE (2026-03-30 — Post-Cache Decision Consolidation):
+Seven categories of post-cache product/architecture decisions documented across session-pack. Key principles now encoded as durable doctrine:
+- **Score speed first:** Score speed is the first priority on the fit path. Cache/telemetry writes must remain detached from the primary fit response. Cosmetic fields must not justify blocking DB reads on the scoring path.
+- **Canonical jobs global, fit per-user:** Canonical jobs are global/shared records. Fit judgments are user-specific. Shared job knowledge (JD text, company, metadata) can be reused; user-specific fit scores must not be blindly reused across different users.
+- **Job acquisition ≠ job intelligence:** The scoring engine does not depend on how jobs arrive. Source-adapter architecture is the intended backend direction for all future ingestion.
+- **Cross-surface platform:** Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer. Extension is one acquisition/interaction surface, not the only surface.
+- **No scraper-first:** Preferred acquisition expansion path is provider-aware, low-risk, user-directed. Safer sources: ATS/public APIs, employer JSON-LD, user imports. Broader inventory is a later sourcing problem.
+- **UX: no halo/glow:** Shared radial-gradient green glow artifact removed from all pages. Simpler near-black background preferred. Future intentional redesign may revisit, but conspicuous glow is not the default.
+See `Bootstrap/session_pack/KERNEL.md` for durable invariants; `Bootstrap/session_pack/EXECUTION_CONTRACT.md` for scoring-path performance constraints.
+
 ARCHITECTURAL FOUNDATION (settled — do not reopen):
 - Sidecard-primary scoring is the confirmed working model. Extension scores jobs from full JDs; overlays/backfill are reactive.
 - Canonical Job Cache is the strategic backend substrate. Job records and per-session score caches accumulate as users interact; `textSource` quality guard enforces trusted-write-only invariant.
@@ -20,6 +30,7 @@ NEXT SEQUENCE (in order — do not resequence without PM decision):
 3. ✅ First low-risk ingestion path — user-directed URL + text paste via /api/jobs/ingest — DONE (2026-03-29)
 4. Observe real usage — confirm /jobs engagement, measure voluntary ingest rate, identify what job types users submit manually. No architecture decisions before this signal exists.
 5. ✅ Source-adapter interface — define a pluggable `JobSourceAdapter` contract (interface + textSource + adapter shape). Enables structured feeds without changing the core cache/score stack. — DONE (2026-03-30)
+5b. ✅ Provider-aware URL ingestion — URL-only mode on `/api/jobs/ingest` classifies URLs by provider (Greenhouse/Lever/Ashby/SmartRecruiters via public APIs, employer JSON-LD extraction) and fetches job data server-side. Restricted boards (LinkedIn/Indeed) fail immediately with guidance. Unknown pages attempt JSON-LD extraction. — DONE (2026-03-30)
 6. First structured job source — evaluate lowest-friction job data source that provides full JD text (cost, reliability, coverage as decision criteria). Ship one adapter behind the interface.
 7. Scored job recommendations on /jobs — once per-user inventory exceeds a useful threshold, surface ranked recommendations from canonical inventory. Keep calibration as the personalization layer.
 
@@ -31,6 +42,10 @@ NOT NEXT (settled — do not start without explicit PM decision):
 BREAK + UPDATE — 2026-03-30
 Job Source Adapter layer shipped. `lib/job_source_adapter.ts` defines the adapter interface, provenance/trust/rights types, and canonicalization entry. `lib/job_source_adapters.ts` provides concrete adapters for all current + planned source types (extension_sidecard, extension_pipeline, user_import, ats_api, employer_jsonld, licensed_feed). 44 tests pass. Existing write paths unchanged — adapter layer bridges to `writeTrustedScore` for backward compat. DONE.
 NEXT: Observe real usage (step 4), then first structured job source (step 6).
+
+BREAK + UPDATE — 2026-03-30 (Provider-Aware URL Ingestion)
+Provider-aware URL intake shipped. `POST /api/jobs/ingest` now supports two modes: Mode 1 (URL + pasted text, existing) and Mode 2 (URL only, provider-aware fetch). Provider detection (`lib/job_url_provider.ts`) classifies URLs into supported ATS (Greenhouse/Lever/Ashby/SmartRecruiters), restricted boards (LinkedIn/Indeed), or unknown. ATS fetch (`lib/job_url_fetch.ts`) routes to public APIs or JSON-LD extraction. Restricted boards fail immediately with user guidance. Unknown pages attempt JSON-LD extraction. Updated `lib/job_ingest_validation.ts` (extracted `validateIngestUrl`) and `app/api/jobs/ingest/route.ts` (dual-mode handler). 40 new tests pass (provider classification + fetch + JSON-LD extraction). Existing Mode 1 flow unchanged.
+NEXT: Observe real usage, then first structured job source (step 6).
 
 PHASE COMPLETION CRITERIA:
 - [ ] Real-user engagement on /jobs confirmed (≥1 job viewed or ingest-submitted per active session across first 50 post-beta sessions)

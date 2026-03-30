@@ -187,6 +187,18 @@ Chrome Web Store uploads are **milestone-gated, not fix-gated.**
 
 **Violation:** Submitting a routine-fix build to the Chrome Store without PM approval is a process defect. Post-beta release cadence may change.
 
+## Scoring Performance Priority Rule (2026-03-30)
+
+**Score speed is the first priority on the fit path.** Any code change that touches the scoring request path (`/api/extension/fit`, `evaluateWorkMode`, `runIntegrationSeam`) must preserve sub-second response time as the primary constraint.
+
+**Hard rules:**
+- Cache writes (`writeTrustedScore`, `writeTrustedScoreSafe`) must be **detached** (fire-and-forget). They must not block the scoring response.
+- Telemetry writes (`appendTelemetryEvent`) must be **detached**. They must not block the scoring response.
+- Cosmetic field lookups (company logo, location enrichment, etc.) must not justify adding blocking DB reads to the scoring path.
+- If a proposed feature adds latency to the primary fit response, it must be implemented as a detached post-response operation or rejected.
+
+**Test criterion:** Any PR that increases p95 response time on `/api/extension/fit` by more than 100ms requires PM review before merge.
+
 ## PM/Coder Sequencing Guardrail (2026-03-08)
 
 Locked task order for current phase:

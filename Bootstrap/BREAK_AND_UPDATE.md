@@ -81,6 +81,58 @@ When the change lands, report:
 
 ---
 
+### 2026-03-30 — Post-Cache Decision Consolidation (Documentation Catch-Up)
+
+**What changed:** Seven categories of product, architecture, UX, release, and process decisions made after the Canonical Job Cache rollout are now encoded in canonical docs. These decisions had been influencing handoffs and implementation sequencing but were not fully captured in the session-pack documentation.
+
+**Why it changed:** The product is no longer operating from the older "extension-only / DOM-prescore-first" mental model. The canonical docs needed to reflect the newer backend-centered, cross-surface, source-adapter direction and the explicit branch policy. Without documenting these decisions, future PMs would need to rediscover them from scattered chat history.
+
+**Decisions now encoded:**
+
+1. **Product truth / extension behavior:** Sidecard remains primary. Overlay/backfill working on LinkedIn and Indeed. Unsafe DOM prescan is not the long-term strategy. Reactive/backfilled overlays are acceptable; broad reliable prescore is not assumed.
+2. **Performance priority:** Score speed is the first priority on the fit path. Order: (1) score speed, (2) fit/supports/stretch/executive summary, (3) telemetry/DB caching/informational metadata. Backend cache writes must remain detached from the primary fit response path. Cosmetic/informational fields must not justify blocking DB reads on the scoring path.
+3. **Canonical job architecture:** Canonical jobs are global/shared records. Fit judgments are user-specific. Shared job knowledge can be reused across users. User-specific fit scores should not be blindly reused across different users. Job acquisition and job intelligence are separate concerns.
+4. **Roadmap / acquisition strategy:** Do not assume scraper-first. First preferred acquisition expansion is provider-aware, low-risk, user-directed ingestion. Safer sources: ATS/public APIs, employer structured JobPosting/JSON-LD, user imports. Broader inventory is a later sourcing problem. Source-adapter architecture is the intended backend direction.
+5. **Cross-surface/platform truth:** Canonical job inventory makes Caliber broader than a desktop extension. Extension is one acquisition/interaction surface for a larger job-intelligence platform. Backend inventory unlocks web/mobile usefulness.
+6. **Release / branch policy:** Builder pushes to `main`; PM validates; promotion to `stable` is separate. Builders should not push directly to `stable` as part of normal task execution.
+7. **UX direction:** Shared halo/gradient background artifact is undesirable; simpler near-black background is preferred over conspicuous glow effects.
+
+**What behavior is now expected:**
+- Future PMs can reload from session-pack docs alone and understand the current operating truth, next work sequence, and architectural decisions
+- Score-speed-first is a documented execution constraint
+- Branch policy is explicit in handoff templates and execution contract
+- Cross-surface platform implications are stated without overstating mobile as fully shipped
+
+**What behavior is explicitly no longer expected:**
+- No future PM should need to rediscover these decisions from chat history
+- No roadmap language should imply scraper-first, unrestricted cross-user fit reuse, or direct-to-stable builder delivery
+
+**Risk / fallout:** If these decisions are not documented, future PMs may reopen settled debates, write misaligned handoffs, or assume the wrong architecture/release model.
+
+**Smallest observable proof:** A future PM loading the session-pack docs can identify each of the 7 decision categories above without referencing any chat history.
+
+**Files:** `Bootstrap/BREAK_AND_UPDATE.md`, `Bootstrap/milestones.md`, `Bootstrap/session_pack/ACTIVE_STATE.md`, `Bootstrap/session_pack/ISSUES_LOG.md`, `Bootstrap/session_pack/CONTEXT_SUMMARY.md`, `Bootstrap/session_pack/PROJECT_OVERVIEW.md`, `Bootstrap/session_pack/PM_BOOTSTRAP.md`, `Bootstrap/session_pack/EXECUTION_CONTRACT.md`, `Bootstrap/session_pack/KERNEL.md`
+
+---
+
+### 2026-03-30 — Shared Halo/Gradient Background Artifact Removed
+
+**What changed:** Removed the shared radial-gradient green glow overlays from all pages using the background treatment (signin, calibration, pipeline, score, tailor, IngestLayout). Background now renders as clean near-black without bloom artifacts.
+
+**Why it changed:** On higher-quality displays the glow effect read as an unintended visual defect. PM confirmed it was a shared visual issue, not page-local taste.
+
+**What is now expected:** Pages render with a clean dark background. No visible halo ring/bloom artifact on any page.
+
+**What is explicitly no longer expected:** No conspicuous shared glow halo behind page content.
+
+**Risk / fallout:** Narrow shared-style cleanup. No layout, copy, or structural changes.
+
+**Smallest observable proof:** Multiple pages that previously showed the halo render cleanly.
+
+**Files:** `app/calibration/page.tsx`, `app/components/IngestLayout.tsx`, `app/pipeline/page.tsx`, `app/score/ScoreClient.tsx`, `app/signin/page.tsx`, `app/tailor/page.tsx`
+
+---
+
 ### 2026-03-29 — Branch Policy Added to Coder Handoff Outline
 
 **What changed:** Explicit branch/release policy added to the canonical coder-task handoff template and Operating Rules in `Bootstrap/session_pack/PM_BOOTSTRAP.md`. The BRANCH POLICY block is now a required standard field in every coder task handoff.

@@ -140,9 +140,15 @@ The following architecture questions are **settled — do not reopen:**
 
 The following are **the correct next implementation steps in order:**
 1. Observe real usage on `/jobs` and manual ingest form before expanding acquisition infrastructure.
-2. Source-adapter interface definition (PM decision → Issue #121).
+2. ~~Source-adapter interface definition~~ — **DONE (2026-03-30).** `JobSourceAdapter` contract defined in `lib/job_source_adapter.ts`; 6 adapters in `lib/job_source_adapters.ts`; 44 tests pass.
 3. First structured job source (one adapter, evaluate candidates per criteria in `PROJECT_OVERVIEW.md`).
 4. Scored job recommendations on `/jobs` once per-user inventory is above a useful threshold.
+
+**Architecture mental model for PM sequencing:**
+- Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring.
+- Canonical jobs are global; fit judgments are per user. Do not propose features that reuse fit scores across users.
+- Canonical job inventory makes Caliber cross-surface: extension, web app, and future mobile experiences can consume the same job intelligence layer. Do not overstate mobile — it is a future possibility, not a current capability.
+- Job acquisition and job intelligence are separate concerns. Evaluate acquisition sources on their own merits; the scoring engine does not change.
 
 If a proposed task does not fit this sequence, PM should explicitly state why and whether this qualifies as a BREAK+UPDATE event.
 
