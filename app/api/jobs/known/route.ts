@@ -16,6 +16,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { listJobsForSession, listJobsForUser, type KnownJobEntry } from "@/lib/job_cache_store";
+import { normalizeJobUrl } from "@/lib/pipeline_store";
+import {
+  pipelineStagesForUser,
+  pipelineStagesForSession,
+  type PipelineStage,
+} from "@/lib/pipeline_store_db";
 
 const CHROME_EXT_ORIGIN_RE = /^chrome-extension:\/\/[a-z]{32}$/;
 
@@ -59,7 +65,8 @@ export async function GET(req: NextRequest) {
     if (!sessionId) return json({ ok: false, error: "Missing sessionId" }, 400);
     try {
       const entries = await listJobsForSession(sessionId, limit);
-      return json({ ok: true, entries: entries.map(toApiShape) });
+      const stages = await pipelineStagesForSession(sessionId);
+      return json({ ok: true, entries: entries.map((e) => toApiShape(e, stages)) });
     } catch {
       return json({ ok: false, error: "Lookup failed" }, 500);
     }
@@ -70,7 +77,8 @@ export async function GET(req: NextRequest) {
   if (session?.user?.id) {
     try {
       const entries = await listJobsForUser(session.user.id, limit);
-      return json({ ok: true, entries: entries.map(toApiShape) });
+      const stages = await pipelineStagesForUser(session.user.id);
+      return json({ ok: true, entries: entries.map((e) => toApiShape(e, stages)) });
     } catch {
       return json({ ok: false, error: "Lookup failed" }, 500);
     }
@@ -79,7 +87,8 @@ export async function GET(req: NextRequest) {
   if (sessionId) {
     try {
       const entries = await listJobsForSession(sessionId, limit);
-      return json({ ok: true, entries: entries.map(toApiShape) });
+      const stages = await pipelineStagesForSession(sessionId);
+      return json({ ok: true, entries: entries.map((e) => toApiShape(e, stages)) });
     } catch {
       return json({ ok: false, error: "Lookup failed" }, 500);
     }
@@ -89,7 +98,8 @@ export async function GET(req: NextRequest) {
 }
 
 /** Shape returned to API consumers — strips jobText to keep payload small. */
-function toApiShape(entry: KnownJobEntry) {
+function toApiShape(entry: KnownJobEntry, pipelineStages: Map<string, PipelineStage>) {
+  const normalized = normalizeJobUrl(entry.job.sourceUrl);
   return {
     jobId: entry.job.id,
     canonicalKey: entry.job.canonicalKey,
@@ -103,8 +113,10 @@ function toApiShape(entry: KnownJobEntry) {
     hrcReason: entry.scoreCache.scorePayload.hrcReason ?? null,
     workModeCompat: entry.scoreCache.scorePayload.workModeCompat ?? null,
     supportsFit: entry.scoreCache.scorePayload.supportsFit.slice(0, 2),
+    stretchFactors: entry.scoreCache.scorePayload.stretchFactors.slice(0, 2),
     calibrationTitle: entry.scoreCache.scorePayload.calibrationTitle,
     textSource: entry.scoreCache.textSource,
     scoredAt: entry.scoreCache.scoredAt,
+    pipelineStage: pipelineStages.get(normalized) ?? null,
   };
 }

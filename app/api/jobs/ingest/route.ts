@@ -1,17 +1,25 @@
 // POST /api/jobs/ingest
 //
-// User-directed job ingestion: the user supplies a public job URL and pastes
-// the full job description text. The route scores the job against their active
-// calibration session and stores it in the Canonical Job Cache, exactly as if
-// the extension sidecard had triggered the score.
+// User-directed job ingestion with two modes:
 //
-// Body: { url: string, jobText: string, sessionId?: string }
+//   Mode 1 — URL + pasted text (existing):
+//     Body: { url: string, jobText: string, sessionId?: string }
+//     Validates text, scores, and writes to Canonical Job Cache.
+//
+//   Mode 2 — URL only (provider-aware fetch):
+//     Body: { url: string, sessionId?: string }
+//     Classifies URL provider, fetches job data via safe paths:
+//       - Supported ATS (Greenhouse/Lever/Ashby/SmartRecruiters): public API
+//       - Employer pages with JSON-LD: structured data extraction
+//       - Restricted boards (LinkedIn/Indeed): fails with guidance
+//       - Unknown pages: attempts JSON-LD extraction, fails if none found
 //
 // Returns:
-//   200 { ok: true, score, hrcBand, workModeCompat, supportsFit, canonicalKey, platform, alreadyKnown }
-//   400 { ok: false, error, field? }   — validation failure
-//   401 { ok: false, error }            — no active session
-//   500 { ok: false, error }            — scoring system failure
+//   200 { ok: true, score, hrcBand, workModeCompat, supportsFit, canonicalKey, platform, fetchSource? }
+//   400 { ok: false, error, field? }        — validation or fetch failure
+//   422 { ok: false, error, retryWithPaste } — URL fetch failed, user can paste text
+//   401 { ok: false, error }                 — no active session
+//   500 { ok: false, error }                 — scoring system failure
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -20,7 +28,8 @@ import { runIntegrationSeam } from "@/lib/integration_seam";
 import { computeHiringRealityCheck } from "@/lib/hiring_reality_check";
 import { evaluateWorkMode, generateWorkRealitySummary } from "@/lib/work_mode";
 import { writeTrustedScoreSafe, detectPlatform, buildCanonicalKey } from "@/lib/job_cache_store";
-import { validateIngestInput } from "@/lib/job_ingest_validation";
+import { validateIngestInput, validateIngestUrl } from "@/lib/job_ingest_validation";
+import { fetchJobFromUrl } from "@/lib/job_url_fetch";
 
 export const maxDuration = 30;
 
@@ -37,17 +46,56 @@ export async function POST(req: NextRequest) {
     return json({ ok: false, error: "Invalid request body." }, 400);
   }
 
-  // ── Input validation ────────────────────────────────────────────────────
-  const validation = validateIngestInput({ url: body.url, jobText: body.jobText });
-  if (!validation.ok) {
-    return json({ ok: false, error: validation.error, field: validation.field }, 400);
+  // ── Determine ingestion mode ────────────────────────────────────────────
+  // Mode 1: URL + jobText provided → validate both, use text directly
+  // Mode 2: URL only (no jobText)  → provider-aware fetch
+  const hasJobText = typeof body.jobText === "string" && body.jobText.toString().trim().length > 0;
+
+  let normalizedUrl: string;
+  let normalizedText: string;
+  let title: string;
+  let company: string;
+  let location: string | undefined;
+  let fetchSource: string | undefined;
+
+  if (hasJobText) {
+    // ── Mode 1: URL + pasted text (existing flow) ─────────────────────────
+    const validation = validateIngestInput({ url: body.url, jobText: body.jobText });
+    if (!validation.ok) {
+      return json({ ok: false, error: validation.error, field: validation.field }, 400);
+    }
+    normalizedUrl = validation.normalizedUrl;
+    normalizedText = validation.normalizedText;
+    title = typeof body.title === "string" ? body.title.trim() : "";
+    company = typeof body.company === "string" ? body.company.trim() : "";
+    location = undefined;
+  } else {
+    // ── Mode 2: URL only → provider-aware fetch ───────────────────────────
+    const urlValidation = validateIngestUrl(body.url);
+    if (!urlValidation.ok) {
+      return json({ ok: false, error: urlValidation.error, field: "url" }, 400);
+    }
+    normalizedUrl = urlValidation.normalizedUrl;
+
+    const fetchResult = await fetchJobFromUrl(normalizedUrl);
+    if (!fetchResult.ok) {
+      // Return 422 with retry guidance for fetch failures
+      return json({
+        ok: false,
+        error: fetchResult.error,
+        retryWithPaste: fetchResult.retryWithPaste,
+        provider: fetchResult.classification.kind === "ats" ? fetchResult.classification.provider
+          : fetchResult.classification.kind === "restricted" ? fetchResult.classification.provider
+          : undefined,
+      }, 422);
+    }
+
+    normalizedText = fetchResult.data.jobText;
+    title = fetchResult.data.title;
+    company = fetchResult.data.company;
+    location = fetchResult.data.location;
+    fetchSource = fetchResult.data.fetchSource;
   }
-
-  const { normalizedUrl, normalizedText } = validation;
-
-  // ── Title / company from body (optional; populated when caller has metadata) ──
-  const title = typeof body.title === "string" ? body.title.trim() : "";
-  const company = typeof body.company === "string" ? body.company.trim() : "";
 
   // ── Resolve sessionId ───────────────────────────────────────────────────
   // Priority: explicit body.sessionId → web auth user's latest → latest in store
@@ -136,6 +184,7 @@ export async function POST(req: NextRequest) {
     sourceUrl: normalizedUrl,
     title,
     company,
+    location,
     jobText: normalizedText,
     sessionId,
     score: finalScore,
@@ -164,5 +213,8 @@ export async function POST(req: NextRequest) {
     bottomLine: workRealitySummary,
     canonicalKey,
     platform,
+    ...(title ? { title } : {}),
+    ...(company ? { company } : {}),
+    ...(fetchSource ? { fetchSource } : {}),
   });
 }

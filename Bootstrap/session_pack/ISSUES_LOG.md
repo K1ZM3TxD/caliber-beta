@@ -3,6 +3,12 @@
 
 ## Current Open Issues
 
+125. /jobs ready-list improvements — **RESOLVED** (2026-03-30)
+  - **What:** `/jobs` upgraded from flat scored-jobs history to a practical ready-list surface using existing canonical inventory and per-user cache data.
+  - **Improvements:** (1) Pipeline state badges on job cards (Saved/Tailored/Applied/Interviewing/Offer). (2) URL-only ingest mode for supported ATS. (3) Stretch factors on strong-match cards. (4) Web platform filter pill. (5) Better freshness display (month+day for older items). (6) Score tier badges. (7) Better empty state with URL-only guidance. (8) Richer stats bar (saved count, avg score).
+  - **Files:** `app/jobs/page.tsx`, `app/api/jobs/known/route.ts`, `lib/pipeline_store_db.ts`.
+  - **Status:** RESOLVED — 2026-03-30.
+
 122. First structured job source — PM decision required — **OPEN** (2026-03-30)
 
 123. Shared radial-gradient green glow artifact on all pages — **RESOLVED** (2026-03-30)

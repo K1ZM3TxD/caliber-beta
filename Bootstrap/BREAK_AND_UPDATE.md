@@ -81,6 +81,34 @@ When the change lands, report:
 
 ---
 
+### 2026-03-30 — /jobs Ready-List Improvements
+
+**What changed:** `/jobs` upgraded from flat scored-jobs history to a more useful ready-list surface using existing canonical inventory and per-user cache data.
+
+**Why it changed:** With the source-adapter layer, provider-aware URL ingestion, and growing canonical inventory, `/jobs` needs to feel like a practical tool for reviewing and acting on scored jobs — not just a history log.
+
+**Improvements shipped:**
+1. **Pipeline state badges** — job cards now show "Saved" / "Tailored" / "Applied" / "Interviewing" / "Offer" badges derived from the user's pipeline entries. API enriched with batch pipeline-stage lookup.
+2. **URL-only ingest mode** — "Score a job" form now supports URL-only submission (no paste required) for supported ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters) and pages with JSON-LD structured data. Falls back to paste mode with guidance when server-side fetch fails.
+3. **Stretch factors on cards** — strong-match job cards now show the top stretch factor alongside the top fit reason for richer at-a-glance decision data.
+4. **Web platform filter** — filter pills now include "Web" when web-platform jobs exist (from manual ingest or ATS URLs).
+5. **Better freshness display** — relative time for recent items (hours/days), month+day for items older than 7 days.
+6. **Score tier badge** — each card's score column now shows a color-coded tier label (Excellent/Very Strong/Strong/Viable/Adjacent/Poor Fit).
+7. **Better empty state** — first-use guidance now mentions URL-only scoring, links to form, extension, and calibration.
+8. **Richer stats** — header shows saved count; footer shows average score.
+
+**What behavior is now expected:** `/jobs` is a practical ready-list for reviewing, sorting, filtering, and acting on known scored jobs.
+
+**What behavior is explicitly no longer expected:** `/jobs` is no longer just a flat history of sidecard sessions.
+
+**Risk / fallout:** Low. All improvements use existing data only. No new external fetching, no collaborative filtering, no fake ranking. Pipeline stage lookup adds one additional DB query per page load (single query, no N+1).
+
+**Smallest observable proof:** `/jobs` shows pipeline state badges, stretch factors, URL-only ingest works, and Web filter pill appears when web jobs exist.
+
+**Files:** `app/jobs/page.tsx`, `app/api/jobs/known/route.ts`, `lib/pipeline_store_db.ts`
+
+---
+
 ### 2026-03-30 — Post-Cache Decision Consolidation (Documentation Catch-Up)
 
 **What changed:** Seven categories of product, architecture, UX, release, and process decisions made after the Canonical Job Cache rollout are now encoded in canonical docs. These decisions had been influencing handoffs and implementation sequencing but were not fully captured in the session-pack documentation.

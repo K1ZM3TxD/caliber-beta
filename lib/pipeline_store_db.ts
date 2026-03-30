@@ -293,3 +293,45 @@ export async function migrateSessionEntriesToUser(
   }
   return migrated;
 }
+
+// ── Batch stage lookup (for /jobs ready-list enrichment) ──────
+
+/**
+ * Batch-lookup pipeline stages for a set of source URLs.
+ * Returns a Map from normalized URL → PipelineStage.
+ * Archived entries are excluded.
+ */
+export async function pipelineStagesForUser(
+  userId: string,
+): Promise<Map<string, PipelineStage>> {
+  const rows = await prisma.pipelineEntry.findMany({
+    where: { userId },
+    select: { jobUrl: true, stage: true },
+  });
+  const map = new Map<string, PipelineStage>();
+  for (const row of rows) {
+    const stage = row.stage as PipelineStage;
+    if (stage === "archived") continue;
+    map.set(normalizeJobUrl(row.jobUrl), stage);
+  }
+  return map;
+}
+
+/**
+ * Batch-lookup pipeline stages for a session's pipeline entries.
+ */
+export async function pipelineStagesForSession(
+  sessionId: string,
+): Promise<Map<string, PipelineStage>> {
+  const rows = await prisma.pipelineEntry.findMany({
+    where: { sessionId },
+    select: { jobUrl: true, stage: true },
+  });
+  const map = new Map<string, PipelineStage>();
+  for (const row of rows) {
+    const stage = row.stage as PipelineStage;
+    if (stage === "archived") continue;
+    map.set(normalizeJobUrl(row.jobUrl), stage);
+  }
+  return map;
+}

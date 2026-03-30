@@ -4,6 +4,10 @@
 
 ## Project Status (2026-03-14, Beta Gate Resequenced)
 
+- **Session decision — 2026-03-30 (/jobs Ready-List Improvements):**
+  - `/jobs` upgraded from flat scored-jobs history to a practical ready-list surface using canonical inventory and per-user cache data. Eight improvements shipped: (1) Pipeline state badges on job cards (Saved/Tailored/Applied/Interviewing/Offer) via batch lookup in `pipeline_store_db.ts`. (2) URL-only ingest mode for supported ATS providers. (3) Stretch factors shown on strong-match cards. (4) Web platform filter pill. (5) Better freshness display (month+day for >7d items). (6) Score tier badges replacing plain text. (7) Better empty state with URL-only guidance. (8) Richer stats bar (saved count, avg score). No external crawling, no recommendation engine, no collaborative filtering — all data from existing canonical inventory and user cache.
+  - Files: `app/jobs/page.tsx`, `app/api/jobs/known/route.ts`, `lib/pipeline_store_db.ts`.
+
 - **Session decision — 2026-03-30 (Post-Cache Decision Consolidation + UX Artifact Removal):**
   - Seven categories of post-cache product/architecture decisions encoded across canonical session-pack docs. These decisions existed only in PM chat history and lacked durable documentation:
   - **(1) Score-speed-first priority:** Score speed is the first priority on the fit path; cache/telemetry must not block primary user-visible scoring. Detached writes only. Cosmetic fields must not justify blocking DB reads on the scoring path. Encoded in EXECUTION_CONTRACT.md and KERNEL.md.

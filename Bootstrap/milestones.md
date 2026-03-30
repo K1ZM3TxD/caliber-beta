@@ -47,6 +47,10 @@ BREAK + UPDATE — 2026-03-30 (Provider-Aware URL Ingestion)
 Provider-aware URL intake shipped. `POST /api/jobs/ingest` now supports two modes: Mode 1 (URL + pasted text, existing) and Mode 2 (URL only, provider-aware fetch). Provider detection (`lib/job_url_provider.ts`) classifies URLs into supported ATS (Greenhouse/Lever/Ashby/SmartRecruiters), restricted boards (LinkedIn/Indeed), or unknown. ATS fetch (`lib/job_url_fetch.ts`) routes to public APIs or JSON-LD extraction. Restricted boards fail immediately with user guidance. Unknown pages attempt JSON-LD extraction. Updated `lib/job_ingest_validation.ts` (extracted `validateIngestUrl`) and `app/api/jobs/ingest/route.ts` (dual-mode handler). 40 new tests pass (provider classification + fetch + JSON-LD extraction). Existing Mode 1 flow unchanged.
 NEXT: Observe real usage, then first structured job source (step 6).
 
+BREAK + UPDATE — 2026-03-30 (/jobs Ready-List Improvements)
+`/jobs` upgraded from flat history to a practical ready-list. Pipeline state badges (Saved/Tailored/Applied/Interviewing/Offer) on job cards via batch pipeline-stage lookup. URL-only ingest mode in the "Score a job" form (leverages provider-aware fetch for ATS URLs). Stretch factors shown on strong-match cards alongside fit reasons. Web platform filter pill. Better freshness display (month+day for older items). Score tier badges. Better empty state with URL-only guidance. Richer stats bar. Files: `app/jobs/page.tsx`, `app/api/jobs/known/route.ts`, `lib/pipeline_store_db.ts`. Existing tests: 373 pass, 3 pre-existing failures unchanged. DONE.
+NEXT: Observe real usage (step 4), then first structured job source (step 6).
+
 PHASE COMPLETION CRITERIA:
 - [ ] Real-user engagement on /jobs confirmed (≥1 job viewed or ingest-submitted per active session across first 50 post-beta sessions)
 - [x] Source-adapter interface defined, documented, and reviewed by PM (2026-03-30: `lib/job_source_adapter.ts` + `lib/job_source_adapters.ts`)
