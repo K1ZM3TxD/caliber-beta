@@ -424,28 +424,37 @@ export default function CalibrationPage() {
     { id: "analytical_investigative", label: "Analysis & Research", desc: "Data, investigation, strategy" },
     { id: "creative_ideation", label: "Creative & Ideation", desc: "Design, content, innovation" },
   ];
-  const [selectedPrimary, setSelectedPrimary] = useState<string | null>(null);
   const [selectedPreferred, setSelectedPreferred] = useState<string[]>([]);
   const [selectedAvoided, setSelectedAvoided] = useState<string[]>([]);
+  const [chipIndex, setChipIndex] = useState(0);
+  const chipsDone = chipIndex >= WORK_MODE_OPTIONS.length;
+
+  function advanceChip() {
+    setChipIndex(prev => prev + 1);
+  }
 
   function togglePreferred(id: string) {
-    if (id === selectedPrimary) return; // primary can't also be preferred
     setSelectedPreferred(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    // Remove from avoided if toggling to preferred
     setSelectedAvoided(prev => prev.filter(x => x !== id));
+    advanceChip();
   }
   function toggleAvoided(id: string) {
-    if (id === selectedPrimary) { setSelectedPrimary(null); } // unset primary if avoiding
     setSelectedAvoided(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    // Remove from preferred if toggling to avoided
     setSelectedPreferred(prev => prev.filter(x => x !== id));
+    advanceChip();
   }
-  function selectPrimary(id: string) {
-    if (selectedAvoided.includes(id)) return; // can't select avoided as primary
-    setSelectedPrimary(prev => prev === id ? null : id);
-    // Remove from preferred list since it's now primary
-    setSelectedPreferred(prev => prev.filter(x => x !== id));
+  function skipChip() {
+    advanceChip();
   }
+
+  // Auto-submit preferences when all chips have been reviewed
+  const chipsAutoSubmitted = useRef(false);
+  useEffect(() => {
+    if (chipsDone && !chipsAutoSubmitted.current && !busy) {
+      chipsAutoSubmitted.current = true;
+      submitWorkPreferences();
+    }
+  }, [chipsDone]);
 
   async function submitWorkPreferences() {
     const sessionId = String(session?.sessionId ?? "");
@@ -453,7 +462,6 @@ export default function CalibrationPage() {
     setError(null); setBusy(true);
     try {
       const prefs: any = {};
-      if (selectedPrimary) prefs.primaryMode = selectedPrimary;
       if (selectedPreferred.length > 0) prefs.preferredModes = selectedPreferred;
       if (selectedAvoided.length > 0) prefs.avoidedModes = selectedAvoided;
       const s = await postEvent({ type: "SET_WORK_PREFERENCES", sessionId, workPreferences: prefs } as any);
@@ -571,6 +579,7 @@ export default function CalibrationPage() {
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
+  const [chipHeading, chipHeadingDone] = useTypewriter(step === "WORK_PREFERENCES" ? "What kind of work do you want more of?" : "");
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
       ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
@@ -948,108 +957,106 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* WORK_PREFERENCES */}
             {step === "WORK_PREFERENCES" ? (
-              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
+              <div className="w-full max-w-[620px]">
                 <div className="mt-8 cb-headline text-center">
-                  What kind of work do you want more of?
+                  {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
                 </div>
-                <p className="mt-3 text-sm text-center" style={{ color: "rgba(161,161,170,0.65)" }}>
-                  Tap to select your primary focus. You can also mark modes to prefer or avoid.
-                </p>
 
-                <div className="mt-8 flex flex-col gap-3">
-                  {WORK_MODE_OPTIONS.map(mode => {
-                    const isPrimary = selectedPrimary === mode.id;
+                <div className="mt-8 overflow-hidden" style={{ opacity: chipHeadingDone ? 1 : 0, pointerEvents: chipHeadingDone ? "auto" : "none", transition: "opacity 0.5s ease", minHeight: "150px" }}>
+                  {!chipsDone && (() => {
+                    const mode = WORK_MODE_OPTIONS[chipIndex];
+                    if (!mode) return null;
                     const isPreferred = selectedPreferred.includes(mode.id);
                     const isAvoided = selectedAvoided.includes(mode.id);
                     return (
+                      <div key={mode.id}>
                       <div
-                        key={mode.id}
-                        className="rounded-lg px-4 py-3 transition-all duration-150 cursor-pointer select-none"
+                        className="rounded-xl px-6 py-6 select-none cb-chip-enter"
                         style={{
-                          backgroundColor: isPrimary ? "rgba(74,222,128,0.08)" : isPreferred ? "rgba(74,222,128,0.03)" : isAvoided ? "rgba(239,68,68,0.04)" : "rgba(255,255,255,0.025)",
-                          border: isPrimary ? "1px solid rgba(74,222,128,0.45)" : isPreferred ? "1px solid rgba(74,222,128,0.20)" : isAvoided ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(255,255,255,0.06)",
+                          backgroundColor: isPreferred ? "rgba(74,222,128,0.07)" : isAvoided ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.07)",
+                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.55)" : isAvoided ? "1.5px solid rgba(239,68,68,0.50)" : "1.5px solid rgba(255,255,255,0.14)",
+                          boxShadow: isPreferred
+                            ? "0 0 0 1px rgba(74,222,128,0.10), 0 2px 16px rgba(0,0,0,0.25)"
+                            : isAvoided
+                            ? "0 0 0 1px rgba(239,68,68,0.08), 0 2px 16px rgba(0,0,0,0.25)"
+                            : "0 0 0 1px rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)",
                         }}
-                        onClick={() => selectPrimary(mode.id)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              {isPrimary && <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>}
-                              <span className="text-sm font-medium" style={{ color: isPrimary ? "#4ADE80" : isAvoided ? "rgba(239,68,68,0.7)" : "rgba(237,237,237,0.78)" }}>{mode.label}</span>
-                            </div>
-                            <p className="text-xs mt-0.5" style={{ color: "rgba(161,161,170,0.50)" }}>{mode.desc}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 ml-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => togglePreferred(mode.id)}
-                              title="Prefer"
-                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
-                              style={{
-                                backgroundColor: isPreferred ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)",
-                                color: isPreferred ? "#4ADE80" : "rgba(161,161,170,0.45)",
-                                border: isPreferred ? "1px solid rgba(74,222,128,0.30)" : "1px solid rgba(255,255,255,0.06)",
-                                cursor: isPrimary ? "not-allowed" : "pointer",
-                                opacity: isPrimary ? 0.3 : 1,
-                              }}
-                              disabled={isPrimary}
-                            >
-                              +
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleAvoided(mode.id)}
-                              title="Avoid"
-                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
-                              style={{
-                                backgroundColor: isAvoided ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.04)",
-                                color: isAvoided ? "#EF4444" : "rgba(161,161,170,0.45)",
-                                border: isAvoided ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(255,255,255,0.06)",
-                              }}
-                            >
-                              &minus;
-                            </button>
-                          </div>
+                        <div className="text-center mb-4">
+                          <span className="text-lg font-semibold" style={{ color: "rgba(237,237,237,0.9)", letterSpacing: "0.06em" }}>{mode.label}</span>
+                          <p className="text-sm mt-1" style={{ color: "rgba(161,161,170,0.60)", letterSpacing: "0.04em" }}>{mode.desc}</p>
+                        </div>
+                        <div className="flex items-center justify-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => togglePreferred(mode.id)}
+                            title="Want more"
+                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.10)",
+                              color: isPreferred ? "#4ADE80" : "rgba(200,200,210,0.7)",
+                              border: isPreferred ? "2px solid rgba(74,222,128,0.5)" : "2px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => skipChip()}
+                            title="Neutral"
+                            className="rounded-lg px-4 h-10 text-xs transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: "transparent",
+                              color: "rgba(161,161,170,0.65)",
+                              border: "1px solid rgba(255,255,255,0.14)",
+                            }}
+                          >
+                            Skip
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAvoided(mode.id)}
+                            title="Want less"
+                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: isAvoided ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.10)",
+                              color: isAvoided ? "#EF4444" : "rgba(200,200,210,0.7)",
+                              border: isAvoided ? "2px solid rgba(239,68,68,0.45)" : "2px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            &minus;
+                          </button>
                         </div>
                       </div>
+                      </div>
                     );
-                  })}
+                  })()}
+
+                  {/* Progress dots */}
+                  {!chipsDone && (
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      {WORK_MODE_OPTIONS.map((_, i) => (
+                        <div
+                          key={i}
+                          className="rounded-full"
+                          style={{
+                            width: 7, height: 7,
+                            backgroundColor: i < chipIndex ? "rgba(74,222,128,0.5)"
+                              : i === chipIndex ? "rgba(237,237,237,0.6)"
+                              : "rgba(255,255,255,0.12)",
+                            transition: "background-color 0.3s",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Selection summary */}
-                {(selectedPrimary || selectedPreferred.length > 0 || selectedAvoided.length > 0) && (
-                  <div className="mt-4 text-xs text-center" style={{ color: "rgba(161,161,170,0.50)" }}>
-                    {selectedPrimary && <span style={{ color: "rgba(74,222,128,0.65)" }}>Primary: {WORK_MODE_OPTIONS.find(m => m.id === selectedPrimary)?.label}</span>}
-                    {selectedPreferred.length > 0 && <span className="ml-3">Also open to: {selectedPreferred.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
-                    {selectedAvoided.length > 0 && <span className="ml-3" style={{ color: "rgba(239,68,68,0.55)" }}>Avoiding: {selectedAvoided.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
+                {chipsDone && (
+                  <div className="mt-8 flex items-center justify-center" style={{ animation: "fadeIn 0.4s ease" }}>
+                    <Spinner /><span className="ml-2" style={{ color: "rgba(161,161,170,0.6)" }}>Saving…</span>
                   </div>
                 )}
-
-                <div className="mt-8 flex items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={submitWorkPreferences}
-                    disabled={!selectedPrimary || busy}
-                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none"
-                    style={{
-                      backgroundColor: !selectedPrimary || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
-                      color: !selectedPrimary || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: !selectedPrimary || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
-                      cursor: !selectedPrimary || busy ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {busy ? <><Spinner /><span className="ml-2">Saving…</span></> : "Continue"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={skipWorkPreferences}
-                    disabled={busy}
-                    className="text-xs transition-colors duration-200"
-                    style={{ color: "rgba(207,207,207,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
-                  >
-                    Skip
-                  </button>
-                </div>
               </div>
             ) : null}
 
