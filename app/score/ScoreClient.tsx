@@ -104,17 +104,7 @@ export default function ScoreClient() {
         position: "relative",
       }}
     >
-      {/* Ambient glow */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 70% 50% at 50% 35%, rgba(74,222,128,0.06) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
-          zIndex: 0,
-          pointerEvents: "none",
-        }}
-      />
+
 
       <div
         style={{

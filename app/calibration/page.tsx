@@ -1,10 +1,8 @@
 "use client";
 // app/calibration/page.tsx
 
-import React, { Suspense, useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { CALIBRATION_PROMPTS } from "@/lib/calibration_prompts";
 import CaliberHeader from "../components/caliber_header";
 import ExtensionInstallBlock from "../components/ExtensionInstallBlock";
@@ -15,12 +13,10 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boo
   const [typed, setTyped] = useState("");
   useEffect(() => {
     let i = 0;
-    let cancelled = false;
     setTyped("");
-    if (!text || !startWhen) return () => { cancelled = true; };
+    if (!text || !startWhen) return;
     const timeout = setTimeout(() => {
       const step = () => {
-        if (cancelled) return;
         i++;
         setTyped(text.slice(0, i));
         if (i < text.length) {
@@ -32,7 +28,7 @@ function useTypewriter(text: string, msPerChar: number = TYPE_MS, startWhen: boo
       };
       step();
     }, START_DELAY_MS);
-    return () => { cancelled = true; clearTimeout(timeout); };
+    return () => { clearTimeout(timeout); };
   }, [text, msPerChar, startWhen]);
   return [typed, typed.length > 0 && typed === text];
 }
@@ -224,19 +220,12 @@ async function uploadResume(sessionId: string, file: File): Promise<AnySession> 
   return json.session;
 }
 
-function displayError(e: any): string | null {
+function displayError(e: any): string {
   if (!e) return "Unknown error";
-  if (typeof e === "string") {
-    // Internal state machine rejection — transient, polling handles recovery silently
-    if (e.includes("INVALID_EVENT_FOR_STATE")) return null;
-    return e;
-  }
-  const msg: string =
-    e instanceof Error ? (e.message || "Error") :
-    typeof e?.message === "string" ? e.message :
-    (() => { try { return JSON.stringify(e); } catch { return "Unknown error"; } })();
-  if (msg.includes("INVALID_EVENT_FOR_STATE")) return null;
-  return msg;
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message || "Error";
+  if (typeof e?.message === "string") return e.message;
+  try { return JSON.stringify(e); } catch { return "Unknown error"; }
 }
 
 /** Truncate text to at most N sentences. */
@@ -249,25 +238,6 @@ function truncateToSentences(text: string, n: number): string {
 }
 
 export default function CalibrationPage() {
-  return (
-    <Suspense>
-      <CalibrationPageInner />
-    </Suspense>
-  );
-}
-
-function CalibrationPageInner() {
-    // Signed-in users go straight to saved jobs — no re-calibration needed
-    const { data: authSession, status: authStatus } = useSession();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const directNav = searchParams?.get("direct") === "1";
-    useEffect(() => {
-      if (!directNav && authStatus === "authenticated" && authSession?.user) {
-        router.replace("/pipeline");
-      }
-    }, [authStatus, authSession, router, directNav]);
-
     // For TITLES step: track which title row was copied
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
     const [whyFitsOpen, setWhyFitsOpen] = useState(false);
@@ -371,9 +341,6 @@ function CalibrationPageInner() {
   }, []);
   const promptIndex = useMemo(() => getPromptIndexFromState(session?.state), [session?.state]);
   const hasAnswer = useMemo(() => answerText.trim().length > 0, [answerText]);
-  const [promptTransitioning, setPromptTransitioning] = useState(false);
-  const submitLockRef = useRef(false);
-  const resumeSubmitLockRef = useRef(false);
   function openFilePicker() { fileInputRef.current?.click(); }
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) { setSelectedFile(e.target.files?.[0] ?? null); }
   async function begin() {
@@ -382,15 +349,13 @@ function CalibrationPageInner() {
       const s = await postEvent({ type: "CREATE_SESSION" });
       if (s?.sessionId) setCookie(COOKIE_NAME, s.sessionId);
       setSession(s); setSelectedFile(null); setAnswerText(""); setStep("RESUME");
-    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
+    } catch (e: any) { setError(displayError(e)); }
     finally { setBusy(false); }
   }
   async function submitResume() {
-    if (resumeSubmitLockRef.current) return;
     if (!selectedFile) return;
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) { setError("Missing sessionId (session not created). Click Begin Calibration again."); return; }
-    resumeSubmitLockRef.current = true;
     setError(null); setBusy(true); setResumeUploading(true);
     try {
       const s = await uploadResume(sessionId, selectedFile);
@@ -404,31 +369,23 @@ function CalibrationPageInner() {
         else setStep("PROCESSING");
       }
     } catch (e: any) {
-      const _msg = displayError(e); if (_msg !== null) setError(_msg);
+      setError(displayError(e));
       // Do NOT clear selectedFile; user can retry or pick another file
     } finally {
       setBusy(false); setResumeUploading(false);
-      resumeSubmitLockRef.current = false;
     }
   }
   async function submitAnswer() {
-    if (submitLockRef.current) return;
     const sessionId = String(session?.sessionId ?? "");
     if (!sessionId) { setError("Missing sessionId (session not created)."); return; }
     if (!hasAnswer) return;
-    submitLockRef.current = true;
-    setError(null); setBusy(true); setPromptTransitioning(true);
+    setError(null); setBusy(true);
     try {
-      const inClarifier = String(session?.state ?? "").endsWith("_CLARIFIER");
-      const eventType = inClarifier ? "SUBMIT_PROMPT_CLARIFIER_ANSWER" : "SUBMIT_PROMPT_ANSWER";
-      const s = await postEvent({ type: eventType, sessionId, answer: answerText.trim() });
-      setAnswerText("");
-      setSession(s);
+      const s = await postEvent({ type: "SUBMIT_PROMPT_ANSWER", sessionId, answer: answerText.trim() });
+      setSession(s); setAnswerText("");
       setStep(getStepFromState(s?.state, s));
-      // Brief hold so new typewriter starts before we un-freeze
-      await new Promise(r => setTimeout(r, 80));
-    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
-    finally { setBusy(false); setPromptTransitioning(false); submitLockRef.current = false; }
+    } catch (e: any) { setError(displayError(e)); }
+    finally { setBusy(false); }
   }
   async function advance(): Promise<AnySession> {
     const sessionId = String(session?.sessionId ?? "");
@@ -443,7 +400,7 @@ function CalibrationPageInner() {
       setStep(getStepFromState(s?.state, s));
       return s;
     } catch (e: any) {
-      const _msg = displayError(e); if (_msg !== null) setError(_msg);
+      setError(displayError(e));
       throw e;
     } finally {
       setBusy(false);
@@ -467,37 +424,28 @@ function CalibrationPageInner() {
     { id: "analytical_investigative", label: "Analysis & Research", desc: "Data, investigation, strategy" },
     { id: "creative_ideation", label: "Creative & Ideation", desc: "Design, content, innovation" },
   ];
+  const [selectedPrimary, setSelectedPrimary] = useState<string | null>(null);
   const [selectedPreferred, setSelectedPreferred] = useState<string[]>([]);
   const [selectedAvoided, setSelectedAvoided] = useState<string[]>([]);
-  const [chipIndex, setChipIndex] = useState(0);
-  const chipsDone = chipIndex >= WORK_MODE_OPTIONS.length;
-
-  function advanceChip() {
-    setChipIndex(prev => prev + 1);
-  }
 
   function togglePreferred(id: string) {
+    if (id === selectedPrimary) return; // primary can't also be preferred
     setSelectedPreferred(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    // Remove from avoided if toggling to preferred
     setSelectedAvoided(prev => prev.filter(x => x !== id));
-    advanceChip();
   }
   function toggleAvoided(id: string) {
+    if (id === selectedPrimary) { setSelectedPrimary(null); } // unset primary if avoiding
     setSelectedAvoided(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    // Remove from preferred if toggling to avoided
     setSelectedPreferred(prev => prev.filter(x => x !== id));
-    advanceChip();
   }
-  function skipChip() {
-    advanceChip();
+  function selectPrimary(id: string) {
+    if (selectedAvoided.includes(id)) return; // can't select avoided as primary
+    setSelectedPrimary(prev => prev === id ? null : id);
+    // Remove from preferred list since it's now primary
+    setSelectedPreferred(prev => prev.filter(x => x !== id));
   }
-
-  // Auto-submit preferences when all chips have been reviewed
-  const chipsAutoSubmitted = useRef(false);
-  useEffect(() => {
-    if (chipsDone && !chipsAutoSubmitted.current && !busy) {
-      chipsAutoSubmitted.current = true;
-      submitWorkPreferences();
-    }
-  }, [chipsDone]);
 
   async function submitWorkPreferences() {
     const sessionId = String(session?.sessionId ?? "");
@@ -505,12 +453,13 @@ function CalibrationPageInner() {
     setError(null); setBusy(true);
     try {
       const prefs: any = {};
+      if (selectedPrimary) prefs.primaryMode = selectedPrimary;
       if (selectedPreferred.length > 0) prefs.preferredModes = selectedPreferred;
       if (selectedAvoided.length > 0) prefs.avoidedModes = selectedAvoided;
       const s = await postEvent({ type: "SET_WORK_PREFERENCES", sessionId, workPreferences: prefs } as any);
       setSession(s);
       setStep(getStepFromState(s?.state, s));
-    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
+    } catch (e: any) { setError(displayError(e)); }
     finally { setBusy(false); }
   }
 
@@ -522,7 +471,7 @@ function CalibrationPageInner() {
       const s = await postEvent({ type: "ADVANCE", sessionId });
       setSession(s);
       setStep(getStepFromState(s?.state, s));
-    } catch (e: any) { const _msg = displayError(e); if (_msg !== null) setError(_msg); }
+    } catch (e: any) { setError(displayError(e)); }
     finally { setBusy(false); }
   }
     // Titles UI state
@@ -556,7 +505,7 @@ function CalibrationPageInner() {
         setSession(s);
         setStep("TITLES"); // Stay on TITLES after TITLE_FEEDBACK
       } catch (e: any) {
-        const _msg = displayError(e); if (_msg !== null) setError(_msg);
+        setError(displayError(e));
       } finally { setBusy(false); }
     }
 
@@ -603,10 +552,10 @@ function CalibrationPageInner() {
             setJobResult(buildJobResult(s));
           }
         } else {
-          setError(`Analysis did not reach results (state: ${String(s?.state)}).`);
+          setError(`Pipeline did not reach results (state: ${String(s?.state)}).`);
         }
       } catch (e: any) {
-        const _msg = displayError(e); if (_msg !== null) setError(_msg);
+        setError(displayError(e));
       } finally { setJobBusy(false); }
     }
   const canContinueResume = !!selectedFile && !busy;
@@ -622,12 +571,9 @@ function CalibrationPageInner() {
   const [caliberTyped, caliberDone] = useTypewriter(step === "LANDING" ? "Caliber" : "", 285);
   const [taglineAllWords, taglineRevealCount, taglineDone] = useWordReveal(step === "LANDING" ? tagline : "", TYPE_MS, caliberDone);
   const [resumeSubtext, resumeDone] = useTypewriter(step === "RESUME" ? "Your experience holds the pattern." : "");
-  const [chipHeading, chipHeadingDone] = useTypewriter(step === "WORK_PREFERENCES" ? "What kind of work do you want more of?" : "");
-  const inClarifierState = String(session?.state ?? "").endsWith("_CLARIFIER");
-  const clarifierQuestion = promptIndex ? (session as any)?.prompts?.[promptIndex]?.clarifier?.question : null;
   const [promptText, promptDone] = useTypewriter(
     step === "PROMPT" && (promptIndex === 1 || promptIndex === 2 || promptIndex === 3 || promptIndex === 4 || promptIndex === 5)
-      ? (inClarifierState && clarifierQuestion ? clarifierQuestion : CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5])
+      ? CALIBRATION_PROMPTS[promptIndex as 1 | 2 | 3 | 4 | 5]
       : ""
   );
 
@@ -777,7 +723,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         if (!sessionId) { inFlightRef.current = false; return; }
         const s = await postEvent({ type: "ADVANCE", sessionId });
         setSession(s);
-        setError(null); // clear any transient error from a previous failed poll attempt
         const next = getStepFromState(s?.state, s);
         if (next !== "PROCESSING") deferOrSetStep(next);
       } catch (err: any) {
@@ -785,7 +730,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
         if (err?.message?.includes("JOB_REQUIRED") || err?.code === "JOB_REQUIRED") {
           deferOrSetStep("TITLES");
         } else {
-          const _msg = displayError(err); if (_msg !== null) setError(_msg);
+          setError(displayError(err));
         }
       } finally {
         inFlightRef.current = false;
@@ -801,11 +746,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
       const target = deferredStepRef.current;
       deferredStepRef.current = null;
       setBackendDone(false);
-      if (target) {
-        // Belt-and-suspenders: clear any residual error before entering the terminal screen
-        if (target === "TITLES") setError(null);
-        setStep(target);
-      }
+      if (target) setStep(target);
     }, 600); // brief pause on "Complete" before transition
     return () => clearTimeout(t);
   }, [staged.complete]);
@@ -827,38 +768,30 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
   );
 
   return (
-    <div className="fixed inset-0 overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
-      {/* Full-page green depth layer — creates ambient separation behind all content */}
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background: "radial-gradient(ellipse 80% 60% at 50% 45%, rgba(74,222,128,0.09) 0%, rgba(74,222,128,0.05) 35%, rgba(74,222,128,0.02) 60%, transparent 85%)",
-          zIndex: 0,
-        }}
-      />
-      {/* Centering wrapper: min-h-full ensures vertical centering when content is shorter
-         than the viewport; grows naturally when content overflows so scrolling works. */}
-      <div className={`min-h-full flex flex-col items-center ${step === "TITLES" ? "" : "justify-center"}`}>
-      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${step === "TITLES" ? "pt-[3vh] sm:pt-[5vh]" : ""}`}>
+    <div className="fixed inset-0 flex flex-col items-center overflow-y-auto" style={{ background: '#050805', scrollbarGutter: 'stable' }}>
+
+      {/* Layout rule: flex-col + items-center on outer = horizontal centering.
+         LANDING and RESUME use my-auto to vertically center within the viewport.
+         Content-heavy steps use fixed top padding.
+         No-header pages (TITLES) use pt-[10vh] — no dead space. */}
+      <div className={`relative z-10 w-full max-w-[760px] px-4 sm:px-6 pb-16 ${(step === "LANDING" || step === "RESUME") ? "my-auto" : step === "TITLES" ? "pt-[6vh] sm:pt-[10vh]" : step === "WORK_PREFERENCES" ? "my-auto" : "pt-[14vh] sm:pt-[22vh]"}`}>
         <style>{`
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes cb-title-enter { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
           @keyframes cb-fade-up { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-          .cb-title-card:hover { border-color: rgba(74,222,128,0.30) !important; background-color: rgba(255,255,255,0.11) !important; }
-          .cb-depth-layer { position: relative; }
-          .cb-depth-layer > * { position: relative; z-index: 1; }
+          .cb-title-card:hover { border-color: rgba(255,255,255,0.10) !important; background-color: rgba(255,255,255,0.04) !important; }
           .cb-dropzone { transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s; }
           .cb-dropzone:hover { border-color: rgba(74,222,128,0.50) !important; background-color: rgba(255,255,255,0.02) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
-          .cb-textarea:focus { border-color: rgba(74,222,128,0.55) !important; box-shadow: 0 0 0 1.5px rgba(74,222,128,0.22), 0 0 24px rgba(74,222,128,0.08) !important; }
-          .cb-textarea::placeholder { color: rgba(161,161,170,0.65); }
+          .cb-textarea:focus { border-color: rgba(74,222,128,0.50) !important; box-shadow: 0 0 0 1px rgba(74,222,128,0.18), 0 0 20px rgba(74,222,128,0.06) !important; }
+          .cb-textarea::placeholder { color: rgba(161,161,170,0.50); }
         `}</style>
         {/* Hero content */}
         <div className="relative" style={{ color: "#F2F2F2" }}>
           <div className="w-full flex flex-col items-center text-center">
             {/* Zone 1 — Brand / Status field */}
-            <div style={{ minHeight: "3.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              {step === "LANDING" ? (
-                <CaliberHeader typedText={caliberTyped} showCursor />
+            <div style={{ minHeight: step === "TITLES" ? "auto" : "5.5em", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              {step !== "TITLES" && step !== "WORK_PREFERENCES" ? (
+                <CaliberHeader typedText={step === "LANDING" ? caliberTyped : undefined} showCursor={step === "LANDING"} />
               ) : null}
               {/* Fixed-height error area */}
               <div style={{ minHeight: step === "TITLES" ? "0.5em" : "2.2em" }}>
@@ -873,15 +806,15 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* Shared hero content zone for LANDING and RESUME. */}
             {(step === "LANDING" || step === "RESUME") ? (
-              <div className="w-full flex flex-col items-center">
+              <div className="w-full flex flex-col items-center" style={{ minHeight: "400px" }}>
 
             {/* LANDING */}
             {step === "LANDING" ? (
               <div className="w-full" style={{ maxWidth: 640 }}>
                 <div style={{ minHeight: "3em" }} className="mt-8">
-                  <p className="cb-headline">{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ opacity: i < taglineRevealCount ? undefined : 0 }}>{w}{i < taglineAllWords.length - 1 ? ' ' : ''}</span>) : tagline}</p>
+                  <p className="cb-headline">{step === "LANDING" ? taglineAllWords.map((w, i) => <span key={i} className={i < taglineRevealCount ? 'cb-word-reveal' : ''} style={{ marginRight: '0.30em', opacity: i < taglineRevealCount ? undefined : 0 }}>{w}</span>) : tagline}</p>
                 </div>
-                <div className="mt-8" style={{ opacity: taglineDone ? 1 : 0, pointerEvents: taglineDone ? "auto" : "none", transition: "opacity 0.5s ease 400ms" }}>
+                <div className="mt-8">
                   <button
                     type="button"
                     onClick={begin}
@@ -891,9 +824,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       fontSize: '15px',
                       fontWeight: 600,
                       padding: '14px 28px',
-                      backgroundColor: busy ? "rgba(58,180,100,0.10)" : "rgba(74,222,128,0.10)",
+                      backgroundColor: busy ? "rgba(58,180,100,0.08)" : "rgba(74,222,128,0.06)",
                       color: busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
-                      border: busy ? "1px solid rgba(74,222,128,0.28)" : "1px solid rgba(74,222,128,0.55)",
+                      border: busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
                       cursor: busy ? "not-allowed" : "pointer",
                       boxShadow: "none",
                     }}
@@ -916,8 +849,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     <div
                       className="rounded-md transition-opacity cb-dropzone"
                       style={{
-                        border: "1px dashed rgba(74,222,128,0.30)",
-                        backgroundColor: selectedFile ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.025)",
+                        border: "1px dashed rgba(255,255,255,0.08)",
+                        backgroundColor: selectedFile ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
                         height: 110,
                         opacity: resumeDone ? 1 : 0,
                         pointerEvents: resumeDone ? "auto" : "none",
@@ -926,13 +859,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative"
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (busy) return;
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) setSelectedFile(file);
                       }}
                     >
                       <input
@@ -952,9 +878,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                             disabled={busy}
                             className="inline-flex items-center justify-center rounded-md px-3 py-1 text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                             style={{
-                              backgroundColor: "rgba(255,255,255,0.10)",
+                              backgroundColor: "rgba(255,255,255,0.08)",
                               color: "#F2F2F2",
-                              border: "1px solid rgba(255,255,255,0.18)",
+                              border: "1px solid rgba(255,255,255,0.12)",
                               cursor: busy ? "not-allowed" : "pointer",
                             }}
                           >
@@ -984,7 +910,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     </div>
                   </div>
                 </div>
-                <div className="mt-5 flex justify-center" style={{ opacity: selectedFile ? 1 : 0, pointerEvents: selectedFile ? "auto" : "none", transition: "opacity 0.4s ease" }}>
+                <div className="mt-5 flex justify-center">
                   <button
                     type="button"
                     onClick={submitResume}
@@ -992,9 +918,9 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                     className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{
                       transitionDuration: "200ms",
-                      backgroundColor: canContinueResume ? "rgba(74,222,128,0.10)" : "rgba(74,222,128,0.05)",
+                      backgroundColor: canContinueResume ? "rgba(74,222,128,0.06)" : "rgba(74,222,128,0.03)",
                       color: canContinueResume ? "#4ADE80" : "rgba(74,222,128,0.45)",
-                      border: canContinueResume ? "1px solid rgba(74,222,128,0.55)" : "1px solid rgba(74,222,128,0.28)",
+                      border: canContinueResume ? "1px solid rgba(74,222,128,0.45)" : "1px solid rgba(74,222,128,0.20)",
                       cursor: canContinueResume ? "pointer" : "not-allowed",
                       boxShadow: "none",
                       minWidth: 140
@@ -1022,113 +948,115 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
             {/* WORK_PREFERENCES */}
             {step === "WORK_PREFERENCES" ? (
-              <div className="w-full max-w-[620px]">
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div className="mt-8 cb-headline text-center">
-                  {chipHeading}<span className="cb-blink" style={{ opacity: chipHeadingDone ? 0 : 1 }}>|</span>
+                  What kind of work do you want more of?
                 </div>
+                <p className="mt-3 text-sm text-center" style={{ color: "rgba(161,161,170,0.65)" }}>
+                  Tap to select your primary focus. You can also mark modes to prefer or avoid.
+                </p>
 
-                <div className="mt-8 overflow-hidden" style={{ opacity: chipHeadingDone ? 1 : 0, pointerEvents: chipHeadingDone ? "auto" : "none", transition: "opacity 0.5s ease", minHeight: "150px" }}>
-                  {!chipsDone && (() => {
-                    const mode = WORK_MODE_OPTIONS[chipIndex];
-                    if (!mode) return null;
+                <div className="mt-8 flex flex-col gap-3">
+                  {WORK_MODE_OPTIONS.map(mode => {
+                    const isPrimary = selectedPrimary === mode.id;
                     const isPreferred = selectedPreferred.includes(mode.id);
                     const isAvoided = selectedAvoided.includes(mode.id);
                     return (
-                      <div key={mode.id} className="cb-depth-layer">
                       <div
-                        className="rounded-xl px-6 py-6 select-none cb-chip-enter"
+                        key={mode.id}
+                        className="rounded-lg px-4 py-3 transition-all duration-150 cursor-pointer select-none"
                         style={{
-                          backgroundColor: isPreferred ? "rgba(74,222,128,0.07)" : isAvoided ? "rgba(239,68,68,0.05)" : "rgba(255,255,255,0.07)",
-                          border: isPreferred ? "1.5px solid rgba(74,222,128,0.55)" : isAvoided ? "1.5px solid rgba(239,68,68,0.50)" : "1.5px solid rgba(255,255,255,0.14)",
-                          boxShadow: isPreferred
-                            ? "0 0 0 1px rgba(74,222,128,0.10), 0 2px 16px rgba(0,0,0,0.25)"
-                            : isAvoided
-                            ? "0 0 0 1px rgba(239,68,68,0.08), 0 2px 16px rgba(0,0,0,0.25)"
-                            : "0 0 0 1px rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)",
+                          backgroundColor: isPrimary ? "rgba(74,222,128,0.08)" : isPreferred ? "rgba(74,222,128,0.03)" : isAvoided ? "rgba(239,68,68,0.04)" : "rgba(255,255,255,0.025)",
+                          border: isPrimary ? "1px solid rgba(74,222,128,0.45)" : isPreferred ? "1px solid rgba(74,222,128,0.20)" : isAvoided ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(255,255,255,0.06)",
                         }}
+                        onClick={() => selectPrimary(mode.id)}
                       >
-                        <div className="text-center mb-4">
-                          <span className="text-lg font-semibold" style={{ color: "rgba(237,237,237,0.9)", letterSpacing: "0.06em" }}>{mode.label}</span>
-                          <p className="text-sm mt-1" style={{ color: "rgba(161,161,170,0.60)", letterSpacing: "0.04em" }}>{mode.desc}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              {isPrimary && <span style={{ color: "#4ADE80", fontSize: "0.85rem" }}>{"\u2713"}</span>}
+                              <span className="text-sm font-medium" style={{ color: isPrimary ? "#4ADE80" : isAvoided ? "rgba(239,68,68,0.7)" : "rgba(237,237,237,0.78)" }}>{mode.label}</span>
+                            </div>
+                            <p className="text-xs mt-0.5" style={{ color: "rgba(161,161,170,0.50)" }}>{mode.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => togglePreferred(mode.id)}
+                              title="Prefer"
+                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
+                              style={{
+                                backgroundColor: isPreferred ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)",
+                                color: isPreferred ? "#4ADE80" : "rgba(161,161,170,0.45)",
+                                border: isPreferred ? "1px solid rgba(74,222,128,0.30)" : "1px solid rgba(255,255,255,0.06)",
+                                cursor: isPrimary ? "not-allowed" : "pointer",
+                                opacity: isPrimary ? 0.3 : 1,
+                              }}
+                              disabled={isPrimary}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleAvoided(mode.id)}
+                              title="Avoid"
+                              className="rounded-md px-2 py-1 text-[11px] transition-colors"
+                              style={{
+                                backgroundColor: isAvoided ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.04)",
+                                color: isAvoided ? "#EF4444" : "rgba(161,161,170,0.45)",
+                                border: isAvoided ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(255,255,255,0.06)",
+                              }}
+                            >
+                              &minus;
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-center gap-4">
-                          <button
-                            type="button"
-                            onClick={() => togglePreferred(mode.id)}
-                            title="Want more"
-                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
-                            style={{
-                              backgroundColor: isPreferred ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.10)",
-                              color: isPreferred ? "#4ADE80" : "rgba(200,200,210,0.7)",
-                              border: isPreferred ? "2px solid rgba(74,222,128,0.5)" : "2px solid rgba(255,255,255,0.22)",
-                            }}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => skipChip()}
-                            title="Neutral"
-                            className="rounded-lg px-4 h-10 text-xs transition-colors flex items-center justify-center"
-                            style={{
-                              backgroundColor: "transparent",
-                              color: "rgba(161,161,170,0.65)",
-                              border: "1px solid rgba(255,255,255,0.14)",
-                            }}
-                          >
-                            Skip
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleAvoided(mode.id)}
-                            title="Want less"
-                            className="rounded-lg w-14 h-14 text-2xl font-bold transition-colors flex items-center justify-center"
-                            style={{
-                              backgroundColor: isAvoided ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.10)",
-                              color: isAvoided ? "#EF4444" : "rgba(200,200,210,0.7)",
-                              border: isAvoided ? "2px solid rgba(239,68,68,0.45)" : "2px solid rgba(255,255,255,0.22)",
-                            }}
-                          >
-                            &minus;
-                          </button>
-                        </div>
-                      </div>
                       </div>
                     );
-                  })()}
-
-                  {/* Progress dots */}
-                  {!chipsDone && (
-                    <div className="flex items-center justify-center gap-2 mt-4">
-                      {WORK_MODE_OPTIONS.map((_, i) => (
-                        <div
-                          key={i}
-                          className="rounded-full"
-                          style={{
-                            width: 7, height: 7,
-                            backgroundColor: i < chipIndex ? "rgba(74,222,128,0.5)"
-                              : i === chipIndex ? "rgba(237,237,237,0.6)"
-                              : "rgba(255,255,255,0.12)",
-                            transition: "background-color 0.3s",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  })}
                 </div>
 
-                {chipsDone && (
-                  <div className="mt-8 flex items-center justify-center" style={{ animation: "fadeIn 0.4s ease" }}>
-                    <Spinner /><span className="ml-2" style={{ color: "rgba(161,161,170,0.6)" }}>Saving…</span>
+                {/* Selection summary */}
+                {(selectedPrimary || selectedPreferred.length > 0 || selectedAvoided.length > 0) && (
+                  <div className="mt-4 text-xs text-center" style={{ color: "rgba(161,161,170,0.50)" }}>
+                    {selectedPrimary && <span style={{ color: "rgba(74,222,128,0.65)" }}>Primary: {WORK_MODE_OPTIONS.find(m => m.id === selectedPrimary)?.label}</span>}
+                    {selectedPreferred.length > 0 && <span className="ml-3">Also open to: {selectedPreferred.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
+                    {selectedAvoided.length > 0 && <span className="ml-3" style={{ color: "rgba(239,68,68,0.55)" }}>Avoiding: {selectedAvoided.map(id => WORK_MODE_OPTIONS.find(m => m.id === id)?.label).join(", ")}</span>}
                   </div>
                 )}
+
+                <div className="mt-8 flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={submitWorkPreferences}
+                    disabled={!selectedPrimary || busy}
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none"
+                    style={{
+                      backgroundColor: !selectedPrimary || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
+                      color: !selectedPrimary || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
+                      border: !selectedPrimary || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
+                      cursor: !selectedPrimary || busy ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {busy ? <><Spinner /><span className="ml-2">Saving…</span></> : "Continue"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={skipWorkPreferences}
+                    disabled={busy}
+                    className="text-xs transition-colors duration-200"
+                    style={{ color: "rgba(207,207,207,0.4)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
+                  >
+                    Skip
+                  </button>
+                </div>
               </div>
             ) : null}
 
             {/* PROMPT */}
             {step === "PROMPT" ? (
-              <div className="w-full max-w-2xl">
-                {/* Prompt question — stays in centered flow */}
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
+                {/* Prompt question container — anchored top so second lines extend downward */}
                 <div style={{ minHeight: "3.2em" }} className="mt-8 cb-headline text-center">
                   {promptIndex == null ? (
                     <span style={{ color: "#CFCFCF", fontSize: "1.1em" }}>
@@ -1136,17 +1064,61 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                       <span className="ml-2">Loading…</span>
                     </span>
                   ) : (
-                    <span style={{ transition: "opacity 0.3s", opacity: promptTransitioning ? 0 : 1 }}>{promptText}</span>
+                    <span style={{ transition: "opacity 0.3s" }}>{promptText}</span>
                   )}
                 </div>
-                {/* Spacer so centered content doesn't hide behind the fixed input dock */}
-                <div style={{ height: "220px" }} />
+                {/* Remove "Prompt X of 5" line */}
+                <div className="mt-10">
+                  {promptIndex == null ? (
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 120 }}>
+                      <Spinner />
+                      <span className="ml-2">Loading…</span>
+                    </div>
+                  ) : (
+                    <textarea
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                      rows={6}
+                      className="w-full rounded-md px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
+                      style={{
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                        color: "#F2F2F2",
+                        border: "1px solid rgba(255,255,255,0.13)",
+                        boxShadow: "none",
+                        opacity: 1,
+                        fontSize: "1em",
+                        marginTop: "0.5em",
+                        outline: "none",
+                      }}
+                      placeholder="Type your response here…"
+                      disabled={busy}
+                    />
+                  )}
+                </div>
+                <div className="mt-7">
+                  <button
+                    type="button"
+                    onClick={submitAnswer}
+                    disabled={promptIndex == null || !hasAnswer || busy}
+                    className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm sm:text-base font-semibold transition-all ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2"
+                    style={{
+                      transitionDuration: "200ms",
+                      backgroundColor: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.03)" : "rgba(74,222,128,0.06)",
+                      color: promptIndex == null || !hasAnswer || busy ? "rgba(74,222,128,0.45)" : "#4ADE80",
+                      border: promptIndex == null || !hasAnswer || busy ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(74,222,128,0.45)",
+                      cursor: promptIndex == null || !hasAnswer || busy ? "not-allowed" : "pointer",
+                      boxShadow: "none",
+                    }}
+                  >
+                    Submit
+                  </button>
+                </div>
               </div>
             ) : null}
 
             {/* PROCESSING */}
             {step === "PROCESSING" ? (
-              <div className="w-full max-w-[620px]">
+              <div className="w-full max-w-[620px]" style={{ minHeight: "420px" }}>
                 <div className="text-base sm:text-lg leading-relaxed" style={{ color: "#CFCFCF" }}>
                   <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
                     <Spinner />
@@ -1274,7 +1246,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
             ) : null}
             {/* Fallback: never blank */}
             {!["LANDING","RESUME","WORK_PREFERENCES","PROMPT","PROCESSING","TITLES"].includes(step) ? (
-              <div className="w-full max-w-2xl">
+              <div className="w-full max-w-2xl" style={{ minHeight: "420px" }}>
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 32 }}>
                   <Spinner />
                   <span className="ml-2">Loading…</span>
@@ -1282,7 +1254,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-8 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); router.replace("/calibration?direct=1"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     style={{ backgroundColor: "rgba(255,255,255,0.06)", color: "#F2F2F2", border: "1px solid rgba(255,255,255,0.10)" }}
                   >
@@ -1338,7 +1310,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
               return (
               <div className="w-full max-w-3xl pb-8">
                 {/* Conclusive framing */}
-                <div className="mt-2 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
+                <div className="mt-8 flex flex-col items-center text-center mx-auto" style={{ maxWidth: 560 }}>
                   <div className="flex items-center gap-2 mb-3">
                     <span style={{ color: "#3AB464", fontSize: "0.85rem" }}>{"\u2713"}</span>
                     <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#666" }}>Calibration complete</span>
@@ -1358,13 +1330,13 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
 
                 {/* Hero title card — the payoff moment */}
                 {heroTitle ? (
-                  <div className="cb-depth-layer" style={{ marginTop: 32, animation: "cb-title-enter 0.35s ease-out 0.15s both" }}>
                   <div
-                    className="cb-title-card rounded-xl"
+                    className="cb-title-card rounded-2xl"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.09)",
-                      border: "1.5px solid rgba(255,255,255,0.18)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.35)",
+                      marginTop: 32,
+                      animation: "cb-title-enter 0.35s ease-out 0.15s both",
+                      backgroundColor: "rgba(255,255,255,0.015)",
+                      border: "1px solid rgba(74,222,128,0.18)",
                     }}
                   >
                     <div className="px-6 py-8 sm:px-8 sm:py-10 flex flex-col items-center text-center">
@@ -1392,13 +1364,19 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                         </div>
                       ) : null}
 
+                      {/* Bridge to next step */}
+                      <p className="mt-6 text-sm" style={{ color: "#888" }}>We&rsquo;ll use this to score real jobs as you browse LinkedIn.</p>
+
                       {/* Primary CTA — Extension download */}
-                      <div className="mt-6 w-full">
+                      <div className="mt-5 w-full">
                         <ExtensionInstallBlock calibratedTitle={heroTitle?.title ?? null} hideLinkedIn />
                       </div>
 
-                      {/* Secondary CTAs — job search */}
-                      <div className="mt-2 flex flex-row items-center justify-center gap-3">
+                      {/* Supporting CTA copy */}
+                      <p className="mt-2 text-[12px] leading-relaxed" style={{ color: "#666", maxWidth: 360 }}>See which jobs actually match this profile — Caliber scores every listing you open.</p>
+
+                      {/* Secondary CTA — LinkedIn search */}
+                      <div className="mt-5">
                         <a
                           href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(heroTitle.title)}`}
                           target="_blank"
@@ -1406,16 +1384,8 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                           className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
                           style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
                         >Search on LinkedIn</a>
-                        <a
-                          href={`https://www.indeed.com/jobs?q=${encodeURIComponent(heroTitle.title)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium transition-all duration-150 hover:brightness-110"
-                          style={{ background: "rgba(250,204,21,0.06)", color: "#FBBF24", border: "1px solid rgba(250,204,21,0.35)", textDecoration: "none" }}
-                        >Search on Indeed</a>
                       </div>
                     </div>
-                  </div>
                   </div>
                 ) : null}
 
@@ -1476,7 +1446,7 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
                 <div className="mt-4 flex justify-center">
                   <button
                     type="button"
-                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); router.replace("/calibration?direct=1"); }}
+                    onClick={() => { clearCookie(COOKIE_NAME); clearSessionBackup(); setSession(null); setSelectedFile(null); setAnswerText(""); setError(null); setStep("LANDING"); window.history.replaceState(null, "", "/calibration"); }}
                     className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-normal transition-colors duration-200 focus:outline-none"
                     style={{ backgroundColor: "transparent", color: "#555", border: "none", cursor: "pointer" }}
                   >
@@ -1491,54 +1461,6 @@ function FitAccordion({ jobResult }: { jobResult: { score: number; summary: stri
           </div>
         </div>
       </div>
-      </div>
-
-      {/* Fixed-bottom input dock for PROMPT step — anchored like ChatGPT */}
-      {step === "PROMPT" && promptIndex != null && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            background: "linear-gradient(to top, #050805 60%, rgba(5,8,5,0.95) 80%, transparent 100%)",
-            padding: "16px 16px 24px",
-            pointerEvents: "auto",
-          }}
-        >
-          <div className="w-full max-w-2xl mx-auto">
-            <div style={{ position: "relative" }}>
-              <textarea
-                value={answerText}
-                onChange={(e) => setAnswerText(e.target.value)}
-                rows={4}
-                className="w-full rounded-lg px-4 py-3 text-sm sm:text-base focus:outline-none transition-colors duration-200 cb-textarea"
-                style={{
-                  backgroundColor: answerText.trim().length > 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.08)",
-                  color: "#F2F2F2",
-                  border: answerText.trim().length > 0 ? "1px solid rgba(74,222,128,0.40)" : "1px solid rgba(74,222,128,0.25)",
-                  boxShadow: "none",
-                  fontSize: "1em",
-                  outline: "none",
-                  resize: "none",
-                  opacity: promptTransitioning ? 0 : 1,
-                  transition: "opacity 0.15s ease, border-color 0.2s ease, background-color 0.2s ease",
-                }}
-                placeholder="Type your response here… (press Enter to submit)"
-                disabled={busy}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && hasAnswer && !busy) {
-                    e.preventDefault();
-                    submitAnswer();
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

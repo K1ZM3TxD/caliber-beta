@@ -172,10 +172,6 @@ function TailorInner() {
   return (
     <div
       className="w-full max-w-[600px] mx-auto pt-[8vh] pb-8 px-4"
-      style={{
-        background:
-          "radial-gradient(ellipse 60% 35% at 50% 12%, rgba(74,222,128,0.045), transparent)",
-      }}
     >
       {/* ─── Loading ─── */}
       {status === "loading" && (

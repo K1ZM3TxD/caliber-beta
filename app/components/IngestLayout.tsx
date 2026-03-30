@@ -12,9 +12,8 @@ interface IngestLayoutProps {
 
 /**
  * Shared layout wrapper for all ingest/calibration screens.
- * Provides the cinematic banded lighting system:
+ * Provides:
  *   - Dark top band (~14vh, darker than base)
- *   - Ambient green glow centered behind the interaction surface
  *   - Content container with wordmark-locked top spacing (~20vh)
  */
 export default function IngestLayout({
@@ -27,26 +26,7 @@ export default function IngestLayout({
       className="fixed inset-0"
       style={{ backgroundColor: "#0a0a0a" }}
     >
-      {/* Atmospheric green wash — soft diffuse radial behind content zone */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 120% 65% at 50% 55%, rgba(74,222,128,0.07) 0%, rgba(74,222,128,0.02) 50%, transparent 80%)",
-        }}
-      />
-      {/* Hero atmosphere — green halo glow BEHIND the surface panel */}
-      {showHeroSurface && (
-        <div
-          className="absolute inset-x-0 pointer-events-none"
-          style={{
-            top: "14vh",
-            height: "75vh",
-            background:
-              "radial-gradient(ellipse 110% 65% at 50% 42%, rgba(74,222,128,0.14) 0%, rgba(74,222,128,0.06) 40%, rgba(74,222,128,0.015) 70%, transparent 100%)",
-          }}
-        />
-      )}
+
       {/* Top darkening — extended vignette keeps top 10% calm and dark */}
       <div
         className="absolute inset-x-0 top-0 pointer-events-none"
